@@ -11,6 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import Title from "../../components/Title";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
@@ -199,7 +200,10 @@ export default function UploadView() {
 
   return (
     <Box sx={{ p: 3, overflow: "auto", height: "100%" }} data-testid="upload-view">
-      <Title>{t("uploads.title")}</Title>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Title>{t("uploads.title")}</Title>
+        <HelpHint topic="uploads" size={16} />
+      </Box>
       <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary, mb: 2.5, maxWidth: 720 }}>
         {t("uploads.subtitle")}
       </Typography>

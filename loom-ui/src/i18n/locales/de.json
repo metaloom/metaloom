@@ -1,4 +1,27 @@
 {
+  "help": {
+    "open": "Dokumentation lesen: {{topic}}",
+    "topic": {
+      "chat": "Chat und KI-Agent",
+      "memory": "Agentengedächtnis",
+      "search": "Suche",
+      "uploads": "Uploads",
+      "detection": {
+        "faces": "Gesichtserkennung prüfen",
+        "results": "Modellergebnisse prüfen"
+      },
+      "workflow": {
+        "rating": "Bewerten und Verschlagworten per Tastatur",
+        "dedup": "Duplikate prüfen"
+      },
+      "pipeline": {
+        "editing": "Pipelines bearbeiten"
+      },
+      "admin": {
+        "acl": "Benutzer, Gruppen und Berechtigungen"
+      }
+    }
+  },
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",

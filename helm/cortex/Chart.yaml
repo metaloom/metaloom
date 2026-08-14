@@ -7,7 +7,12 @@ description: >-
   overridable, so this same chart deploys the stock worker or a custom node image.
 type: application
 # Chart version — bump on chart changes.
-version: 0.1.0
+#
+# 0.2.0 — the meta directory is now always mounted (an emptyDir when
+# meta.persistence is disabled). Previously it was left unmounted, which left the
+# image's root-owned /meta unwritable by the container's uid 1000 and made every
+# filesystem-source run fail while still reporting success.
+version: 0.2.0
 # The MetaLoom release the default image tracks. Overridable via image.tag.
 appVersion: "latest"
 home: https://metaloom.io

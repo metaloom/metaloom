@@ -1,0 +1,82 @@
+{
+  "_comment": [
+    "Documentation shortcuts for the in-product help icons (/help/).",
+    "",
+    "Each entry is a stable `id` that a shipped Loom UI build references forever, pointing at a",
+    "page and anchor that may be reworded at any time. That indirection is the whole point: a",
+    "Loom installation outlives the site it links to, so the UI must not hold a URL.",
+    "",
+    "`url` is checked by check-links.mjs like any other link, because layouts/help/list.html",
+    "renders every entry as a real <a href> — a retired anchor fails the build rather than",
+    "404-ing for a reader.",
+    "",
+    "The split of ownership is deliberate: this file maps id -> destination, and",
+    "loom-ui/src/help/topics.ts maps the same id -> the label and the natural-language query the",
+    "UI sends as a fallback. Neither half repeats the other, and loom-ui/src/help/topics.test.ts",
+    "asserts every id the UI can emit appears here. Removing an entry breaks that test on purpose.",
+    "",
+    "JSON rather than YAML like its neighbours only so that test can parse it with no dependency."
+  ],
+  "topics": [
+    {
+      "id": "chat",
+      "url": "/docs/ui/#chat",
+      "title": "Chat and the AI agent",
+      "summary": "Ask the agent about your media, keep the conversation in a session, and give it skills."
+    },
+    {
+      "id": "memory",
+      "url": "/docs/ui/#_agent_memory",
+      "title": "Agent memory",
+      "summary": "The notes the agent keeps across conversations, and how to read and edit them."
+    },
+    {
+      "id": "search",
+      "url": "/docs/ui/#search",
+      "title": "Search",
+      "summary": "Search syntax, filters, and finding material by what it shows rather than what it is called."
+    },
+    {
+      "id": "uploads",
+      "url": "/docs/ui/#_uploads",
+      "title": "Uploads",
+      "summary": "Choose where files land, watch a batch run, and keep working while it uploads."
+    },
+    {
+      "id": "detection.faces",
+      "url": "/docs/ui/#face-review",
+      "title": "Face detection review",
+      "summary": "Review the faces a model grouped together, confirm a group, and give it a name."
+    },
+    {
+      "id": "detection.results",
+      "url": "/docs/ui/#reviewing-detections",
+      "title": "Reviewing what a model found",
+      "summary": "Confirm, correct or reject the objects and descriptions a model produced."
+    },
+    {
+      "id": "workflow.rating",
+      "url": "/docs/ui/#rating-and-tagging",
+      "title": "Rating and tagging at keyboard speed",
+      "summary": "Work through a library with the keyboard, one key per rating or tag."
+    },
+    {
+      "id": "workflow.dedup",
+      "url": "/docs/ui/#reviewing-duplicates",
+      "title": "Reviewing duplicates",
+      "summary": "Work through groups of near-identical files and choose which copy to keep."
+    },
+    {
+      "id": "pipeline.editing",
+      "url": "/docs/ui/#pipeline-editing",
+      "title": "Pipeline editing",
+      "summary": "Build a processing pipeline out of nodes and typed ports, run it, and debug a run."
+    },
+    {
+      "id": "admin.acl",
+      "url": "/docs/ui/#administration",
+      "title": "Users, groups and permissions",
+      "summary": "Roles, permissions and deciding who is allowed to do what."
+    }
+  ]
+}

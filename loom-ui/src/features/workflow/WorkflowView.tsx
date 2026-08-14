@@ -16,6 +16,8 @@ import {
   AutoAwesomeOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
+import type { HelpTopic } from "../../help/topics";
 import { Asset, AssetType, AssetStatus, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
@@ -137,6 +139,19 @@ function WorkflowPreview({ asset, block = false }: { asset: Asset; block?: boole
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection" | "llm";
+
+/**
+ * Which documentation section the toolbar's help icon points at, for the mode on screen.
+ *
+ * Rating and tagging are one section in the documentation because they are one habit; the three
+ * model-output modes are another, for the same reason. The mapping lives here rather than inline so
+ * a seventh mode has one obvious place to declare where its documentation is.
+ */
+function helpTopicForMode(mode: WorkflowMode): HelpTopic {
+  if (mode === "deduplication") return "workflow.dedup";
+  if (mode === "rating" || mode === "tagging") return "workflow.rating";
+  return "detection.results";
+}
 
 interface KeyAction {
   key: string;
@@ -1548,7 +1563,13 @@ export default function WorkflowView() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             <SpeedOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Workflow</Typography>
-            <Tooltip title="Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            {/* The hint follows the mode. One icon for the whole screen would have to point at one
+                of six review modes and be wrong about the other five — and a coachmark that lands
+                somebody on the wrong section is the failure this feature exists to prevent. */}
+            <HelpHint
+              topic={helpTopicForMode(mode)}
+              description="Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks."
+            />
           </Box>
           <ToggleButtonGroup value={mode} exclusive onChange={(_, v) => v && setMode(v)} size="small" sx={{ ml: 0.5 }}>
             <ToggleButton value="rating" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>

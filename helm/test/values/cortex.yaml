@@ -1,0 +1,61 @@
+# Cortex chart values for the k3d harness.
+#
+# loom.token is NOT set here — it is minted against the running Loom and passed
+# with --set by run.sh. A token cannot be baked into the file that starts the
+# server it is minted from.
+
+image:
+  # See values/loom.yaml — the image is imported into containerd, never pulled.
+  pullPolicy: Never
+
+replicaCount: 1
+
+loom:
+  # The Loom chart renders its Service as `loom` in the same namespace.
+  host: loom
+  port: 8092
+
+# Restricted on purpose. The stock image advertises every built-in kind,
+# including whisper/vlm/facedetect, which want models and a GPU. Whitelisting the
+# four kinds this test uses keeps a run fast and makes a failure mean "the chart
+# is broken", not "the GPU node could not load its weights".
+nodeKinds:
+  - filesystem-source
+  - sha512
+  - md5
+  - metadata
+
+# The shared media volume. This is the part of the combined deployment most
+# worth testing: Loom hands the worker a PATH, never bytes, so a worker that
+# cannot read that path fails every task while looking perfectly healthy.
+#
+# run.sh creates this claim and populates it before Cortex starts.
+media:
+  enabled: true
+  mountPath: /media
+  existingClaim: loom-media
+  # Writable, because the hash nodes cache their digest on the file as an
+  # extended attribute (`loom_sha512`). A read-only mount fails every sha512/md5
+  # task with "Error writing extended attribute ... Read-only file system".
+  readOnly: false
+
+meta:
+  path: /meta
+  persistence:
+    # An emptyDir is right for a throwaway worker: the persisted filesystem-source
+    # index only matters across restarts, which this test does not exercise.
+    enabled: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+livenessProbe:
+  enabled: true
+readinessProbe:
+  # Readiness here means "registered with Loom", so this probe is itself one of
+  # the assertions — the pod going Ready proves the handshake happened.
+  enabled: true
+  initialDelaySeconds: 10
+  failureThreshold: 20

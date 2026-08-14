@@ -57,6 +57,32 @@ Image reference, tag defaulting to the chart appVersion.
 {{- end }}
 
 {{/*
+Effective database username: the bundled Postgres user when enabled, else the
+configured external one.
+*/}}
+{{- define "loom.database.username" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.username -}}
+{{- else -}}
+{{- .Values.database.user -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Image for the wait-for-database init container.
+
+Defaults to the same Postgres image the chart already uses, so a bundled-Postgres
+install pulls nothing extra and still works fully offline. Override it when the
+database is external and that image is not available to the cluster.
+*/}}
+{{- define "loom.waitForDatabase.image" -}}
+{{- $img := .Values.waitForDatabase.image -}}
+{{- $repo := $img.repository | default .Values.postgresql.image.repository -}}
+{{- $tag := $img.tag | default .Values.postgresql.image.tag -}}
+{{- printf "%s:%s" $repo $tag -}}
+{{- end }}
+
+{{/*
 Name of the bundled Postgres resources.
 */}}
 {{- define "loom.postgres.fullname" -}}

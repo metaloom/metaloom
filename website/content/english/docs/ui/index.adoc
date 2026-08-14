@@ -82,6 +82,30 @@ Once a page has content, the empty state is replaced by the regular browser; if 
 returns nothing, you get a distinct "no matches" hint instead, so an empty result is never confused
 with an empty feature.
 
+[#help-icons]
+=== Getting to the documentation from where you are
+
+Most screens carry a small *?* beside their heading. Hovering it tells you which part of this manual
+the screen is covered by; clicking it opens that section *in a new tab*, so nothing you have in
+progress is disturbed.
+
+The icon knows what you are looking at, not just which page you are on. On *Workflow* it follows the
+review mode you have selected — rating, duplicates or model output each land on their own section —
+and on *Detection* it follows the tab.
+
+[NOTE]
+====
+The icons point at `metaloom.io/help/`, which forwards you to the right page. That indirection is
+deliberate: your installation keeps working when this manual is reorganised, because your copy of
+MetaLoom never stored a documentation address. If the shortcut is one the site does not recognise —
+you are running a newer or older MetaLoom than the manual you reached — it searches for the topic
+instead of failing, and shows you the closest pages along with the full list of shortcuts.
+
+An installation with no route to the public internet can be pointed at a mirror of this
+documentation instead. That address is fixed when the interface is built rather than at runtime, so
+it is a decision for whoever builds your image, not a setting on the server.
+====
+
 [#chat]
 == Chat & AI Agent
 

@@ -17,6 +17,7 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
 import SearchIndicesAdmin from "./SearchIndicesAdmin";
 import DbIntegrityAdmin from "./DbIntegrityAdmin";
 import StorageAdmin from "./StorageAdmin";
@@ -757,7 +758,10 @@ function AccessControlAdmin() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
+            <HelpHint topic="admin.acl" />
+          </Box>
           <Typography variant="caption" color="text.secondary" data-testid="admin-roles-count">
             {page.totalCount} {t("admin.roles.count")}
             {saving && " · " + t("admin.roles.saving")}

@@ -1,0 +1,145 @@
+/* ==========================================================================
+   /help/ — the junction the in-product help icons land on.
+
+   Loaded alongside css/home.css, which supplies the .hm-* page vocabulary this
+   builds on (.hm-page, .hm-wrap, .hm-title, .hm-lead) and, through it, the
+   shared --ml-* palette declared in less/includes/custom.less. Only what is
+   local to this page lives here, prefixed .hp-*.
+
+   Most readers never see any of it: a help icon whose topic the site knows is
+   redirected before the page paints. What this styles is the two cases where
+   that does not happen — an unknown shortcut, and a query no page clearly
+   answers — plus the shortcut index that is always there underneath.
+   ========================================================================== */
+
+.hp-page {
+  min-height: 60vh;
+  padding-bottom: 96px;
+}
+
+/* --------------------------------------------------------------- the status line */
+
+/* Empty in the served HTML — the redirector is the only thing that ever fills it, so a reader
+   who arrives without a shortcut is never told that something is happening which is not. */
+.hp-page .hp-status:empty { display: none; }
+
+/* The head above is `.hm-features-head`, whose lead has `margin-bottom: 0` — so the top margin
+   here is the whole of the gap under it, not an addition to one. */
+.hp-page .hp-status {
+  color: var(--hm-muted);
+  font-size: .95rem;
+  margin: 40px 0 20px;
+}
+
+/* --------------------------------------------------------------- fallback results */
+
+.hp-page .hp-results {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 40px;
+}
+
+.hp-page a.hp-result {
+  background: var(--hm-bg-alt);
+  border: 1px solid var(--hm-line);
+  border-radius: 10px;
+  color: var(--hm-fg-dim);
+  display: block;
+  padding: 14px 18px;
+  transition: border-color .18s ease, transform .18s ease;
+}
+
+.hp-page a.hp-result:hover {
+  border-color: rgba(87, 203, 204, .55);
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+.hp-page .hp-result-where {
+  color: var(--hm-accent);
+  display: block;
+  font-size: .7rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.hp-page .hp-result-title {
+  color: var(--hm-fg);
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 2px 0 4px;
+}
+
+.hp-page .hp-result-snippet {
+  color: var(--hm-muted);
+  display: block;
+  font-size: .86rem;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------- the shortcut index */
+
+/* When nothing was said, the index has to supply its own gap under the head. */
+.hp-page .hp-status:empty + .hp-results + .hp-topics { margin-top: 48px; }
+
+.hp-page .hp-topics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  list-style: none;
+  margin: 0 0 40px;
+  padding: 0;
+}
+
+.hp-page .hp-topic { margin: 0; }
+
+.hp-page a.hp-topic-link {
+  background: var(--hm-bg-alt);
+  border: 1px solid var(--hm-line);
+  border-radius: 10px;
+  color: var(--hm-fg-dim);
+  display: block;
+  height: 100%;
+  padding: 18px 20px;
+  transition: border-color .18s ease, transform .18s ease;
+}
+
+.hp-page a.hp-topic-link:hover {
+  border-color: rgba(87, 203, 204, .55);
+  text-decoration: none;
+  transform: translateY(-3px);
+}
+
+.hp-page .hp-topic-title {
+  color: var(--hm-fg);
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.hp-page .hp-topic-summary {
+  color: var(--hm-muted);
+  display: block;
+  font-size: .88rem;
+  line-height: 1.55;
+}
+
+/* --------------------------------------------------------------- foot */
+
+.hp-page .hp-foot {
+  color: var(--hm-muted);
+  font-size: .9rem;
+  margin: 0;
+}
+
+.hp-page .hp-foot a { color: var(--hm-accent); }
+.hp-page .hp-foot a:hover { color: var(--hm-accent-bright); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-page a.hp-result,
+  .hp-page a.hp-topic-link { transition: none; }
+  .hp-page a.hp-result:hover,
+  .hp-page a.hp-topic-link:hover { transform: none; }
+}

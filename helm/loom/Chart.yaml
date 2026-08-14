@@ -7,7 +7,13 @@ description: >-
   database in production.
 type: application
 # Chart version — bump on chart changes.
-version: 0.1.0
+#
+# 0.2.0 — the Deployment and Service selectors now pin
+# app.kubernetes.io/component=server, so they no longer also match the bundled
+# Postgres pod, and a wait-for-database init container gates startup. The
+# selector change is not upgradeable in place (spec.selector is immutable):
+# reinstall the release, or `helm upgrade --force`.
+version: 0.2.0
 # The MetaLoom release the default image tracks. Overridable via image.tag.
 appVersion: "latest"
 home: https://metaloom.io

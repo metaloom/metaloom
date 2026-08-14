@@ -27,7 +27,10 @@
 
 	var roots = Array.prototype.slice.call(document.querySelectorAll('[data-docs-search]'));
 	var config = document.querySelector('script[data-search-index-url]');
-	if (!roots.length || !config) return;
+	/* The box is optional; the index is not. Without the config tag there is nothing to search and
+	 * nothing to hand /help/ either. Without a box there is still the engine, which is what the
+	 * /help/ redirector borrows — see the export near the end of the ranking section. */
+	if (!config) return;
 
 	// Tells docs-search-bootstrap.html's timer that the script arrived, so the box may stay.
 	window.__docsSearchReady = true;
@@ -227,6 +230,47 @@
 		});
 		return out;
 	}
+
+	// -- the engine, for the /help/ redirector ------------------------------------------------
+
+	/**
+	 * `/help/` resolves an in-product help link whose topic id this build does not know by running
+	 * the UI's fallback query through these same two passes.
+	 *
+	 * It borrows the functions rather than carrying a copy of them. The score table above is
+	 * load-bearing — the identifier-shape rule exists because three specific queries regressed
+	 * without it — and a second implementation of it in another file would drift the first time
+	 * either side was tuned, in a way no test on this site would catch.
+	 *
+	 * Everything here answers honestly before its input has arrived: `literal` and `semantic`
+	 * return nothing until `loadIndex`/`loadModel` have resolved, so a caller that forgets to wait
+	 * gets an empty result rather than a throw.
+	 */
+	window.metaloomDocsSearch = {
+		loadIndex: loadIndex,
+		loadModel: loadModel,
+		indexReady: function () { return indexState === 'ready'; },
+		modelReady: function () { return modelState === 'ready'; },
+		literal: function (query) { return indexState === 'ready' ? substringPass(query) : []; },
+		semantic: function (query) { return modelState === 'ready' ? semanticPass(query) : []; },
+		/* The merged, deduplicated, per-page-capped list the panel renders. */
+		results: function (query) { return indexState === 'ready' ? results(query) : []; },
+		chunkAt: function (n) { return index.chunks[n]; },
+		describe: function (chunk) {
+			var page = index.pages[chunk[0]];
+			return {
+				url: page.u + (chunk[1] ? '#' + chunk[1] : ''),
+				title: page.t,
+				where: page.e || 'Documentation',
+				section: chunk[2] || '',
+				snippet: chunk[3] || ''
+			};
+		}
+	};
+
+	/* Past this point everything is the box. A page without one — should the header ever stop
+	 * carrying it — keeps the engine above and loses only the control. */
+	if (!roots.length) return;
 
 	// -- the panel ---------------------------------------------------------------------------
 

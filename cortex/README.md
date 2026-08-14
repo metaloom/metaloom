@@ -1,110 +1,43 @@
 # MetaLoom // Cortex
 
-*MetaLoom // Cortex* is the **worker** of the *MetaLoom* Headless Media Asset Management System from
-[MetaLoom](https://metaloom.io/). It executes media processing tasks — hashing, fingerprinting, face
-detection, thumbnailing, metadata extraction and more — on behalf of a *Loom* server.
+*MetaLoom // Cortex* is an un-opinionated media processing tool. It can analyze, and parse massive amounts of media efficiently.
 
-Cortex is a container, not a command line tool. There are no subcommands and no flags:
-[`CortexMain`](cli/src/main/java/io/metaloom/cortex/cli/CortexMain.java) assembles the Dagger graph,
-connects to Loom and runs in the foreground until it is signalled to stop. Everything is configured
-through `cortex.yml` and the environment.
+It supports a range of functions, including **face detection**, **thumbnail generation**, **consistency checking**, **hashing**, **metadata extraction** and **media fingerprinting**, all of which can be performed in offline and online mode.
+
+*MetaLoom // Cortex* is the central media asset parser component of the *Loom* Headless Media Asset Management System from [MetaLoom](https://metaloom.io/).
 
 [![](https://dcbadge.vercel.app/api/server/3Dy2SxKUtw)](https://discord.gg/3Dy2SxKUtw)
 
-## How it works
+## Features 
 
-Cortex holds no database and no pipeline graph. Loom owns the pipeline definition and walks it;
-Cortex receives one concrete unit of work at a time and reports the result back.
+**Processing** - The ability to process media in offline mode means that it can perform bulk media processing securely at a very large scale.
 
-1. **Dial out.** The worker opens a WebSocket to Loom at `/api/v1/processors/ws`
-   ([`LoomControlChannel`](core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java)).
-   Loom never connects to a worker, so workers may sit behind NAT with no inbound ports.
-2. **Register.** It sends a `REGISTER` frame carrying its worker id, capabilities and the node kinds
-   it is willing to run (its whitelist, narrowed by its blacklist).
-3. **Announce contracts.** After `REGISTERED` it sends `NODE_REGISTRATION` with the descriptors of
-   the nodes it can actually execute — the intersection of
-   [`RegistryNodeFactory#registeredTypes`](core/src/main/java/io/metaloom/cortex/pipeline/loader/RegistryNodeFactory.java)
-   with its whitelist — so those nodes can be authored in Loom's pipeline editor.
-4. **Execute dispatches.** Loom pushes `NODE_TASK`, `SEGMENT_TASK` and `SOURCE_TASK` frames down the
-   connection the worker already opened;
-   [`PipelineTaskHandler`](core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java)
-   runs them and returns results.
+**Hashing** - One of the standout features of this application is its asset hashing capability, which supports multiple hashing methods such as sha512, sha256, and md5. This enables deduplication of assets, as identical files will produce the same hash value regardless of the hashing method used. By detecting and eliminating duplicate files through hashing, users can save valuable storage space and simplify file management.
 
-A worker **requires a stable id**: `CORTEX_NODE_ID` (or `nodeId` in `cortex.yml`). Loom keys
-registration, node-kind restrictions and run attribution on it and rejects a second worker
-announcing an id already in use, so a missing id is a hard startup failure — `CortexMain` exits with
-`EXIT_INVALID_CONFIGURATION` (2) before ever going online.
+**Fingerprinting** - *MetaLoom // Cortex*'s hashing and fingerprinting capabilities enable users to identify unique media content, which is particularly useful for tracking copyrighted material or monitoring user-generated content. Cortex also supports the extraction of metadata, enabling users to organize and search for their content with greater ease.
 
-If no Loom endpoint is configured the worker starts *offline*: no WebSocket, no tasks, no sync. It
-simply idles, because nothing drives work. Note that a worker with no `cortex.yml` defaults to
-`localhost:7733` — offline requires explicitly clearing the `loom` section.
+**Facedetection** - This application offers a powerful face detection feature that can automatically detect and locate faces within media assets. The feature can extract embeddings, which are numerical representations of the facial features that can be used to recognize and compare faces across different media assets. This functionality is particularly useful for applications such as security systems, image search engines, and social media platforms. Detected faces may also be used to automatically compute the optimal focal point for cropped and resized images without manual input.
 
-## Capabilities
+**Thumbnail** - It includes a thumbnail generation feature that enables users to create and store thumbnail images for media assets. Users can customize the size, format, and quality of the thumbnail images to suit their specific needs. 
 
-Node implementations live under [`nodes/`](nodes/), one Maven module per node kind. A worker only
-runs the kinds it was built with and announced.
+**Un-opinionated** - *MetaLoom // Cortex* is considered un-opinionated because it doesn't require the storage, import, or movement of parsed content. Instead, it stores the extracted information alongside the file itself (xattr), without altering the file's location.
 
-**Hashing** — asset hashing with multiple methods (sha512, sha256, md5). Identical files produce the
-same hash regardless of location, which is what deduplication is built on.
+**Online Mode** - In online mode it can send the extracted metadata to the *MetaLoom // Loom* Server. This server is responsible for storing the media data and providing various options for navigating, managing and visualizing the extracted data.
 
-**Fingerprinting** — content fingerprints that identify media by what it *is* rather than by its
-bytes, for tracking copyrighted material or monitoring user-generated content.
+**Consistency checks** - This feature allows users to perform consistency checks on their media assets. It can detect and highlight inconsistencies in the file format, metadata, and content of media assets. By running consistency checks, users can ensure that their media assets are valid and reliable, minimizing the risk of data corruption, file errors, and other issues that may affect the quality of their work.
 
-**Face detection** — detects and locates faces in media assets and extracts embeddings, the
-numerical representations used to recognise and compare faces across assets. Detected faces also
-drive the optimal focal point for cropped and resized images.
-
-**Thumbnails** — generates thumbnail images for media assets with configurable size, format and
-quality.
-
-**Metadata extraction** — file format, resolution, creation date, camera settings and more, so
-assets can be organised, searched and filtered.
-
-**Consistency checks** — detects inconsistencies in the format, metadata and content of media
-assets, catching corruption and file errors before they matter.
-
-Beyond these the reactor also ships source and sink nodes (filesystem, S3, cloud), transcription,
-OCR, object and scene detection, LLM/VLM nodes, generation and manipulation nodes, and filter/guard
-nodes. See [../spec/features/nodes/NODES.md](../spec/features/nodes/NODES.md) for the per-node
-reference.
-
-Cortex still does not require importing or moving the content it parses — files stay where they are.
-Extracted information is sent to Loom, which is the system of record.
-[`XAttrs`](fs/src/main/java/io/metaloom/cortex/fs/XAttrs.java) additionally caches a computed SHA-512
-in the `loom_sha512` extended attribute so a re-run does not have to re-digest the file. That is a
-local cache and an optimisation — not the product's storage model, and not something Loom reads.
+**Metadata extraction** - *MetaLoom // Cortex* can extract metadata from media assets. This includes information such as file format, resolution, date created, camera settings, and more. By extracting metadata, users can quickly and easily organize and manage their media assets, as well as search and filter them based on specific criteria.
 
 ## Deployment
 
-Cortex is deployed as a long-running container, typically several of them.
-
-| Artefact | Purpose |
-|---|---|
-| [`container/Containerfile`](container/Containerfile) | The worker image: JRE 25, CUDA and OpenCV runtime, InspireFace model pack, `cortex-cli.jar` |
-| [`container/build-container.sh`](container/build-container.sh) | Builds that image locally (run `mvn package -pl cortex/container,cortex/cli -am` first) |
-| [`../helm/cortex`](../helm/cortex) | Helm chart — a StatefulSet, so `CORTEX_NODE_ID` can come from the stable pod name |
-| [`../start-cortex.sh`](../start-cortex.sh) | Minimal `docker run` for a local worker against a dev Loom |
-
-Configuration is read from `cortex.yml` (mounted at `/config`) and the environment; `LOOM_HOST` /
-`LOOM_PORT` point at Loom and `CORTEX_MONITORING_PORT` (default 8093) exposes health and readiness.
-The full variable list is in
-[../spec/cortex/CONFIGURATION.md](../spec/cortex/CONFIGURATION.md).
-
-## Documentation
-
-* [../spec/cortex/CORTEX.md](../spec/cortex/CORTEX.md) — module layout, startup lifecycle,
-  online/offline mode, node-kind registration, monitoring
-* [../spec/cortex/METALOOM_ARCHITECTURE.md](../spec/cortex/METALOOM_ARCHITECTURE.md) — the Loom ↔
-  Cortex boundary: registration, wire protocol, dispatch, results, deployment
-* [../spec/cortex/BUILD.md](../spec/cortex/BUILD.md) — Maven build, dependency versions, native
-  dependencies
-* [https://metaloom.io/docs/cortex/](https://metaloom.io/docs/cortex/) — user documentation
+*MetaLoom // Cortex* has a versatile command-line interface (CLI) that allows scheduling and integration in existing workflows.
+It can be run via Cron or via a Kubernetes (K8S) Job workload.
 
 ## State
 
 * In development
 
-## Releasing
+## Releasing 
 
 TBD
 

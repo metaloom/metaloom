@@ -1,4 +1,27 @@
 {
+  "help": {
+    "open": "Read the documentation: {{topic}}",
+    "topic": {
+      "chat": "Chat and the AI agent",
+      "memory": "Agent memory",
+      "search": "Search",
+      "uploads": "Uploads",
+      "detection": {
+        "faces": "Face detection review",
+        "results": "Reviewing what a model found"
+      },
+      "workflow": {
+        "rating": "Rating and tagging at keyboard speed",
+        "dedup": "Reviewing duplicates"
+      },
+      "pipeline": {
+        "editing": "Pipeline editing"
+      },
+      "admin": {
+        "acl": "Users, groups and permissions"
+      }
+    }
+  },
   "common": {
     "cancel": "Cancel",
     "close": "Close",

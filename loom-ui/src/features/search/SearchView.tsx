@@ -7,6 +7,7 @@ import {
 import { SearchOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { useSearch } from "../../context/SearchContext";
@@ -181,9 +182,12 @@ export default function SearchView() {
 
   return (
     <Box data-testid="search-view" sx={{ flex: 1, overflow: "auto", px: 3, py: 2.5 }}>
-      <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: "1.1rem" }}>
-        {t("search.title")}
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 2 }}>
+        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1.1rem" }}>
+          {t("search.title")}
+        </Typography>
+        <HelpHint topic="search" size={16} />
+      </Box>
 
       <TextField
         fullWidth

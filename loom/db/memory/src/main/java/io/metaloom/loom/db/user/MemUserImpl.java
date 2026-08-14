@@ -1,5 +1,7 @@
 package io.metaloom.loom.db.user;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.mem.AbstractMemCUDElement;
 import io.metaloom.loom.db.model.user.User;
 import io.vertx.core.json.JsonObject;
@@ -15,6 +17,7 @@ public class MemUserImpl extends AbstractMemCUDElement<User> implements User {
 	private boolean sso;
 	private boolean enabled;
 	private boolean deleted;
+	private UUID avatarAttachmentUuid;
 
 	@Override
 	public String getUsername() {
@@ -112,6 +115,17 @@ public class MemUserImpl extends AbstractMemCUDElement<User> implements User {
 	@Override
 	public User setDeleted(boolean flag) {
 		this.deleted = flag;
+		return this;
+	}
+
+	@Override
+	public UUID getAvatarAttachmentUuid() {
+		return avatarAttachmentUuid;
+	}
+
+	@Override
+	public User setAvatarAttachmentUuid(UUID avatarAttachmentUuid) {
+		this.avatarAttachmentUuid = avatarAttachmentUuid;
 		return this;
 	}
 }

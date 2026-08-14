@@ -79,6 +79,27 @@ persistence:
     size: 1Gi
     existingClaim: ""
 
+# Gate startup on a reachable database.
+#
+# Loom does not tolerate its database being absent at startup: Flyway exhausts
+# its retries within seconds and the process then wedges without exiting and
+# without opening its port, so Kubernetes never restarts it. Since nothing orders
+# this Deployment after the database, leave this enabled unless something else
+# guarantees the database is up first.
+waitForDatabase:
+  enabled: true
+  image:
+    # -- Defaults to the chart's Postgres image (for `pg_isready`), so a bundled
+    # install pulls nothing extra. Override when using an external database whose
+    # cluster cannot pull that image.
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
 # External database connection. Used when postgresql.enabled is false.
 database:
   host: ""

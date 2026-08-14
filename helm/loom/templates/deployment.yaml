@@ -13,10 +13,20 @@ spec:
   selector:
     matchLabels:
       {{- include "loom.selectorLabels" . | nindent 6 }}
+      # Without the component, this selector also matches the bundled Postgres
+      # pod, which carries the same name/instance labels. That made `svc/loom`
+      # balance REST, gRPC and WebSocket traffic onto Postgres, and still makes
+      # `kubectl logs deployment/loom` resolve to the wrong pod.
+      #
+      # NOTE: spec.selector is immutable. Upgrading a release installed before
+      # this change fails with "field is immutable" — uninstall and reinstall, or
+      # use `helm upgrade --force`.
+      app.kubernetes.io/component: server
   template:
     metadata:
       labels:
         {{- include "loom.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -33,6 +43,48 @@ spec:
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.waitForDatabase.enabled }}
+      # Loom does not survive starting before its database is reachable.
+      #
+      # Kubernetes gives no ordering between this Deployment and the Postgres
+      # StatefulSet, so on a fresh install Loom usually wins the race. Flyway then
+      # exhausts its connection retries in about two seconds ("Retrying in 0
+      # sec..."), and the process neither exits nor opens port 8092 — it wedges.
+      # Because it does not exit, Kubernetes sees no crash to restart, and the pod
+      # sits unready until the liveness probe eventually kills it minutes later.
+      #
+      # Gating startup on a reachable database turns that into a few seconds of
+      # waiting. Set waitForDatabase.enabled=false if something else guarantees
+      # ordering.
+      initContainers:
+        - name: wait-for-database
+          image: {{ include "loom.waitForDatabase.image" . | quote }}
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy | default .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              # -U is mandatory here, not cosmetic: pg_isready defaults it to the
+              # OS user name, and the pod runs as uid 1000, which has no passwd
+              # entry in the postgres image. Without it every probe exits 3
+              # ("no attempt") and the init container waits forever.
+              until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
+                echo "waiting for ${DB_HOST}:${DB_PORT} ..."
+                sleep 2
+              done
+              echo "database is accepting connections"
+          env:
+            - name: DB_HOST
+              value: {{ include "loom.database.host" . | quote }}
+            - name: DB_PORT
+              value: {{ if .Values.postgresql.enabled }}"5432"{{ else }}{{ .Values.database.port | quote }}{{ end }}
+            - name: DB_USER
+              value: {{ include "loom.database.username" . | quote }}
+          {{- with .Values.waitForDatabase.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- end }}
       containers:
         - name: loom

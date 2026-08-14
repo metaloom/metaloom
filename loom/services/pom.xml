@@ -55,6 +55,7 @@
         <module>s3</module>
         <module>tika</module>
         <module>lucene</module>
+        <module>graphstore</module>
         <module>qdrant</module>
         <module>eventbus</module>
         <module>mcp</module>

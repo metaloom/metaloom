@@ -7,6 +7,7 @@ import {
 import { Add, DeleteOutline, EditOutlined, LockOutlined, SearchOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
+import HelpHint from "../../components/HelpHint";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -167,7 +168,10 @@ export default function MemoryView() {
 
   return (
     <Box sx={{ p: 3 }} data-testid="memory-view">
-      <Title>{t("memory.title", "Agent memory")}</Title>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Title>{t("memory.title", "Agent memory")}</Title>
+        <HelpHint topic="memory" size={16} />
+      </Box>
       <Typography variant="body2" sx={{ color: tokens.text.tertiary, mb: 2 }}>
         {t("memory.subtitle",
           "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.")}

@@ -1,0 +1,104 @@
+# Loom chart values for the k3d harness.
+#
+# Deliberately close to the chart defaults: this test is meant to catch a broken
+# chart, so every override here needs a reason that is about the test cluster
+# rather than about making the chart behave.
+
+image:
+  # The image is side-loaded with `k3d image import`, never pulled. Never is the
+  # honest setting — IfNotPresent would silently fall back to a registry pull and
+  # test a published image instead of the working tree.
+  pullPolicy: Never
+
+# Bundled Postgres, which is what the chart's own quick start documents. Testing
+# with an external database would leave the postgresql.yaml template uncovered.
+waitForDatabase:
+  enabled: true
+  image:
+    # Overrides the Never above: the init container runs the stock postgres image,
+    # which comes from a registry like any other third-party image, unlike the two
+    # MetaLoom images that are side-loaded from the working tree.
+    pullPolicy: IfNotPresent
+
+postgresql:
+  enabled: true
+  auth:
+    # NOT the chart default of "loom", and this is a workaround, not a preference.
+    #
+    # V1__db_setup.sql runs `CREATE SCHEMA IF NOT EXISTS loom`, and Postgres
+    # resolves search_path as `"$user", public`. With the default username the
+    # schema and the user share the name, so Flyway migrates into `public` on the
+    # first boot (schema `loom` does not exist yet) and into `loom` on every boot
+    # after — re-running all migrations from V1 and dying in V2.55. Loom then
+    # never becomes ready again.
+    #
+    # Any username that is not also a schema name keeps the target stable, so the
+    # deployment survives restarts and the rest of this harness can run. Set this
+    # back to `loom` to reproduce the bug; see README.md, "Known failure".
+    username: loomapp
+    password: loom
+    database: loom
+  persistence:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+auth:
+  # Matches LOOM_ADMIN_PASSWORD in run.sh. Not a secret — the cluster is deleted
+  # at the end of the run.
+  initialPassword: "helm-harness-admin-pw"
+
+persistence:
+  # config holds loom.yml AND the generated keystore.jceks, so it carries the JWT
+  # signing key (see spec/features/helm/HELM_LOOM.md, B2). It must stay enabled.
+  config:
+    enabled: true
+    size: 128Mi
+  keystore:
+    enabled: true
+    size: 128Mi
+  uploads:
+    enabled: true
+    # 20Gi by default; local-path does not enforce it, but keeping the request
+    # small keeps the PVC honest about what the test actually stores.
+    size: 2Gi
+  plugins:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+
+# The image sets -Xms512m -Xmx512m; nothing here should need more.
+livenessProbe:
+  enabled: true
+  # Deliberately far more generous than the chart defaults (30s + 6 failures =
+  # ~150s), because those defaults do not survive a first boot.
+  #
+  # Loom applies ~90 Flyway migrations against an empty database before it opens
+  # port 8092, and the liveness probe starts counting from container start. On
+  # k3d that exceeded the default budget every time: the kubelet killed the pod
+  # mid-migration with "connection refused", exactly when it was doing the most
+  # work. The right fix in the chart is a startupProbe, which gates liveness until
+  # the process is up instead of racing it — see README.md.
+  initialDelaySeconds: 120
+  failureThreshold: 30
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  failureThreshold: 40
+
+# Off: the harness reaches the API by port-forward, so an Ingress would add a
+# controller dependency without testing anything the charts own.
+ingress:
+  enabled: false
+
+# Off: the coding sandbox is a separate feature with its own RBAC surface, and
+# enabling it here would make a chat-agent failure look like a chart failure.
+sandbox:
+  enabled: false
+ai:
+  enabled: false

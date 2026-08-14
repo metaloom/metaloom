@@ -12,6 +12,10 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     {{- include "loom.selectorLabels" . | nindent 4 }}
+    # Required: the bundled Postgres StatefulSet shares the name/instance labels,
+    # so without the component the Service would round-robin REST, gRPC and
+    # WebSocket traffic between Loom and a Postgres pod that serves none of it.
+    app.kubernetes.io/component: server
   ports:
     - name: rest
       port: {{ .Values.service.restPort }}

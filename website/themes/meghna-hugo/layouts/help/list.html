@@ -1,0 +1,81 @@
+{{/*
+  /help/ — where the help icons inside the Loom UI land.
+
+  A shipped Loom installation outlives the site it links to. Wiring the UI straight to
+  `/docs/ui/#pipeline-editing` means every already-deployed instance breaks the day that heading is
+  reworded, and nothing on either side would notice. So the UI links here with a stable topic id
+  and a natural-language fallback instead — `?t=pipeline.editing&q=build+a+pipeline…` — and this
+  page decides where that means today.
+
+  Three things resolve it, in order of how much they cost the reader:
+
+    1. the curated map below (data/en/help.json), which is instant and deterministic, and is the
+       only step that runs for a topic id a shipped UI actually sends;
+    2. the literal pass over the ~118 KB documentation search index, for an id this build has never
+       heard of — a UI newer or older than the site;
+    3. the semantic pass, which needs the 7 MB model and produces a ranked list rather than a jump.
+       Why it ranks instead of deciding is measured out in assets/js/help-redirect.js.
+
+  Everything is rendered server-side as ordinary links regardless, which does three jobs at once:
+  it is the page a reader with no JavaScript gets, it is the page a reader with no `?t=` gets, and
+  it is what makes `check-links.mjs` the gate on the whole scheme. A topic pointing at a heading
+  that no longer exists fails the build; it cannot reach a reader as a 404.
+*/}}
+{{ define "main" }}
+{{ $help := (index hugo.Data site.Language.Lang).help }}
+
+{{/* A duplicate id would make the redirect silently ambiguous — whichever entry the script's map
+     happened to overwrite would win. Cheaper to refuse to build. */}}
+{{ $seen := slice }}
+{{ range $help.topics }}
+	{{ if not .id }}{{ errorf "help.json: a topic has no id" }}{{ end }}
+	{{ if not .url }}{{ errorf "help.json: topic %q has no url" .id }}{{ end }}
+	{{ if not .title }}{{ errorf "help.json: topic %q has no title" .id }}{{ end }}
+	{{ if in $seen .id }}{{ errorf "help.json: duplicate topic id %q" .id }}{{ end }}
+	{{ $seen = $seen | append .id }}
+{{ end }}
+
+{{ partial "navigation.html" . }}
+
+<main class="hm-page hp-page">
+
+	<div class="hm-wrap hm-features-head">
+		<h1 class="hm-title">{{ .Title }}</h1>
+		{{ with .Params.subtitle }}<p class="hm-lead">{{ . | markdownify }}</p>{{ end }}
+	</div>
+
+	<div class="hm-wrap">
+
+		{{/* The redirector's own voice. Empty in the served HTML, so a reader who arrives without a
+		     `?t=` — or without JavaScript — is never told something is happening that is not. */}}
+		<p class="hp-status" id="help-status" role="status" aria-live="polite"></p>
+
+		{{/* Filled only when neither the map nor the substring pass could answer and the semantic
+		     pass came back with candidates rather than a winner. */}}
+		<div class="hp-results" id="help-results" hidden></div>
+
+		<ul class="hp-topics" id="help-topics">
+			{{ range $help.topics }}
+			<li class="hp-topic">
+				{{/* `data-help-topic` is what assets/js/help-redirect.js reads its map from — the
+				     script never gets its own copy of these URLs, so the link the build checked is
+				     by construction the link it redirects to. */}}
+				<a class="hp-topic-link" href="{{ .url | relURL }}" data-help-topic="{{ .id }}">
+					<span class="hp-topic-title">{{ .title }}</span>
+					{{ with .summary }}<span class="hp-topic-summary">{{ . }}</span>{{ end }}
+				</a>
+			</li>
+			{{ end }}
+		</ul>
+
+		<p class="hp-foot">
+			Looking for something else? The whole reference is at
+			<a href="{{ "docs/" | relURL }}">the documentation</a>, and the search box in the header
+			above covers all of it.
+		</p>
+
+	</div>
+</main>
+
+{{ partial "help-redirect-script.html" . }}
+{{ end }}

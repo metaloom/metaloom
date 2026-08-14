@@ -64,6 +64,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-graphstore</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.metaloom.loom.agent</groupId>
       <artifactId>loom-agent-chat</artifactId>
     </dependency>

@@ -38,6 +38,7 @@ import {
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
 import { Pipeline, PipelineNode, EdgeKind, pipelineNodeOptions } from "../../types";
 import {
   listPipelines, PipelineResponse,
@@ -3912,7 +3913,9 @@ export default function PipelineEditor() {
       {/* Pipeline list */}
       <Box sx={{ width: 220, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", flex: 1 }}>{t("pipeline.editor.title")}</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("pipeline.editor.title")}</Typography>
+          <HelpHint topic="pipeline.editing" />
+          <Box sx={{ flex: 1 }} />
           <Tooltip title={t("pipeline.editor.newPipeline")}>
             <IconButton
               size="small"

@@ -7,6 +7,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useTranslation } from "react-i18next";
+import HelpHint from "../../components/HelpHint";
 import FaceDetectionManagement from "../faceDetection/FaceDetectionManagement";
 import ObjectDetectionManagement from "./ObjectDetectionManagement";
 import LLMDetectionManagement from "./LLMDetectionManagement";
@@ -19,9 +20,14 @@ export default function DetectionManagement() {
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.75 }}>
-          {t("detection.title")}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.75 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>
+            {t("detection.title")}
+          </Typography>
+          {/* Faces have a section of their own — grouping a stranger's face is a different job
+              from confirming a box a model drew. The other two tabs share the general one. */}
+          <HelpHint topic={tab === 0 ? "detection.faces" : "detection.results"} />
+        </Box>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 32 }}>
           <Tab icon={<FaceOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.faces")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
           <Tab icon={<CenterFocusStrongOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.objects")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />

@@ -283,10 +283,17 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            {{- if .Values.meta.persistence.enabled }}
+            # Always mounted, persisted or not.
+            #
+            # The image declares /meta as a VOLUME but never creates it with an
+            # owner, so an unmounted path is a root-owned directory that the
+            # container's uid 1000 cannot write. filesystem-source writes its
+            # index there, so leaving it unmounted made every run of that node
+            # die with AccessDeniedException while the run still reported
+            # success with zero items. Disabling persistence must mean
+            # "ephemeral", not "absent".
             - name: meta
               mountPath: {{ .Values.meta.path }}
-            {{- end }}
             {{- if .Values.media.enabled }}
             - name: media
               mountPath: {{ .Values.media.mountPath }}
@@ -298,6 +305,11 @@ spec:
               subPath: cortex.yml
             {{- end }}
       volumes:
+        {{- if not .Values.meta.persistence.enabled }}
+        # When persisted, `meta` comes from volumeClaimTemplates below instead.
+        - name: meta
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.media.enabled }}
         - name: media
           {{- if .Values.media.existingClaim }}

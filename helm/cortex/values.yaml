@@ -172,8 +172,17 @@ media:
   nfs:
     server: ""
     path: ""
-  # -- Mount read-only (workers only read source media).
-  readOnly: true
+  # -- Mount read-only.
+  #
+  # ⚠ This breaks the hash nodes. sha512/md5/sha256 cache the computed digest on
+  # the file itself as an extended attribute (`loom_sha512` and friends), so a
+  # read-only mount fails the task with:
+  #   FileSystemException: Error writing extended attribute 'loom_sha512':
+  #   Read-only file system
+  # It is not only the nodes that move files (dedup) that need write access, as
+  # the Docker playbook suggests — the most basic hashing pipeline does too.
+  # Leave this false unless every node in your graphs is known not to write back.
+  readOnly: false
 
 # -- Extra environment variables (list of name/value or name/valueFrom maps).
 extraEnv: []

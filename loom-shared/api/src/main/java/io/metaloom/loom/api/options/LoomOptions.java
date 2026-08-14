@@ -28,6 +28,8 @@ public class LoomOptions implements Option {
 
 	private VectorIndexOptions vectorIndex = new VectorIndexOptions();
 
+	private AssetGraphOptions assetGraph = new AssetGraphOptions();
+
 	private DemoOptions demo = new DemoOptions();
 
 	@Override
@@ -44,6 +46,7 @@ public class LoomOptions implements Option {
 		search.overrideWithEnv();
 		similarity.overrideWithEnv();
 		vectorIndex.overrideWithEnv();
+		assetGraph.overrideWithEnv();
 		demo.overrideWithEnv();
 	}
 
@@ -149,6 +152,15 @@ public class LoomOptions implements Option {
 		return vectorIndex;
 	}
 
+	public AssetGraphOptions getAssetGraph() {
+		return assetGraph;
+	}
+
+	public LoomOptions setAssetGraph(AssetGraphOptions assetGraph) {
+		this.assetGraph = assetGraph;
+		return this;
+	}
+
 	public LoomOptions setVectorIndex(VectorIndexOptions vectorIndex) {
 		this.vectorIndex = vectorIndex;
 		return this;
@@ -177,6 +189,7 @@ public class LoomOptions implements Option {
 			.nested("search", search)
 			.nested("similarity", similarity)
 			.nested("vectorIndex", vectorIndex)
+			.nested("assetGraph", assetGraph)
 			.nested("demo", demo);
 	}
 

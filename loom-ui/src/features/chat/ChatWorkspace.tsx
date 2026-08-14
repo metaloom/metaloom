@@ -13,6 +13,7 @@ import {
   SpaceDashboardOutlined, KeyboardDoubleArrowRight,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
 import { AgentAction, ChatMessage, ChatReference, ChatVisual } from "../../types";
 import {
   listChats, loadChat, createChat, updateChat, deleteChat, ChatResponse,
@@ -853,9 +854,12 @@ export default function ChatWorkspace() {
             <AutoAwesome sx={{ fontSize: 14, color: "#fff" }} />
           </Box>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.875rem", color: tokens.text.primary, lineHeight: 1.2 }}>
-              {t("chat.header.title")}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.875rem", color: tokens.text.primary, lineHeight: 1.2 }}>
+                {t("chat.header.title")}
+              </Typography>
+              <HelpHint topic="chat" size={13} />
+            </Box>
             <Typography variant="caption" sx={{ color: tokens.accent.green, fontSize: "0.68rem" }}>
               {t("chat.header.status", { space: activeSpace?.name ?? t("chat.header.noSpace") })}
             </Typography>

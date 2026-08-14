@@ -38,7 +38,7 @@ graph LR
 
 | Template | Kind | Notes |
 |----------|------|-------|
-| `templates/statefulset.yaml` | StatefulSet | `CORTEX_NODE_ID` from `metadata.name` unless `nodeId` is set; typed liveness/readiness probes; optional meta + media + config mounts; `volumeClaimTemplates` for `meta` when persisted |
+| `templates/statefulset.yaml` | StatefulSet | `CORTEX_NODE_ID` from `metadata.name` unless `nodeId` is set; typed liveness/readiness probes; **`meta` always mounted** (emptyDir when not persisted); optional media + config mounts; `volumeClaimTemplates` for `meta` when persisted |
 | `templates/service.yaml` | Service (headless) | Gated `service.enabled`; `clusterIP: None`; fronts monitoring `8093` for health/metrics scraping only |
 | `templates/secret.yaml` | Secret | `<fullname>-token` (key `token`), only if `loom.token` set and no `existingSecret` |
 | `templates/s3-secret.yaml` | Secret | `<fullname>-s3` (`accessKey`, `secretKey`, `webhookSecret`); only when `s3.enabled` **and** something to store **and** no `s3.existingSecret` |
@@ -48,6 +48,13 @@ graph LR
 | `templates/poddisruptionbudget.yaml` | PodDisruptionBudget | Gated `podDisruptionBudget.enabled` |
 | `templates/_helpers.tpl` | — | name/labels, `cortex.image` (tag defaults to `appVersion`), `cortex.tokenSecretName`, `cortex.s3SecretName` |
 | `templates/NOTES.txt` | — | Registration check (`GET /api/v1/processors`) + token/media/custom-image hints |
+
+## ✅ Fixed in chart 0.2.0 (found by `helm/test`)
+
+| # | Was | Fix |
+|---|-----|-----|
+| **C1** | `meta.persistence.enabled: false` (**the default**) mounted nothing at `meta.path`, so the image's root-owned `/meta` VOLUME was unwritable by the container's uid 1000. Every `filesystem-source` run died with `AccessDeniedException: /meta/filesystem-index` **while the run still reported SUCCESS with zero items** — a silent false green. | `meta` is now always mounted; an `emptyDir` when persistence is off. "Not persisted" means ephemeral, not absent. |
+| **C2** | `media.readOnly` defaulted to `true`, documented as "workers only read source media". The hash nodes (`sha512`/`md5`/`sha256`) cache their digest on the source file as the `loom_sha512` extended attribute, so every hash task failed with `Error writing extended attribute ... Read-only file system`. | Default is now `false`, and `values.yaml` documents why. The Docker playbook's claim that only file-moving nodes (dedup) need write access is wrong and should be corrected too. |
 
 ## Why a StatefulSet (not a Deployment) — and why the node id is now mandatory
 

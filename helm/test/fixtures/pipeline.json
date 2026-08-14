@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "id": "source",
+      "type": "filesystem-source",
+      "name": "Harness media",
+      "options": { "path": "/media" }
+    },
+    { "id": "hash", "type": "sha512", "name": "SHA-512 identity" },
+    { "id": "md5sum", "type": "md5", "name": "MD5 hash" },
+    { "id": "meta", "type": "metadata", "name": "Asset metadata" }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source", "sourcePort": "media", "target": "hash", "targetPort": "media" },
+    { "id": "e2", "source": "source", "sourcePort": "media", "target": "md5sum", "targetPort": "media" },
+    { "id": "e3", "source": "source", "sourcePort": "media", "target": "meta", "targetPort": "media" }
+  ]
+}

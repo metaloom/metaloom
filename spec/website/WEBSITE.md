@@ -18,7 +18,7 @@ coding agent that has to add or restructure site content, or fix the build/publi
 | Definition of done for a spec change | [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 | Spec-tree entry point / routing | [../CONTEXT.md](../CONTEXT.md) |
 | The `/pipeline-editor/` page (backend-free editor + simulator) | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
-| Client-side semantic search over `/docs/**` (index, model, ranking, the box) | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) |
+| Client-side semantic search over `/docs/**` (index, model, ranking, the box) **and `/help/`** | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) |
 | Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | REST API (source of the staged OpenAPI document) | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
@@ -151,6 +151,7 @@ website/
 ├── content/english/       # contentDir — see the page inventory below
 ├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
 ├── data/en/*.yml          # LIVE: home · tour · studio · feature · faq · team. The other 9 are dead Meghna copy
+├── data/en/help.json      # /help/ topic id → docs URL, the Loom UI's half in loom-ui/src/help/
 ├── i18n/en.yaml           # UI strings (menu labels, footer headings, "Read more")
 ├── static/                # verbatim → dist/: images/ · CNAME · .nojekyll
 │   ├── docs/examples/     #   openapi.{json,yaml} · schema.graphql   (staged, generated)
@@ -191,6 +192,7 @@ Every content page is a **page bundle**: a directory with `index.adoc`/`index.md
 | `/author/jotschi/` | `author/jotschi.md` | in the page | `layouts/author/single.html` |
 | `/faq/` | `_index.md` (front matter only) | `data/en/faq.yml` | `layouts/faq/list.html` |
 | `/team/` | `_index.md` (front matter only) | `data/en/team.yml` | `layouts/team/list.html` |
+| `/help/` | `_index.md` (front matter only) | `data/en/help.json` | `layouts/help/list.html` — the junction the Loom UI's `?` icons resolve through, **not** a page anyone browses to. See [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) § *The `/help/` redirector* |
 | `/404.html` | **none** — Hugo synthesises it | in the layout | `layouts/404.html` + `assets/{css,js}/404.*` |
 | `/docs/**` | `.adoc` (below) | in the pages | `layouts/docs/{list,single}.html` |
 
@@ -1082,6 +1084,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Change docs layout / TOC | `layouts/docs/{single,list}.html`; TOC scoping in `static/plugins/toc/toc.js` |
 | Find out why a link 404s | `cd website && node check-links.mjs` |
 | Change docs search (index, ranking, the box) | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) — `build-search-index.mjs`, `assets/js/docs-search.js`, `partials/docs-search*.html` |
+| Repoint an in-product `?` shortcut | `data/en/help.json` — and `loom-ui/src/help/topics.ts` if the id itself changes, since a test checks the two against each other |
 | Bump the search embedding model | `cd website && ./vendor-ternlight.sh [version] && ./build.sh` — **the index must be rebuilt in the same change** |
 | Fix "build fails with localhost links" | Escape the URL: `` `\http://localhost:8092` `` |
 | Fix "asciidoc renders empty" | Install `asciidoctor`; confirm it is in `[security.exec] allow` |
@@ -1347,8 +1350,13 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `c1e95640`_
-_Last updated: 2026-08-13 (site-wide metadata and chrome pass: unique titles, hand-written
+_Git HEAD revision: `836d2509`_
+_Last updated: 2026-08-13 (the `/help/` page — `layouts/help/list.html`, `data/en/help.json`,
+`assets/js/help-redirect.js`, `assets/css/help.css`. It is the junction the Loom UI's help icons
+resolve through, so a shipped installation never stores a documentation URL; detail belongs to
+[WEBSITE_SEARCH.md](WEBSITE_SEARCH.md), this file carries the catalogue entry only. Also documented
+the help icons themselves in `docs/ui/`).
+Earlier: 2026-08-13 (site-wide metadata and chrome pass: unique titles, hand-written
 descriptions everywhere, robots.txt, a `noindex` switch, a breadcrumb trail, a compacting header
 that gets out of the way on phones, and the new /faq/, /team/ and 404 pages).
 Earlier: 2026-08-11 (docs/loom/mcp/ — the MCP server page: transports, token, tool inventory)_

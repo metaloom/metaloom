@@ -77,10 +77,11 @@ Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` 
 ```
 loom-ui/
 ├── src/
-│   ├── api/          # 41 REST/WS client modules + 22 co-located *.test.ts (§5)
-│   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail, StatusChip
+│   ├── api/          # 47 REST/WS client modules + co-located *.test.ts (§5)
+│   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail, StatusChip, HelpHint
 │   ├── context/      # Auth, Space, NodeRegistry, Search, Theme, Toast, Notification, Layout (§6)
 │   ├── features/     # One directory per UI area (§4.2)
+│   ├── help/         # topics.ts — documentation coachmark registry + helpUrl (§7.10)
 │   ├── hooks/        # usePagedList + the pure pagedList helpers it is built from (§11.3)
 │   ├── i18n/         # i18n.ts + locales/{en,de}.json
 │   ├── layout/       # AppShell.tsx (routes + shell), Sidebar.tsx (nav)
@@ -89,7 +90,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 87 Playwright specs (§8.2)
+├── e2e/              # 100 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -593,6 +594,55 @@ Who guards what today:
 | `PipelineEditor` | `dirty` — any canvas/parameter/edge edit | Yes | Yes — reuses the discard-confirm dialog (`pipeline-switch-confirm`) that the in-editor pipeline switch already showed |
 | `UploadProvider` | `summary.isActive` | Yes — reloading drops the `File` handles and the endpoint cannot resume | **No**, deliberately: the queue is module-level and survives every route change, so leaving the screen costs nothing |
 
+### 7.10 Documentation coachmarks
+
+`components/HelpHint.tsx` — the `?` beside a screen heading that opens the part of the customer
+documentation the screen is about. It is the inert `HelpOutlineOutlined` tooltip these headers
+already carried, made to lead somewhere; `description` is how the explanatory text the header had
+survives the change.
+
+**A shipped UI never holds a documentation URL.** A Loom installation outlives the site it links to,
+so a hint wired to `/docs/ui/#pipeline-editing` breaks every already-deployed instance the day that
+heading is reworded — silently, on the reader's machine, where nothing here would find out. The hint
+carries a **stable topic id** and a natural-language fallback query instead, and the site resolves
+it:
+
+```
+HelpHint topic="pipeline.editing"
+  → https://metaloom.io/help/?t=pipeline.editing&q=build+a+pipeline+connect+nodes+typed+ports…
+      → the site's curated map (website/data/en/help.json) — instant, exact, link-checked
+      → its documentation search index, for an id that map has never heard of
+```
+
+| Aspect | Rule |
+|--------|------|
+| Registry | `src/help/topics.ts` — `HELP_TOPICS` (id → fallback query), `HelpTopic`, `helpUrl()` |
+| Ownership split | This side owns id → label + query. **The website owns id → destination**, and neither repeats the other |
+| Target | `target="_blank"` + `rel="noopener noreferrer"`. Reading documentation must never cost a canvas, an upload queue or an in-memory session |
+| i18n | `help.open` and `help.topic.*`. A topic id is dotted and i18next's separator is `.`, so `detection.faces` needs a **nested** `help.topic.detection.faces` — a flat key of that name is unreachable and renders raw |
+| Test ids | `help-hint-<topic>` (dots included) |
+| Base URL | `VITE_HELP_BASE_URL`, default `https://metaloom.io/help` (§9.1) |
+
+> **A hint follows what the reader is looking at, not which route they are on.** `WorkflowView`
+> picks by review mode through `helpTopicForMode` (rating/tagging → `workflow.rating`,
+> deduplication → `workflow.dedup`, the three model-output modes → `detection.results`) and
+> `DetectionManagement` picks by tab. One fixed hint per screen would point at the wrong review mode
+> five times out of six, which is the failure the feature exists to prevent.
+
+Who carries one today: `ChatWorkspace`, `MemoryView`, `SearchView`, `UploadView`, `PipelineEditor`,
+`DetectionManagement`, `WorkflowView`, `AccessControlAdmin`.
+
+**Two gates, one from each end** — and between them a shortcut cannot break without something going
+red:
+
+| Gate | Catches |
+|------|---------|
+| `src/help/topics.test.ts` | a topic the UI sends that the website's map does not have (and the reverse orphan); a fallback query too short, or identifier-shaped, which changes how the site scores it; a missing `en`/`de` label |
+| the website's `check-links.mjs` | a destination page or **anchor** that no longer exists — `layouts/help/list.html` renders every map entry as a real `<a href>`, so the site build walks them |
+
+Feature detail, the `/help/` page and why its semantic pass ranks rather than redirects:
+[../../website/WEBSITE_SEARCH.md](../../website/WEBSITE_SEARCH.md) § *The `/help/` redirector*.
+
 ---
 
 ## 8. Test setup
@@ -608,12 +658,13 @@ Who guards what today:
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-42 test files today:
+52 test files today:
 
 | Area | Files |
 |------|-------|
 | `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `dedup`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
 | `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have; `useUnsavedChanges` — likewise the listener wiring and guard dispatch, not the hooks around them |
+| `src/help/` | `topics` — the coachmark registry, checked against the website's map and both locale files (§7.10). The one test in this tree that reads a file **outside `loom-ui/`**, which it can because the website is the same repository |
 | Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
 
 > `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
@@ -632,11 +683,11 @@ Who guards what today:
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-99 specs in two flavours, distinguished by filename suffix:
+100 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (64) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (65) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -677,6 +728,7 @@ runtime config.
 | `VITE_API_BASE_URL` | `src/api/config.ts` | `http://localhost:8092/api/v1` | REST base; also the source of the WS URL (§7.4). Set to `/api/v1` for same-origin builds. |
 | `VITE_PROXY_TARGET` | `vite.config.ts` (dev only) | unset → no proxy | Backend for the dev-server `/api` proxy; the path is **not** rewritten |
 | `VITE_PORT` | `playwright.config.ts` | `3000` | Dev-server port used by the E2E webServer |
+| `VITE_HELP_BASE_URL` | `src/help/topics.ts` | `https://metaloom.io/help` | Where the documentation coachmarks point (§7.10). For an installation with no route to the public internet, a mirror |
 
 > `VITE_WS_URL` and `VITE_MCP_URL` are **not** read anywhere — earlier revisions of this spec
 > listed them in error. The WS URL is derived from `VITE_API_BASE_URL`.
@@ -711,6 +763,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `useUnsavedChanges` / `useNavigationGuard` / `bindUnloadWarning` / `runGuarded` | `src/hooks/useUnsavedChanges.ts` | `beforeunload` warning and in-app route guard for a screen with unsaved work (§7.9) |
 | `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
 | `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
+| `HelpHint` | `src/components/HelpHint.tsx` | The `?` beside a heading that opens the matching documentation (§7.10). Carries a topic id, never a URL |
+| `HELP_TOPICS` / `HelpTopic` / `helpUrl` | `src/help/topics.ts` | The coachmark registry and the `/help/?t=&q=` builder (§7.10) |
 | `StatusChip` / `Tone` / `toneStyles` | `src/components/StatusChip.tsx` | green/amber/red/neutral status pill. Extracted from `MaintenanceView` so the two operator screens paint the same states the same colour |
 | `ListPaging` | `src/components/ListPaging.tsx` | "Showing X of Y" + load-more button for a paged list (§11.3) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
@@ -817,6 +871,7 @@ not an offset**. Lists that are pickers rather than browsable screens simply pas
 | Domain types · port types | `loom-ui/src/types/index.ts` · `types/nodeDescriptors.ts` |
 | i18n setup · locales | `loom-ui/src/i18n/i18n.ts` · `i18n/locales/{en,de}.json` |
 | Shared empty state | `loom-ui/src/components/EmptyState.tsx` |
+| Documentation coachmarks | `loom-ui/src/help/topics.ts` (registry) · `loom-ui/src/components/HelpHint.tsx` (the icon) · `website/data/en/help.json` (destinations) |
 | Asset preview `<img>` | `loom-ui/src/components/AssetThumbnail.tsx` |
 | Chat split constants | `loom-ui/src/features/chat/ChatWorkspace.tsx` (`SPLIT_DEFAULT_PCT`) |
 | New-chat greeting | `loom-ui/src/features/chat/ChatGreeting.tsx` |
@@ -845,6 +900,8 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Cookie-authenticated asset previews with placeholder fallback
 - [x] `/ui/` base path aligned across Vite, router and `UIService`
 - [x] Single shared reconnecting WebSocket (pipeline + processor channels)
+- [x] Documentation coachmarks on eight screens, resolved through a topic id rather than a URL, with
+      a gate at each end of the contract (§7.10)
 - [ ] Global 401 interceptor / session-expiry warning
 - [ ] React error boundaries
 - [ ] Sidebar collapse persistence
@@ -896,8 +953,15 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (the customer-facing share area — `/share/:slug` declared in `main.tsx`
+_Git HEAD revision: `836d2509`_
+_Last updated: 2026-08-13 (documentation coachmarks — §7.10: `src/help/topics.ts`, `HelpHint`, and
+the `?` on eight screens, two of which follow the review mode or tab rather than the route. A hint
+carries a stable topic id and a fallback query, never a documentation URL, because a shipped
+installation outlives the site it links to; `website/data/en/help.json` owns the destinations and
+the site's `check-links.mjs` checks them. 10 vitest cases and 11 Playwright cases. §3, §8.1, §8.2,
+§9.1, §10, §12 and §13.1 updated, and the file/spec counts recounted against the tree — several were
+stale).
+Earlier: 2026-08-11 (the customer-facing share area — `/share/:slug` declared in `main.tsx`
 above `AuthGate`, `features/share/`, `api/shares.ts` + `api/shareLinks.ts`, the application's first
 real media player, and the first clipboard use; 25 vitest cases and 14 Playwright cases, of which
 ten never sign in at all. Earlier: storage admin screen — `/admin/storage`, `api/storage.ts`, `api/format.ts`,

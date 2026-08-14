@@ -13,7 +13,7 @@ reader's machine.
 
 | Subsystem | Spec | Owns |
 |---|---|---|
-| **This feature** | **this file** | The index format, the chunker, the two ranking passes, the box, the model vendoring |
+| **This feature** | **this file** | The index format, the chunker, the two ranking passes, the box, the model vendoring, **and `/help/`** |
 | The **site** it is published on | [WEBSITE.md](WEBSITE.md) | Hugo build, `build.sh` gates, `check-links.mjs`, the docs layouts, the publish flow |
 | The **content** being searched | [WEBSITE.md](WEBSITE.md) § *Page inventory* | What pages exist and what they say |
 
@@ -32,7 +32,7 @@ detail below into it**.
   `website/vendor-ternlight.sh` and **committed**.
 * `website/build-search-index.mjs` runs from `build.sh` after `hugo`, reads the **built HTML** under
   `dist/docs/`, and writes `dist/search/docs-index.json` (~364 KB, ~118 KB gzipped) plus
-  `dist/search/docs-vectors.bin` (~514 KB int8). Currently **86 pages → 1371 chunks**. ~6 s.
+  `dist/search/docs-vectors.bin` (~514 KB int8). Currently **90 pages → 1462 chunks**. ~6 s.
 * `themes/meghna-hugo/assets/js/docs-search.js` runs **two passes over one index**: a substring pass
   that answers instantly from the metadata, and a cosine pass against the embeddings once the model
   has arrived. Neither is a fallback for the other — they are good at opposite things.
@@ -40,6 +40,10 @@ detail below into it**.
   but the index covers `/docs/**` only, which the placeholder says out loud. **Nothing is fetched
   until the reader focuses it**: a non-docs reader pays for the ~5 KB script and nothing else.
 * Four `data-*-url` attributes carry the asset URLs and are checked by **both** build gates.
+* **`/help/`** is the index's second consumer: the junction the Loom UI's `?` icons link at, so a
+  shipped installation never holds a documentation URL. It answers most links off a curated map
+  with nothing fetched at all, and borrows this engine only when handed a topic id it does not
+  know — see *The `/help/` redirector*.
 
 ## Architecture
 
@@ -266,6 +270,56 @@ Four things about it are load-bearing and each was a defect first:
 `assets/js/script.js` refuses to hide the site header while `docs-search-open` is set, so the two
 behaviours cannot fight over the top of the screen ([WEBSITE.md](WEBSITE.md) § *Site chrome*).
 
+## The `/help/` redirector
+
+The second consumer of this index, and the only one that is not a search box. It is where the `?`
+icons in the Loom UI land ([../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.10).
+
+**A shipped Loom outlives the site it links to.** Wiring the UI at `/docs/ui/#pipeline-editing`
+breaks every already-deployed instance the day that heading is reworded, silently, on the reader's
+machine. So the UI sends a stable topic id and the question in words —
+`/help/?t=pipeline.editing&q=build+a+pipeline…` — and the site decides what that means today.
+
+| # | Step | Cost | When |
+|---|---|---|---|
+| 1 | the curated map, `data/en/help.json` | nothing | every id a shipped UI actually sends |
+| 2 | the **literal** pass, score ≥ 6 | ~118 KB | an id this build has never heard of |
+| 3 | the **semantic** pass → a ranked **list** | 7 MB | when neither of the above answered |
+
+* `layouts/help/list.html` renders every map entry as a real `<a data-help-topic href>`, and
+  `assets/js/help-redirect.js` reads its map **out of those anchors**. So the link `check-links.mjs`
+  verified is by construction the link the redirect uses — there is no second copy of the URLs, and
+  a retired anchor fails the build instead of 404-ing a reader. That is the whole reason the page
+  renders server-side at all; it is also what a reader with no JavaScript, and a reader with no
+  `?t=`, gets.
+* `docs-search.js` **exports its engine** on `window.metaloomDocsSearch` (`loadIndex`, `loadModel`,
+  `literal`, `semantic`, `results`, `chunkAt`, `describe`) rather than the redirector carrying a
+  second copy of the ranking. The score table above is load-bearing — the identifier-shape rule
+  exists because three named queries regressed without it — and two implementations of it would
+  drift the first time either was tuned, with nothing on this site to catch it. The `!roots.length`
+  early return therefore moved *below* the export: the box is optional now, the index is not.
+* `help-redirect-script.html` is **not** `defer`red and carries **none** of the four `data-*-url`
+  attributes. Step 1 must answer before the page finishes parsing; steps 2–3 borrow the deferred
+  engine's config, and a second `script[data-search-index-url]` on the page would be the first one
+  `docs-search.js`'s own `querySelector` found.
+
+> **Step 3 does not auto-redirect, and that is a measurement rather than a preference.** Scored
+> against this corpus, genuine product questions land between 0.37 and 0.56 (`why is my video not
+> playing` → 0.404, `how do I share a collection with a customer` → 0.42), while questions the
+> documentation cannot answer at all reach 0.54 (`reset the password on my home router` → **0.488**,
+> straight at `/docs/loom/authentication/#_initial_admin_password`; `convert a word document to pdf`
+> → 0.543). The distributions overlap almost completely: **every floor that rejects the router
+> question also rejects four real ones.** A 15.4M-parameter model can rank this corpus but cannot
+> decide about it — the same limit the *Progress Assessment* below records for two-word queries — so
+> it ranks and the reader picks. A reader who followed a help icon must land somewhere they can act
+> on, and a confidently wrong page is worse than six candidates above the shortcut index. Re-measure
+> this before ever turning a threshold back on; the numbers are a property of *this* model and *this*
+> corpus, and `pkg-web`'s successor may separate them.
+
+The literal step **is** safe to act on, because score ≥ 6 is a fact about the corpus rather than a
+judgement: the query is a page title or matches a section heading. `?q=dedup` scores 8 and lands on
+`/docs/nodes/dedup/` without the model ever being fetched.
+
 ## Build wiring and gates
 
 `build.sh` runs the index builder **after `hugo` and before the link check**, so the checker can
@@ -299,6 +353,8 @@ then fails the build instead of 404-ing for a reader.
 | Change where the box appears | `partials/navigation.html` (the box) and `partials/footer.html` (the script) |
 | Change the placeholder or label | `website/i18n/en.yaml` (`searchDocsLabel`, `searchDocsPlaceholder`) |
 | Bump or re-vendor the model | `./vendor-ternlight.sh [version]`, then `./build.sh` |
+| Add or repoint a `?` shortcut | `website/data/en/help.json` (destination) and `loom-ui/src/help/topics.ts` (label + fallback query) — **both**, or `topics.test.ts` fails |
+| Change how `/help/` resolves a link | `themes/meghna-hugo/assets/js/help-redirect.js`; the engine it borrows is the export block in `docs-search.js` |
 | Find out why a page is missing from search | run `node build-search-index.mjs dist` — the gates name the page |
 
 ## Conventions and Gotchas
@@ -321,6 +377,12 @@ then fails the build instead of 404-ing for a reader.
 * **Embedding is the slow part, not tokenising.** A ~120-token forward pass is ~27 ms, so the step
   is fanned out over `min(8, cores − 2)` worker threads — 38 s down to 6 s. `hugo` itself takes
   0.7 s, so an unparallelised index step would dominate the whole build.
+* **`docs-search.js` returns early on a missing config tag, not on a missing box.** The engine
+  export sits above the `!roots.length` return so `/help/` keeps working on a page with no search
+  box. Anything added *below* that line is box-only.
+* **Never give `/help/` its own `data-search-*-url` tag.** `docs-search.js` finds its config with
+  `querySelector('script[data-search-index-url]')`, and a tag in `<main>` precedes the one
+  `footer.html` emits.
 * **`main()` is dispatched at the end of the file**, not beside the worker branch at the top: it
   reads consts declared throughout, and calling it mid-module hits their temporal dead zone.
 
@@ -362,6 +424,18 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
    not the results panel or a nav link. Tap the ×: the class is gone and the field is blurred.
 9. **Gates.** Rename `dist/search/docs-index.json` → `check-links.mjs` fails on
    `data-search-index-url`. Rename `post-single-content` in one built page → the builder names it.
+10. **`/help/`**, the whole battery, since it has no suite of its own either:
+    `?t=pipeline.editing` lands on `/docs/ui/#pipeline-editing` **with no `search/docs-` or
+    `ternlight` request at all**; every `data-help-topic` anchor resolves to a heading that exists;
+    `?t=<unknown>&q=dedup` reaches `/docs/nodes/dedup/` without fetching the model; `?t=<unknown>`
+    with a prose `q` stays on `/help/` and lists candidates above the shortcut index; `?t=<unknown>`
+    with no `q` says so; bare `/help/` fetches nothing and says nothing; with JavaScript off the
+    shortcuts are still ordinary links; blocking `docs-index.json` produces an honest message rather
+    than a stuck "Finding the right page…"; and `?t=%22%5D%2C%5Ba%5D` resolves by query rather than
+    becoming a selector.
+11. **Both ends of the topic contract.** Break `data/en/help.json` — repoint one `url` at a heading
+    that does not exist → `check-links.mjs` names it; add a duplicate `id` → `hugo` refuses to
+    build; delete an entry → `loom-ui`'s `npm test` fails in `src/help/topics.test.ts`.
 
 ## Progress Assessment
 
@@ -377,6 +451,9 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
 - [x] Progressive-enhancement bootstrap mirroring `reveal-bootstrap.html`; all four degradation
       paths verified
 - [x] Both build gates taught the four `data-*-url` attributes
+- [x] **`/help/`** — the junction the Loom UI's `?` icons resolve through, so a shipped installation
+      holds a topic id rather than a documentation URL. Curated map first, this engine second; the
+      engine is exported from `docs-search.js` rather than reimplemented
 - [ ] **Abstract two-word queries are weak.** `what is a port` returns
       `/docs/loom/configuration/#_server` rather than `/docs/pipeline/#ports` — the corpus uses
       "port" in two unrelated senses and a 15.4M-parameter model has no way to tell them apart.
@@ -389,11 +466,20 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
       marketing copy should dilute reference results.
 - [ ] No analytics of any kind, so there is no data on what readers actually search for. Any future
       ranking change is judged by the query battery in *Test Setup* and nothing else.
+- [ ] **`/help/` cannot redirect on similarity alone** — the measured overlap between answerable and
+      unanswerable queries is documented under *The `/help/` redirector*. A larger model, or a
+      reranker over the top ~20, is what would change that. Until then step 3 lists rather than
+      jumps, which only affects topic ids the curated map has never heard of.
 - [ ] The model is English-only (BERT WordPiece, 30522-token vocab). The site is English-only too,
       so this only becomes a gap if a second language is ever added.
 
 ---
-_Git HEAD revision: `c1e95640`_
-_Last updated: 2026-08-13 (the phone overlay: the box pins to the top of the screen on focus and the
+_Git HEAD revision: `836d2509`_
+_Last updated: 2026-08-13 (the `/help/` redirector — the index's second consumer, and where the Loom
+UI's `?` icons land so a shipped installation never holds a documentation URL. Curated map first
+with nothing fetched, this engine second; `docs-search.js` now **exports** its two passes rather
+than being copied, and its early return moved below that export. Step 3 ranks instead of
+redirecting, which is a measurement: answerable and unanswerable queries overlap from 0.37 to 0.56).
+Earlier: 2026-08-13 (the phone overlay: the box pins to the top of the screen on focus and the
 results are sized to the visual viewport, so a software keyboard can no longer cover them).
 Earlier: 2026-08-09 (initial specification; box placed in the site header, right of Docs)_

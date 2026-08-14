@@ -1,0 +1,17 @@
+{{/*
+  Loads the /help/ redirector. Called from layouts/help/list.html only — unlike
+  docs-search-script.html, which footer.html puts on every page.
+
+  It carries none of the `data-*-url` attributes its neighbour does, and needs none: for a topic id
+  the curated map knows it reads the destination straight off the links the page already rendered,
+  and for one it does not it borrows the engine docs-search.js exposes on `window`, config and all.
+  A second config tag on the page would also be the first tag `docs-search.js`'s own
+  `querySelector('script[data-search-index-url]')` found, which is a trap worth not setting.
+
+  No `defer`, unlike docs-search-script.html: the whole point of this page is to leave it again, and
+  every millisecond before the redirect is a millisecond of a page nobody meant to read. The
+  fallback path does wait for the deferred engine — but it was going to wait on a network fetch
+  anyway, so it costs the reader nothing.
+*/}}
+{{ $help := resources.Get "js/help-redirect.js" | minify | fingerprint "sha384" }}
+<script src="{{ $help.RelPermalink }}" integrity="{{ $help.Data.Integrity }}"></script>

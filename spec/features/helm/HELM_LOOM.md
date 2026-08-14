@@ -12,6 +12,21 @@ the chart invents no new runtime behavior, only parameterizes env vars, volumes 
 Env-var semantics live in [`../../loom/CONFIGURATION.md`](../../loom/CONFIGURATION.md); the
 single-writer rule lives in [`../../CLUSTERING.md`](../../concept/CLUSTERING.md). Neither is duplicated here.
 
+## ✅ Fixed in chart 0.2.0 (found by `helm/test`)
+
+Both were blockers for a combined Loom + Cortex deploy; see [`helm/test/README.md`](../../../helm/test/README.md).
+
+| # | Was | Fix |
+|---|-----|-----|
+| **S1** | The bundled Postgres pod carries the same `name`/`instance` labels as the server, and neither `templates/service.yaml` nor the Deployment selector pinned a component. `svc/loom` had **two** endpoints and balanced REST/gRPC/WS/UI traffic onto a pod listening only on 5432; `kubectl logs deployment/loom` resolved to Postgres. | Both selectors now pin `app.kubernetes.io/component: server`. ⚠ `spec.selector` is immutable — reinstall or `helm upgrade --force`. |
+| **S2** | Nothing orders the Deployment after the Postgres StatefulSet. Loom usually won the race, Flyway burned its retries in ~2s (`Retrying in 0 sec...`), and the process then **neither exited nor opened port 8092** — no crash for Kubernetes to restart, so the pod sat unready until liveness killed it minutes later. | `waitForDatabase.enabled` (default true) renders a `pg_isready` init container. It must pass `-U`: the pod runs as uid 1000, which has no passwd entry in the postgres image, so an unqualified `pg_isready` exits 3 (`no attempt`) forever. |
+
+**Not fixed here, but it bites this chart** — Flyway's target schema flips between boots because
+`V1__db_setup.sql` creates a schema named `loom` while the default DB user is also `loom`
+(`search_path` = `"$user", public`). Every boot after the first re-runs all migrations into the other
+schema and dies in `V2.55`. Loom then never becomes ready again after any restart. Details and the
+username workaround are in [`helm/test/README.md`](../../../helm/test/README.md).
+
 ## 🔴 Known chart bugs (verified at this revision)
 
 Two env vars the chart sets are **not the names the process reads**. Both are chart-side
@@ -65,8 +80,8 @@ graph TB
 
 | Template | Kind(s) | Notes |
 |----------|---------|-------|
-| `templates/deployment.yaml` | Deployment | `strategy: Recreate` (single-writer server); `replicas: .Values.replicaCount`; env from values + Secrets; mounts config/keystore/uploads/(plugins); HTTP probes on the REST port |
-| `templates/service.yaml` | Service | Three named ports: `rest` 8092, `grpc` 8091, `monitoring` 8989 |
+| `templates/deployment.yaml` | Deployment | `strategy: Recreate` (single-writer server); `replicas: .Values.replicaCount`; env from values + Secrets; mounts config/keystore/uploads/(plugins); HTTP probes on the REST port; `wait-for-database` init container; selector and pod labels pin `app.kubernetes.io/component: server` |
+| `templates/service.yaml` | Service | Three named ports: `rest` 8092, `grpc` 8091, `monitoring` 8989; selector pins `app.kubernetes.io/component: server` |
 | `templates/secret.yaml` | Secret ×2 | `<fullname>-auth` (`initial-password`), `<fullname>-db` (`db-password`) — each skipped if the matching `existingSecret` is set; the DB one is also skipped when `postgresql.enabled` |
 | `templates/pvc.yaml` | PersistentVolumeClaim | `range` over `.Values.persistence`; one PVC per entry with `enabled` and no `existingClaim` |
 | `templates/configmap.yaml` | ConfigMap | Only when `.Values.config` is non-empty → mounted `/etc/loom/loom.yml`. 🔴 **Inert — see B3** |
