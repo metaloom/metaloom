@@ -59,7 +59,7 @@ public class JooqGroup extends TableImpl<JooqGroupRecord> {
     /**
      * The column <code>public.group.uuid</code>.
      */
-    public final TableField<JooqGroupRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqGroupRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.group.name</code>.

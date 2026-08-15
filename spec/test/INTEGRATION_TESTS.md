@@ -41,7 +41,7 @@ graph TB
         CLI["MetaLoomCLIMain.execute"]
     end
     subgraph DOCKER["containers (only where noted)"]
-        PGC[("postgres:16.3")]
+        PGC[("postgres:18.6")]
         LOOMC["metaloom/loom-demo:latest"]
         CTXC["metaloom/cortex-server:latest"]
         MINIO["minio/minio"]
@@ -240,7 +240,7 @@ it in the same change as any `@NodeSpec` edit - see [../guidelines/NEW_NODE.md](
 | **Container tests copy media, not bind-mount it** | `CortexContainer` uses `withCopyFileToContainer` deliberately: a bind mount silently yields an empty directory under rootless Docker or Docker Desktop, and the failure then looks like a pipeline bug. Keep the staged media small |
 | **Worker readiness means registered** | `CortexContainer` waits for `Connected to Loom control websocket`, not process start. A worker that booted but never reached Loom would otherwise look healthy and do nothing |
 | **Testcontainers is pinned at 1.17.6** | Which is why `MinioContainer`, `LoomContainer` and `CortexContainer` are hand-rolled. Bumping it reaches `e2e-test`, `cortex/core`, `cortex/cli`, `loom-client` and the jOOQ codegen plugin |
-| **PostgreSQL 16.3, not older** | Migration V2.71 uses `UNIQUE NULLS NOT DISTINCT`; an older server fails the migration on boot and the container never reports healthy, which reads as a broken image |
+| **PostgreSQL 18, not older** | Migration V2.104 sets every uuid default to `uuidv7()`, a PostgreSQL 18 built-in (V2.71 additionally needs 15+ for `UNIQUE NULLS NOT DISTINCT`). V2.104 raises an explicit version error; without that guard an older server fails the migration on boot and the container never reports healthy, which reads as a broken image |
 | **Run and task tables have no REST surface** | `MetaLoomTestContext.query(...)` goes to the database directly - that is currently the only way to assert which worker did what |
 | **Everything named `*IntegrationTest` is a surefire test** | It matches `**/*Test.java`, so `mvn test` runs these too. There is no failsafe binding and no separate profile |
 

@@ -82,13 +82,20 @@ public class PipelineEventEndpointTest {
 	}
 
 	/**
-	 * The pipeline events socket is multiplexed: processor lifecycle frames
-	 * ({@code channel == "PROCESSOR"}, e.g. the REGISTERED emitted when the test
-	 * processor connects) share the same connection. A UI client routes by channel;
-	 * these tests only assert on pipeline frames, so they skip processor ones.
+	 * The pipeline events socket is multiplexed over four channels: {@code PROCESSOR}
+	 * lifecycle frames, {@code NODE_REGISTRY} descriptor/availability frames,
+	 * {@code NOTIFICATION} frames, and pipeline frames. Pipeline frames are the ones
+	 * carrying <em>no</em> {@code channel} field at all, which is how a UI client tells
+	 * them apart (see {@code loom-ui/src/api/pipelineEvents.ts}).
+	 *
+	 * <p>Testing for the absence of the field rather than for "not PROCESSOR": the
+	 * negative form counted a NODE_REGISTRY frame as a pipeline frame, and registering
+	 * the test processor is itself what triggers a NODE_AVAILABILITY_CHANGED broadcast.
+	 * Whether that landed inside the quiet window was a matter of timing, so the drop
+	 * assertion below failed intermittently against a socket behaving correctly.</p>
 	 */
 	private static boolean isPipelineFrame(JsonObject frame) {
-		return !"PROCESSOR".equals(frame.getString("channel"));
+		return frame.getString("channel") == null;
 	}
 
 	private JsonObject sendAndReceive(WebSocket ws, JsonObject message) throws Exception {

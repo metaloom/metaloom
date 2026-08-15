@@ -3,7 +3,7 @@
 set -euo pipefail
 
 NAME=postgres-demo
-IMAGE=postgres:16.3-bullseye
+IMAGE=postgres:18.6-trixie
 NETWORK=dev
 
 docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK"

@@ -61,7 +61,7 @@ public class JooqRemix extends TableImpl<JooqRemixRecord> {
     /**
      * The column <code>public.remix.uuid</code>.
      */
-    public final TableField<JooqRemixRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqRemixRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.remix.name</code>. User-facing label shown on the

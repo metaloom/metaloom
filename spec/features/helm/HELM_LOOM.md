@@ -124,7 +124,7 @@ Not templated at all: `LOOM_SIMILARITY_*` (see [`../../CLUSTERING.md`](../../con
 | `image.repository` / `.tag` | `metaloom/loom-server` / `""`→`appVersion` | append `-native` for the GraalVM variant |
 | `persistence.{config,keystore,uploads,plugins}` | on / on / on / off | all `ReadWriteOnce`, 128Mi / 128Mi / 20Gi / 1Gi; each takes `existingClaim`, `storageClass`, `accessModes`, `size` |
 | `database.{host,port,name,user,password,existingSecret}` | `""`,`5432`,`loom`,`loom`,`""`,`""` | external DB — the production path |
-| `postgresql.enabled` + `.image` + `.auth` + `.persistence` | off, `postgres:17-alpine`, `loom`/`loom`/`loom`, 10Gi | quick-start only; overrides `database.host` |
+| `postgresql.enabled` + `.image` + `.auth` + `.persistence` | off, `postgres:18-alpine`, `loom`/`loom`/`loom`, 10Gi | quick-start only; overrides `database.host` |
 | `auth.initialPassword` / `.existingSecret` / `.keystorePath` | `changeme` / `""` / `/keystore/keystore.jks` | the last one is 🔴 B2 |
 | `ingress.{enabled,className,host,path,pathType,tls,annotations}` | off, `loom.example.com`, `/`, `Prefix` | routes to the REST port only |
 | `sandbox.{enabled,namespace,createNamespace,rbac,resourceQuota,limitRange,networkPolicy}` | off, `loom-runners`, off, on, on, on, on | one unit — see gotchas |

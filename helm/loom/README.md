@@ -68,7 +68,7 @@ Log in to the UI (`/ui/`) as `admin` with `auth.initialPassword`.
 | `database.host` / `port` / `name` / `user` / `password` | — / `5432` / `loom` / `loom` / — | External DB connection. |
 | `database.existingSecret` | `""` | External DB password Secret (key `db-password`). |
 | `postgresql.enabled` | `false` | Bundle a self-contained Postgres (dev/quick start). |
-| `postgresql.image` / `auth` / `persistence` | `postgres:17-alpine`, … | Bundled Postgres settings. |
+| `postgresql.image` / `auth` / `persistence` | `postgres:18-alpine`, … | Bundled Postgres settings. |
 | `ai.enabled` / `url` / `modelId` | `false` / … | Chat agent LLM backend, any OpenAI-compatible server (`LOOM_AI_*`). |
 | `memory.enabled` | `false` | Agent memory bank (`LOOM_AGENT_MEMORY_ENABLED`). |
 | `sandbox.enabled` | `false` | Coding sandbox + full runner-namespace RBAC/guardrails. |

@@ -65,7 +65,9 @@ MetaLoom ships two Helm charts for deploying on Kubernetes — one per component
 * A `StorageClass` for Loom's persistent volumes
 * The MetaLoom container images reachable from your cluster (see link:../[Container Images])
 * A PostgreSQL database — an external managed one (recommended) or the loom chart's optional bundled
-  Postgres
+  Postgres. *Version 18 or newer*: Loom's schema generates primary keys with the built-in
+  `uuidv7()` function, and the migration refuses to run on an older server rather than failing
+  halfway through.
 
 == Install Loom
 

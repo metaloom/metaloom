@@ -64,7 +64,7 @@ public class JooqAssetNodeResult extends TableImpl<JooqAssetNodeResultRecord> {
     /**
      * The column <code>public.asset_node_result.uuid</code>.
      */
-    public final TableField<JooqAssetNodeResultRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAssetNodeResultRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.asset_node_result.asset_uuid</code>.

@@ -56,7 +56,7 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
     /**
      * The column <code>public.pipeline_node_task.uuid</code>.
      */
-    public final TableField<JooqPipelineNodeTaskRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqPipelineNodeTaskRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.pipeline_node_task.item_uuid</code>. The item

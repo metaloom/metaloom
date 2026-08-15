@@ -59,7 +59,7 @@ public class JooqShareComment extends TableImpl<JooqShareCommentRecord> {
     /**
      * The column <code>public.share_comment.uuid</code>.
      */
-    public final TableField<JooqShareCommentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqShareCommentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.share_comment.share_uuid</code>.

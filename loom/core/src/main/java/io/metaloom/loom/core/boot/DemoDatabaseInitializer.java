@@ -40,6 +40,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.agent.memory.MemoryHeader;
 import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.LoomOptions;
@@ -138,7 +139,6 @@ import io.metaloom.loom.db.model.token.Token;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.user.UserDao;
-import io.metaloom.utils.UUIDUtils;
 import io.metaloom.utils.hash.SHA512;
 
 /**
@@ -581,7 +581,7 @@ public class DemoDatabaseInitializer {
 
 		// --- Space ---
 		Space space = spaceDao.createSpace(adminUuid, DEMO_SPACE_NAME);
-		space.setUuid(UUIDUtils.randomUUID());
+		space.setUuid(LoomUUID.timeOrdered());
 		space.setCreator(admin);
 		space.setEditor(admin);
 		space.setCreated(Instant.now());
@@ -1342,7 +1342,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private Task createTask(User admin, String title, String description, TaskPriority priority, TaskStatus status, int dueInDays) {
 		Task task = taskDao.createTask(admin.getUuid(), title);
-		task.setUuid(UUIDUtils.randomUUID());
+		task.setUuid(LoomUUID.timeOrdered());
 		task.setCreator(admin);
 		task.setEditor(admin);
 		task.setCreated(Instant.now());
@@ -1402,7 +1402,7 @@ public class DemoDatabaseInitializer {
 
 	private Chat createDemoChat(User admin, String title, JsonArray messages) {
 		Chat chat = chatDao.createChat(admin.getUuid(), title);
-		chat.setUuid(UUIDUtils.randomUUID());
+		chat.setUuid(LoomUUID.timeOrdered());
 		chat.setMessages(messages);
 		chat.setCreated(Instant.now());
 		chat.setEdited(Instant.now());
@@ -1422,7 +1422,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private Library createLibrary(User admin, String name, AssetPool pool) {
 		Library library = libraryDao.createLibrary(admin.getUuid(), name);
-		library.setUuid(UUIDUtils.randomUUID());
+		library.setUuid(LoomUUID.timeOrdered());
 		library.setPoolUuid(pool == null ? null : pool.getUuid());
 		library.setCreator(admin);
 		library.setEditor(admin);
@@ -1438,7 +1438,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private MemoryDenyRule createMemoryDenyRule(User admin, String name, String pattern, String message) {
 		MemoryDenyRule rule = memoryDenyRuleDao.createMemoryDenyRule(admin.getUuid(), name, pattern, message);
-		rule.setUuid(UUIDUtils.randomUUID());
+		rule.setUuid(LoomUUID.timeOrdered());
 		rule.setCreator(admin);
 		rule.setEditor(admin);
 		rule.setCreated(Instant.now());
@@ -1450,7 +1450,7 @@ public class DemoDatabaseInitializer {
 
 	private Comment createComment(User admin, String title, String text) {
 		Comment comment = commentDao.createComment(admin.getUuid(), title, text);
-		comment.setUuid(UUIDUtils.randomUUID());
+		comment.setUuid(LoomUUID.timeOrdered());
 		comment.setCreator(admin);
 		comment.setEditor(admin);
 		comment.setCreated(Instant.now());
@@ -1462,7 +1462,7 @@ public class DemoDatabaseInitializer {
 
 	private Blacklist createBlacklist(User admin, Asset asset, String name) {
 		Blacklist blacklist = blacklistDao.createBlacklist(admin.getUuid(), asset.getUuid(), name);
-		blacklist.setUuid(UUIDUtils.randomUUID());
+		blacklist.setUuid(LoomUUID.timeOrdered());
 		blacklist.setCreator(admin);
 		blacklist.setEditor(admin);
 		blacklist.setCreated(Instant.now());
@@ -1489,7 +1489,7 @@ public class DemoDatabaseInitializer {
 		storeBinary(bytes, sha512);
 
 		Attachment image = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.PERSON_IMAGE);
-		image.setUuid(UUIDUtils.randomUUID());
+		image.setUuid(LoomUUID.timeOrdered());
 		image.setPersonUuid(person.getUuid());
 		image.setCreator(admin);
 		image.setEditor(admin);
@@ -1522,7 +1522,7 @@ public class DemoDatabaseInitializer {
 		storeBinary(bytes, sha512);
 
 		Attachment avatar = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.USER_AVATAR);
-		avatar.setUuid(UUIDUtils.randomUUID());
+		avatar.setUuid(LoomUUID.timeOrdered());
 		avatar.setUserUuid(owner.getUuid());
 		avatar.setCreator(admin);
 		avatar.setEditor(admin);
@@ -1540,7 +1540,7 @@ public class DemoDatabaseInitializer {
 
 	private Person createPerson(User admin, String alias, String firstname, String lastname) {
 		Person person = personDao.createPerson(admin.getUuid(), alias);
-		person.setUuid(UUIDUtils.randomUUID());
+		person.setUuid(LoomUUID.timeOrdered());
 		person.setFirstname(firstname);
 		person.setLastname(lastname);
 		person.setCreator(admin);
@@ -1589,7 +1589,7 @@ public class DemoDatabaseInitializer {
 
 	private Cluster createCluster(User admin, String name, String type) {
 		Cluster cluster = clusterDao.createCluster(admin.getUuid(), name, type);
-		cluster.setUuid(UUIDUtils.randomUUID());
+		cluster.setUuid(LoomUUID.timeOrdered());
 		cluster.setCreator(admin);
 		cluster.setEditor(admin);
 		cluster.setCreated(Instant.now());
@@ -1627,7 +1627,7 @@ public class DemoDatabaseInitializer {
 		}
 		String frameKey = asset.getUuid() + "|" + detection.getNodeKind() + "|" + frameNumber;
 		detection.setDetectionIndex(detectionOrdinals.merge(frameKey, 1, Integer::sum) - 1);
-		detection.setUuid(UUIDUtils.randomUUID());
+		detection.setUuid(LoomUUID.timeOrdered());
 		detection.setAssetUuid(asset.getUuid());
 		detection.setFrameNumber(frameNumber);
 		detection.setBboxX(bboxX);
@@ -1693,7 +1693,7 @@ public class DemoDatabaseInitializer {
 
 		String filename = "face-" + detection.getUuid() + ".jpg";
 		Attachment crop = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.FACE_CROP);
-		crop.setUuid(UUIDUtils.randomUUID());
+		crop.setUuid(LoomUUID.timeOrdered());
 		crop.setDetectionUuid(detection.getUuid());
 		crop.setAssetUuid(asset.getUuid());
 		crop.setCreator(admin);
@@ -1720,7 +1720,7 @@ public class DemoDatabaseInitializer {
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {
 		AssetTag tag = tagDao.createAssetTag(admin, name, collection);
-		tag.setUuid(UUIDUtils.randomUUID());
+		tag.setUuid(LoomUUID.timeOrdered());
 		tag.setCreator(admin);
 		tag.setEditor(admin);
 		tag.setCreated(Instant.now());
@@ -1732,7 +1732,7 @@ public class DemoDatabaseInitializer {
 
 	private Collection createCollection(User admin, String name) {
 		Collection col = collectionDao.createCollection(admin, name);
-		col.setUuid(UUIDUtils.randomUUID());
+		col.setUuid(LoomUUID.timeOrdered());
 		col.setCreator(admin);
 		col.setEditor(admin);
 		col.setCreated(Instant.now());
@@ -1744,7 +1744,7 @@ public class DemoDatabaseInitializer {
 
 	private AssetPool createAssetPool(User admin, String name, String fsPath, String s3Bucket, String s3Region, String s3Endpoint) {
 		AssetPool pool = assetPoolDao.createAssetPool(admin.getUuid(), name);
-		pool.setUuid(UUIDUtils.randomUUID());
+		pool.setUuid(LoomUUID.timeOrdered());
 		pool.setCreator(admin);
 		pool.setEditor(admin);
 		pool.setCreated(Instant.now());
@@ -1775,7 +1775,7 @@ public class DemoDatabaseInitializer {
 		}
 		SHA512 sha512 = SHA512.fromString(hashHex);
 		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, size);
-		asset.setUuid(UUIDUtils.randomUUID());
+		asset.setUuid(LoomUUID.timeOrdered());
 		asset.setCreator(admin);
 		asset.setEditor(admin);
 		asset.setCreated(Instant.now());
@@ -1797,7 +1797,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private Remix seedDemoRemix(User admin, Asset source, Asset derivedVideo, Asset derivedStill) {
 		Remix remix = remixDao.createRemix(admin.getUuid(), DEMO_REMIX_NAME);
-		remix.setUuid(UUIDUtils.randomUUID());
+		remix.setUuid(LoomUUID.timeOrdered());
 		remix.setDescription("The original meeting footage, the shorter cut made from it, and a still frame pulled out of that cut.");
 		remixDao.store(remix);
 
@@ -1830,7 +1830,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private void seedDemoShares(User admin, Collection videosCollection, Asset featuredVideo) {
 		Share collectionShare = shareDao.createCollectionShare(admin.getUuid(), videosCollection.getUuid(), DEMO_SHARE_SLUG_OPEN);
-		collectionShare.setUuid(UUIDUtils.randomUUID());
+		collectionShare.setUuid(LoomUUID.timeOrdered());
 		collectionShare.setAllowDownload(true);
 		collectionShare.setShowMetadata(true);
 		collectionShare.setAllowComments(true);
@@ -1846,7 +1846,7 @@ public class DemoDatabaseInitializer {
 		log.info("Created demo share link: /ui/share/{}", DEMO_SHARE_SLUG_OPEN);
 
 		Share assetShare = shareDao.createAssetShare(admin.getUuid(), featuredVideo.getUuid(), DEMO_SHARE_SLUG_LOCKED);
-		assetShare.setUuid(UUIDUtils.randomUUID());
+		assetShare.setUuid(LoomUUID.timeOrdered());
 		// Hashed with the same encoder a login uses. Storing the clear password here would be the one place in the
 		// codebase where a share password existed in readable form, which is exactly what the column comment forbids.
 		assetShare.setPasswordHash(authService.encodePassword(DEMO_SHARE_PASSWORD));
@@ -2045,7 +2045,7 @@ public class DemoDatabaseInitializer {
 	private Skill createDemoSkill(User admin, String name, String description, String content,
 		String v2Description, String v2Content, boolean published) {
 		Skill skill = skillDao.createSkill(admin.getUuid(), name, description, content);
-		skill.setUuid(UUIDUtils.randomUUID());
+		skill.setUuid(LoomUUID.timeOrdered());
 		skill.setCreator(admin);
 		skill.setEditor(admin);
 		skill.setCreated(Instant.now());
@@ -2065,7 +2065,7 @@ public class DemoDatabaseInitializer {
 
 	private void appendSkillVersion(User admin, Skill skill, int versionNumber, String description, String content) {
 		SkillVersion version = skillVersionDao.createVersion(admin.getUuid(), skill.getUuid(), versionNumber, description, content, skill.getMeta());
-		version.setUuid(UUIDUtils.randomUUID());
+		version.setUuid(LoomUUID.timeOrdered());
 		version.setCreator(admin);
 		version.setEditor(admin);
 		version.setCreated(Instant.now());
@@ -2079,7 +2079,7 @@ public class DemoDatabaseInitializer {
 
 	private ChatSession createDemoChatSession(User admin, Chat chat, String name, String description, String[] tags, boolean published) {
 		ChatSession session = chatSessionDao.createChatSession(admin.getUuid(), name, description);
-		session.setUuid(UUIDUtils.randomUUID());
+		session.setUuid(LoomUUID.timeOrdered());
 		session.setChatUuid(chat.getUuid());
 		session.setTags(tags);
 		session.setPublished(published);
@@ -2098,7 +2098,7 @@ public class DemoDatabaseInitializer {
 	 */
 	private MemoryEntry createMemoryEntry(User admin, String memoryId, String title, String body) {
 		MemoryEntry entry = memoryEntryDao.createMemoryEntry(admin.getUuid(), MemoryScope.USER, admin.getUuid(), memoryId);
-		entry.setUuid(UUIDUtils.randomUUID());
+		entry.setUuid(LoomUUID.timeOrdered());
 		entry.setTitle(title);
 		entry.setBody(body);
 		entry.setSize(body.getBytes(StandardCharsets.UTF_8).length);
@@ -2116,7 +2116,7 @@ public class DemoDatabaseInitializer {
 
 	private User createDemoUser(User admin, String username, String password, String email, String firstname, String lastname) {
 		User user = userDao.createUser(admin.getUuid(), username);
-		user.setUuid(UUIDUtils.randomUUID());
+		user.setUuid(LoomUUID.timeOrdered());
 		user.setCreator(admin);
 		user.setEditor(admin);
 		user.setCreated(Instant.now());
@@ -2133,7 +2133,7 @@ public class DemoDatabaseInitializer {
 
 	private Group createDemoGroup(User admin, String name) {
 		Group group = groupDao.createGroup(admin.getUuid(), name);
-		group.setUuid(UUIDUtils.randomUUID());
+		group.setUuid(LoomUUID.timeOrdered());
 		group.setCreator(admin);
 		group.setEditor(admin);
 		group.setCreated(Instant.now());
@@ -2145,7 +2145,7 @@ public class DemoDatabaseInitializer {
 
 	private Role createDemoRole(User admin, String name) {
 		Role role = roleDao.createRole(admin.getUuid(), name);
-		role.setUuid(UUIDUtils.randomUUID());
+		role.setUuid(LoomUUID.timeOrdered());
 		role.setCreator(admin);
 		role.setEditor(admin);
 		role.setCreated(Instant.now());
@@ -2158,7 +2158,7 @@ public class DemoDatabaseInitializer {
 	private Pipeline createPipeline(User admin, String name, String description,
 			boolean enabled, int priority, boolean dryRun, JsonObject definition) {
 		Pipeline pipeline = pipelineDao.createPipeline(admin.getUuid(), name);
-		pipeline.setUuid(UUIDUtils.randomUUID());
+		pipeline.setUuid(LoomUUID.timeOrdered());
 		pipeline.setCreator(admin);
 		pipeline.setEditor(admin);
 		pipeline.setCreated(Instant.now());
@@ -2206,7 +2206,7 @@ public class DemoDatabaseInitializer {
 		int mediaCount, int successCount, int failureCount, int skippedCount, Long durationMs) {
 
 		PipelineRun run = pipelineRunDao.createPipelineRun(admin.getUuid(), pipeline.getUuid(), 1);
-		run.setUuid(UUIDUtils.randomUUID());
+		run.setUuid(LoomUUID.timeOrdered());
 		Instant started = Instant.now().minus(daysAgo, java.time.temporal.ChronoUnit.DAYS);
 		run.setStarted(started);
 		run.setStatus(status);
@@ -2522,7 +2522,7 @@ public class DemoDatabaseInitializer {
 
 	private Token createDemoToken(User admin, String name, String tokenValue) {
 		Token token = tokenDao.createToken(admin.getUuid(), name, tokenValue);
-		token.setUuid(UUIDUtils.randomUUID());
+		token.setUuid(LoomUUID.timeOrdered());
 		token.setCreator(admin);
 		token.setEditor(admin);
 		token.setCreated(Instant.now());
@@ -2997,7 +2997,7 @@ public class DemoDatabaseInitializer {
 
 	private Asset storeAssetRow(User admin, SHA512 sha512, String mimeType, String filename, String origin, long size) {
 		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, size);
-		asset.setUuid(UUIDUtils.randomUUID());
+		asset.setUuid(LoomUUID.timeOrdered());
 		asset.setCreator(admin);
 		asset.setEditor(admin);
 		asset.setCreated(Instant.now());
@@ -3013,7 +3013,7 @@ public class DemoDatabaseInitializer {
 			return;
 		}
 		AssetBinary binary = assetBinaryDao.createAssetBinary(path, asset.getUuid(), admin.getUuid(), library.getUuid());
-		binary.setUuid(UUIDUtils.randomUUID());
+		binary.setUuid(LoomUUID.timeOrdered());
 		binary.setMimeType(mimeType);
 		binary.setCreator(admin);
 		binary.setEditor(admin);

@@ -11,7 +11,7 @@ public class LoomPostgreSQLContainer extends PostgreSQLContainer<LoomPostgreSQLC
 
 	// This container is migrated by FlywayHelper, so it has to be new enough for every migration:
 	// V2.71 uses UNIQUE NULLS NOT DISTINCT, which needs 15+. 16.3 matches the pooled test databases.
-	public static final String DEFAULT_IMAGE = "postgres:16.3-bullseye";
+	public static final String DEFAULT_IMAGE = "postgres:18.6-trixie";
 
 	public LoomPostgreSQLContainer() {
 		super(DEFAULT_IMAGE);

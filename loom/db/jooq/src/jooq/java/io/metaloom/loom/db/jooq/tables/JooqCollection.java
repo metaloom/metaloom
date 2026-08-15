@@ -59,7 +59,7 @@ public class JooqCollection extends TableImpl<JooqCollectionRecord> {
     /**
      * The column <code>public.collection.uuid</code>.
      */
-    public final TableField<JooqCollectionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqCollectionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.collection.name</code>.

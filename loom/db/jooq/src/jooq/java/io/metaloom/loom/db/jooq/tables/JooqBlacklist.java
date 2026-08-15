@@ -61,7 +61,7 @@ public class JooqBlacklist extends TableImpl<JooqBlacklistRecord> {
     /**
      * The column <code>public.blacklist.uuid</code>.
      */
-    public final TableField<JooqBlacklistRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqBlacklistRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.blacklist.asset_uuid</code>. Blacklisted asset

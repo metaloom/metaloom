@@ -215,7 +215,7 @@ public class DaoRunStateStore implements RunStateStore {
 			// run_uuid is NOT NULL, and a skip carries no task to read it from - which is
 			// why the run is a property of the store rather than of the call.
 			row = taskDao.createNodeTask(userUuid, itemUuid, runUuid, result.getNodeId(), "skipped");
-			row.setUuid(result.getTaskUuid() != null ? result.getTaskUuid() : UUID.randomUUID());
+			row.setUuid(result.getTaskUuid() != null ? result.getTaskUuid() : LoomUUID.timeOrdered());
 			row.setAttempt(0);
 			row.setElementSeq(result.getElementSeq());
 			row.setGeneration(generation);

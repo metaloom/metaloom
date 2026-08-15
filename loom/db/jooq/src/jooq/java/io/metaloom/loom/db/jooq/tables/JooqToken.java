@@ -59,7 +59,7 @@ public class JooqToken extends TableImpl<JooqTokenRecord> {
     /**
      * The column <code>public.token.uuid</code>.
      */
-    public final TableField<JooqTokenRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqTokenRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.token.name</code>.

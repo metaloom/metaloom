@@ -59,7 +59,7 @@ public class JooqReaction extends TableImpl<JooqReactionRecord> {
     /**
      * The column <code>public.reaction.uuid</code>.
      */
-    public final TableField<JooqReactionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqReactionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.reaction.type</code>. A ReactionType constant

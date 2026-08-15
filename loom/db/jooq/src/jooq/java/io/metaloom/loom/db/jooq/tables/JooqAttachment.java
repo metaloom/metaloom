@@ -60,7 +60,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     /**
      * The column <code>public.attachment.uuid</code>.
      */
-    public final TableField<JooqAttachmentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAttachmentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.attachment.binary_sha512sum</code>.

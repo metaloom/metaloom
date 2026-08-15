@@ -76,7 +76,7 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
      * The column <code>public.asset.uuid</code>. Primary key. Every child table
      * references this column.
      */
-    public final TableField<JooqAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "Primary key. Every child table references this column.");
+    public final TableField<JooqAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "Primary key. Every child table references this column.");
 
     /**
      * The column <code>public.asset.sha512sum</code>. Content identity. Natural

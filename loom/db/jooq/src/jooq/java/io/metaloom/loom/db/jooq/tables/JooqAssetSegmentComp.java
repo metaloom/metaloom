@@ -65,7 +65,7 @@ public class JooqAssetSegmentComp extends TableImpl<JooqAssetSegmentCompRecord> 
     /**
      * The column <code>public.asset_segment_comp.uuid</code>.
      */
-    public final TableField<JooqAssetSegmentCompRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAssetSegmentCompRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.asset_segment_comp.asset_uuid</code>.

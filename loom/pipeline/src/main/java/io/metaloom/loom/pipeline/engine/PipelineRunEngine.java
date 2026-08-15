@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.common.metrics.NoopLoomMetrics;
 import io.metaloom.loom.pipeline.graph.ExecutionMode;
@@ -1529,7 +1530,8 @@ public class PipelineRunEngine {
 	 *         back to per-node dispatch
 	 */
 	private Boolean dispatchSegment(ItemState state, PipelineSegment segment) {
-		UUID taskUuid = UUID.randomUUID();
+		// Time ordered: this becomes a pipeline_run_task row id, and those page by uuid.
+		UUID taskUuid = LoomUUID.timeOrdered();
 		List<SegmentNode> segNodes = new ArrayList<>();
 		for (String nodeId : segment.getNodeIds()) {
 			PipelineGraphNode node = graph.getNode(nodeId);
@@ -1635,7 +1637,7 @@ public class PipelineRunEngine {
 	private List<NodeTask> toNodeTasks(SegmentTask task, PipelineSegment segment) {
 		List<NodeTask> tasks = new ArrayList<>();
 		for (String nodeId : segment.getNodeIds()) {
-			UUID rowUuid = tasks.isEmpty() ? task.getTaskUuid() : UUID.randomUUID();
+			UUID rowUuid = tasks.isEmpty() ? task.getTaskUuid() : LoomUUID.timeOrdered();
 			tasks.add(new NodeTask(rowUuid, runUuid, task.getItemId(), nodeId,
 				graph.getNode(nodeId).getKind(), task.getMedia(), Map.of(), task.getInputs()));
 		}
@@ -1717,7 +1719,8 @@ public class PipelineRunEngine {
 	 *         false when a result is expected to arrive later
 	 */
 	private boolean dispatch(ItemState state, PipelineGraphNode node, int seq) {
-		UUID taskUuid = UUID.randomUUID();
+		// Time ordered: this becomes a pipeline_run_task row id, and those page by uuid.
+		UUID taskUuid = LoomUUID.timeOrdered();
 		NodeTask task = new NodeTask(taskUuid, runUuid, state.getItemId(), node.getId(), node.getKind(),
 			seq, state.getMedia(), effectiveOptions(node), buildInputs(state, node, seq),
 			node.getDemandedOutputs(), graph.getResultBatchSize(), capturePreviews,

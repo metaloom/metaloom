@@ -101,7 +101,7 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
      * which is what a caller removes when it wants one region rather than every
      * occurrence of the tag
      */
-    public final TableField<JooqTagAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "Identity of the placement, which is what a caller removes when it wants one region rather than every occurrence of the tag");
+    public final TableField<JooqTagAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "Identity of the placement, which is what a caller removes when it wants one region rather than every occurrence of the tag");
 
     /**
      * The column <code>public.tag_asset.node_kind</code>. Which node kind

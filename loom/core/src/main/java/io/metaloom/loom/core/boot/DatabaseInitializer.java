@@ -6,6 +6,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
@@ -16,7 +17,6 @@ import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.utils.StringUtils;
-import io.metaloom.utils.UUIDUtils;
 
 @Singleton
 public class DatabaseInitializer {
@@ -50,7 +50,7 @@ public class DatabaseInitializer {
 		User adminUser = userDao.loadAdmin();
 		if (adminUser == null) {
 			// Inline admin creation to avoid default method dispatch issues on fresh DB
-			java.util.UUID adminUuid = UUIDUtils.randomUUID();
+			java.util.UUID adminUuid = LoomUUID.timeOrdered();
 			adminUser = userDao.createUser(adminUuid, UserDao.ADMIN_USER_NAME);
 			adminUser.setUuid(adminUuid);
 			adminUser.setCreator(adminUser);
@@ -83,7 +83,7 @@ public class DatabaseInitializer {
 		Group group = groupDao.loadByName(GROUP_NAME);
 		if (group == null) {
 			group = groupDao.create(adminUser, GROUP_NAME);
-			group.setUuid(UUIDUtils.randomUUID());
+			group.setUuid(LoomUUID.timeOrdered());
 			groupDao.store(group);
 		}
 		groupDao.addUserToGroup(group, adminUser);
@@ -92,7 +92,7 @@ public class DatabaseInitializer {
 		Role role = roleDao.loadByName(ROLE_NAME);
 		if (role == null) {
 			role = roleDao.createRole(adminUser.getUuid(), ROLE_NAME);
-			role.setUuid(UUIDUtils.randomUUID());
+			role.setUuid(LoomUUID.timeOrdered());
 			roleDao.store(role);
 			// Grand all perms to the role
 			for (Permission perm : Permission.values()) {

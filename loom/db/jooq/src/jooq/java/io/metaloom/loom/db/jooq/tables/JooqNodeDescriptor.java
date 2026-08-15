@@ -61,7 +61,7 @@ public class JooqNodeDescriptor extends TableImpl<JooqNodeDescriptorRecord> {
     /**
      * The column <code>public.node_descriptor.uuid</code>.
      */
-    public final TableField<JooqNodeDescriptorRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqNodeDescriptorRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.node_descriptor.node_id</code>. The node TYPE id

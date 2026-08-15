@@ -55,7 +55,7 @@ public class JooqComment extends TableImpl<JooqCommentRecord> {
     /**
      * The column <code>public.comment.uuid</code>.
      */
-    public final TableField<JooqCommentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqCommentRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.comment.title</code>. Comment title

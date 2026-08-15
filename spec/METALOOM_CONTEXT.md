@@ -692,7 +692,7 @@ Details: [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.
 
 | Layer | Technology |
 |-------|------------|
-| Primary DB | PostgreSQL |
+| Primary DB | PostgreSQL — **18 minimum**, because every uuid PK defaults to the built-in `uuidv7()` (V2.104). See [UUIDv7 keys](loom/PERSISTENCE.md#uuidv7-keys) |
 | ORM | jOOQ (generated into `loom/db/jooq/src/jooq/java`) |
 | Migrations | Flyway — `loom/db/flyway/src/main/resources/db/migration/` |
 | DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq` (prod) and `loom/db/memory` (tests, ⚠️ no pipeline DAOs) |

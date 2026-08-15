@@ -34,7 +34,7 @@ graph TB
         IMG["loom/containers/build-containers.sh demo<br/>-> metaloom/loom-demo:latest"]
     end
     subgraph STACK["3 stack (docker network 'dev')"]
-        PG[("postgres-demo<br/>postgres:16.3<br/>host :5444")]
+        PG[("postgres-demo<br/>postgres:18.6<br/>host :5444")]
         DEMO["loom<br/>metaloom/loom-demo:latest<br/>host :8092, demo data seeded"]
         DEMO --> PG
     end

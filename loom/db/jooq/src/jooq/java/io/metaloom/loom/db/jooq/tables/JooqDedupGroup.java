@@ -61,7 +61,7 @@ public class JooqDedupGroup extends TableImpl<JooqDedupGroupRecord> {
     /**
      * The column <code>public.dedup_group.uuid</code>.
      */
-    public final TableField<JooqDedupGroupRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqDedupGroupRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.dedup_group.algorithm</code>. Fingerprint

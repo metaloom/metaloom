@@ -29,7 +29,7 @@ docker run -d \
 version: "3.8"
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: loom
       POSTGRES_USER: postgres
@@ -47,6 +47,10 @@ services:
       LOOM_DB_PASSWORD: secret
       LOOM_INITIAL_PASSWORD: admin123
 ----
+
+NOTE: PostgreSQL *18 or newer* is required. Loom's schema generates primary keys with the built-in
+`uuidv7()` function, so that new elements appear at the end of a list rather than in a random
+position. On an older server the database migration stops with an explicit version error.
 
 To add processing, run one or more link:../../cortex/containers/[Cortex workers] pointed at this Loom
 instance on port `8092`.

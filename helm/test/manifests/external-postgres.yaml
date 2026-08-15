@@ -41,7 +41,7 @@ spec:
     spec:
       containers:
         - name: postgresql
-          image: postgres:17-alpine
+          image: postgres:18-alpine
           imagePullPolicy: IfNotPresent
           env:
             # The username must not double as a schema name. Loom's

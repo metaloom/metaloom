@@ -265,11 +265,11 @@ only a producer. What it cannot do is find an untranscribed, untagged photo by w
 
 | Location | Image |
 |---|---|
-| `start-postgres.sh:6` | `postgres:16.3-bullseye` |
-| `test-database/docker-compose.yaml:5` | `postgres:16.3-bullseye` |
-| `test-database/podman-compose.yml:6` | `postgres:16.3-bullseye` |
+| `start-postgres.sh:6` | `postgres:18.6-trixie` |
+| `test-database/docker-compose.yaml:5` | `postgres:18.6-trixie` |
+| `test-database/podman-compose.yml:6` | `postgres:18.6-trixie` |
 | `loom/db/jooq/pom.xml:109` | 🔴 `postgres:latest` — **jOOQ codegen Testcontainer** |
-| `helm/loom/values.yaml` | `postgres:17-alpine` |
+| `helm/loom/values.yaml` | `postgres:18-alpine` |
 | testdatabase-provider template DB | inherits the above |
 
 An unconditional `CREATE EXTENSION vector` breaks `loom/db/jooq/generate.sh`, breaks

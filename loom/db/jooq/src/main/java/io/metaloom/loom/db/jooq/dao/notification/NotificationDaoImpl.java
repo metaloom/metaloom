@@ -17,13 +17,13 @@ import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.model.notification.Notification;
 import io.metaloom.loom.db.model.notification.NotificationDao;
 import io.metaloom.loom.api.notification.NotificationType;
 import io.metaloom.loom.db.page.Page;
-import io.metaloom.utils.UUIDUtils;
 
 @Singleton
 public class NotificationDaoImpl extends AbstractJooqDao<Notification> implements NotificationDao {
@@ -57,7 +57,7 @@ public class NotificationDaoImpl extends AbstractJooqDao<Notification> implement
 		// jOOQ's batchInsert, which does NOT return generated keys, so a row created without
 		// one comes back uuid-less - and the dispatcher needs the uuid to put the notification
 		// on the wire immediately after writing it.
-		notification.setUuid(UUIDUtils.randomUUID());
+		notification.setUuid(LoomUUID.timeOrdered());
 		notification.setRecipientUuid(recipientUuid);
 		notification.setType(type);
 		notification.setTitle(title);

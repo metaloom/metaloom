@@ -118,6 +118,14 @@ or codegen step therefore leaves the checked-in sources untouched instead of del
 ⚠️ New converter classes referenced from `<forcedTypes>` must be **compiled** (`mvn compile -pl
 loom/db/jooq`) before running it, or the plugin cannot load them.
 
+⚠️ The replacement is a wholesale `rm -rf src/jooq/java`, so **anything hand-written under that
+directory is destroyed by a successful run** — including the hand-maintained registry classes and
+`JooqLoomPermission`. Codegen also needs a Postgres matching the migrations (18+ since V2.104).
+For a change that only alters column metadata, editing the generated sources directly is the
+smaller risk: a migration that changes a column `DEFAULT` shows up in generated code as
+`.defaultValue(DSL.field("…"))` on that field, and leaving it stale makes the checked-in sources
+disagree with the schema. V2.104 was applied that way, to 55 fields.
+
 Codegen configuration that matters (all in `loom/db/jooq/pom.xml`):
 
 | Setting | Value | Why |
@@ -140,11 +148,12 @@ and `FILE_SIZE` (`SizeFilterKey "size"`). Add new keys there and handle them in 
 ## Flyway migrations
 
 `loom/db/flyway/src/main/resources/db/migration/` — PostgreSQL only, `validateMigrationNaming=true`.
-There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
+There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.104`. Sort the versions
+numerically, not lexically, when looking for the head of the chain — `V2.9` is not the last one.
 
 | Migration | Change |
 |---|---|
-| `V1__db_setup` | `loom` schema, `uuid-ossp` extension |
+| `V1__db_setup` | `loom` schema, `uuid-ossp` extension (legacy since V2.104 — nothing generates v4 any more, but the extension stays so a partially migrated database still resolves its old defaults) |
 | `V2.1__add_acl` | user, token, role, group, `*_permission` + `loom_permission` enum |
 | `V2.2__add_tag` | tag, tag_user_meta |
 | `V2.3__add_workflow` | task + `task_status` enum |
@@ -232,10 +241,13 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
 | `V2.98__grant_share_permissions` | Grants the V2.96 values to `admin-role` for the upgrade path |
 | `V2.99__add_share_feedback` | `share_comment`, `share_annotation`, `share_reaction` - what a visitor says back. Separate from `comment`/`reaction`/`annotation` because all three require `creator_uuid NOT NULL REFERENCES "user"` and a share visitor has none. Geometry is **normalised 0..1** and time is **seconds as a float**, unlike `annotation`'s pixels and whole seconds. Reaction uniqueness is three PARTIAL unique indexes with the share standing in for the creator. ⚠️ Also rewrites `notification_type_check` in full - the replacement must carry every value added since V2.70, not only the ones that file listed |
 | `V2.84__read_metric_permission` | `READ_METRIC` enum value only — gates `GET /api/v1/metrics` on the app port. The unauthenticated Prometheus scrape on the monitoring port is unaffected |
+| `V2.104__uuidv7_defaults` | Every generated uuid column default goes from `uuid_generate_v4()` to `uuidv7()`, so the keyset page order becomes insertion order. Driven off `pg_attrdef` rather than a list of 55 columns. 🔴 Raises **PostgreSQL 18** as the floor (`uuidv7()` is an 18 built-in) and guards it with an explicit version check. See [UUIDv7 keys](#uuidv7-keys) |
 
 ### Migration patterns
 
-- UUID PK: `"uuid" uuid DEFAULT uuid_generate_v4()`, `PRIMARY KEY ("uuid")`.
+- UUID PK: `"uuid" uuid DEFAULT uuidv7()`, `PRIMARY KEY ("uuid")`. **Never `uuid_generate_v4()`** —
+  see [UUIDv7 keys](#uuidv7-keys) below; `UUIDv7SchemaTest` fails the build if a new table brings a
+  v4 default in by copy-paste.
 - Audit: `created`, `creator_uuid`, `edited`, `editor_uuid` with FK → `"user"`. **Machine-written
   tables keep them nullable** (V2.38–V2.43, V2.47) — a Cortex node has no user.
 - `meta jsonb` for user-defined properties.
@@ -251,6 +263,41 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
   chose CHECK.
 - Permissions: `ALTER TYPE "loom_permission" ADD VALUE IF NOT EXISTS 'CREATE_X'`.
 - `COMMENT ON TABLE`/`COLUMN` is expected — several migrations are comment-only.
+
+### UUIDv7 keys
+
+Every generated primary key is a **version 7** uuid — a 48 bit unix millisecond timestamp in the
+high bits, then a counter, then randomness (RFC 9562). Two generators produce them and they must
+agree:
+
+| Generator | Used by |
+|---|---|
+| `uuidv7()` — PostgreSQL 18 built-in | every `DEFAULT` in the schema; the normal path, because `AbstractJooqDao.store` calls `reco.reset("uuid")` whenever the element carries no uuid and lets the database fill it in |
+| `LoomUUID.timeOrdered()` — `loom-api` | the few rows whose id must be known *before* the insert is flushed: `DaoRunStateStore`, `PipelineRunEngine` task/item ids, `DatabaseInitializer`/`DemoDatabaseInitializer` seed rows, `UserDao.createAdmin` |
+
+**Why it matters.** `loadPage` orders by `uuid` and pages with `seek(fromId)`, so the uuid *is* the
+default sort order of every collection the REST API serves. Under v4 keys a newly created element
+appeared at a random position in the list. Time-ordered keys make the natural order the insertion
+order without touching the cursor, which is what made this a one-migration change rather than a
+rewrite of pagination.
+
+Consequences to know about:
+
+- **PostgreSQL 18 is the floor.** `uuidv7()` arrived in 18; V2.104 raises a readable exception on
+  anything older rather than failing on an undefined function.
+- **Rows created before V2.104 keep their v4 uuid.** Their high bits are uniformly random while
+  every v7 uuid this century starts `0x01`, so legacy rows sort *after* all new ones rather than
+  interleaving. Rewriting them in place would have to cascade through every FK in the schema, so
+  they are left alone; a database seeded fresh (demo, test pool, CI) never sees this.
+- **`LoomUUID` is monotonic within a millisecond** — it uses RFC 9562's `rand_a` field as a counter,
+  seeded randomly low on each tick. Without that a burst of inserts inside one millisecond would
+  come back shuffled.
+- Sorting by `uuid` is now *approximately* sorting by `created`, but they are not the same key.
+  `created` is what an API consumer should be shown; `uuid` is what the cursor rides on.
+
+`UUIDv7SchemaTest` (`loom/db/jooq`) pins all of this: no v4 default survives anywhere in the schema,
+database-generated keys really are version 7, and a page of freshly stored rows comes back in
+creation order.
 
 ### Adding an entity
 

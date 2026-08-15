@@ -58,7 +58,7 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
     /**
      * The column <code>public.skill.uuid</code>.
      */
-    public final TableField<JooqSkillRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqSkillRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.skill.name</code>. Machine-friendly skill name,

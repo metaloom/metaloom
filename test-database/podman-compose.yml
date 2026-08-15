@@ -3,7 +3,7 @@ services:
     db:
         container_name: 'testprovider-postgresql'
         hostname: 'postgresql'
-        image: 'postgres:16.3-bullseye'
+        image: 'postgres:18.6-trixie'
         ports:
             - '15432:5432/tcp'
         environment:

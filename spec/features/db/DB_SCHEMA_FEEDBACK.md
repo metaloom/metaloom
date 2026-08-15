@@ -256,7 +256,8 @@ Fixed as recommended: surrogate `uuid` primary key plus
 `UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)`.
 `NULLS NOT DISTINCT` is load-bearing — an asset-level tag has NULL in every region column, and
 under the default semantics those rows would never conflict, so re-tagging would append forever.
-It requires **PostgreSQL 15+** (test env 16.3, chart 17). `areaWidth`/`areaHeight` sit outside the
+It requires **PostgreSQL 15+**, though the project floor is now 18 everywhere (test env 18.6, chart
+`18-alpine`) because V2.104 needs `uuidv7()`. `areaWidth`/`areaHeight` sit outside the
 key on purpose: resizing a box updates the placement, moving it creates one.
 
 The same migration added the provenance §5.4 records. `TagPlacementDaoTest` pins the behaviour.

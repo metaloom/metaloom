@@ -65,7 +65,7 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
     /**
      * The column <code>public.pipeline_run.uuid</code>.
      */
-    public final TableField<JooqPipelineRunRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqPipelineRunRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.pipeline_run.pipeline_uuid</code>. The pipeline

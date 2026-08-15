@@ -57,7 +57,7 @@ public class JooqTask extends TableImpl<JooqTaskRecord> {
     /**
      * The column <code>public.task.uuid</code>.
      */
-    public final TableField<JooqTaskRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqTaskRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.task.title</code>. Title of the task

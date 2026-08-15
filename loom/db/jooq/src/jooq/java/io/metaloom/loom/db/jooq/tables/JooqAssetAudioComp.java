@@ -55,7 +55,7 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     /**
      * The column <code>public.asset_audio_comp.uuid</code>.
      */
-    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.asset_audio_comp.asset_uuid</code>.

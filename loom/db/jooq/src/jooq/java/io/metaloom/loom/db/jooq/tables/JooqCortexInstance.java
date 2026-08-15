@@ -57,7 +57,7 @@ public class JooqCortexInstance extends TableImpl<JooqCortexInstanceRecord> {
     /**
      * The column <code>public.cortex_instance.uuid</code>.
      */
-    public final TableField<JooqCortexInstanceRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqCortexInstanceRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.cortex_instance.node_id</code>. Stable worker

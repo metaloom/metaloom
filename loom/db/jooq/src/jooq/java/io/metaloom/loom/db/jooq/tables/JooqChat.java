@@ -61,7 +61,7 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
     /**
      * The column <code>public.chat.uuid</code>.
      */
-    public final TableField<JooqChatRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqChatRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.chat.title</code>. Short title / summary of the

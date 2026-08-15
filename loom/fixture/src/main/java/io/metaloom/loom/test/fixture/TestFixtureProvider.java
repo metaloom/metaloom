@@ -7,6 +7,7 @@ import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.api.attachment.AttachmentType;
 import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.api.reaction.ReactionType;
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.core.dagger.LoomCoreComponent;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
@@ -80,8 +81,8 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Three faces of the same asset: the embedding identity is
 		// (asset, node kind, type, frame, subject), so they differ by subject index.
 		Embedding embedding1 = createEmbedding(EMBEDDING_UUID, user, asset, 0);
-		Embedding embedding2 = createEmbedding(UUID.randomUUID(), user, asset, 1);
-		Embedding embedding3 = createEmbedding(UUID.randomUUID(), user, asset, 2);
+		Embedding embedding2 = createEmbedding(LoomUUID.timeOrdered(), user, asset, 1);
+		Embedding embedding3 = createEmbedding(LoomUUID.timeOrdered(), user, asset, 2);
 		Cluster cluster = clusterEmbeddings(user, embedding1, embedding2, embedding3);
 
 		// Attachment for embedding

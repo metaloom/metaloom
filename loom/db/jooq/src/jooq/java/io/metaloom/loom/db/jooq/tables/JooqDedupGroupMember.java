@@ -58,7 +58,7 @@ public class JooqDedupGroupMember extends TableImpl<JooqDedupGroupMemberRecord> 
     /**
      * The column <code>public.dedup_group_member.uuid</code>.
      */
-    public final TableField<JooqDedupGroupMemberRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqDedupGroupMemberRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.dedup_group_member.group_uuid</code>.

@@ -59,7 +59,7 @@ public class JooqAnnotation extends TableImpl<JooqAnnotationRecord> {
     /**
      * The column <code>public.annotation.uuid</code>.
      */
-    public final TableField<JooqAnnotationRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAnnotationRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.annotation.type</code>.

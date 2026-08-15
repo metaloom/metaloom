@@ -59,7 +59,7 @@ public class JooqPipelineVersion extends TableImpl<JooqPipelineVersionRecord> {
     /**
      * The column <code>public.pipeline_version.uuid</code>.
      */
-    public final TableField<JooqPipelineVersionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqPipelineVersionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.pipeline_version.pipeline_uuid</code>. Reference

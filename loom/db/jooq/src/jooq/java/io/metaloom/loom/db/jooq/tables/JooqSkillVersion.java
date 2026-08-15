@@ -59,7 +59,7 @@ public class JooqSkillVersion extends TableImpl<JooqSkillVersionRecord> {
     /**
      * The column <code>public.skill_version.uuid</code>.
      */
-    public final TableField<JooqSkillVersionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqSkillVersionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.skill_version.skill_uuid</code>. Reference to the
