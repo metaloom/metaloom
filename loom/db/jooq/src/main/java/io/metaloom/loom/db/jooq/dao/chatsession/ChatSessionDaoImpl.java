@@ -25,6 +25,8 @@ import io.metaloom.loom.db.model.chatsession.ChatSessionContextRef;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionSkillPin;
 import io.metaloom.loom.db.page.Page;
+import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.filter.LoomFilterKey;
 
 @Singleton
 public class ChatSessionDaoImpl extends AbstractJooqDao<ChatSession> implements ChatSessionDao {
@@ -157,4 +159,15 @@ public class ChatSessionDaoImpl extends AbstractJooqDao<ChatSession> implements 
 		});
 	}
 
+	@Override
+	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
+		FilterKey key = filter.filterKey();
+		if (key == LoomFilterKey.PUBLISHED) {
+			return query.and(CHAT_SESSION.PUBLISHED.eq(filter.valueBool()));
+		}
+		if (key == LoomFilterKey.NAME) {
+			return query.and(CHAT_SESSION.NAME.eq(filter.valueStr()));
+		}
+		return super.applyFilter(query, filter);
+	}
 }

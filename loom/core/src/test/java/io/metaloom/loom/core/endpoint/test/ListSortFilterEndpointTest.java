@@ -275,6 +275,77 @@ public class ListSortFilterEndpointTest extends AbstractEndpointTest {
 		}
 	}
 
+	/**
+	 * The boolean filter keys, over the wire.
+	 *
+	 * <p>
+	 * Registration with {@code LoomLHSFilterParser} is the thing under test — a boolean key that is implemented in a DAO but unregistered fails while
+	 * the query string is being parsed, long before the DAO test that covers it would notice.
+	 * </p>
+	 */
+	@Test
+	public void testFilterUsersByEnabled() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			String prefix = uniquePrefix("enabled");
+			for (int i = 0; i < 6; i++) {
+				UserCreateRequest request = new UserCreateRequest();
+				request.setUsername(prefix + i);
+				client.createUser(request).sync().body();
+			}
+
+			// Created users are disabled until a password is set, so this asks for the complement of
+			// what the fixtures are and must come back without any of them.
+			UserListResponse enabled = client.listUsers()
+				.addLimit(200)
+				.addEquals(LoomFilterKey.ENABLED, true)
+				.sync().body();
+
+			assertThat(namesWithPrefix(enabled, prefix))
+				.as("no fixture user is enabled - accounts start disabled until a password is set")
+				.isEmpty();
+
+			UserListResponse disabled = client.listUsers()
+				.addLimit(200)
+				.addEquals(LoomFilterKey.ENABLED, false)
+				.sync().body();
+
+			assertThat(namesWithPrefix(disabled, prefix))
+				.as("all six, and the filter is doing the narrowing rather than the assertion")
+				.hasSize(6);
+		}
+	}
+
+	/** {@code sort=name} over users reaches the username, which is the column holding their display identity. */
+	@Test
+	public void testSortUsersByNameUsesUsername() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			String prefix = uniquePrefix("uname");
+			for (String suffix : List.of("delta", "alpha", "charlie", "bravo")) {
+				UserCreateRequest request = new UserCreateRequest();
+				request.setUsername(prefix + suffix);
+				client.createUser(request).sync().body();
+			}
+
+			UserListResponse response = client.listUsers()
+				.addLimit(200)
+				.sortBy(LoomSortKey.NAME)
+				.sortDirection(SortDirection.ASCENDING)
+				.sync().body();
+
+			List<String> seen = new ArrayList<>();
+			for (UserResponse user : response.getData()) {
+				if (user.getUsername() != null && user.getUsername().startsWith(prefix)) {
+					seen.add(user.getUsername());
+				}
+			}
+			assertThat(seen).containsExactly(prefix + "alpha", prefix + "bravo", prefix + "charlie", prefix + "delta");
+		}
+	}
+
 	// ── Permissions ───────────────────────────────────────────────────────
 
 	/**
@@ -299,6 +370,17 @@ public class ListSortFilterEndpointTest extends AbstractEndpointTest {
 	/** The pooled database is pre-populated, so every fixture is namespaced and every assertion filtered to it. */
 	private String uniquePrefix(String label) {
 		return label + "_" + UUID.randomUUID().toString().substring(0, 8) + "_";
+	}
+
+	/** Usernames belonging to this test, from a response whose {@code data} is omitted rather than empty when nothing matched. */
+	private List<String> namesWithPrefix(UserListResponse response, String prefix) {
+		List<String> names = new ArrayList<>();
+		for (UserResponse user : response.getData() == null ? List.<UserResponse>of() : response.getData()) {
+			if (user.getUsername() != null && user.getUsername().startsWith(prefix)) {
+				names.add(user.getUsername());
+			}
+		}
+		return names;
 	}
 
 	private void createCollection(LoomHttpClient client, String name) throws LoomClientException {

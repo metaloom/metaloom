@@ -404,7 +404,7 @@
       "PENDING": "Pending",
       "REJECTED": "Rejected",
       "ACCEPTED": "Accepted",
-      "REVIEW": "Review"
+      "REVIEW": "In review"
     },
     "drawer": {
       "title": "Task Detail",
@@ -447,6 +447,10 @@
     },
     "search": {
       "placeholder": "Search tasks…"
+    },
+    "filter": {
+      "anyStatus": "Any status",
+      "anyPriority": "Any priority"
     }
   },
   "monitoring": {
@@ -725,6 +729,11 @@
       },
       "confirm": {
         "delete": "Are you sure you want to delete user {{name}}? This action cannot be undone."
+      },
+      "filter": {
+        "anyStatus": "Any status",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
       }
     },
     "groups": {
@@ -1129,6 +1138,9 @@
         "PERSON_AVATAR": "Person avatars",
         "USER_AVATAR": "Account pictures"
       }
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "pipeline": {
@@ -1569,7 +1581,13 @@
     },
     "confirmError": "Failed to confirm detection",
     "rejectError": "Failed to delete detection",
-    "empty": "No object detections found"
+    "empty": "No object detections found",
+    "filter": {
+      "anyConfidence": "Any confidence",
+      "high": "High (≥90%)",
+      "medium": "Medium (60–90%)",
+      "low": "Low (<60%)"
+    }
   },
   "faceDetection": {
     "title": "Face Detection",
@@ -1618,6 +1636,11 @@
       "editCluster": "Edit Cluster",
       "assign": "Assign Cluster to Person",
       "selectPerson": "Select a person…"
+    },
+    "filter": {
+      "anyAssignment": "All clusters",
+      "assigned": "Assigned",
+      "unassigned": "Unassigned"
     }
   },
   "maintenance": {
@@ -2078,6 +2101,12 @@
     },
     "search": {
       "placeholder": "Search skills…"
+    },
+    "filter": {
+      "anyState": "Any state",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "allCreators": "All creators"
     }
   },
   "memory": {
@@ -2196,6 +2225,9 @@
     },
     "emptyState": {
       "noSearch": "No sessions match your search"
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "person": {

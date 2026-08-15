@@ -22,12 +22,14 @@ import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
 import { toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import { ListFilterSelect } from "../../components/ListControls";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"clusters" | "persons">("clusters");
+  const [assignment, setAssignment] = useState("");
   const [createPersonOpen, setCreatePersonOpen] = useState(false);
   const [createClusterOpen, setCreateClusterOpen] = useState(false);
   const [newClusterName, setNewClusterName] = useState("");
@@ -88,6 +90,10 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   }, [token]);
 
   const filteredClusters = clusters.filter(c => {
+    // Assignment is the axis review actually runs along: the work is finding the clusters that
+    // still have nobody attached to them.
+    if (assignment === "assigned" && !c.personId) return false;
+    if (assignment === "unassigned" && c.personId) return false;
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     const person = c.personId ? persons.find(p => p.id === c.personId) : undefined;
@@ -185,6 +191,15 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             ),
           }}
         />
+        {/* Only meaningful for clusters — a person is not assigned to anything. */}
+        {activeSection === "clusters" && (
+          <ListFilterSelect value={assignment} onChange={setAssignment}
+            options={[
+              { value: "assigned", label: t("faceDetection.filter.assigned") },
+              { value: "unassigned", label: t("faceDetection.filter.unassigned") },
+            ]}
+            allLabel={t("faceDetection.filter.anyAssignment")} testId="facedetection-filter-assignment" minWidth={150} />
+        )}
         {/* Panel switcher. These two panels have no route of their own (LOOM_UI.md §4.2), so the
             chips are the only way to reach them and `aria-pressed` is the only thing that says which
             one is showing. */}

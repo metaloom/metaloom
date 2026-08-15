@@ -87,6 +87,50 @@ export function ListSortControl({ value, onChange, testId }: SortControlProps) {
   );
 }
 
+/**
+ * What a row exposes to a local sort. Any field may be absent — a row missing the active key keeps
+ * its position relative to the rows that have one rather than being dropped or bunched at the top.
+ */
+export interface SortableRow {
+  name?: string | null;
+  created?: string | number | null;
+  edited?: string | number | null;
+}
+
+/**
+ * Sort rows in the browser.
+ *
+ * **Only correct when the whole set is in memory.** For a listing served a page at a time, use the
+ * `sort`/`dir` query parameters instead — see the note at the top of this file. This exists for the
+ * screens that are not backed by a Loom list route at all: the Cortex worker registry is live
+ * in-memory state, and agent memory has its own scoped API. There, everything is loaded, so a
+ * comparator is the honest mechanism rather than a shortcut.
+ *
+ * Names compare with `localeCompare` so that accented and non-ASCII names order the way a reader
+ * expects; timestamps compare as ISO strings or epoch numbers, both of which sort lexically.
+ */
+export function sortLocally<T extends SortableRow>(rows: readonly T[], state: SortState): T[] {
+  const pick = (row: T) => (state.sort === "name" ? row.name : state.sort === "edited" ? row.edited : row.created);
+  const sorted = [...rows].sort((a, b) => {
+    const left = pick(a);
+    const right = pick(b);
+    // Missing values sort last in both directions — a row with no timestamp is not "the oldest",
+    // it is unknown, and flipping the direction should not promote it to the top.
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    if (typeof left === "number" && typeof right === "number") return left - right;
+    return String(left).localeCompare(String(right));
+  });
+  if (state.dir === "desc") {
+    // Reverse only the rows that had a value, so the unknowns stay at the bottom.
+    const known = sorted.filter(row => pick(row) != null).reverse();
+    const unknown = sorted.filter(row => pick(row) == null);
+    return [...known, ...unknown];
+  }
+  return sorted;
+}
+
 export interface FilterOption {
   value: string;
   label: string;

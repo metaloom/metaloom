@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
@@ -32,6 +32,10 @@ import { commentResponseToComment } from "../assetDetail/helpers";
 import { threadComments } from "./commentThread";
 import { useTranslation } from "react-i18next";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 
 const priorityColor: Record<string, string> = {
   CRITICAL: tokens.accent.red,
@@ -41,6 +45,9 @@ const priorityColor: Record<string, string> = {
 };
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
+/** Mirrors `io.metaloom.loom.api.task.TaskStatus` — the server rejects anything else with a 400. */
+const TASK_STATUSES = ["PENDING", "ACCEPTED", "REVIEW", "REJECTED"] as const;
 
 // ── Priority selector (shared by create dialog + edit drawer) ─────────────
 function PrioritySelect({ value, onChange, testId }: { value: string; onChange: (v: string) => void; testId: string }) {
@@ -476,10 +483,33 @@ function TaskRow({ task, onSelect }: { task: TaskResponse; onSelect: (t: TaskRes
 export default function TasksView() {
   const { token } = useAuth();
   const { t } = useTranslation();
-  const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [query, setQuery] = useState("");
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
+
+  // /tasks caps at 25 rows like every other list route, and this screen used to fetch exactly one
+  // page and render it as the task list. Paging it is also what makes the status and priority
+  // filters honest — narrowing has to happen server-side or it narrows a page.
+  const loadPage = useMemo(
+    () => (token
+      ? (paging: PagingParams) => listTasks(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: [
+          ...(status ? [{ key: "status", value: status }] : []),
+          ...(priority ? [{ key: "priority", value: priority }] : []),
+        ],
+      }).then(r => pageFrom(r, task => task))
+      : null),
+    [token, sortState.sort, sortState.dir, status, priority],
+  );
+  const page = usePagedList<TaskResponse>(loadPage, task => task.uuid);
+  const tasks = page.items;
+  const setTasks = page.setItems;
+  const loading = page.loading;
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -518,21 +548,7 @@ export default function TasksView() {
     [],
   );
 
-  const loadTaskList = useCallback(() => {
-    if (!token) {
-      setLoading(false);
-      return Promise.resolve();
-    }
-    setLoading(true);
-    return listTasks(token, { limit: PAGE_SIZE })
-      .then((res) => setTasks(res.data ?? []))
-      .catch(() => setTasks([]))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => {
-    void loadTaskList();
-  }, [loadTaskList]);
+  const loadTaskList = page.reload;
 
   const openCreateDialog = () => {
     setNewTitle("");
@@ -601,7 +617,7 @@ export default function TasksView() {
       await syncAssignees(created.uuid, [], newAssignees);
       // Refetch rather than splicing `created` in: it was rendered before the assignment
       // rows existed, so its `assignees` array is stale.
-      await loadTaskList();
+      loadTaskList();
       setCreateOpen(false);
     } finally {
       setSaving(false);
@@ -655,7 +671,7 @@ export default function TasksView() {
       <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
         <Box>
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tasks.title")}</Typography>
-          <Typography variant="caption" color="text.secondary">{tasks.length} {t("tasks.count")}</Typography>
+          <Typography variant="caption" color="text.secondary" data-testid="tasks-count">{page.totalCount} {t("tasks.count")}</Typography>
         </Box>
         <TextField
           value={query}
@@ -672,6 +688,13 @@ export default function TasksView() {
             ),
           }}
         />
+        <ListFilterSelect value={status} onChange={setStatus}
+          options={TASK_STATUSES.map(v => ({ value: v, label: t(`tasks.status.${v}`, v) }))}
+          allLabel={t("tasks.filter.anyStatus")} testId="tasks-filter-status" minWidth={140} />
+        <ListFilterSelect value={priority} onChange={setPriority}
+          options={PRIORITIES.map(v => ({ value: v, label: t(`tasks.priority.${v}`) }))}
+          allLabel={t("tasks.filter.anyPriority")} testId="tasks-filter-priority" minWidth={140} />
+        <ListSortControl value={sortState} onChange={setSortState} testId="tasks-sort" />
         <Button
           size="small"
           variant="contained"
@@ -723,6 +746,18 @@ export default function TasksView() {
             actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
             onAction={openCreateDialog}
             testId="tasks-empty-state"
+          />
+        )}
+        {/* Hidden while a search term is active: the box filters the rows already loaded, so
+            "showing 25 of 300" would be counting a different set than the one on screen. */}
+        {!query.trim() && (
+          <ListPaging
+            loaded={tasks.length}
+            total={page.totalCount}
+            hasMore={page.hasMore}
+            loadingMore={page.loadingMore}
+            onLoadMore={page.loadMore}
+            testId="tasks-paging"
           />
         )}
       </Box>

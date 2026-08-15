@@ -30,6 +30,12 @@ import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.task.TaskAssignee;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.page.Page;
+import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.filter.LoomFilterKey;
+import io.metaloom.loom.api.sort.LoomSortKey;
+import io.metaloom.loom.db.jooq.enums.JooqTaskPriority;
+import io.metaloom.loom.db.jooq.enums.JooqTaskStatus;
+import org.jooq.Field;
 
 @Singleton
 public class TaskDaoImpl extends AbstractJooqDao<Task> implements TaskDao {
@@ -263,4 +269,33 @@ public class TaskDaoImpl extends AbstractJooqDao<Task> implements TaskDao {
 		return loadPage(query, fromId, pageSize, filters, sortBy, sortDirection);
 	}
 
+	/**
+	 * A task's display name is {@code title}; the table has no {@code name} column.
+	 *
+	 * <p>
+	 * Mapped rather than exposed as {@code ?sort=title} so that one spelling orders every list route — the shared sort control offers the same three
+	 * options on every screen and does not know which type it is looking at.
+	 * </p>
+	 */
+	@Override
+	protected Field<?> getSortField(SortKey sortBy) {
+		if (sortBy == LoomSortKey.NAME) {
+			return TASK.TITLE;
+		}
+		return super.getSortField(sortBy);
+	}
+
+	@Override
+	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
+		FilterKey key = filter.filterKey();
+		// The columns are the jOOQ-generated enums, not the api ones. Same constants, different
+		// types - parsing into the api enum here would not compile against the column.
+		if (key == LoomFilterKey.STATUS) {
+			return query.and(TASK.STATUS.eq(parseEnum(JooqTaskStatus.class, filter.valueStr(), key)));
+		}
+		if (key == LoomFilterKey.PRIORITY) {
+			return query.and(TASK.PRIORITY.eq(parseEnum(JooqTaskPriority.class, filter.valueStr(), key)));
+		}
+		return super.applyFilter(query, filter);
+	}
 }

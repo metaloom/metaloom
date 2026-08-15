@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import type { PagingInfo } from "./paging";
+import { withPaging, type PagingInfo, type PagingParams } from "./paging";
 
 export interface ChatSessionSkillPin {
   skillUuid: string;
@@ -87,8 +87,18 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 /** List chat sessions. scope="mine" (default) lists own sessions; scope="published" lists the shared library. */
-export async function listChatSessions(token: string, scope: "mine" | "published" = "mine"): Promise<ChatSessionListResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat-sessions?scope=${scope}`, {
+/**
+ * List the caller's sessions, or the published ones.
+ *
+ * `scope` is the route's own parameter, so paging/sorting arguments are appended with
+ * {@link withPaging} rather than {@link pagingQuery} — the latter would emit a second `?`.
+ */
+export async function listChatSessions(
+  token: string,
+  scope: "mine" | "published" = "mine",
+  paging?: PagingParams,
+): Promise<ChatSessionListResponse> {
+  const res = await fetch(withPaging(`${API_BASE_URL}/chat-sessions?scope=${scope}`, paging), {
     headers: authHeaders(token),
   });
   return handleResponse<ChatSessionListResponse>(res);

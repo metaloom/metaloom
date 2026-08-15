@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow,
@@ -18,7 +18,11 @@ import {
   createSkill, deleteSkill, installSkill, listSkillLibrary, listSkills, listSkillVersions,
   restoreSkillVersion, SkillResponse, updateSkill,
 } from "../../api/skills";
-import { PAGE_SIZE } from "../../hooks/pagedList";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 
 interface EditorState {
   uuid?: string;
@@ -42,8 +46,10 @@ export default function SkillManagementView() {
   // One term per tab — switching tabs must not silently carry a filter across.
   const [mineQuery, setMineQuery] = useState("");
   const [libraryQuery, setLibraryQuery] = useState("");
-  const [skills, setSkills] = useState<SkillResponse[]>([]);
-  const [library, setLibrary] = useState<SkillResponse[]>([]);
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [enabled, setEnabled] = useState("");
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
   const [versions, setVersions] = useState<SkillResponse[]>([]);
@@ -51,13 +57,39 @@ export default function SkillManagementView() {
   const [restoreConfirm, setRestoreConfirm] = useState<number | null>(null);
   const [restoring, setRestoring] = useState<number | null>(null);
 
-  const refresh = useCallback(() => {
-    if (!token) return;
-    listSkills(token, { limit: PAGE_SIZE }).then(res => setSkills(res.data ?? [])).catch(() => setSkills([]));
-    listSkillLibrary(token, { limit: PAGE_SIZE }).then(res => setLibrary(res.data ?? [])).catch(() => setLibrary([]));
-  }, [token]);
+  // Both tabs page independently. They shared one non-paged fetch before, which meant a user with
+  // more than a hundred skills was looking at an arbitrary subset of them.
+  //
+  // The sort and the enabled filter are shared state: they describe how the user wants to read a
+  // skill list, and that intent does not change when the tab does. The creator filter is the
+  // library's alone — every skill on the "mine" tab has the same creator.
+  const skillParams = useCallback((paging: PagingParams, withCreator: boolean): PagingParams => ({
+    ...paging,
+    sort: sortState.sort,
+    dir: sortState.dir,
+    filters: [
+      ...(enabled ? [{ key: "enabled", value: enabled }] : []),
+      ...(withCreator && creator ? [{ key: "creator", value: creator }] : []),
+    ],
+  }), [sortState.sort, sortState.dir, enabled, creator]);
 
-  useEffect(refresh, [refresh]);
+  const loadMine = useMemo(
+    () => (token ? (paging: PagingParams) => listSkills(token, skillParams(paging, false)).then(r => pageFrom(r, sk => sk)) : null),
+    [token, skillParams],
+  );
+  const loadLibrary = useMemo(
+    () => (token ? (paging: PagingParams) => listSkillLibrary(token, skillParams(paging, true)).then(r => pageFrom(r, sk => sk)) : null),
+    [token, skillParams],
+  );
+  const minePage = usePagedList<SkillResponse>(loadMine, sk => sk.uuid);
+  const libraryPage = usePagedList<SkillResponse>(loadLibrary, sk => sk.uuid);
+  const skills = minePage.items;
+  const library = libraryPage.items;
+
+  const refresh = useCallback(() => {
+    minePage.reload();
+    libraryPage.reload();
+  }, [minePage.reload, libraryPage.reload]);
 
   const editorUuid = editor?.uuid;
   const loadVersions = useCallback(() => {
@@ -198,21 +230,31 @@ export default function SkillManagementView() {
       </Tabs>
 
       {loaded.length > 0 && (
-        <TextField
-          value={activeQuery}
-          onChange={e => (tab === "mine" ? setMineQuery(e.target.value) : setLibraryQuery(e.target.value))}
-          placeholder={t("skills.search.placeholder")}
-          size="small"
-          data-testid={tab === "mine" ? "skills-mine-search" : "skills-library-search"}
-          sx={{ maxWidth: 360 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <TextField
+            value={activeQuery}
+            onChange={e => (tab === "mine" ? setMineQuery(e.target.value) : setLibraryQuery(e.target.value))}
+            placeholder={t("skills.search.placeholder")}
+            size="small"
+            data-testid={tab === "mine" ? "skills-mine-search" : "skills-library-search"}
+            sx={{ maxWidth: 360, flex: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <ListFilterSelect value={enabled} onChange={setEnabled}
+            options={[{ value: "true", label: t("skills.filter.enabled") }, { value: "false", label: t("skills.filter.disabled") }]}
+            allLabel={t("skills.filter.anyState")} testId="skills-filter-enabled" minWidth={130} />
+          {tab === "library" && creators.length > 0 && (
+            <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+              allLabel={t("skills.filter.allCreators")} testId="skills-filter-creator" minWidth={150} />
+          )}
+          <ListSortControl value={sortState} onChange={setSortState} testId="skills-sort" />
+        </Box>
       )}
 
       {/* Filtered to nothing keeps the inline hint; EmptyState stays bound to "no skills at
@@ -331,6 +373,19 @@ export default function SkillManagementView() {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {/* One footer per tab, reporting whichever list is on screen. Hidden while a term is typed:
+          the box filters the loaded rows, so the count would describe a different set. */}
+      {!activeQuery.trim() && (
+        <ListPaging
+          loaded={tab === "mine" ? skills.length : library.length}
+          total={tab === "mine" ? minePage.totalCount : libraryPage.totalCount}
+          hasMore={tab === "mine" ? minePage.hasMore : libraryPage.hasMore}
+          loadingMore={tab === "mine" ? minePage.loadingMore : libraryPage.loadingMore}
+          onLoadMore={tab === "mine" ? minePage.loadMore : libraryPage.loadMore}
+          testId={tab === "mine" ? "skills-mine-paging" : "skills-library-paging"}
+        />
       )}
 
       {/* Create / edit dialog with markdown editor */}

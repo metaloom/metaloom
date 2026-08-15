@@ -13,6 +13,10 @@ import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
+import io.metaloom.filter.Filter;
+import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.filter.LoomFilterKey;
+import org.jooq.SelectConditionStep;
 
 @Singleton
 public class BlacklistDaoImpl extends AbstractJooqDao<Blacklist> implements BlacklistDao {
@@ -46,4 +50,15 @@ public class BlacklistDaoImpl extends AbstractJooqDao<Blacklist> implements Blac
 		return list;
 	}
 
+	@Override
+	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
+		FilterKey key = filter.filterKey();
+		if (key == LoomFilterKey.NAME) {
+			return query.and(JooqBlacklist.BLACKLIST.NAME.eq(filter.valueStr()));
+		}
+		if (key == LoomFilterKey.TYPE) {
+			return query.and(JooqBlacklist.BLACKLIST.TYPE.eq(filter.valueStr()));
+		}
+		return super.applyFilter(query, filter);
+	}
 }

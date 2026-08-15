@@ -50,6 +50,8 @@ import {
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 
 // ── Spaces Table ──────────────────────────────────────────────────────────
@@ -63,9 +65,19 @@ function SpacesAdmin() {
   const [editName, setEditName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<SpaceResponse | null>(null);
 
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listSpaces(token, paging).then(r => pageFrom(r, s => s)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listSpaces(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, s => s))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<SpaceResponse>(loadPage, s => s.uuid);
   const spaces = page.items;
@@ -122,21 +134,28 @@ function SpacesAdmin() {
         </Box>
         <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.spaces.newSpace")}</Button>
       </Box>
-      <TextField
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={t("admin.spaces.search")}
-        size="small"
-        sx={{ mb: 1.5, maxWidth: 320 }}
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("admin.spaces.search")}
+          size="small"
+          data-testid="admin-spaces-search"
+          sx={{ maxWidth: 320, flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        {creators.length > 0 && (
+          <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+            allLabel={t("admin.filter.allCreators")} testId="admin-spaces-filter-creator" minWidth={160} />
+        )}
+        <ListSortControl value={sortState} onChange={setSortState} testId="admin-spaces-sort" />
+      </Box>
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -246,9 +265,20 @@ function UsersAdmin() {
   const [createForm, setCreateForm] = useState({ username: "", email: "", firstname: "", lastname: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<UserResponse | null>(null);
 
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [enabled, setEnabled] = useState("");
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listUsers(token, paging).then(r => pageFrom(r, u => u)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listUsers(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        // A boolean column, so the value is the literal "true"/"false" the LHS grammar parses,
+        // not a uuid like the creator filters elsewhere in this file.
+        filters: enabled ? [{ key: "enabled", value: enabled }] : undefined,
+      }).then(r => pageFrom(r, u => u))
+      : null),
+    [token, sortState.sort, sortState.dir, enabled],
   );
   const page = usePagedList<UserResponse>(loadPage, u => u.uuid);
   const users = page.items;
@@ -317,21 +347,27 @@ function UsersAdmin() {
           {t("admin.users.createUser")}
         </Button>
       </Box>
-      <TextField
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={t("admin.users.search")}
-        size="small"
-        sx={{ mb: 1.5, maxWidth: 320 }}
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("admin.users.search")}
+          size="small"
+          data-testid="admin-users-search"
+          sx={{ maxWidth: 320, flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <ListFilterSelect value={enabled} onChange={setEnabled}
+          options={[{ value: "true", label: t("admin.users.filter.enabled") }, { value: "false", label: t("admin.users.filter.disabled") }]}
+          allLabel={t("admin.users.filter.anyStatus")} testId="admin-users-filter-enabled" minWidth={140} />
+        <ListSortControl value={sortState} onChange={setSortState} testId="admin-users-sort" />
+      </Box>
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -483,9 +519,19 @@ function GroupsAdmin() {
   const [editName, setEditName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<GroupResponse | null>(null);
 
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listGroups(token, paging).then(r => pageFrom(r, g => g)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listGroups(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, g => g))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<GroupResponse>(loadPage, g => g.uuid);
   const groups = page.items;
@@ -542,21 +588,28 @@ function GroupsAdmin() {
         </Box>
         <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.groups.newGroup")}</Button>
       </Box>
-      <TextField
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={t("admin.groups.search")}
-        size="small"
-        sx={{ mb: 1.5, maxWidth: 320 }}
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("admin.groups.search")}
+          size="small"
+          data-testid="admin-groups-search"
+          sx={{ maxWidth: 320, flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        {creators.length > 0 && (
+          <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+            allLabel={t("admin.filter.allCreators")} testId="admin-groups-filter-creator" minWidth={160} />
+        )}
+        <ListSortControl value={sortState} onChange={setSortState} testId="admin-groups-sort" />
+      </Box>
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -670,9 +723,19 @@ function AccessControlAdmin() {
   const [deleteConfirm, setDeleteConfirm] = useState<RoleResponse | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listRoles(token, paging).then(r => pageFrom(r, role => role)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listRoles(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, role => role))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<RoleResponse>(loadPage, r => r.uuid);
   const roles = page.items;
@@ -791,6 +854,14 @@ function AccessControlAdmin() {
               ),
             }}
           />
+          {/* The rail is 220px, so these stack under the box rather than beside it. */}
+          {creators.length > 0 && (
+            <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+              allLabel={t("admin.filter.allCreators")} testId="admin-roles-filter-creator" minWidth={0} />
+          )}
+          <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", mb: 0.5 }}>
+            <ListSortControl value={sortState} onChange={setSortState} testId="admin-roles-sort" />
+          </Box>
           {filteredRoles.length === 0 && (
             <Typography variant="caption" data-testid="admin-roles-no-match" sx={{ color: tokens.text.tertiary, px: 0.5, py: 1 }}>
               {t("admin.roles.noMatch")}
@@ -1243,9 +1314,19 @@ function BlacklistAdmin() {
   const [newName, setNewName] = useState("");
   const [newAssetUuid, setNewAssetUuid] = useState("");
 
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listBlacklists(token, paging).then(r => pageFrom(r, e => e)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listBlacklists(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, e => e))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<BlacklistResponse>(loadPage, e => e.uuid);
   const entries = page.items;
@@ -1282,21 +1363,28 @@ function BlacklistAdmin() {
           {t("admin.blacklist.addEntry")}
         </Button>
       </Box>
-      <TextField
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={t("admin.blacklist.search")}
-        size="small"
-        sx={{ mb: 1.5, maxWidth: 320 }}
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("admin.blacklist.search")}
+          size="small"
+          data-testid="admin-blacklist-search"
+          sx={{ maxWidth: 320, flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        {creators.length > 0 && (
+          <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+            allLabel={t("admin.filter.allCreators")} testId="admin-blacklist-filter-creator" minWidth={160} />
+        )}
+        <ListSortControl value={sortState} onChange={setSortState} testId="admin-blacklist-sort" />
+      </Box>
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>

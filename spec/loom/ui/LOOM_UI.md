@@ -509,20 +509,44 @@ particular ordering.
 | Direction | `<feature>-sort-direction` | `?dir=` |
 | Creator | `<feature>-filter-creator`, options from `useCreatorOptions` | `filter=creator[eq]=<uuid>` |
 | Collection (assets) | `assets-filter-collection` | `filter=collection[eq]=<uuid>` |
+| Status / priority (tasks) | `tasks-filter-status`, `tasks-filter-priority` | `filter=status[eq]=`, `priority[eq]=` |
+| Enabled (users, skills) | `<feature>-filter-enabled` | `filter=enabled[eq]=true` |
 
 The default is `created ASC` (`DEFAULT_SORT`) — under UUIDv7 that is also insertion order, so a new
 element appears at the end of the list rather than somewhere in the middle.
 
-Two deliberate asymmetries in `AssetBrowser`:
+Wired on: **assets, collections, tags, library, asset pools, tasks, skills, chat sessions**, and the
+**spaces / users / groups / roles / blacklist** admin tables. `?sort=name` is mapped per type
+server-side, so the control offers the same three options everywhere without knowing what it is
+looking at — an asset's name is its `filename`, a task's its `title`, a user's their `username`.
 
-- The **type** filter stays local. `/assets` has no mime parameter to delegate it to, which is why
-  it is the one control that goes wrong on a partly loaded catalog.
-- Sort and the creator filter **hide** while a search term is active. `/search/assets` ranks by
-  relevance and takes no creator, so leaving them on screen would show controls that quietly stop
-  applying. The collection filter stays, because that route does take `?collection=`.
+Three deliberate asymmetries:
+
+- `AssetBrowser`'s **type** filter stays local. `/assets` has no mime parameter to delegate it to,
+  which is why it is the one control that goes wrong on a partly loaded catalog.
+- Sort and the creator filter **hide** while an asset search term is active. `/search/assets` ranks
+  by relevance and takes no creator, so leaving them on screen would show controls that quietly
+  stop applying. The collection filter stays — that route does take `?collection=`.
+- On `SkillManagementView` the creator filter belongs to the **library** tab alone; every skill on
+  "mine" has the same creator.
 
 Filter pickers render only when they have options (`creators.length > 0`), so a user without
 `READ_USER` sees no creator control rather than an empty one.
+
+#### The browser-sorted exception
+
+`CortexView` and `MemoryView` are **not** Loom collections — the first is the live worker registry
+pushed over the events socket, the second has its own scoped API — so there is no query parameter to
+send and no page to be wrong about. They use `sortLocally()` from the same module, which is a pure
+comparator covered by `listControls.test.ts`.
+
+Do not reach for it anywhere a list route backs the screen. The whole point of the split is that
+"sorted" means the collection on one side of it and the loaded page on the other.
+
+The two detection screens got a second **filter** rather than a sort, because their rows carry no
+timestamps: object detection filters by confidence band, face detection by whether a cluster has a
+person attached. `LLMDetectionManagement` still renders `MOCK_RESULTS` and was left alone — wiring
+controls to fixture data would be theatre.
 
 ### 7.6 Chat workspace split
 
@@ -718,11 +742,11 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-101 specs in two flavours, distinguished by filename suffix:
+102 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (66) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (67) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -807,7 +831,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `HELP_TOPICS` / `HelpTopic` / `helpUrl` | `src/help/topics.ts` | The coachmark registry and the `/help/?t=&q=` builder (§7.10) |
 | `StatusChip` / `Tone` / `toneStyles` | `src/components/StatusChip.tsx` | green/amber/red/neutral status pill. Extracted from `MaintenanceView` so the two operator screens paint the same states the same colour |
 | `ListPaging` | `src/components/ListPaging.tsx` | "Showing X of Y" + load-more button for a paged list (§11.3) |
-| `ListSortControl` / `ListFilterSelect` / `DEFAULT_SORT` | `src/components/ListControls.tsx` | Server-side sort column, direction and one-of-many filters for a listing view (§7.5.2) |
+| `ListSortControl` / `ListFilterSelect` / `DEFAULT_SORT` / `sortLocally` | `src/components/ListControls.tsx` | Server-side sort column, direction and one-of-many filters for a listing view; `sortLocally` is the comparator for the two screens no list route backs (§7.5.2) |
 | `useCreatorOptions` | `src/hooks/useCreatorOptions.ts` | The user list shaped for a "created by" filter; fails quietly to `[]` without `READ_USER` (§7.5.2) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
 | `Title` | `src/components/Title.tsx` | Page heading |

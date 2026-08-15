@@ -157,11 +157,24 @@ any DAO is reached, so a key implemented but unregistered is dead code over REST
 |-----|-------------------|-------|
 | `uuid` | `AbstractJooqDao` (all types) | uuid |
 | `creator` / `editor` | `AbstractJooqDao`, for any table with the `CUDElement` audit columns | uuid |
-| `name` | `CollectionDaoImpl`, `TagDaoImpl`, `LibraryDaoImpl`, `PersonDaoImpl`, `CortexInstanceDaoImpl`, `NodeDescriptorRecordDaoImpl`; `AssetDaoImpl` maps it to `filename` | exact string |
+| `name` | `CollectionDaoImpl`, `TagDaoImpl`, `LibraryDaoImpl`, `PersonDaoImpl`, `SkillDaoImpl`, `ChatSessionDaoImpl`, `BlacklistDaoImpl`, `CortexInstanceDaoImpl`, `NodeDescriptorRecordDaoImpl`; `AssetDaoImpl` maps it to `filename` | exact string |
 | `collection` | `TagDaoImpl` (column); `AssetDaoImpl` (membership via `collection_asset`) | string / uuid |
 | `username` | `UserDaoImpl` | string |
+| `enabled` | `UserDaoImpl`, `SkillDaoImpl` | boolean |
+| `published` | `SkillDaoImpl`, `ChatSessionDaoImpl` | boolean |
+| `type` | `BlacklistDaoImpl` | string |
+| `status` | the pipeline run DAOs, `TaskDaoImpl` | enum name |
+| `priority` | `TaskDaoImpl` | enum name |
 | `size` | `AssetDaoImpl` (range) | size range |
-| `status`, `dry_run` | the pipeline run DAOs | enum / boolean |
+| `dry_run` | `PipelineRunDaoImpl` | boolean |
+
+A value that has to be a uuid or an enum constant and is not answers **400** naming the key —
+`parseUuid` and `parseEnum` in `AbstractJooqDao` exist so that a malformed query parameter is the
+caller's mistake rather than a 500 out of `UUID.fromString`/`Enum.valueOf`.
+
+Boolean keys need `addEquals(BooleanFilterKey, Boolean)` from the Java client; the `String` overload
+does not accept one, which left every boolean filter — `dry_run` included — unreachable from that
+client until the overload was added.
 
 `creator`/`editor` take a **uuid, not a username** — usernames are mutable and a filter in a
 bookmarked URL has to survive a rename. Element responses carry `status.creator.uuid` for this.

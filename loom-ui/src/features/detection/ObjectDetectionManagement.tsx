@@ -15,6 +15,22 @@ import { useToast } from "../../context/ToastContext";
 import { listAssets, AssetResponse } from "../../api/assets";
 import { listAssetDetections, updateDetection, deleteDetection } from "../../api/detections";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import { ListFilterSelect } from "../../components/ListControls";
+
+/**
+ * Confidence bands for the review filter.
+ *
+ * Boundaries rather than a slider: the useful question is "show me what the model was unsure
+ * about", and three named bands answer it without asking anyone to pick a number.
+ */
+const CONFIDENCE_BANDS = ["high", "medium", "low"] as const;
+
+function matchesConfidence(value: number, band: string): boolean {
+  if (band === "high") return value >= 0.9;
+  if (band === "medium") return value >= 0.6 && value < 0.9;
+  if (band === "low") return value < 0.6;
+  return true;
+}
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
@@ -24,6 +40,7 @@ export default function ObjectDetectionManagement() {
   const { showToast } = useToast();
   const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
+  const [confidence, setConfidence] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -64,9 +81,18 @@ export default function ObjectDetectionManagement() {
     return Object.entries(byLabel).sort((a, b) => b[1].length - a[1].length);
   }, [detectedObjects]);
 
-  const filtered = query.trim()
-    ? grouped.filter(([label]) => label.toLowerCase().includes(query.toLowerCase()))
-    : grouped;
+  // Confidence is the second axis this screen is actually read along — "what did the model only
+  // half-believe" is the review queue. Applied to the members of each label group, so a group
+  // whose detections are all above the threshold disappears rather than showing as empty.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return grouped
+      .map(([label, objects]) => [
+        label,
+        confidence === "" ? objects : objects.filter(o => matchesConfidence(o.confidence, confidence)),
+      ] as [string, DetectedObject[]])
+      .filter(([label, objects]) => objects.length > 0 && (!q || label.toLowerCase().includes(q)));
+  }, [grouped, query, confidence]);
 
   // Confirm marks the detection as reviewed (meta.confirmed); reject deletes it. Both persist.
   const handleConfirm = async (obj: DetectedObject) => {
@@ -108,6 +134,9 @@ export default function ObjectDetectionManagement() {
             ),
           }}
         />
+        <ListFilterSelect value={confidence} onChange={setConfidence}
+          options={CONFIDENCE_BANDS.map(b => ({ value: b, label: t(`objectDetection.filter.${b}`) }))}
+          allLabel={t("objectDetection.filter.anyConfidence")} testId="objectdetection-filter-confidence" minWidth={150} />
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
           {t("objectDetection.count", { detections: detectedObjects.length, labels: grouped.length })}
         </Typography>

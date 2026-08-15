@@ -20,6 +20,7 @@ import {
 } from "../../api/processors";
 import { subscribeProcessorEvents, ProcessorEventMessage } from "../../api/pipelineEvents";
 import { nodeIdOf } from "../pipeline/nodePicker";
+import { ListSortControl, sortLocally, type SortState } from "../../components/ListControls";
 
 interface WorkerNode {
   id: string;
@@ -251,6 +252,7 @@ function WorkerCard({ worker, now, nodeKinds, onChangeStatus, onSaveRestrictions
     <Paper
       elevation={0}
       data-testid={`worker-card-${worker.id}`}
+      data-worker-name={worker.name}
       sx={{
         display: "flex", alignItems: "center", gap: 2, p: 2,
         border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg,
@@ -449,6 +451,8 @@ export default function CortexView() {
 
   useEffect(() => subscribeProcessorEvents(handleEvent, token), [handleEvent, token]);
 
+  const [sortState, setSortState] = useState<SortState>({ sort: "name", dir: "asc" });
+
   // Tick a clock so relative "last seen" / staleness re-renders without new events.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5000);
@@ -463,8 +467,11 @@ export default function CortexView() {
       const q = query.toLowerCase();
       res = res.filter(w => w.name.toLowerCase().includes(q) || w.host.includes(q));
     }
-    setFiltered(res);
-  }, [workers, query, statusFilter, capFilter]);
+    // Sorted in the browser, unlike every other listing screen. This is not a Loom collection —
+    // it is the live worker registry, held whole in memory and pushed over the events socket —
+    // so there is no page to be wrong about and no query parameter to send.
+    setFiltered(sortLocally(res.map(w => ({ ...w, created: w.lastSeen, edited: w.lastSeen })), sortState));
+  }, [workers, query, statusFilter, capFilter, sortState]);
 
   const handleChangeStatus = (id: string, status: WorkerNode["status"]) => {
     setWorkers(prev => prev.map(w => w.id === id ? { ...w, status } : w));
@@ -519,6 +526,7 @@ export default function CortexView() {
             onChange={e => setQuery(e.target.value)}
             placeholder={t("cortex.search.placeholder")}
             size="small"
+            data-testid="cortex-search"
             sx={{ flex: 1, minWidth: 180 }}
             InputProps={{
               startAdornment: (
@@ -558,6 +566,8 @@ export default function CortexView() {
               <MenuItem value="IO">IO</MenuItem>
             </Select>
           </FormControl>
+
+          <ListSortControl value={sortState} onChange={setSortState} testId="cortex-sort" />
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>

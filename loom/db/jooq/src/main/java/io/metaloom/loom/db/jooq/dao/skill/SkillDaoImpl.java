@@ -24,6 +24,8 @@ import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.page.Page;
+import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.filter.LoomFilterKey;
 
 @Singleton
 public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
@@ -121,4 +123,22 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 			.fetchOneInto(SkillImpl.class);
 	}
 
+	/**
+	 * Enabled and published are the two axes a skill list is actually read along: what is switched on, and what is shared with the space rather than
+	 * kept private. Both are plain boolean columns, so no join is involved.
+	 */
+	@Override
+	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
+		FilterKey key = filter.filterKey();
+		if (key == LoomFilterKey.ENABLED) {
+			return query.and(SKILL.ENABLED.eq(filter.valueBool()));
+		}
+		if (key == LoomFilterKey.PUBLISHED) {
+			return query.and(SKILL.PUBLISHED.eq(filter.valueBool()));
+		}
+		if (key == LoomFilterKey.NAME) {
+			return query.and(SKILL.NAME.eq(filter.valueStr()));
+		}
+		return super.applyFilter(query, filter);
+	}
 }

@@ -392,10 +392,10 @@
       "assignees": "Zugewiesen an"
     },
     "status": {
-      "PENDING": "Ausstehend",
+      "PENDING": "Offen",
       "REJECTED": "Abgelehnt",
       "ACCEPTED": "Angenommen",
-      "REVIEW": "Überprüfung"
+      "REVIEW": "In Prüfung"
     },
     "drawer": {
       "title": "Aufgabendetails",
@@ -438,6 +438,10 @@
     },
     "search": {
       "placeholder": "Aufgaben suchen…"
+    },
+    "filter": {
+      "anyStatus": "Beliebiger Status",
+      "anyPriority": "Beliebige Priorität"
     }
   },
   "monitoring": {
@@ -716,6 +720,11 @@
       },
       "confirm": {
         "delete": "Sind Sie sicher, dass Sie Benutzer {{name}} löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden."
+      },
+      "filter": {
+        "anyStatus": "Beliebiger Status",
+        "enabled": "Aktiv",
+        "disabled": "Deaktiviert"
       }
     },
     "groups": {
@@ -1120,6 +1129,9 @@
         "PERSON_AVATAR": "Personen-Avatare",
         "USER_AVATAR": "Kontobilder"
       }
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "pipeline": {
@@ -1560,7 +1572,13 @@
     },
     "confirmError": "Erkennung konnte nicht bestätigt werden",
     "rejectError": "Erkennung konnte nicht gelöscht werden",
-    "empty": "Keine Objekterkennungen gefunden"
+    "empty": "Keine Objekterkennungen gefunden",
+    "filter": {
+      "anyConfidence": "Beliebige Konfidenz",
+      "high": "Hoch (≥90 %)",
+      "medium": "Mittel (60–90 %)",
+      "low": "Niedrig (<60 %)"
+    }
   },
   "faceDetection": {
     "title": "Gesichtserkennung",
@@ -1609,6 +1627,11 @@
       "editCluster": "Cluster bearbeiten",
       "assign": "Cluster einer Person zuweisen",
       "selectPerson": "Person auswählen…"
+    },
+    "filter": {
+      "anyAssignment": "Alle Cluster",
+      "assigned": "Zugeordnet",
+      "unassigned": "Nicht zugeordnet"
     }
   },
   "maintenance": {
@@ -2069,6 +2092,12 @@
     },
     "search": {
       "placeholder": "Skills suchen…"
+    },
+    "filter": {
+      "anyState": "Beliebiger Status",
+      "enabled": "Aktiv",
+      "disabled": "Deaktiviert",
+      "allCreators": "Alle Ersteller"
     }
   },
   "memory": {
@@ -2187,6 +2216,9 @@
     },
     "emptyState": {
       "noSearch": "Keine Sitzungen entsprechen Ihrer Suche"
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "person": {

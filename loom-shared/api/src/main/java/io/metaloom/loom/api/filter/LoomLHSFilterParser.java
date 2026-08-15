@@ -25,6 +25,10 @@ public class LoomLHSFilterParser extends LHSFilterParserImpl {
 		register(LoomFilterKey.USERNAME);
 		register(LoomFilterKey.STATUS);
 		register(LoomFilterKey.DRY_RUN);
+		register(LoomFilterKey.ENABLED);
+		register(LoomFilterKey.PUBLISHED);
+		register(LoomFilterKey.TYPE);
+		register(LoomFilterKey.PRIORITY);
 	}
 
 }

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 import io.metaloom.filter.Filter;
+import io.metaloom.filter.key.impl.BooleanFilterKey;
 import io.metaloom.filter.key.impl.DurationFilterKey;
 import io.metaloom.filter.key.impl.SizeFilterKey;
 import io.metaloom.filter.key.impl.StringFilterKey;
@@ -51,6 +52,18 @@ public interface HttpQueryParameters<T extends RestResponseModel<T>> extends Que
 
 	default LoomClientHttpRequest<T> addEquals(DurationFilterKey key, Duration duration) {
 		return addQueryParameter(QueryParameterKey.FILTER.key(), key.eq(duration).toString());
+	}
+
+	/**
+	 * Equality filter on a boolean key — {@code enabled}, {@code published}, {@code dry_run}.
+	 *
+	 * <p>
+	 * Missing until now, which left every {@link io.metaloom.filter.key.impl.BooleanFilterKey} unreachable from this client: the {@code String}
+	 * overload below does not accept one, so the call did not compile and there was no other way to express the filter.
+	 * </p>
+	 */
+	default LoomClientHttpRequest<T> addEquals(BooleanFilterKey key, Boolean value) {
+		return addQueryParameter(QueryParameterKey.FILTER.key(), key.eq(value).toString());
 	}
 
 	default LoomClientHttpRequest<T> addEquals(StringFilterKey key, String value) {

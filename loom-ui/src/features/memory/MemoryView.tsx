@@ -15,6 +15,7 @@ import {
   createMemoryEntry, deleteMemoryEntry, listMemory, listMemoryScopes, loadMemoryEntry,
   MemoryApiError, MemoryEntrySummary, MemoryScopeInfo, saveMemoryEntry,
 } from "../../api/memory";
+import { ListSortControl, sortLocally, type SortState } from "../../components/ListControls";
 
 interface EditorState {
   /** Empty while creating a new note. */
@@ -61,6 +62,7 @@ export default function MemoryView() {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MemoryEntrySummary | null>(null);
+  const [sortState, setSortState] = useState<SortState>({ sort: "edited", dir: "desc" });
   const [query, setQuery] = useState("");
 
   const activeScope = useMemo(
@@ -72,13 +74,16 @@ export default function MemoryView() {
   // only matches the id — the box below also matches the title and the session, so it stays here.
   const filteredEntries = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(e =>
+    const matched = !q ? entries : entries.filter(e =>
       e.id.toLowerCase().includes(q)
       || (e.title ?? "").toLowerCase().includes(q)
       || (e.sessionName ?? "").toLowerCase().includes(q)
     );
-  }, [entries, query]);
+    // Sorted in the browser: a scope is bounded (`maxEntries`, shown in the tab) and arrives
+    // whole, so there is no page for a comparator to be wrong about. `name` means the note's
+    // title, falling back to its id — an untitled note is still addressable.
+    return sortLocally(matched.map(e => ({ ...e, name: e.title || e.id })), sortState);
+  }, [entries, query, sortState]);
 
   useEffect(() => {
     if (!token) return;
@@ -225,6 +230,7 @@ export default function MemoryView() {
                 ),
               }}
             />
+            <ListSortControl value={sortState} onChange={setSortState} testId="memory-sort" />
             <Button startIcon={<Add />} disabled={!writable} onClick={() => openEditor()} data-testid="memory-new">
               {t("memory.new", "New note")}
             </Button>
@@ -244,7 +250,7 @@ export default function MemoryView() {
               </TableHead>
               <TableBody>
                 {filteredEntries.map(entry => (
-                  <TableRow key={entry.id} data-testid={`memory-row-${entry.id}`}>
+                  <TableRow key={entry.id} data-testid={`memory-row-${entry.id}`} data-memory-id={entry.id}>
                     <TableCell><code>{entry.id}</code></TableCell>
                     <TableCell>{entry.title}</TableCell>
                     <TableCell>

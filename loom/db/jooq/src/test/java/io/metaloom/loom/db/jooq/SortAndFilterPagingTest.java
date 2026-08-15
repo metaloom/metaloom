@@ -22,6 +22,8 @@ import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.collection.Collection;
+import io.metaloom.loom.db.model.skill.Skill;
+import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.utils.hash.SHA512;
@@ -406,6 +408,97 @@ public class SortAndFilterPagingTest extends AbstractJooqTest {
 		assertThat(firstPage.totalCount())
 			.as("total counts assets, not collection_asset links - four of the twelve are in two collections")
 			.isEqualTo(12);
+	}
+
+	/**
+	 * Tasks: {@code ?sort=name} has to reach {@code title}, and {@code status} has to narrow.
+	 *
+	 * <p>
+	 * The status column is the jOOQ-generated enum rather than the api one, so the filter parses into a different type than the rest of the codebase
+	 * uses for the same concept — a mismatch that only shows up at the column comparison.
+	 * </p>
+	 */
+	@Test
+	public void testTasksSortByNameAndFilterByStatus() {
+		User user = dummyUser();
+		String prefix = uniquePrefix("task");
+
+		List<String> titles = List.of("delta", "alpha", "charlie", "bravo");
+		for (String title : titles) {
+			Task task = taskDao().createTask(user, prefix + title);
+			taskDao().store(task);
+		}
+		List<String> expected = new ArrayList<>(titles.stream().map(x -> prefix + x).toList());
+		Collections.sort(expected);
+
+		List<String> paged = pageAll(prefix, LoomSortKey.NAME, SortDirection.ASCENDING, null, Task::getTitle,
+			cursor -> taskDao().loadPage(cursor, PAGE_SIZE, null, LoomSortKey.NAME, SortDirection.ASCENDING));
+		assertThat(paged)
+			.as("sort=name orders tasks by title, the column that holds their display name")
+			.containsExactlyElementsOf(expected);
+
+		// createTask defaults to PENDING, so every fixture matches; the point is that the filter
+		// parses and applies at all rather than answering 400 or 500.
+		List<Filter> filters = List.of(LoomFilterKey.STATUS.eq("PENDING"));
+		List<String> pending = pageAll(prefix, null, null, filters, Task::getTitle,
+			cursor -> taskDao().loadPage(cursor, PAGE_SIZE, filters, null, null));
+		assertThat(pending).containsExactlyInAnyOrderElementsOf(expected);
+
+		List<Filter> accepted = List.of(LoomFilterKey.STATUS.eq("ACCEPTED"));
+		List<String> none = pageAll(prefix, null, null, accepted, Task::getTitle,
+			cursor -> taskDao().loadPage(cursor, PAGE_SIZE, accepted, null, null));
+		assertThat(none).as("no fixture is accepted yet").isEmpty();
+	}
+
+	/** A status that is not a member of the enum is a 400 that lists the alternatives, not a 500 from {@code valueOf}. */
+	@Test
+	public void testMalformedEnumFilterValueIsRejected() {
+		List<Filter> filters = List.of(LoomFilterKey.STATUS.eq("NOT_A_STATUS"));
+		assertThatThrownBy(() -> taskDao().loadPage(null, PAGE_SIZE, filters, null, null))
+			.isInstanceOf(LoomRestException.class)
+			.hasMessageContaining("expects one of");
+	}
+
+	/** A user's display identity is the username, so {@code ?sort=name} maps onto it rather than being rejected. */
+	@Test
+	public void testUsersSortByNameUsesUsername() {
+		String prefix = uniquePrefix("user");
+		List<String> names = List.of("delta", "alpha", "charlie", "bravo");
+		for (String name : names) {
+			User created = userDao().createUser(adminUser().getUuid(), prefix + name);
+			userDao().store(created);
+		}
+		List<String> expected = new ArrayList<>(names.stream().map(x -> prefix + x).toList());
+		Collections.sort(expected);
+
+		List<String> paged = pageAll(prefix, LoomSortKey.NAME, SortDirection.ASCENDING, null, User::getUsername,
+			cursor -> userDao().loadPage(cursor, PAGE_SIZE, null, LoomSortKey.NAME, SortDirection.ASCENDING));
+		assertThat(paged).containsExactlyElementsOf(expected);
+	}
+
+	/** Skills filter on the two booleans a skill list is read along. */
+	@Test
+	public void testSkillsFilterByEnabled() {
+		User user = dummyUser();
+		String prefix = uniquePrefix("skill");
+
+		List<String> on = new ArrayList<>();
+		for (int i = 0; i < 6; i++) {
+			Skill skill = skillDao().createSkill(user, prefix + String.format("%02d", i), "desc", "content");
+			boolean enabled = i % 2 == 0;
+			skill.setEnabled(enabled);
+			skillDao().store(skill);
+			if (enabled) {
+				on.add(skill.getName());
+			}
+		}
+
+		List<Filter> filters = List.of(LoomFilterKey.ENABLED.eq(true));
+		List<String> paged = pageAll(prefix, LoomSortKey.NAME, SortDirection.ASCENDING, filters, Skill::getName,
+			cursor -> skillDao().loadPage(cursor, PAGE_SIZE, filters, LoomSortKey.NAME, SortDirection.ASCENDING));
+
+		Collections.sort(on);
+		assertThat(paged).containsExactlyElementsOf(on);
 	}
 
 	/** A filter key the type does not implement is a 400 naming the type, not a silently ignored parameter. */

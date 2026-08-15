@@ -111,17 +111,18 @@ public class LoomUUIDTest {
 	 * neighbouring ids. Without that, the low bits of an id would leak how many rows were written since the last tick.
 	 */
 	@Test
-	public void testCounterIsSeededRandomly() {
+	public void testCounterIsSeededRandomly() throws InterruptedException {
 		Set<Integer> seeds = new HashSet<>();
-		long lastMs = -1;
-		for (int i = 0; i < 2000 && seeds.size() < 5; i++) {
-			UUID uuid = LoomUUID.timeOrdered();
-			long ms = LoomUUID.timestampOf(uuid);
-			if (ms != lastMs) {
-				lastMs = ms;
-				seeds.add((int) (uuid.getMostSignificantBits() & 0xFFF));
-			}
+		for (int i = 0; i < 8; i++) {
+			// The clock has to advance between samples, because the seed is drawn once per
+			// millisecond. Spinning without this can finish every iteration inside one tick on a
+			// fast machine, observe a single seed, and fail while the generator is behaving exactly
+			// as intended — which is what it did.
+			Thread.sleep(2);
+			seeds.add((int) (LoomUUID.timeOrdered().getMostSignificantBits() & 0xFFF));
 		}
+		// Eight draws from a 1024 value seed space: identical seeds throughout would be a 1-in-10^21
+		// coincidence, so this is a real assertion rather than a probabilistic one.
 		assertThat(seeds).as("the per millisecond counter seed must vary").hasSizeGreaterThan(1);
 	}
 

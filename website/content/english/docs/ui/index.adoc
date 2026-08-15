@@ -263,6 +263,10 @@ the beginning of the alphabet, and the *Showing X of Y* footer keeps counting th
 Lists are ordered oldest-first by default. That is deliberate: something you have just created turns
 up at the end of the list, where you would look for it, instead of somewhere in the middle.
 
+The same toolbar appears on collections, tags, libraries, asset pools, tasks, skills, chat sessions
+and the administration tables, with the filters each screen can usefully offer — tasks add *Status*
+and *Priority*, users add *Enabled*, skills add *Enabled* and, in the shared library, *Created by*.
+
 [TIP]
 ====
 Typing in the search box switches the asset browser over to full-text search, which ranks results by

@@ -43,4 +43,16 @@ public final class LoomFilterKey {
 
 	public static final BooleanFilterKey DRY_RUN = new BooleanFilterKey("dry_run");
 
+	/** Whether the element is switched on — a user account, a skill. */
+	public static final BooleanFilterKey ENABLED = new BooleanFilterKey("enabled");
+
+	/** Whether the element is shared with the space rather than kept private — skills, chat sessions. */
+	public static final BooleanFilterKey PUBLISHED = new BooleanFilterKey("published");
+
+	/** A type discriminator carried as a column, e.g. the reason a binary is blacklisted. */
+	public static final StringFilterKey TYPE = new StringFilterKey("type");
+
+	/** Task priority: LOW, MEDIUM, HIGH, CRITICAL. */
+	public static final StringFilterKey PRIORITY = new StringFilterKey("priority");
+
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -41,6 +41,11 @@ import {
   listChatSessions,
   publishChatSession,
 } from "../../api/chatSessions";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 
 function formatDate(value?: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
@@ -53,25 +58,33 @@ export default function ChatSessionsView() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<"mine" | "published">("mine");
-  const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionResponse | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createTags, setCreateTags] = useState("");
 
-  const refresh = useCallback(() => {
-    if (!token) return;
-    setLoading(true);
-    listChatSessions(token, tab)
-      .then((res) => setSessions(res.data ?? []))
-      .catch(() => setSessions([]))
-      .finally(() => setLoading(false));
-  }, [token, tab]);
-
-  useEffect(refresh, [refresh]);
+  // The tab is the route's own `?scope=`, the rest are the shared list parameters. All four are
+  // dependencies: changing any of them invalidates the cursor, so the listing restarts.
+  const loadPage = useMemo(
+    () => (token
+      ? (paging: PagingParams) => listChatSessions(token, tab, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, session => session))
+      : null),
+    [token, tab, sortState.sort, sortState.dir, creator],
+  );
+  const page = usePagedList<ChatSessionResponse>(loadPage, session => session.uuid);
+  const sessions = page.items;
+  const loading = page.loading;
+  const refresh = page.reload;
 
   const handleTogglePublish = async (session: ChatSessionResponse) => {
     if (!token) return;
@@ -156,22 +169,28 @@ export default function ChatSessionsView() {
 
       {/* This view predates the i18n sweep and still hardcodes its English strings; only the new
           search copy is translated. See LOOM_UI_TASKS.md. */}
-      <TextField
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={t("chatSessions.search.placeholder")}
-        size="small"
-        data-testid="chat-sessions-search"
-        sx={{ mb: 2, maxWidth: 360 }}
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("chatSessions.search.placeholder")}
+          size="small"
+          data-testid="chat-sessions-search"
+          sx={{ maxWidth: 360, flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        {creators.length > 0 && (
+          <ListFilterSelect value={creator} onChange={setCreator} options={creators}
+            allLabel={t("chatSessions.filter.allCreators")} testId="chat-sessions-filter-creator" minWidth={160} />
+        )}
+        <ListSortControl value={sortState} onChange={setSortState} testId="chat-sessions-sort" />
+      </Box>
 
       {loading ? (
         <CircularProgress size={20} />
@@ -259,6 +278,19 @@ export default function ChatSessionsView() {
             )}
           </TableBody>
         </Table>
+      )}
+
+      {/* Hidden while a term is typed: the box filters the loaded rows, so the count would be
+          describing a different set than the one on screen. */}
+      {!query.trim() && (
+        <ListPaging
+          loaded={sessions.length}
+          total={page.totalCount}
+          hasMore={page.hasMore}
+          loadingMore={page.loadingMore}
+          onLoadMore={page.loadMore}
+          testId="chat-sessions-paging"
+        />
       )}
 
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>

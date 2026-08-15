@@ -410,6 +410,23 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 		}
 	}
 
+	/**
+	 * Parse a filter value that has to name an enum constant.
+	 *
+	 * <p>
+	 * As {@link #parseUuid}: {@code valueOf} throws {@link IllegalArgumentException}, which would reach the client as a 500. The message lists what
+	 * was expected, because guessing the spelling of a status from a rejection is not reasonable.
+	 * </p>
+	 */
+	protected <E extends Enum<E>> E parseEnum(Class<E> type, String value, FilterKey key) {
+		try {
+			return Enum.valueOf(type, value == null ? "" : value.trim().toUpperCase());
+		} catch (IllegalArgumentException e) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_FILTER_KEY,
+				"Filter " + key.id() + " expects one of " + List.of(type.getEnumConstants()) + " but got '" + value + "'.");
+		}
+	}
+
 	public T findByUUID(UUID id) {
 		Field<?>[] pk = pk();
 

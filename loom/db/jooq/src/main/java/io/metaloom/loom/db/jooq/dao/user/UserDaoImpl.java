@@ -12,6 +12,7 @@ import org.jooq.DSLContext;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
+import org.jooq.Field;
 
 import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
@@ -24,6 +25,7 @@ import io.metaloom.loom.db.jooq.tables.JooqUser;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.loom.db.page.Page;
+import io.metaloom.loom.api.sort.LoomSortKey;
 
 @Singleton
 public class UserDaoImpl extends AbstractJooqDao<User> implements UserDao, JooqDao {
@@ -91,7 +93,26 @@ public class UserDaoImpl extends AbstractJooqDao<User> implements UserDao, JooqD
 		if (key == LoomFilterKey.USERNAME && filter.getOperationKey().equals("eq")) {
 			return query.and(USER.USERNAME.eq(filter.value().toString()));
 		}
+		if (key == LoomFilterKey.ENABLED) {
+			return query.and(USER.ENABLED.eq(filter.valueBool()));
+		}
 		return super.applyFilter(query, filter);
+	}
+
+	/**
+	 * A user has no {@code name} column — the display identity is the username.
+	 *
+	 * <p>
+	 * Mapping it keeps one spelling across every list route, so the shared sort control can offer "Name" everywhere without knowing which type is
+	 * behind the screen. Callers that specifically want {@code firstname} or {@code lastname} still have those keys.
+	 * </p>
+	 */
+	@Override
+	protected Field<?> getSortField(SortKey sortBy) {
+		if (sortBy == LoomSortKey.NAME) {
+			return USER.USERNAME;
+		}
+		return super.getSortField(sortBy);
 	}
 
 }
