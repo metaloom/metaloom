@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-140 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+144 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -454,6 +454,16 @@ spec/
 │   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
 │   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
 │   └── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
+├── test/                              # The test tiers above unit tests. One file per tier;
+│   │                                  #   endpoint/DAO rules stay in guidelines/CODING.md
+│   ├── E2E_TESTS.md                   # NEW 2026-08-14 — e2e-test/ + loom-ui/e2e/*-backend.spec.ts:
+│   │                                  #   ./e2e.sh builds the demo image, starts the stack and runs
+│   │                                  #   E2ETest (25 tests, 8 of which fork Playwright).
+│   │                                  #   Only 9 of 32 backend specs are wired into a runner
+│   ├── INTEGRATION_TESTS.md           # NEW 2026-08-14 — integration-test/: 31 per-node ITs, the
+│   │                                  #   distributed/affinity/container pipeline ITs, the CLI IT,
+│   │                                  #   NodeSpecGoldenTest and the docs fixture generators
+│   └── HELM_TEST.md                   # helm/test/run.sh — throwaway k3d, both charts, real pipeline
 ├── website/
 │   ├── WEBSITE.md                     # Hugo site: content, build, publish (incl. /tour/, /studio/)
 │   ├── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
@@ -544,6 +554,9 @@ spec/
 | Google Drive / OneDrive / SharePoint as a source | [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3. SharePoint is `onedrive-source` against a Graph drive id |
 | Running more than one Loom instance / per-process state | [CLUSTERING.md](concept/CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
+| Testing the Helm charts on a real cluster | [test/HELM_TEST.md](test/HELM_TEST.md) — `helm/test/run.sh` deploys both charts on throwaway k3d and runs a pipeline through them. ⚠️ Run it after **any** chart change; it found four chart defects that YAML rendering cannot catch |
+| Running / writing **integration** tests (per-node, pipeline, CLI) | [test/INTEGRATION_TESTS.md](test/INTEGRATION_TESTS.md) — `./it.sh`. The per-node contract, where the model/native line is drawn, and the uber-jar rebuild traps that make a green run a lie |
+| Running / writing **end-to-end** tests (packaged container + browser) | [test/E2E_TESTS.md](test/E2E_TESTS.md) — `./e2e.sh`. ⚠️ `E2ETest` reports green when `loom-ui/` is not found, and a root `mvn test` waits 120 s for a backend that is not there |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) — open work items in [tasks/DOC_TASKS.md](tasks/DOC_TASKS.md) (🔴 Task 1: the Impressum is legally incomplete; Tasks 6–10: MCP, gRPC, the events socket, search and permissions have **no** customer page) |
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | Search on the documentation site | [website/WEBSITE_SEARCH.md](website/WEBSITE_SEARCH.md) — client-side embeddings, no server, `/docs/**` only |
@@ -602,8 +615,9 @@ where to go and what to run.
 | **CLI** (`cli/`) | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) | Replaced the dead `loom/cli` stub. ⚠️ `./build.sh` does **not** invoke `cli/build-native.sh` — build the native image yourself |
 | **loom-ui** (`loom-ui/`) | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) + `TASK_UI_*.md` | Component tests are Playwright **mocked** e2e specs; pure logic uses node-env vitest. No RTL/jsdom. ⚠️ `npx` stalls in the sandbox — use `./node_modules/.bin/{vitest,playwright}` |
 | **website** (`website/`) | [website/WEBSITE.md](website/WEBSITE.md) | 🔴 New customer-facing features **must** get a page under `website/content/english/docs` |
-| **integration-test/** | `AbstractIntegrationTest` + per-node Cortex E2E tests | Runs against the **packaged** shaded `cortex/cli` JAR and image — rebuild both after a Cortex change |
-| **e2e-test/** | `E2ETest` against a packaged container deployment | `mvn test -Dloom.external=true -pl e2e-test` targets an already-running container |
+| **integration-test/** | [test/INTEGRATION_TESTS.md](test/INTEGRATION_TESTS.md) | `AbstractIntegrationTest` + 31 per-node Cortex tests. Depends on the shaded `loom-container-server` and `metaloom-cli` uber-jars — rebuild both after a shared-model change |
+| **e2e-test/** | [test/E2E_TESTS.md](test/E2E_TESTS.md) | `E2ETest` against an already-running container on the hard-coded port 8092. `-Dloom.external=true` in `e2e.sh` is inert — nothing reads it |
+| **helm/test/** | [test/HELM_TEST.md](test/HELM_TEST.md) | Bash, not Maven: `./run.sh` builds a throwaway k3d cluster and deploys both charts. Needs a Docker daemon and both images built locally; `kubectl`/`k3d` self-bootstrap into `helm/test/.bin` |
 | **examples/** | `cortex-custom/`, `cortex-custom-node/` | Extending Cortex with custom code and custom nodes |
 
 **Cortex module set** (`cortex/`): `api`, `common`, `core`, `core-media` (value types
@@ -958,8 +972,11 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (registered tasks/NODE_FINGERPRINT_TASKS.md — the fingerprint producer,
+_Git HEAD revision: `ec82ea43`_
+_Last updated: 2026-08-14 (registered test/E2E_TESTS.md and test/INTEGRATION_TESTS.md — the two test
+tiers that had no spec file; added the missing test/ block to the tree listing, two routing rows, and
+replaced the stale integration-test/ and e2e-test/ module rows. File count 140 → 144. Earlier:
+registered tasks/NODE_FINGERPRINT_TASKS.md — the fingerprint producer,
 split out of SEARCH_LUCENE_TASKS.md Task 5, whose premise that per-window fingerprints already exist
 was false; tree entry, the fingerprint routing row and a new clip-matching row added. Earlier the
 same day: SEARCH_LUCENE_TASKS.md Task 1 done — similarity hits now carry the asset

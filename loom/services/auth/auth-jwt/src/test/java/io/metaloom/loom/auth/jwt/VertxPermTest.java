@@ -1,9 +1,19 @@
 package io.metaloom.loom.auth.jwt;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.loom.api.LoomEnv;
+import io.metaloom.loom.api.options.AuthenticationOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.api.options.LoomOptionsLookup;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -22,13 +32,16 @@ public class VertxPermTest {
 
 	public static Vertx vertx = Vertx.vertx();
 
+	@TempDir
+	public File configFolder;
+
 	@Test
 	public void testVertxPerm() {
 
 		// Authenticate
 		LoomOptions options = new LoomOptions();
 		options.getAuth().setKeystorePassword("ABCD");
-		LoomOptionsLookup lookup = new LoomOptionsLookup(null, options);
+		LoomOptionsLookup lookup = new LoomOptionsLookup(configFolder, options);
 		JWTAuth jwtAuth = new AuthModule().jwtAuthProvider(vertx, lookup);
 
 		AuthorizationProvider authProvider = JWTAuthorization.create("claim");
@@ -58,5 +71,30 @@ public class VertxPermTest {
 				error.printStackTrace();
 			});
 
+	}
+
+	/**
+	 * {@link LoomOptionsLookup#baseConfigFolder()} is null whenever the configuration was read from the classpath instead of from a file, so the
+	 * provider has to fall back to the default config folder rather than dereference it.
+	 */
+	@Test
+	public void testKeystoreFolderFallbackForClasspathConfig() throws IOException {
+		Path defaultFolder = LoomEnv.LOCAL_CONFIG_PATH.toAbsolutePath().getParent();
+		Path keystore = defaultFolder.resolve(AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME);
+		boolean folderExisted = Files.exists(defaultFolder);
+		try {
+			LoomOptions options = new LoomOptions();
+			options.getAuth().setKeystorePassword("ABCD");
+
+			JWTAuth jwtAuth = new AuthModule().jwtAuthProvider(vertx, new LoomOptionsLookup(null, options));
+
+			assertNotNull(jwtAuth, "A JWT provider should be created even without a config folder on disk.");
+			assertTrue(Files.exists(keystore), "The keystore should have been generated in " + defaultFolder);
+		} finally {
+			Files.deleteIfExists(keystore);
+			if (!folderExisted) {
+				Files.deleteIfExists(defaultFolder);
+			}
+		}
 	}
 }

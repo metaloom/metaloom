@@ -1,0 +1,111 @@
+# End-to-end tests for the Helm charts.
+#
+# Not part of the normal build: the harness needs a Docker daemon and both
+# MetaLoom images built from the working tree, which together take longer than a
+# pull-request check should. It runs on chart or harness changes, on a schedule,
+# and on demand.
+#
+# See spec/test/HELM_TEST.md for what the phases assert.
+name: Helm chart tests
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-chart-test.yml'
+  pull_request:
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-chart-test.yml'
+  schedule:
+    # Weekly, so image or base-image drift is caught even without chart changes.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: 'Suites to run (core, or core,extended)'
+        required: false
+        default: 'core,extended'
+
+concurrency:
+  group: helm-chart-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chart-e2e:
+    runs-on: ubuntu-latest
+    # A full run creates a 3-node cluster and deploys three Loom releases.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The harness downloads kubectl and k3d itself; only Helm, Java, Node and a
+      # Docker daemon have to be here. ubuntu-latest already provides Docker.
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: loom-ui/package-lock.json
+
+      - name: Build Java artifacts
+        run: mvn -B package -DskipTests
+
+      - name: Build the UI bundle
+        run: |
+          cd loom-ui
+          npm ci
+          npm run build
+
+      - name: Build the loom-server image
+        run: cd loom/containers && ./build-containers.sh jvm server
+
+      # The Cortex image links against OpenCV 5.1, which no distribution
+      # packages, so build-container.sh needs a local OpenCV tree pointed at by
+      # OPENCV_LIB_DIR. Until CI provides one (a prebuilt artifact or a cached
+      # build), this step is the blocker for the full suite -- see the guard below.
+      - name: Build the cortex-server image
+        id: cortex-image
+        continue-on-error: true
+        env:
+          OPENCV_LIB_DIR: ${{ vars.OPENCV_LIB_DIR }}
+        run: cd cortex/container && ./build-container.sh
+
+      - name: Skip when the cortex image is unavailable
+        if: steps.cortex-image.outcome != 'success'
+        run: |
+          echo "::warning::cortex-server image could not be built (needs an OpenCV 5.1 tree via OPENCV_LIB_DIR)."
+          echo "::warning::Chart rendering is still validated below; the deploy phases need both images."
+          exit 1
+
+      - name: Run the harness
+        run: |
+          cd helm/test
+          ./run.sh --suite "${{ github.event.inputs.suites || 'core,extended' }}"
+
+      # The cluster is torn down by the harness itself; this only matters when a
+      # step above was cancelled mid-run.
+      - name: Tear down
+        if: always()
+        run: cd helm/test && ./run.sh --down || true
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-test-diagnostics
+          path: helm/test/.work/
+          retention-days: 7
+          if-no-files-found: ignore

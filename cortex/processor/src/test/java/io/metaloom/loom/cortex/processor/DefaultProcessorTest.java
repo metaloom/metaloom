@@ -44,6 +44,8 @@ public class DefaultProcessorTest {
 		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl();
 		LoomMediaLoader loader = mock(LoomMediaLoader.class);
 
+		// Deliberately pathless: every node then fails on this media, which is what puts the processor's error reporting path under test. The scan
+		// has to survive that and keep going - see AbstractFilesystemNode#shortHash.
 		LoomMedia media = new LoomMediaImpl(null);
 		when(loader.load(Mockito.any())).thenReturn(media);
 		FilesystemProcessor  fsProcessor = new FilesystemProcessorImpl(scanner, nodes, loader);

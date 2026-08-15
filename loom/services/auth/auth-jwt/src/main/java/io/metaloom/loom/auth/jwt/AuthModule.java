@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import dagger.Module;
 import dagger.Provides;
+import io.metaloom.loom.api.LoomEnv;
 import io.metaloom.loom.api.options.AuthenticationOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.api.options.LoomOptionsLookup;
@@ -29,8 +30,7 @@ public class AuthModule {
 	@Provides
 	public JWTAuth jwtAuthProvider(Vertx vertx, LoomOptionsLookup optionsLookup) {
 		LoomOptions options = optionsLookup.options();
-		File basePath = optionsLookup.baseConfigFolder();
-		Path keystorePath = basePath.toPath().resolve(AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME);
+		Path keystorePath = baseConfigFolder(optionsLookup).resolve(AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME);
 
 		AuthenticationOptions loomAuthOptions = options.getAuth();
 
@@ -52,6 +52,24 @@ public class AuthModule {
 
 		JWTAuthOptions config = new JWTAuthOptions().setKeyStore(keyStoreOptions);
 		return JWTAuth.create(vertx, config);
+	}
+
+	/**
+	 * Locate the folder that holds the keystore. {@link LoomOptionsLookup#baseConfigFolder()} is null whenever the configuration did not come from a
+	 * file on disk - loading {@code loom.yml} from the classpath is the case that reaches production - so fall back to the same default config folder
+	 * that the options loader would have written a generated configuration to.
+	 *
+	 * @param optionsLookup
+	 * @return
+	 */
+	private static Path baseConfigFolder(LoomOptionsLookup optionsLookup) {
+		File basePath = optionsLookup.baseConfigFolder();
+		if (basePath != null) {
+			return basePath.toPath();
+		}
+		Path defaultFolder = LoomEnv.LOCAL_CONFIG_PATH.toAbsolutePath().getParent();
+		log.info("No configuration folder known, using default keystore folder {}", defaultFolder);
+		return defaultFolder;
 	}
 
 	@Provides

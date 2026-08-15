@@ -12,7 +12,7 @@ the chart invents no new runtime behavior, only parameterizes env vars, volumes 
 Env-var semantics live in [`../../loom/CONFIGURATION.md`](../../loom/CONFIGURATION.md); the
 single-writer rule lives in [`../../CLUSTERING.md`](../../concept/CLUSTERING.md). Neither is duplicated here.
 
-## ✅ Fixed in chart 0.2.0 (found by `helm/test`)
+## Fixed in chart 0.2.0 (found by `helm/test`)
 
 Both were blockers for a combined Loom + Cortex deploy; see [`helm/test/README.md`](../../../helm/test/README.md).
 

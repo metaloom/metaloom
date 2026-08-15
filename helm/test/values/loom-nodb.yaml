@@ -1,0 +1,62 @@
+# A Loom release pointed at a database that does not exist, with the chart's
+# wait-for-database guard deliberately switched off.
+#
+# This is the regression test for the failure mode the init container currently
+# only hides: what Loom itself does when its database is unreachable. The correct
+# behaviour is to exit non-zero so Kubernetes restarts it with backoff. Today it
+# logs the Flyway failure and calls dontExit() (LoomImpl#run), leaving a live
+# process with no listener and no exit code — so the phase is an xfail.
+#
+# Kept small and short-lived: nothing here is expected to become ready.
+
+image:
+  pullPolicy: Never
+
+# The whole point — do not gate startup, so Loom faces the missing database.
+waitForDatabase:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+database:
+  # Resolves to nothing. UnknownHostException is the same failure a real outage
+  # produces, and it arrives faster than a connection timeout.
+  host: no-such-database-host
+  port: 5432
+  name: loom
+  user: loomapp
+  password: irrelevant
+
+auth:
+  initialPassword: "helm-harness-admin-pw"
+
+persistence:
+  config:
+    enabled: true
+    size: 64Mi
+  keystore:
+    enabled: false
+  uploads:
+    enabled: false
+  plugins:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+
+# Probes off: they would restart the pod on their own schedule and confuse the
+# question being asked, which is whether the PROCESS exits by itself.
+livenessProbe:
+  enabled: false
+readinessProbe:
+  enabled: false
+
+ingress:
+  enabled: false
+sandbox:
+  enabled: false
+ai:
+  enabled: false

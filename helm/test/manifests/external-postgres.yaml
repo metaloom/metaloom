@@ -1,0 +1,80 @@
+# A PostgreSQL that the Loom chart does not own.
+#
+# The external-database phase installs a second Loom release with
+# postgresql.enabled=false pointed at this Service, which is the only way to cover
+# the `database.*` branch of the chart: the secret name and key change
+# (`<fullname>-db` / `db-password` instead of `<fullname>-postgresql` / `password`),
+# and templates/postgresql.yaml renders nothing.
+#
+# Deliberately plain manifests rather than a second copy of the chart's bundled
+# Postgres — an "external" database that came from the same template would not
+# prove much.
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-postgres
+  labels:
+    app.kubernetes.io/name: external-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: external-postgres
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-postgres
+  labels:
+    app.kubernetes.io/name: external-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: external-postgres
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            # The username must not double as a schema name. Loom's
+            # V1__db_setup.sql creates a schema called `loom`, and Postgres
+            # resolves search_path as `"$user", public` — a user named `loom`
+            # therefore makes Flyway change target between boots. See
+            # spec/test/HELM_TEST.md, "Known issues".
+            - name: POSTGRES_USER
+              value: loomext
+            - name: POSTGRES_PASSWORD
+              value: extpass
+            - name: POSTGRES_DB
+              value: loomext
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "loomext", "-d", "loomext"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        # emptyDir: this database is thrown away with the cluster, and avoiding a
+        # PVC keeps it schedulable on any node.
+        - name: data
+          emptyDir: {}

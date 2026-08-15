@@ -688,7 +688,7 @@ Playwright invocation, so no explicit env block is needed.
 | Suffix | Backend | Nature |
 |--------|---------|--------|
 | `*-mocked.spec.ts` (65) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
-| `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data |
+| `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
 > **Gotcha:** `page.route` handlers are matched **most-recently-registered first**, which is why every

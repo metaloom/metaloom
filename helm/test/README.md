@@ -16,11 +16,13 @@ cd helm/test
 ./run.sh
 ```
 
-That is the whole interface. It creates the cluster, runs every phase, and deletes the cluster
-again. A run takes roughly 6–10 minutes, most of it importing the 2.2 GB Cortex image.
+That is the whole interface. It creates a three-node cluster, runs every phase, and deletes the
+cluster again. A full run takes roughly 25 minutes; `--core` cuts that to about 10.
 
 | Flag | Effect |
 |------|--------|
+| `--core` | Run only the core suite — deploy, pipeline, restart. The fast path |
+| `--suite core,extended` | Pick suites explicitly. Default is both |
 | `--keep` | Leave the cluster running afterwards, for poking at with `kubectl` |
 | `--reuse` | Reuse an existing cluster instead of recreating it (implies `--keep`) |
 | `--build` | Build the container images first, via the repo's own build scripts |
@@ -28,6 +30,13 @@ again. A run takes roughly 6–10 minutes, most of it importing the 2.2 GB Corte
 
 `--reuse` is the one to use while iterating: the helm operations are `upgrade --install`, so a second
 run against a live cluster is idempotent and skips both the cluster creation and the image import.
+
+The **core** suite (phases 1–9) deploys both charts and drives a pipeline through them. The
+**extended** suite (phases 10–15) builds on what core deployed — it reuses the worker token, the
+running Loom and the media fixture — so `--suite extended` on its own is rejected.
+
+CI runs this as [`.github/workflows/helm-chart-test.yml`](../../.github/workflows/helm-chart-test.yml)
+on chart changes, weekly, and on demand.
 
 ## Prerequisites
 
@@ -62,6 +71,12 @@ kubeconfig lives in `test/.work/kubeconfig`.
 | **7 — Registration** | Loom's own `/api/v1/processors` lists the worker, `ONLINE`, with the pod name as its node id and the chart's `nodeKinds` as its whitelist |
 | **8 — Pipeline** | Create a library, upload the fixture, create a `filesystem-source → sha512 / md5 / metadata` pipeline, run it, wait for a terminal state, and assert **node-result ledger rows were persisted for all three kinds** and that the stored SHA-512 matches the fixture |
 | **9 — Restart** | Loom comes back after a `rollout restart` against its existing database and volumes, and Cortex re-registers |
+| **10 — Scale-out** | The cluster is multi-node; Cortex scales to two replicas on a volume shared across nodes; both register with **distinct** `CORTEX_NODE_ID`s matching their pod names; every replica can read the media |
+| **11 — Ingress** | `ingress.enabled=true` yields an Ingress backed by `loom:8092` on the configured host, and a real request through traefik returns 200 |
+| **12 — Sandbox RBAC** | The `loom-runners` namespace and all five guardrail objects exist; Loom's service account can create and delete runner pods there, **cannot** create pods in the release namespace, and a pod created as that service account is admitted with LimitRange defaults applied |
+| **13 — Upgrade** | The release upgrades in place across revisions including a pod-template change, and the API still answers |
+| **14 — External database** | A second release against a Postgres the chart does not own: no bundled StatefulSet, the `db-password` secret key is used, and the instance migrates, seeds and serves |
+| **15 — No database** | With the wait-for-database guard off and an unresolvable host, Loom should exit non-zero. It does not — recorded as a known issue with the observed state |
 
 Phase 8's persistence assertions are the ones that matter most. Cortex persists results
 **best-effort** — a worker that cannot resolve the asset logs and moves on while still reporting the
@@ -70,10 +85,14 @@ nothing.
 
 ## Design notes
 
-**Single node.** Loom's uploads volume and the media volume are `ReadWriteOnce`, which is all k3d's
-local-path provisioner offers. A second node would let the scheduler place Loom and Cortex apart and
-leave one unable to bind — a k3d artefact, not a chart bug. Multi-node belongs in a test with a RWX
-StorageClass.
+**Multi-node, and the storage trick behind it.** The cluster is one server plus two agents. The
+obstacle to multi-node was never the node count but storage: local-path PVs are `ReadWriteOnce` *and*
+pinned to the node that bound them. The core phases keep the `loom-media` PVC — one Cortex replica
+consumes it and the scheduler follows the PV's node affinity, which covers the chart's
+`media.existingClaim` branch. Phase 10 switches to `media.hostPath`, backed by a **Docker named
+volume** mounted into every node with k3d's `@all`, giving the same bytes everywhere without a RWX
+StorageClass and covering the `media.hostPath` branch too. A named volume rather than a host path
+because it needs no host path at all, which matters when the harness itself runs in a container.
 
 **`pullPolicy: Never`.** Images are side-loaded with `k3d image import`. `IfNotPresent` would
 silently fall back to a registry pull and test a published image instead of the working tree.

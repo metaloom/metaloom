@@ -23,17 +23,26 @@ PF_PID=""
 # cluster-side objects the charts do not already create, and it works the same
 # on a remote cluster.
 
+# port_forward_start [service] [local-port]
+#
+# Retargetable because more than one Loom release is deployed: the external-
+# database phase installs a second one. Only one forward is live at a time — the
+# phases are sequential — and LOOM_URL follows it, so every api() call afterwards
+# addresses whichever release was last selected.
 port_forward_start() {
+    local svc="${1:-$LOOM_RELEASE}" port="${2:-$LOOM_LOCAL_PORT}"
     port_forward_stop
 
-    kubectl -n "$NAMESPACE" port-forward "svc/$LOOM_RELEASE" "$LOOM_LOCAL_PORT:8092" \
+    LOOM_URL="http://127.0.0.1:${port}"
+
+    kubectl -n "$NAMESPACE" port-forward "svc/$svc" "${port}:8092" \
         >"$WORK_DIR/port-forward.log" 2>&1 &
     PF_PID=$!
 
-    if ! wait_for 60 "port-forward on :$LOOM_LOCAL_PORT" _pf_probe; then
+    if ! wait_for 90 "port-forward to svc/$svc on :$port" _pf_probe; then
         printf '%s\n' "--- port-forward log ---" >&2
         cat "$WORK_DIR/port-forward.log" >&2
-        fatal "could not port-forward to svc/$LOOM_RELEASE"
+        fatal "could not port-forward to svc/$svc"
     fi
 }
 

@@ -101,9 +101,15 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 				if (processed) {
 					System.out.println();
 				}
-				SHA512 hashsum = media.getSHA512();
 				if (log.isTraceEnabled()) {
-					log.trace("Adding {}", hashsum);
+					// Reading the hash hits an extended attribute and throws for media that has gone away or lives on a filesystem without
+					// xattr support. Enabling trace logging must not be able to abort a scan.
+					try {
+						SHA512 hashsum = media.getSHA512();
+						log.trace("Adding {}", hashsum);
+					} catch (Exception e) {
+						log.trace("Could not read the hash of media {}", media, e);
+					}
 					if (current % 1000 == 0) {
 						log.trace("Count: " + current);
 					}

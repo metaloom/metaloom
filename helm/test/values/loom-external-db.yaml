@@ -1,0 +1,64 @@
+# A second Loom release wired to a database the chart does not manage.
+#
+# Installed alongside the main release to cover the `database.*` branch:
+# templates/postgresql.yaml renders nothing, and the DB password comes from
+# `<fullname>-db` under the key `db-password` rather than from the bundled
+# Postgres secret. Rendering that branch is already covered in phase 1 — this
+# deploys it, which is what catches a wrong secret key or an unreachable host.
+
+image:
+  pullPolicy: Never
+
+waitForDatabase:
+  enabled: true
+  image:
+    pullPolicy: IfNotPresent
+
+postgresql:
+  enabled: false
+
+database:
+  # manifests/external-postgres.yaml
+  host: external-postgres
+  port: 5432
+  name: loomext
+  user: loomext
+  password: extpass
+
+auth:
+  initialPassword: "helm-harness-admin-pw"
+
+persistence:
+  config:
+    enabled: true
+    size: 128Mi
+  keystore:
+    enabled: false
+  uploads:
+    enabled: true
+    size: 1Gi
+  plugins:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+
+# Same reasoning as values/loom.yaml: the first boot runs every migration against
+# an empty database and must not be killed while doing it.
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 120
+  failureThreshold: 30
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  failureThreshold: 40
+
+ingress:
+  enabled: false
+sandbox:
+  enabled: false
+ai:
+  enabled: false

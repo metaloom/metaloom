@@ -49,7 +49,7 @@ graph LR
 | `templates/_helpers.tpl` | — | name/labels, `cortex.image` (tag defaults to `appVersion`), `cortex.tokenSecretName`, `cortex.s3SecretName` |
 | `templates/NOTES.txt` | — | Registration check (`GET /api/v1/processors`) + token/media/custom-image hints |
 
-## ✅ Fixed in chart 0.2.0 (found by `helm/test`)
+## Fixed in chart 0.2.0 (found by `helm/test`)
 
 | # | Was | Fix |
 |---|-----|-----|

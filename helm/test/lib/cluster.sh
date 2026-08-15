@@ -101,12 +101,39 @@ EOF
 
 cluster_exists() { k3d cluster list -o json 2>/dev/null | jq -e --arg n "$CLUSTER_NAME" '.[] | select(.name == $n)' >/dev/null; }
 
-# One node on purpose.
+# The shared media volume for the multi-replica / cross-node phases.
 #
-# Loom's uploads volume and the media volume are ReadWriteOnce, which is all the
-# local-path provisioner offers. A second node would let the scheduler place
-# Loom and Cortex apart and leave one of them unable to bind — a k3d artefact,
-# not a chart bug. Multi-node belongs in a test with a RWX StorageClass.
+# A Docker *named* volume, not a host path: k3d mounts it into every node with
+# `@all`, so a hostPath volume inside the cluster is backed by the same storage on
+# each node — the RWX behaviour local-path cannot give us. A named volume also
+# needs no host path at all, which matters because the harness may itself run in a
+# container whose paths do not match the daemon's.
+#
+# Populated by piping the fixture through `docker run -i`, for the same reason.
+shared_media_volume_prepare() {
+    docker volume rm "$SHARED_MEDIA_VOLUME" >/dev/null 2>&1 || true
+    docker volume create "$SHARED_MEDIA_VOLUME" >/dev/null \
+        || fatal "could not create the shared media volume"
+
+    docker run --rm -i -v "$SHARED_MEDIA_VOLUME:/dst" alpine:3 \
+        sh -c 'cat > /dst/sample.jpg && chown -R 1000:0 /dst && chmod -R u+rwX,g+rwX,o+rX /dst' \
+        < "$SCRIPT_DIR/fixtures/media/sample.jpg" \
+        || fatal "could not populate the shared media volume"
+    log "shared media volume '$SHARED_MEDIA_VOLUME' populated"
+}
+
+shared_media_volume_remove() {
+    docker volume rm "$SHARED_MEDIA_VOLUME" >/dev/null 2>&1 || true
+}
+
+# Multi-node by default: one server plus two agents.
+#
+# It costs about 20 seconds and buys real scheduling. The catch is that
+# local-path PVs are ReadWriteOnce *and* node-pinned, so anything sharing a
+# volume across pods has to either land on one node (the scheduler honours the
+# PV's node affinity, which is why the single-replica media claim still works) or
+# use the shared named volume above. That is exactly the split the phases use:
+# core runs on the media PVC, the scale-out phase switches to the shared volume.
 cluster_up() {
     if cluster_exists; then
         if [[ "$REUSE_CLUSTER" == "true" ]]; then
@@ -119,26 +146,30 @@ cluster_up() {
         k3d cluster delete "$CLUSTER_NAME" >/dev/null 2>&1 || true
     fi
 
-    info "creating single-node k3d cluster '$CLUSTER_NAME'"
-    # Traefik and metrics-server are dead weight here: nothing in these charts is
-    # exercised through an Ingress, and the API is reached by port-forward.
+    shared_media_volume_prepare
+
+    info "creating k3d cluster '$CLUSTER_NAME' (1 server + $CLUSTER_AGENTS agents)"
+    # Traefik stays enabled — the ingress phase drives a real request through it —
+    # and the loadbalancer's :80 is published so that request can come from here.
+    # metrics-server is still dead weight.
     k3d cluster create "$CLUSTER_NAME" \
-        --servers 1 \
-        --k3s-arg "--disable=traefik@server:0" \
+        --servers 1 --agents "$CLUSTER_AGENTS" \
+        -p "${INGRESS_LOCAL_PORT}:80@loadbalancer" \
+        --volume "${SHARED_MEDIA_VOLUME}:${SHARED_MEDIA_PATH}@all" \
         --k3s-arg "--disable=metrics-server@server:0" \
-        --wait --timeout 300s >/dev/null \
+        --wait --timeout 420s >/dev/null \
         || fatal "k3d cluster creation failed"
 
     k3d kubeconfig get "$CLUSTER_NAME" > "$KUBECONFIG" \
         || fatal "could not write kubeconfig"
     chmod 600 "$KUBECONFIG"
 
-    wait_for 120 "node Ready" \
+    wait_for 180 "all nodes Ready" \
         kubectl wait --for=condition=Ready node --all --timeout=10s \
-        || fatal "cluster node never became Ready"
+        || fatal "cluster nodes never became Ready"
 
     kubectl create namespace "$NAMESPACE" >/dev/null 2>&1 || true
-    log "cluster ready — $(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}')"
+    log "cluster ready — $(kubectl get nodes --no-headers | wc -l) nodes, $(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}')"
 }
 
 cluster_down() {
@@ -146,6 +177,7 @@ cluster_down() {
         info "deleting cluster '$CLUSTER_NAME'"
         k3d cluster delete "$CLUSTER_NAME" >/dev/null 2>&1 || true
     fi
+    shared_media_volume_remove
     rm -f "$KUBECONFIG"
 }
 
