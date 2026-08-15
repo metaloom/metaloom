@@ -33,6 +33,8 @@ public class FeatureSceneDetector extends AbstractSceneDetector {
 	public SceneDetectionResult detect(VideoFile video) {
 
 		AtomicReference<DetectionVector> prevVector = new AtomicReference<>();
+		// Overlay drawing is for the interactive viewer only - see AbstractSceneDetector, which owns the "is anyone looking?" decision.
+		boolean hasViewer = hasViewer();
 		// Allocated once for the whole video rather than per sampled frame: both used to be created inline and never freed, and nothing reclaims a
 		// cv::Mat for us. An empty mask means "consider every pixel"; an empty kernel selects dilate's default 3x3 structuring element.
 		Mat mask = MatProvider.mat();
@@ -61,16 +63,20 @@ public class FeatureSceneDetector extends AbstractSceneDetector {
 					// Mat colorCannyFrame = CVUtils.toBGR(cannyFrame);
 					// Core.addWeighted(colorCannyFrame, 0.25f, colorFrame, 1.f, 1.0f, grayFrame);
 
-					Graphics g = img.getGraphics();
-					g.drawImage(ImageUtils.matToBufferedImage(cannyFrame), 1, 1, null);
+					Graphics g = hasViewer ? img.getGraphics() : null;
+					if (g != null) {
+						g.drawImage(ImageUtils.matToBufferedImage(cannyFrame), 1, 1, null);
+					}
 					Imgproc.goodFeaturesToTrack(cannyFrame, corners, MAX_CORNORS, qualityLevel, minDistance, mask, blockSize, gradientSize,
 						useHarrisDetector, k);
 					// System.out.println("Got: " + corners.toList().size());
 
 					// Show Image
-					for (Point p : corners.toList()) {
-						g.setColor(Color.RED);
-						g.fillOval((int) p.x, (int) p.y, 5, 5);
+					if (g != null) {
+						for (Point p : corners.toList()) {
+							g.setColor(Color.RED);
+							g.fillOval((int) p.x, (int) p.y, 5, 5);
+						}
 					}
 
 					EuclideanDistance d = new EuclideanDistance();

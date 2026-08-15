@@ -217,6 +217,17 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Tests must never open a window. A developer workstation has a display, so
+                         GraphicsEnvironment.isHeadless() alone would let debug viewers (e.g.
+                         video4j SimpleImageViewer) pop up during a build. Code guards viewers with
+                         io.metaloom.cortex.common.ui.HeadlessUtil, which honours this flag.
+                         Inherited by every module - do not override systemPropertyVariables
+                         without repeating it. -->
+                    <systemPropertyVariables>
+                        <metaloom.headless>true</metaloom.headless>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

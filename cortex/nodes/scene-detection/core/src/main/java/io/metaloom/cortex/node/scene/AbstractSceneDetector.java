@@ -3,7 +3,6 @@ package io.metaloom.cortex.node.scene;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 
 import org.slf4j.Logger;
@@ -13,6 +12,7 @@ import io.metaloom.opencv.core.Mat;
 import io.metaloom.opencv.core.Size;
 import io.metaloom.opencv.imgproc.Imgproc;
 
+import io.metaloom.cortex.common.ui.HeadlessUtil;
 import io.metaloom.cortex.node.scene.detector.DetectionResult;
 import io.metaloom.cortex.node.scene.detector.Detector;
 import io.metaloom.cortex.node.scene.detector.SceneDetector;
@@ -31,9 +31,21 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 	private SimpleImageViewer viewer;
 
 	public AbstractSceneDetector() {
-		if (!GraphicsEnvironment.isHeadless()) {
+		// The frame-by-frame viewer is a developer aid. It must never open during a Maven build - a workstation has a display, so the graphics
+		// environment alone would answer "not headless" and every scene detection test would pop up a window. HeadlessUtil also honours the
+		// metaloom.headless property that surefire sets.
+		if (HeadlessUtil.isViewerAllowed()) {
 			viewer = new SimpleImageViewer();
 		}
+	}
+
+	/**
+	 * Whether this detector renders its work into an interactive viewer. Subclasses use it to skip visualization-only work.
+	 *
+	 * @return true when a viewer window is attached
+	 */
+	protected boolean hasViewer() {
+		return viewer != null;
 	}
 
 	protected SceneDetectionResult detect(VideoFile video, Detector detector) {

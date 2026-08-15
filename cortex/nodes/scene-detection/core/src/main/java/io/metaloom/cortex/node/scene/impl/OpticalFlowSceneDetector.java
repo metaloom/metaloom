@@ -2,7 +2,6 @@ package io.metaloom.cortex.node.scene.impl;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +48,9 @@ public class OpticalFlowSceneDetector extends AbstractSceneDetector {
 	@Override
 	public SceneDetectionResult detect(VideoFile video) {
 		AtomicReference<Mat> previousGray = new AtomicReference<>();
-		boolean headless = GraphicsEnvironment.isHeadless();
+		// Single source of truth for "is anyone looking?": the base class already decided whether a viewer exists (display present and viewers not
+		// suppressed via metaloom.headless / METALOOM_HEADLESS).
+		boolean hasViewer = hasViewer();
 		Mat err = MatProvider.mat();
 		// An empty kernel selects Imgproc.dilate's default 3x3 structuring element. Allocated once for the whole video: it used to be created inline per
 		// sampled frame and never freed.
@@ -78,7 +79,7 @@ public class OpticalFlowSceneDetector extends AbstractSceneDetector {
 				}
 
 				// Optional optical-flow point overlay for the interactive viewer only.
-				if (!headless) {
+				if (hasViewer) {
 					Graphics g = img.getGraphics();
 					g.drawImage(ImageUtils.matToBufferedImage(grayFrame), 1, 1, null);
 					drawFlowOverlay(g, prev, grayFrame, err);

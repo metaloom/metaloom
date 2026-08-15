@@ -30,6 +30,7 @@ Three files are **rules, not background**.
 | **REST** | Add **fine-grained permission** test cases | See [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md); grant test perms via group+role, never direct user grants |
 | **DAO** | Every DAO impl is covered by tests | Contract tests in `loom/db/api-test`, impl tests in `loom/db/jooq/src/test/` |
 | **DAO** | `delete` needs **delete-cascade tests** | Over-deleting cascades are exactly what these catch |
+| **Tests** | A test must never open a window | Guard viewers with `HeadlessUtil` (`cortex/common`), not `GraphicsEnvironment.isHeadless()`; surefire sets `-Dmetaloom.headless=true` |
 | **Docs** | Customer-facing features get a page under `website/content/english/docs` | Customer tone, no spec references, no class names — [website/WEBSITE.md](website/WEBSITE.md) |
 | **Demo** | New features need meaningful demo data | `DemoDatabaseInitializer` (`loom/core/.../boot/`) |
 | **Spec** | A feature change **must** update its spec file | The code always wins on conflict — fix the spec in the same change |
@@ -866,6 +867,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Search is a capability, not a dependency** | `SearchModule`/`SimilarityModule` never fail boot: an unusable backend binds a Noop impl and the routes answer 503 (search) or reject (similarity). `/api/v1/search/status` answers 200 even when search is unavailable |
 | **Semantic search seams** | `SearchMode.SEMANTIC`/`HYBRID` and `SearchRequest.{mode,profile,clusterUuid}` exist and return an honest **400** — the vector backend does not. Do not read the enum as evidence of an implementation |
 | **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched over the Vert.x EventBus (`mcp.tool.<name>`). They still query the DB directly rather than going through the search provider |
+| **No windows during a build** | Debug viewers (video4j `SimpleImageViewer`) are guarded by `HeadlessUtil.isViewerAllowed()` (`cortex/common`, `io.metaloom.cortex.common.ui`) — **never** by `GraphicsEnvironment.isHeadless()` alone: a workstation has a display, so that check by itself lets frames pop up mid-`mvn test`. Surefire passes `-Dmetaloom.headless=true` (`systemPropertyVariables` in the root `pom.xml`); `METALOOM_HEADLESS=true` is the shell equivalent. Keep the property when overriding surefire configuration in a module |
 | **UI tests** | Component tests are Playwright *mocked* e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
 | **Cortex node E2E tests** | Live in `integration-test/`; rebuild the shaded `cortex/cli` JAR and container before running them |
 | **Spec ↔ code drift** | Spec footers carry a verification date. If a claim predates the code you are reading, verify before believing — and fix the spec in your change |
@@ -972,8 +974,10 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `ec82ea43`_
-_Last updated: 2026-08-14 (registered test/E2E_TESTS.md and test/INTEGRATION_TESTS.md — the two test
+_Git HEAD revision: `69252649`_
+_Last updated: 2026-08-15 (added the "no windows during a build" convention and the matching §0.2
+row: debug viewers are guarded by `HeadlessUtil`, surefire passes `-Dmetaloom.headless=true`.
+Earlier: registered test/E2E_TESTS.md and test/INTEGRATION_TESTS.md — the two test
 tiers that had no spec file; added the missing test/ block to the tree listing, two routing rows, and
 replaced the stale integration-test/ and e2e-test/ module rows. File count 140 → 144. Earlier:
 registered tasks/NODE_FINGERPRINT_TASKS.md — the fingerprint producer,

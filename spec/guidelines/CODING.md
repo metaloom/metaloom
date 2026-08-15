@@ -38,6 +38,18 @@ the spec in the same change (§ Spec below).
   `loom/db/jooq/generate.sh` (jOOQ codegen; JSON/JSONB columns need a `forcedTypes` converter entry),
   then re-run `./setup-pool.sh` — otherwise the pooled test databases stay stale.
 
+## Tests
+
+* A test must never open a window. Debug viewers — video4j's `SimpleImageViewer` and anything else
+  that builds a Swing frame — are guarded by `HeadlessUtil.isViewerAllowed()` / `isHeadless()`
+  (`cortex/common`, package `io.metaloom.cortex.common.ui`), **never** by
+  `GraphicsEnvironment.isHeadless()` alone: a developer workstation has a display, so that check by
+  itself answers "not headless" and the viewer pops up during `mvn test`.
+* Maven passes `-Dmetaloom.headless=true` through `systemPropertyVariables` on
+  `maven-surefire-plugin` in the root `pom.xml`, and `HeadlessUtil` honours it. A module that
+  overrides surefire's `systemPropertyVariables` must repeat the property.
+  `SceneDetectorViewerTest` guards both halves of this.
+
 ## Docs
 
 * New **customer-facing** features must be documented under `website/content/english/docs/`.
@@ -71,5 +83,7 @@ the spec in the same change (§ Spec below).
 * Changing a feature **must** also update the corresponding spec file under `spec/`, so the internal
   AI coding guides stay in sync. Format rules: [SPEC_RULES.md](SPEC_RULES.md); task files
   follow [../TASKS.template.md](../tasks/TASKS.template.md).
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `69252649`_
+_Last updated: 2026-08-15 (new Tests section: no test may open a window — viewers are guarded by
+`HeadlessUtil`, surefire passes `-Dmetaloom.headless=true`. Earlier: reference sweep — no content
+changes)_

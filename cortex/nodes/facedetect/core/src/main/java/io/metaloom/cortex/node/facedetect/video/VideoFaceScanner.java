@@ -74,6 +74,8 @@ public class VideoFaceScanner {
 	private static final double BLUR_THRESHOLD = 2f;
 
 	private final InspireFacedetector inspireface;
+	// Debug aid, off by default. If you revive it, gate it on HeadlessUtil.isViewerAllowed() (cortex/common) the way AbstractSceneDetector does -
+	// otherwise the scanner tests start opening windows on any machine that has a display.
 	//private SimpleImageViewer viewer = new SimpleImageViewer();
 
 	/** Frames sampled per window; {@code videoChopRate}. */
