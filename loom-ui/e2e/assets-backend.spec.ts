@@ -143,8 +143,11 @@ test.describe("Assets – full backend e2e", () => {
     // Load the app so relative /api/v1 fetches hit the Vite proxy → backend.
     await page.goto("/");
 
-    // A valid 128-hex SHA-512 (SHA512.fromString requires exactly 128 hex chars).
-    const sha512 = "b".repeat(128);
+    // A valid 128-hex SHA-512 (SHA512.fromString requires exactly 128 hex chars). The hash is an
+    // asset's content identity, so a fixed one collides with the row a previous run left behind and
+    // the create fails - unique per run keeps the test repeatable against a persistent backend.
+    const unique = `${Date.now().toString(16)}${Math.floor(Math.random() * 0xffffffff).toString(16)}`;
+    const sha512 = (unique + "b".repeat(128)).slice(0, 128);
 
     const result = await page.evaluate(async (sha) => {
       // Authenticate directly against the REST API to obtain a bearer token.
@@ -169,11 +172,13 @@ test.describe("Assets – full backend e2e", () => {
       const created = await createRes.json();
       if (!created.uuid) return { error: "create failed", created };
 
-      // Edit metadata (partial update).
+      // Edit metadata (partial update). The filename lives under "file", the same shape the create above
+      // uses and the only one the server reads - a top level "filename" is accepted by the lenient mapper
+      // and then silently dropped.
       const updateRes = await fetch(`/api/v1/assets/${created.uuid}`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ filename: "e2e-renamed.bin", meta: { reviewed: true } }),
+        body: JSON.stringify({ file: { filename: "e2e-renamed.bin" }, meta: { reviewed: true } }),
       });
       const updated = await updateRes.json();
 
@@ -215,20 +220,36 @@ test.describe("Assets – full backend e2e", () => {
       const authHeader = { Authorization: `Bearer ${token}` };
 
       // A binary needs a library to associate its new row with on first upload.
+      //
+      // Not just data[0]: the library decides the storage pool, the demo binds "Archive Footage" to an S3
+      // pool whose bucket does not exist, and the listing has no deterministic order - so taking the first
+      // row uploaded into S3 on some runs and failed with a credentials error. This test asserts a
+      // filesystem path below, so it wants a library on local storage, meaning one with no pool.
       const libsRes = await fetch(`/api/v1/libraries`, { headers: jsonHeaders });
-      const libraryUuid = (await libsRes.json())?.data?.[0]?.uuid as string | undefined;
-      if (!libraryUuid) return { error: "no libraries found" };
+      const libraries = ((await libsRes.json())?.data ?? []) as Array<{ uuid: string; poolUuid?: string | null }>;
+      const libraryUuid = libraries.find(l => !l.poolUuid)?.uuid;
+      if (!libraryUuid) return { error: "no local-storage library found", libraries };
 
       // A per-run unique 128-hex SHA-512 (Date.now hex, zero-padded) avoids collisions
       // with assets left behind by a previous failed run.
       const sha512 = Date.now().toString(16).padStart(128, "0");
+
+      // The filename has to be unique for the same reason the hash does, and it is a separate
+      // constraint: uploading stores an asset_location keyed on (library, path), so a fixed name lands
+      // in the same library slot every run and the second upload is a duplicate.
+      const filename = `e2e-binary-${Date.now().toString(16)}.bin`;
+
+      // The bytes have to differ too. The stored path is derived from the content digest, not from the
+      // filename, so re-uploading identical bytes lands on the same path and trips the same constraint
+      // however the file is named.
+      const payload = `hello-bytes-${Date.now().toString(16)}`;
 
       // Create the asset (metadata only) that will receive the binary bytes.
       const createRes = await fetch(`/api/v1/assets`, {
         method: "POST",
         headers: jsonHeaders,
         body: JSON.stringify({
-          file: { filename: "e2e-binary.bin", mimeType: "application/octet-stream", origin: "e2e", size: 11 },
+          file: { filename, mimeType: "application/octet-stream", origin: "e2e", size: payload.length },
           hashes: { sha512 },
         }),
       });
@@ -236,9 +257,9 @@ test.describe("Assets – full backend e2e", () => {
       if (!asset.uuid) return { error: "asset create failed", asset };
 
       // Upload raw bytes as multipart. No Content-Type header — the browser sets the boundary.
-      const bytes = new TextEncoder().encode("hello-bytes");
+      const bytes = new TextEncoder().encode(payload);
       const form = new FormData();
-      form.append("file", new Blob([bytes], { type: "application/octet-stream" }), "e2e-binary.bin");
+      form.append("file", new Blob([bytes], { type: "application/octet-stream" }), filename);
       form.append("libraryUuid", libraryUuid);
       const uploadRes = await fetch(`/api/v1/assets/${asset.uuid}/binary/data`, {
         method: "POST",
@@ -262,6 +283,7 @@ test.describe("Assets – full backend e2e", () => {
 
       return {
         assetUuid: asset.uuid,
+        payload,
         uploadStatus: uploadRes.status,
         uploadedBinaryUuid: uploaded.uuid,
         binaryPath: meta?.filesystem?.path,
@@ -280,7 +302,7 @@ test.describe("Assets – full backend e2e", () => {
     expect(r.uploadedBinaryUuid).toBeTruthy();
     expect(r.binaryPath).toBeTruthy();
     expect(r.previewStatus).toBe(200);
-    expect(r.previewText).toBe("hello-bytes");
+    expect(r.previewText).toBe(r.payload);
     expect([200, 204]).toContain(r.deleteBinaryStatus);
     // The binary bytes must be gone after the delete.
     expect(r.afterBinaryStatus).toBe(404);

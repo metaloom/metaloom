@@ -39,6 +39,7 @@ function CollectionCard({ item, onEdit, onDelete, onShare }: { item: CollectionI
   return (
     <Paper
       elevation={0}
+      data-testid="collection-card"
       sx={{
         bgcolor: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,

@@ -31,7 +31,7 @@ test.describe("Collections - backend e2e", () => {
     await page.getByRole("button", { name: /^create$/i }).click();
 
     // Verify the collection card appears
-    const createdCard = page.locator(".MuiPaper-root").filter({ hasText: name });
+    const createdCard = page.getByTestId("collection-card").filter({ hasText: name });
     await expect(createdCard).toBeVisible({ timeout: 10_000 });
 
     // Edit
@@ -40,7 +40,7 @@ test.describe("Collections - backend e2e", () => {
     await page.getByLabel("Name").fill(updatedName);
     await page.getByRole("button", { name: /save/i }).click();
 
-    const updatedCard = page.locator(".MuiPaper-root").filter({ hasText: updatedName });
+    const updatedCard = page.getByTestId("collection-card").filter({ hasText: updatedName });
     await expect(updatedCard).toBeVisible({ timeout: 10_000 });
 
     // Delete
@@ -62,7 +62,7 @@ test.describe("Collections - backend e2e", () => {
       await page.locator("button, .MuiChip-root").filter({ has: page.locator("svg[data-testid='AddOutlinedIcon']") }).first().click();
       await page.getByLabel("Name").fill(colName);
       await page.getByRole("button", { name: /^create$/i }).click();
-      await expect(page.locator(".MuiPaper-root").filter({ hasText: colName })).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("collection-card").filter({ hasText: colName })).toBeVisible({ timeout: 10_000 });
     }
 
     // The in-page filter, named exactly: the sidebar's global search field is mounted on every
@@ -71,16 +71,16 @@ test.describe("Collections - backend e2e", () => {
 
     // Search for alpha
     await filter.fill("alpha");
-    await expect(page.locator(".MuiPaper-root").filter({ hasText: nameA })).toBeVisible();
-    await expect(page.locator(".MuiPaper-root").filter({ hasText: nameB })).toBeHidden();
+    await expect(page.getByTestId("collection-card").filter({ hasText: nameA })).toBeVisible();
+    await expect(page.getByTestId("collection-card").filter({ hasText: nameB })).toBeHidden();
 
     // Clear search
     await filter.fill("");
-    await expect(page.locator(".MuiPaper-root").filter({ hasText: nameB })).toBeVisible();
+    await expect(page.getByTestId("collection-card").filter({ hasText: nameB })).toBeVisible();
 
     // Cleanup
     for (const colName of [nameA, nameB]) {
-      const card = page.locator(".MuiPaper-root").filter({ hasText: colName });
+      const card = page.getByTestId("collection-card").filter({ hasText: colName });
       await card.hover();
       await card.locator("button").filter({ has: page.locator("svg[data-testid='DeleteOutlinedIcon']") }).first().click();
       await page.getByRole("button", { name: /^delete$/i }).click();

@@ -30,11 +30,13 @@ public class ReplaceValidatorTest {
 	@Test
 	public void testAssetFields() {
 		Set<String> fields = ReplaceValidator.replaceableFields(AssetUpdateRequest.class);
-		// The field has no accessors and can thus never be sent by a client
-		assertThat(fields).doesNotContain("dominantColor");
+		// Gone from the model entirely: neither was ever read on the update path. The filename is taken from
+		// file.filename and the colour from image.dominantColor, so declaring them here only let a caller set
+		// a value that was then dropped without a word.
+		assertThat(fields).doesNotContain("filename", "dominantColor");
 		// Kind specific fields opt out via @ReplaceOptional
 		assertThat(fields).doesNotContain("image", "video", "audio", "document", "geo", "timeline", "s3", "consistency", "fingerprint");
-		assertThat(fields).containsExactlyInAnyOrder("filename", "meta", "tags", "file", "hashes", "media");
+		assertThat(fields).containsExactlyInAnyOrder("meta", "tags", "file", "hashes", "media");
 	}
 
 	@Test

@@ -257,10 +257,9 @@ class AssetResponse(CreatorEditorResponse):
 class AssetUpdateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.asset.AssetUpdateRequest``."""
 
-    #: The filename for the asset.
-    filename: str | None = None
-    #: The dominant color for the asset.
-    dominant_color: str | None = None
+    # No ``filename`` or ``dominant_color``: the Java model dropped them because nothing read them.
+    # Set the filename through ``file.filename`` and the colour through ``image.dominant_color``.
+
     #: Custom meta properties for the asset.
     meta: dict[str, Any] | None = None
     #: Timeline information on the asset.

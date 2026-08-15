@@ -53,7 +53,6 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest implements Repla
 	 */
 	private AssetUpdateRequest fullUpdateRequest(String filename) {
 		AssetUpdateRequest request = new AssetUpdateRequest();
-		request.setFilename(filename);
 		request.setMeta(new JsonObject());
 		request.setTags(new ArrayList<>());
 		request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename(filename).setSize(1024L).setOrigin(INITIAL_ORIGIN));

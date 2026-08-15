@@ -348,7 +348,10 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 		// Cut once, used twice: the same crops become the debug preview and the durable images the review
 		// UI shows. Taken from the full-resolution decode for the same reason the previews are.
 		List<BufferedImage> crops = cropsFor(image, detections);
-		persist(ctx, asset, detections, clusters, image.getWidth(), image.getHeight(), crops);
+		if (!persist(ctx, asset, detections, clusters, image.getWidth(), image.getHeight(), crops)) {
+			// abort(), not next(): next() reports SUCCESS and drops the cause - only abort() carries FAILED.
+			return ctx.failure("Could not persist the detections").abort();
+		}
 		return ctx.origin(COMPUTED).next();
 	}
 
@@ -376,7 +379,9 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 			emit(ctx, "SUCCESS", detectionElements(detections, clusters, video.width(), video.height()), subjectCount(clusters));
 			List<BufferedImage> crops = faceCrops(faces);
 			previewDetections(ctx, detectionFrame(video, detections), detections, crops);
-			persist(ctx, asset, detections, clusters, video.width(), video.height(), crops);
+			if (!persist(ctx, asset, detections, clusters, video.width(), video.height(), crops)) {
+				return ctx.failure("Could not persist the detections").abort();
+			}
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
@@ -763,10 +768,16 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	 * (asset, node_kind, frame_number, detection_index), so re-running the node upserts rather than appends. Best-effort and a no-op when the asset is
 	 * not yet known to Loom or we run offline.
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<Detection> detections, FaceClusterResult clusters,
+	/**
+	 * @return whether the detections are durable. False means the write failed and the caller must not report success - the boxes exist only in this
+	 *         JVM's output ports, and a node that answers SUCCESS for them tells the pipeline a lie it cannot detect: the ledger row says FAILED while
+	 *         the task says it is done, and nothing ever retries.
+	 */
+	private boolean persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<Detection> detections, FaceClusterResult clusters,
 		Integer frameWidth, Integer frameHeight, List<BufferedImage> crops) {
 		if (asset == null || client() == null) {
-			return;
+			// No Loom to write to - running standalone, which is a supported mode rather than a failure.
+			return true;
 		}
 		try {
 			String producerVersion = producerVersion();
@@ -806,9 +817,11 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 				clusterUuids.isEmpty()
 					? resultRef("detection", uuidsOf(stored))
 					: resultRef("cluster", clusterUuids.toArray(UUID[]::new)));
+			return true;
 		} catch (Exception e) {
 			log.warn("Failed to persist detections for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
+			return false;
 		}
 	}
 

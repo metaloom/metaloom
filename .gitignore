@@ -17,3 +17,9 @@ dependency-reduced-pom.xml
 *.iml
 .vscode
 __pycache__
+
+# Written into whichever module a test JVM runs in, because both defaults are relative to the working
+# directory: StorageOptions.DEFAULT_UPLOAD_DIRECTORY ("data/storage") and the Vert.x BodyHandler
+# upload dir ("file-uploads"). Test output, never sources.
+**/data/storage/
+file-uploads

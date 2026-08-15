@@ -62,6 +62,9 @@ CLI argument overrides do **not** exist (`applyCommandLineArgs` is commented out
 `LoomEnv` holds only these constants; there is **no env var that relocates the config file**
 (see §5.3). `LoomOptionsLookup(baseConfigFolder, options)` is the injected carrier — the JWT
 keystore is resolved as `baseConfigFolder/keystore.jceks` (`AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME`).
+⚠️ Row 4 makes `baseConfigFolder` **null**, so `AuthModule.jwtAuthProvider` falls back to `<cwd>/config`
+— the same folder row 5 would have written a generated config to. Until 2026-08-15 it dereferenced the
+null instead and a classpath-only deployment died at boot with an NPE.
 
 Mapper settings: `FAIL_ON_UNKNOWN_PROPERTIES=false` (unknown keys silently ignored),
 `Include.ALWAYS` on serialization.
@@ -294,7 +297,7 @@ nothing is lost, but nothing is indexed until one of the two runs.
 | Variable | Where it appears | Reality |
 |----------|------------------|---------|
 | `LOOM_CONF_FILENAME` | `helm/loom/templates/deployment.yaml`, `helm/loom/values.yaml`, [../CONTEXT.md](../CONTEXT.md) §4.4 | `LoomEnv.LOOM_CONF_FILENAME` is a **compile-time constant** (`"loom.yml"`). Nothing calls `getenv` for it. Mount the file at one of the §2 paths instead |
-| `LOOM_AUTH_KEYSTORE_PATH` | `helm/loom/templates/deployment.yaml` | No option field. The keystore is always `baseConfigFolder/keystore.jceks` |
+| `LOOM_AUTH_KEYSTORE_PATH` | `helm/loom/templates/deployment.yaml` | No option field. The keystore is always `baseConfigFolder/keystore.jceks`, falling back to `<cwd>/config` when `baseConfigFolder` is null (§2 row 4) |
 | `LOOM_HOST`, `LOOM_PORT`, `LOOM_TOKEN` | Helm chart, `CortexContainer` | Read by **Cortex/CLI**, not by the Loom server — see [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 
 ### 4.15 Read in code but undocumented outside this file

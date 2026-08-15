@@ -25,12 +25,29 @@ async function loginAndGoToPipelines(page: Page) {
   await expect(page.getByTestId("pipeline-canvas")).toBeVisible({ timeout: 10_000 });
 }
 
+/**
+ * Open the add-node dropdown and optionally narrow it.
+ *
+ * The picker is an always-visible search bar, not a button with a menu, and its rows are
+ * `add-node-<nodeId>`. The query is matched against the descriptor's name, node id and category
+ * (see src/features/pipeline/nodePicker.ts), which is what replaced the old per-category chips.
+ */
+async function openAddNode(page: Page, query = "") {
+  const search = page.getByPlaceholder(/add node/i);
+  await search.click();
+  await search.fill(query);
+  return search;
+}
+
 test.describe("Pipeline Editor – backend e2e", () => {
 
   test("node descriptors are loaded from the backend API", async ({ page }) => {
-    // Intercept the node-descriptors API call
+    // Intercept the node-descriptors API call. Match the path exactly: the editor also fetches
+    // .../node-descriptors/availability, which an `includes` check matches just as happily, and
+    // whichever response lands first wins the race - so the assertions below would intermittently
+    // run against the availability payload, which carries no nodeDescriptors at all.
     const descriptorsPromise = page.waitForResponse(
-      resp => resp.url().includes("/api/v1/pipeline/node-descriptors") && resp.status() === 200
+      resp => new URL(resp.url()).pathname.endsWith("/pipeline/node-descriptors") && resp.status() === 200
     );
 
     await loginAndGoToPipelines(page);
@@ -53,51 +70,37 @@ test.describe("Pipeline Editor – backend e2e", () => {
     expect(kinds).toContain("thumbnail");
   });
 
-  test("add-node menu shows descriptors grouped by category", async ({ page }) => {
+  test("the add-node picker lists descriptors from every category", async ({ page }) => {
     await loginAndGoToPipelines(page);
 
-    // Click the "Add Node" button
-    await page.getByTestId("pipeline-add-node-button").click();
+    await openAddNode(page);
 
-    // The add-node menu should be visible
-    const menu = page.getByTestId("pipeline-add-node-menu");
-    await expect(menu).toBeVisible({ timeout: 5_000 });
+    // Representative nodes from four categories, addressed by node id rather than label so a
+    // renamed descriptor does not silently turn this into a no-op.
+    await expect(page.getByTestId("add-node-filesystem-source")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("add-node-sha256")).toBeVisible();
+    await expect(page.getByTestId("add-node-fingerprint")).toBeVisible();
+    await expect(page.getByTestId("add-node-filter")).toBeVisible();
+    await expect(page.getByTestId("add-node-s3-sink")).toBeVisible();
 
-    // Verify representative nodes from different categories appear in the menu
-    await expect(page.getByTestId("pipeline-node-item-filesystem-source")).toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-sha256")).toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-fingerprint")).toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-filter")).toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-loom")).toBeVisible();
-
-    // Close the menu
     await page.keyboard.press("Escape");
   });
 
-  test("category chips filter the add-node menu", async ({ page }) => {
+  test("the picker query filters by category", async ({ page }) => {
     await loginAndGoToPipelines(page);
 
-    // Click the "Source" category chip
-    await page.getByTestId("pipeline-category-chip-source").click();
+    // "source" matches the SOURCE category, so the source nodes stay and the analysis ones go.
+    await openAddNode(page, "source");
+    await expect(page.getByTestId("add-node-filesystem-source")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("add-node-loom-fetch")).toBeVisible();
+    await expect(page.getByTestId("add-node-sha256")).toHaveCount(0);
+    await expect(page.getByTestId("add-node-fingerprint")).toHaveCount(0);
 
-    // Only SOURCE nodes should be visible
-    await expect(page.getByTestId("pipeline-node-item-filesystem-source")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId("pipeline-node-item-loom-fetch")).toBeVisible();
-
-    // ANALYSIS nodes should NOT be visible
-    await expect(page.getByTestId("pipeline-node-item-sha256")).not.toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-fingerprint")).not.toBeVisible();
-
-    // Close the menu
-    await page.keyboard.press("Escape");
-
-    // Click "Filter" category chip
-    await page.getByTestId("pipeline-category-chip-filter").click();
     // One entry, not eight: the filter-* kinds collapsed into a single `filter` node whose
     // buckets are configured per instance.
-    await expect(page.getByTestId("pipeline-node-item-filter")).toBeVisible({ timeout: 5_000 });
-    // SOURCE nodes should NOT be visible in filter category
-    await expect(page.getByTestId("pipeline-node-item-filesystem-source")).not.toBeVisible();
+    await openAddNode(page, "filter");
+    await expect(page.getByTestId("add-node-filter")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("add-node-filesystem-source")).toHaveCount(0);
 
     await page.keyboard.press("Escape");
   });
@@ -107,12 +110,13 @@ test.describe("Pipeline Editor – backend e2e", () => {
 
     const canvas = page.getByTestId("pipeline-canvas");
 
-    // Click "Add Node" and select "Filesystem Source"
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-filesystem-source").click();
+    await openAddNode(page, "filesystem");
+    await page.getByTestId("add-node-filesystem-source").click();
 
-    // The node should appear on the canvas with the correct label
-    await expect(canvas.locator(".react-flow__node").filter({ hasText: "Filesystem Source" })).toBeVisible({ timeout: 5_000 });
+    // No count arithmetic: the editor opens on an existing pipeline whose own nodes stream in, so a
+    // "before" snapshot taken here races the load and the delta is meaningless.
+    await expect(canvas.locator(".react-flow__node").filter({ hasText: "Filesystem Source" }).first())
+      .toBeVisible({ timeout: 5_000 });
   });
 
   test("can add multiple nodes of different categories", async ({ page }) => {
@@ -120,31 +124,21 @@ test.describe("Pipeline Editor – backend e2e", () => {
 
     const canvas = page.getByTestId("pipeline-canvas");
 
-    // Add a source node: Filesystem Source
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-filesystem-source").click();
-    await expect(canvas.locator(".react-flow__node").filter({ hasText: "Filesystem Source" })).toBeVisible({ timeout: 5_000 });
+    // One node from each of SOURCE, ANALYSIS and OUTPUT. The labels are the descriptor names the
+    // backend actually serves, so they are asserted rather than guessed at.
+    const added: Array<[string, string]> = [
+      ["filesystem-source", "Filesystem Source"],
+      ["sha256", "SHA-256 Hash"],
+      ["s3-sink", "S3 Sink"],
+    ];
 
-    // Add an analysis node: SHA-256 Hash
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-sha256").click();
-    await expect(canvas.locator(".react-flow__node").filter({ hasText: "SHA-256 Hash" })).toBeVisible({ timeout: 5_000 });
+    for (const [nodeId, label] of added) {
+      await openAddNode(page, nodeId);
+      await page.getByTestId(`add-node-${nodeId}`).click();
+      await expect(canvas.locator(".react-flow__node").filter({ hasText: label }).first()).toBeVisible({ timeout: 5_000 });
+    }
 
-    // Add a filter node: Filter Mimetype
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-filter").click();
-    await expect(canvas.locator(".react-flow__node").filter({ hasText: "MIME Type Filter" })).toBeVisible({ timeout: 5_000 });
-
-    // Add an output node: Loom Output
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-loom").click();
-    await expect(canvas.locator(".react-flow__node").filter({ hasText: "Loom Sync" })).toBeVisible({ timeout: 5_000 });
-
-    // Verify total node count — the mock pipeline has some existing nodes too,
-    // so we just check our 4 newly added nodes are all on the canvas
-    const allNodes = canvas.locator(".react-flow__node");
-    const nodeCount = await allNodes.count();
-    expect(nodeCount).toBeGreaterThanOrEqual(4);
+    expect(await canvas.locator(".react-flow__node").count()).toBeGreaterThanOrEqual(added.length);
   });
 
   test("added nodes have correct connector handles", async ({ page }) => {
@@ -152,21 +146,20 @@ test.describe("Pipeline Editor – backend e2e", () => {
 
     const canvas = page.getByTestId("pipeline-canvas");
 
-    // Add a source node (source nodes have no input handles, only output)
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-filesystem-source").click();
-    const sourceNode = canvas.locator(".react-flow__node").filter({ hasText: "Filesystem Source" });
+    // A source node emits but does not consume, so it carries an output handle only.
+    await openAddNode(page, "filesystem");
+    await page.getByTestId("add-node-filesystem-source").click();
+    const sourceNode = canvas.locator(".react-flow__node").filter({ hasText: "Filesystem Source" }).first();
     await expect(sourceNode).toBeVisible({ timeout: 5_000 });
-    // Source nodes should have output handles but no input handles
-    await expect(sourceNode.locator(".react-flow__handle-right")).toBeVisible();
+    await expect(sourceNode.locator(".react-flow__handle-right").first()).toBeVisible();
+    await expect(sourceNode.locator(".react-flow__handle-left")).toHaveCount(0);
 
-    // Add an analysis node (has both input and output handles)
-    await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-sha256").click();
-    const analysisNode = canvas.locator(".react-flow__node").filter({ hasText: "SHA-256 Hash" });
+    // An analysis node sits mid-graph and carries both.
+    await openAddNode(page, "sha256");
+    await page.getByTestId("add-node-sha256").click();
+    const analysisNode = canvas.locator(".react-flow__node").filter({ hasText: "SHA-256 Hash" }).first();
     await expect(analysisNode).toBeVisible({ timeout: 5_000 });
-    // Analysis nodes should have both input and output handles
-    await expect(analysisNode.locator(".react-flow__handle-left")).toBeVisible();
-    await expect(analysisNode.locator(".react-flow__handle-right")).toBeVisible();
+    await expect(analysisNode.locator(".react-flow__handle-left").first()).toBeVisible();
+    await expect(analysisNode.locator(".react-flow__handle-right").first()).toBeVisible();
   });
 });

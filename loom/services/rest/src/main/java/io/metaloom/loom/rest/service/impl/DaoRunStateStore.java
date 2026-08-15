@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.api.pipeline.RunItemState;
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -127,8 +128,10 @@ public class DaoRunStateStore implements RunStateStore {
 	public synchronized UUID itemDiscovered(UUID runUuid, long itemSeq, MediaRef media) {
 		PipelineRunItem item = itemDao.createRunItem(userUuid, runUuid, itemSeq, media.getPath());
 		// The id is assigned here rather than by the database default, because the
-		// engine needs it immediately - long before this row is flushed.
-		UUID itemUuid = UUID.randomUUID();
+		// engine needs it immediately - long before this row is flushed. Time ordered, so
+		// it matches what the default would have produced and the items of a run page in
+		// discovery order.
+		UUID itemUuid = LoomUUID.timeOrdered();
 		item.setUuid(itemUuid);
 		item.setSha512(media.getSha512());
 		item.setSizeBytes(media.getSize());

@@ -12,6 +12,7 @@ import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.URL;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -864,9 +865,16 @@ public class E2ETest {
 			AssetResponse asset = assetList.getData().get(0);
 			AssetId assetId = AssetId.assetId(asset.getUuid());
 
-			// List existing reactions on the asset
+			// Clear whatever is already on the asset. A reaction is unique per (asset, creator, type), and the
+			// Playwright backend specs in this same run react to the same first asset - so re-creating one here
+			// is a duplicate, which the server now correctly refuses with a 409.
 			ReactionListResponse initialReactions = client.listAssetReaction(assetId).sync().body();
-			int initialCount = initialReactions.getData() != null ? initialReactions.getData().size() : 0;
+			if (initialReactions.getData() != null) {
+				for (ReactionResponse existing : initialReactions.getData()) {
+					client.deleteAssetReaction(assetId, existing.getUuid()).sync();
+				}
+			}
+			int initialCount = 0;
 
 			// Create a reaction
 			ReactionCreateRequest createReq = new ReactionCreateRequest();
@@ -890,9 +898,11 @@ public class E2ETest {
 			// Delete the reaction
 			client.deleteAssetReaction(assetId, created.getUuid()).sync().body();
 
-			// Verify the reaction is gone
+			// Verify the reaction is gone. Deleting the last reaction leaves the listing empty, and an empty list
+			// response carries no data array at all (AbstractListResponse#setData) - the same guard line 869 uses.
 			ReactionListResponse listAfterDelete = client.listAssetReaction(assetId).sync().body();
-			assertEquals(initialCount, listAfterDelete.getData().size(), "Reaction count should return to initial after delete");
+			int remaining = listAfterDelete.getData() != null ? listAfterDelete.getData().size() : 0;
+			assertEquals(initialCount, remaining, "Reaction count should return to initial after delete");
 			log.info("Reaction CRUD test passed");
 		}
 	}
@@ -1083,16 +1093,28 @@ public class E2ETest {
 			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
-			// List existing blacklist entries
+			// Create a new blacklist entry. An entry blocks one asset and is keyed on (asset_uuid, creator_uuid),
+			// so it needs a real asset to point at - a request carrying only a name is rejected as invalid.
+			AssetListResponse blacklistAssets = client.listAssets().sync().body();
+			assertFalse(blacklistAssets.getData().isEmpty(), "Need at least one asset for the blacklist test");
+			String blacklistAssetUuid = blacklistAssets.getData().get(0).getUuid().toString();
+
+			// Drop any entry this user already holds against that asset. The pairing is unique, and the
+			// Playwright blacklist spec in this same run targets the same first asset, so a stale entry would
+			// turn the create below into a 409.
 			BlacklistListResponse listResp = client.listBlacklists().sync().body();
 			assertNotNull(listResp, "Blacklist list response should not be null");
 			assertNotNull(listResp.getData(), "Blacklist list data should not be null");
-			int initialCount = listResp.getData().size();
+			for (BlacklistResponse existing : List.copyOf(listResp.getData())) {
+				if (blacklistAssetUuid.equals(existing.getAssetUuid())) {
+					client.deleteBlacklist(existing.getUuid()).sync();
+				}
+			}
+			int initialCount = client.listBlacklists().sync().body().getData().size();
 			log.info("Initial blacklist count: {}", initialCount);
-
-			// Create a new blacklist entry
 			BlacklistCreateRequest createReq = new BlacklistCreateRequest();
 			createReq.setName("e2e-test-blacklist");
+			createReq.setAssetUuid(blacklistAssets.getData().get(0).getUuid().toString());
 			BlacklistResponse created = client.createBlacklist(createReq).sync().body();
 			assertNotNull(created, "Created blacklist entry should not be null");
 			assertNotNull(created.getUuid(), "Created blacklist UUID should not be null");

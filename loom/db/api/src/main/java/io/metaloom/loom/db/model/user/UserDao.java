@@ -2,6 +2,7 @@ package io.metaloom.loom.db.model.user;
 
 import java.util.UUID;
 
+import io.metaloom.loom.api.uuid.LoomUUID;
 import io.metaloom.loom.db.CRUDDao;
 
 public interface UserDao extends CRUDDao<User> {
@@ -40,7 +41,9 @@ public interface UserDao extends CRUDDao<User> {
 	 * @return
 	 */
 	default User createAdmin() {
-		UUID uuid = UUID.randomUUID();
+		// Time ordered, like every database generated key, so the admin does not sit at a random
+		// position in /users.
+		UUID uuid = LoomUUID.timeOrdered();
 		User admin = createUser(uuid, ADMIN_USER_NAME);
 		admin.setUuid(uuid);
 		return admin;

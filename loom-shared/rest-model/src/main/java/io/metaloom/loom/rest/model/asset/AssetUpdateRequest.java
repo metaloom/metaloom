@@ -26,11 +26,11 @@ public class AssetUpdateRequest implements RestRequestModel, AssetModel<AssetUpd
 	// @JsonPropertyDescription("The specific identified kind of asset.")
 	// private AssetKind kind;
 
-	@JsonPropertyDescription("The filename for the asset.")
-	private String filename;
-
-	@JsonPropertyDescription("The dominant color for the asset.")
-	private String dominantColor;
+	// No top level "filename" or "dominantColor" here. Both used to be declared and neither was ever read:
+	// the update path takes the filename from file.filename and the dominant colour from
+	// image.dominantColor, which is also the only shape AssetCreateRequest accepts and the only one
+	// AssetResponse returns. Declaring them meant a client could set one, get a 200, and find nothing had
+	// changed - so they are gone rather than quietly ignored.
 
 	@JsonPropertyDescription("Custom meta properties for the asset.")
 	private JsonObject meta;
@@ -104,15 +104,6 @@ public class AssetUpdateRequest implements RestRequestModel, AssetModel<AssetUpd
 
 	public AssetUpdateRequest setS3(AssetS3Meta s3) {
 		this.s3 = s3;
-		return this;
-	}
-
-	public String getFilename() {
-		return filename;
-	}
-
-	public AssetUpdateRequest setFilename(String filename) {
-		this.filename = filename;
 		return this;
 	}
 

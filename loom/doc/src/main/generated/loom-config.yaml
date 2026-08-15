@@ -131,3 +131,11 @@ vectorIndex:
   syncIntervalMs: 5000
   syncBatchSize: 500
   enabled: false
+assetGraph:
+  provider: "none"
+  indexPath: "asset-graph-index"
+  limit: 50
+  syncBatchSize: 1000
+  enabled: false
+demo:
+  contentDirectory: null

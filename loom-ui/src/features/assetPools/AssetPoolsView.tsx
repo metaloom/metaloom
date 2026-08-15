@@ -81,6 +81,7 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
   return (
     <Paper
       elevation={0}
+      data-testid="pool-card"
       sx={{
         bgcolor: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,
@@ -335,9 +336,11 @@ export default function AssetPoolsView() {
   const renderFormFields = () => (
     <>
       <TextField label={t("assetPools.form.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth />
+      {/* The label needs an explicit id wired to the select: without it MUI emits no aria-labelledby,
+          so the control has no accessible name - unreadable to a screen reader and unaddressable by label. */}
       <FormControl size="small" fullWidth>
-        <InputLabel>{t("assetPools.form.type")}</InputLabel>
-        <Select value={formType} label={t("assetPools.form.type")} onChange={e => setFormType(e.target.value as AssetPoolType)}>
+        <InputLabel id="asset-pool-type-label">{t("assetPools.form.type")}</InputLabel>
+        <Select labelId="asset-pool-type-label" id="asset-pool-type" value={formType} label={t("assetPools.form.type")} onChange={e => setFormType(e.target.value as AssetPoolType)}>
           <MenuItem value="filesystem">{t("assetPools.form.filesystem")}</MenuItem>
           <MenuItem value="s3">{t("assetPools.form.s3")}</MenuItem>
         </Select>

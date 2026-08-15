@@ -2,6 +2,7 @@ package io.metaloom.loom.test.integration.node;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -17,6 +18,7 @@ import io.metaloom.cortex.node.facedetect.FacedetectNode;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -35,15 +37,19 @@ public class FacedetectNodeIntegrationTest extends AbstractNodeIntegrationTest {
 
 			Face face = Face.create(FaceBox.create(10, 20, 50, 60));
 			InspireFacedetector detector = mock(InspireFacedetector.class);
-			doReturn(List.of(face)).when(detector).detectFaces(any(BufferedImage.class));
+			// The node asks for boxes and vectors in one pass, so the two argument overload is the one it calls. Stubbing the single argument one
+			// leaves the real call unstubbed, and a mock that answers null there makes the node find no faces at all while still reporting SUCCESS.
+			doReturn(List.of(face)).when(detector).detectFaces(any(BufferedImage.class), anyBoolean());
 			VideoFaceScanner scanner = mock(VideoFaceScanner.class);
 
 			FacedetectNode node = new FacedetectNode(client, cortexOptions(), new FacedetectNodeOptions(), detector, scanner);
 			NodeResult result = node.process(NodeContext.create(media(image1())));
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 
-			int detections = client.listAssetDetections(asset.getUuid()).sync().body().getData().size();
-			assertThat(detections).as("face detection must be readable via REST").isGreaterThanOrEqualTo(1);
+			// An empty listing answers with no array at all rather than an empty one (AbstractListResponse#setData), so assert on the list itself -
+			// reading .size() straight off turns "nothing was persisted" into a NullPointerException that names none of that.
+			List<DetectionResponse> detections = client.listAssetDetections(asset.getUuid()).sync().body().getData();
+			assertThat(detections).as("face detection must be readable via REST").isNotNull().hasSizeGreaterThanOrEqualTo(1);
 		});
 	}
 }

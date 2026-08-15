@@ -16,8 +16,8 @@ test.describe("Asset Pools - backend e2e", () => {
     await loginAndGoToAssetPools(page);
 
     // Should show at least the demo pools from the backend
-    const cards = page.locator(".MuiPaper-root").filter({ has: page.locator("text=Filesystem") }).or(
-      page.locator(".MuiPaper-root").filter({ has: page.locator("text=S3 Bucket") })
+    const cards = page.getByTestId("pool-card").filter({ has: page.locator("text=Filesystem") }).or(
+      page.getByTestId("pool-card").filter({ has: page.locator("text=S3 Bucket") })
     );
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
   });
@@ -36,7 +36,7 @@ test.describe("Asset Pools - backend e2e", () => {
     await page.getByRole("button", { name: /^create$/i }).click();
 
     // Verify the pool card appears
-    const createdCard = page.locator(".MuiPaper-root").filter({ hasText: name });
+    const createdCard = page.getByTestId("pool-card").filter({ hasText: name });
     await expect(createdCard).toBeVisible({ timeout: 10_000 });
 
     // Verify it shows as Filesystem type
@@ -48,7 +48,7 @@ test.describe("Asset Pools - backend e2e", () => {
     await page.getByLabel("Name").fill(updatedName);
     await page.getByRole("button", { name: /save/i }).click();
 
-    const updatedCard = page.locator(".MuiPaper-root").filter({ hasText: updatedName });
+    const updatedCard = page.getByTestId("pool-card").filter({ hasText: updatedName });
     await expect(updatedCard).toBeVisible({ timeout: 10_000 });
 
     // Delete
@@ -72,12 +72,14 @@ test.describe("Asset Pools - backend e2e", () => {
     await page.getByLabel("Type").click();
     await page.getByRole("option", { name: /S3/i }).click();
 
-    await page.getByLabel("S3 Bucket").fill("pw-test-bucket");
+    // By role, not by label: "S3 Bucket" is also the selected value of the Type combobox, so a plain
+    // getByLabel matches the combobox as well as this field.
+    await page.getByRole("textbox", { name: "S3 Bucket" }).fill("pw-test-bucket");
     await page.getByLabel("S3 Region").fill("eu-central-1");
     await page.getByLabel("S3 Endpoint").fill("https://s3.eu-central-1.amazonaws.com");
     await page.getByRole("button", { name: /^create$/i }).click();
 
-    const createdCard = page.locator(".MuiPaper-root").filter({ hasText: name });
+    const createdCard = page.getByTestId("pool-card").filter({ hasText: name });
     await expect(createdCard).toBeVisible({ timeout: 10_000 });
     await expect(createdCard.locator("text=S3 Bucket")).toBeVisible();
 
@@ -100,20 +102,20 @@ test.describe("Asset Pools - backend e2e", () => {
       await page.getByLabel("Name").fill(poolName);
       await page.getByLabel("Filesystem Path").fill(`/tmp/${poolName}`);
       await page.getByRole("button", { name: /^create$/i }).click();
-      await expect(page.locator(".MuiPaper-root").filter({ hasText: poolName })).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("pool-card").filter({ hasText: poolName })).toBeVisible({ timeout: 10_000 });
     }
 
     // Search for alpha
     await page.getByPlaceholder(/search pools/i).fill("alpha");
-    await expect(page.locator(".MuiPaper-root").filter({ hasText: nameA })).toBeVisible();
-    await expect(page.locator(".MuiPaper-root").filter({ hasText: nameB })).toBeHidden();
+    await expect(page.getByTestId("pool-card").filter({ hasText: nameA })).toBeVisible();
+    await expect(page.getByTestId("pool-card").filter({ hasText: nameB })).toBeHidden();
 
     // Clear search
     await page.getByPlaceholder(/search pools/i).fill("");
 
     // Cleanup
     for (const poolName of [nameA, nameB]) {
-      const card = page.locator(".MuiPaper-root").filter({ hasText: poolName });
+      const card = page.getByTestId("pool-card").filter({ hasText: poolName });
       await card.hover();
       await card.locator("button").filter({ has: page.locator("svg[data-testid='DeleteOutlinedIcon']") }).first().click();
       await page.getByRole("button", { name: /^delete$/i }).click();
