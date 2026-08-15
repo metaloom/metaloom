@@ -14,6 +14,8 @@ import {
 } from "../../api/collections";
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 import ShareDialog from "../share/ShareDialog";
@@ -40,6 +42,7 @@ function CollectionCard({ item, onEdit, onDelete, onShare }: { item: CollectionI
     <Paper
       elevation={0}
       data-testid="collection-card"
+      data-collection-name={item.name}
       sx={{
         bgcolor: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,
@@ -122,12 +125,26 @@ export default function CollectionsView() {
   const { token } = useAuth();
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
 
   // /collections caps at 25 rows per page — page it rather than showing the first page as if it
   // were the collection.
+  //
+  // Sort and filter belong in this dependency list: they are query parameters, so changing either
+  // makes a new loader and `usePagedList` discards the rows and the cursor and starts again. That
+  // restart is required, not incidental — the cursor points into one particular ordering.
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listCollections(token, paging).then(r => pageFrom(r, mapResponseToItem)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listCollections(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, mapResponseToItem))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<CollectionItem>(loadPage, c => c.id);
   const collections = page.items;
@@ -225,12 +242,13 @@ export default function CollectionsView() {
             sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
           />
         </Box>
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t("collections.search.placeholder")}
             size="small"
+            data-testid="collections-search"
             sx={{ flex: 1, maxWidth: 360 }}
             InputProps={{
               startAdornment: (
@@ -240,6 +258,21 @@ export default function CollectionsView() {
               ),
             }}
           />
+
+          {/* Hidden rather than empty when the user cannot read /users: a picker with only
+              "All creators" in it is a control that does nothing. */}
+          {creators.length > 0 && (
+            <ListFilterSelect
+              value={creator}
+              onChange={setCreator}
+              options={creators}
+              allLabel={t("collections.filter.allCreators")}
+              testId="collections-filter-creator"
+              minWidth={160}
+            />
+          )}
+
+          <ListSortControl value={sortState} onChange={setSortState} testId="collections-sort" />
         </Box>
       </Box>
 

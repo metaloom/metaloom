@@ -11,15 +11,19 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
 import io.metaloom.filter.Filter;
+import io.metaloom.filter.FilterKey;
 import io.metaloom.filter.Operation;
 import io.metaloom.filter.value.impl.range.SizeRangeFilterValue;
 import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.api.filter.LoomFilterKey;
+import io.metaloom.loom.api.sort.LoomSortKey;
+import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqAsset;
 import io.metaloom.loom.db.model.asset.Asset;
@@ -153,7 +157,37 @@ public class AssetDaoImpl extends AbstractJooqDao<Asset> implements AssetDao {
 				return query.and(ASSET.SIZE.ge(sv.getFrom())).and(ASSET.SIZE.le(sv.getTo()));
 			});
 		}
+		FilterKey key = filter.filterKey();
+		if (key == LoomFilterKey.NAME) {
+			return query.and(ASSET.FILENAME.eq(filter.valueStr()));
+		}
+		if (key == LoomFilterKey.COLLECTION) {
+			// Membership lives in the collection_asset join table, so this is a semi-join rather
+			// than a column comparison. IN (subquery) rather than an actual join: joining would
+			// multiply the asset row by its memberships, and the count taken in loadPage would
+			// then report matches instead of assets.
+			return query.and(ASSET.UUID.in(
+				ctx().select(COLLECTION_ASSET.ASSET_UUID)
+					.from(COLLECTION_ASSET)
+					.where(COLLECTION_ASSET.COLLECTION_UUID.eq(parseUuid(filter.valueStr(), key)))));
+		}
 		return super.applyFilter(query, filter);
+	}
+
+	/**
+	 * An asset's display name is {@code filename}; the table has no {@code name} column.
+	 *
+	 * <p>
+	 * Mapping the key rather than making callers ask for {@code ?sort=filename} keeps one spelling across every list route — the UI's sort control
+	 * offers the same three options everywhere and does not need to know which type it is looking at.
+	 * </p>
+	 */
+	@Override
+	protected Field<?> getSortField(SortKey sortBy) {
+		if (sortBy == LoomSortKey.NAME) {
+			return ASSET.FILENAME;
+		}
+		return super.getSortField(sortBy);
 	}
 
 }

@@ -87,6 +87,12 @@ public class UserEndpointService extends AbstractCRUDEndpointService<UserDao, Us
 			String userName = request.getUsername();
 			// TODO handle conflicts
 			User user = dao().createUser(userUuid, userName);
+			// firstname/lastname/email are part of UserCreateRequest and were parsed, validated and
+			// then dropped - only update() applied them, so a user could not be created with a name
+			// and had to be created and then immediately PATCHed.
+			update(request::getFirstname, user::setFirstname);
+			update(request::getLastname, user::setLastname);
+			update(request::getEmail, user::setEmail);
 			update(request::getMeta, user::setMeta);
 			setEditor(user, userUuid);
 			return user;

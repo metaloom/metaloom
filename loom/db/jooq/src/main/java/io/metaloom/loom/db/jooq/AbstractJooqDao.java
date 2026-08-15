@@ -10,8 +10,9 @@ import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.OrderField;
 import org.jooq.SelectConditionStep;
-import org.jooq.SelectSeekStep1;
+import org.jooq.SelectSeekStepN;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableRecord;
@@ -57,8 +58,22 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 		return (Field<UUID>) getTable().field("uuid", UUID.class);
 	}
 
-	private Field<UUID> getField(SortKey sortBy) {
-		return getTable().field(sortBy.getKey(), UUID.class);
+	/**
+	 * Resolve a {@link SortKey} to the column that orders by it, or {@code null} when this type has no such column.
+	 *
+	 * <p>
+	 * Returns the field at its declared type. The previous implementation coerced every sort column to {@code Field<UUID>}, which is invisible while
+	 * only {@code ORDER BY} is generated but produces {@code where "name" > cast(? as uuid)} the moment a cursor is added — so {@code ?sort=name}
+	 * worked and {@code ?sort=name&from=...} was a 500.
+	 * </p>
+	 *
+	 * <p>
+	 * Override to map a key onto a differently named column. An asset's display name is {@code filename}, so {@code ?sort=name} over assets would
+	 * otherwise be rejected as unknown.
+	 * </p>
+	 */
+	protected Field<?> getSortField(SortKey sortBy) {
+		return getTable().field(sortBy.getKey());
 	}
 
 	public Field<UUID> getUuidField() {
@@ -280,31 +295,38 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 		// every DAO regardless of how it built its select.
 		long totalCount = ctx().fetchCount(query);
 
-		// Sorting
-		SelectSeekStep1<?, UUID> query2;
-		if (sortBy == null) {
-			query2 = query.orderBy(getIdField());
-		} else {
-			Field<UUID> field = getField(sortBy);
-			if (field == null) {
+		// Sorting.
+		//
+		// The uuid is always the last ORDER BY term, even when the caller named a column. A sort
+		// column is rarely unique - two collections may share a name, and a bulk import gives a
+		// whole batch the same `created` - and keyset paging over a non-unique order silently
+		// drops or repeats rows at the page boundary. Appending the primary key makes the order
+		// total, which is what makes the seek below exact.
+		Field<?> sortField = null;
+		if (sortBy != null) {
+			sortField = getSortField(sortBy);
+			if (sortField == null) {
 				// The caller named a column this type does not have - a bad request, not an
 				// internal error. Mirrors applyFilter below, which rejects unknown filter keys
 				// the same way.
 				throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
 					"Unknown sort field " + sortBy.getKey() + " for " + getTypeName());
 			}
-			if (sortDirection == SortDirection.DESCENDING) {
-				query2 = query.orderBy(field.desc());
-			} else {
-				query2 = query.orderBy(field.asc());
-			}
 		}
+
+		boolean descending = sortDirection == SortDirection.DESCENDING;
+		List<OrderField<?>> orderFields = new ArrayList<>();
+		if (sortField != null) {
+			orderFields.add(descending ? sortField.desc() : sortField.asc());
+		}
+		orderFields.add(descending ? getIdField().desc() : getIdField().asc());
+		SelectSeekStepN<?> ordered = query.orderBy(orderFields);
 
 		// Seeking
 		if (fromId != null) {
-			query2.seek(fromId);
+			ordered.seek(seekValues(sortField, fromId));
 		}
-		List<T> list = query2
+		List<T> list = ordered
 			.limit(pageSize)
 			.fetchStreamInto(getPojoClass())
 			.collect(Collectors.toList());
@@ -312,12 +334,80 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 
 	}
 
+	/**
+	 * Build the seek tuple for the cursor row, matching the ORDER BY terms one for one.
+	 *
+	 * <p>
+	 * The wire contract is that {@code ?from=} is the uuid of the last element of the previous page — {@code PagingInfo.lastUuid} — and it stays that
+	 * way here. When the order is a column plus the uuid the seek needs that column's value too, so it is read back from the cursor row: one indexed
+	 * primary-key lookup per page, in exchange for leaving the cursor opaque-free and every existing client untouched.
+	 * </p>
+	 *
+	 * <p>
+	 * The lookup deliberately ignores the page's filters. The cursor identifies a position in the ordering, and a row can perfectly well have been
+	 * filtered out of the result while still marking where to resume from.
+	 * </p>
+	 */
+	private Object[] seekValues(Field<?> sortField, UUID fromId) {
+		if (sortField == null) {
+			return new Object[] { fromId };
+		}
+		org.jooq.Record cursor = ctx()
+			.select(sortField)
+			.from(getTable())
+			.where(getIdField().eq(fromId))
+			.fetchOne();
+		if (cursor == null) {
+			// Resuming needs the cursor row's sort value, and a deleted row no longer has one.
+			// Saying so beats the alternatives: seeking from nothing would silently restart at
+			// page one, which turns a client's paging loop into an infinite one.
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
+				"Cannot resume a sorted page from " + fromId + ": no " + getTypeName() + " with that uuid. Restart the listing.");
+		}
+		return new Object[] { cursor.get(0), fromId };
+	}
+
 	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
 		FilterKey key = filter.filterKey();
 		if (key == LoomFilterKey.UUID) {
-			return query.and(getTable().field("uuid", UUID.class).eq(UUID.fromString(filter.valueStr())));
+			return query.and(getTable().field("uuid", UUID.class).eq(parseUuid(filter.valueStr(), key)));
+		}
+		// Provenance filters are handled here rather than per DAO: `creator_uuid`/`editor_uuid` are
+		// the CUDElement audit columns, so every type carrying them filters identically. Types
+		// without them (join tables, and anything not user-authored) fall through to the 400 below.
+		if (key == LoomFilterKey.CREATOR) {
+			return applyUserFilter(query, "creator_uuid", filter);
+		}
+		if (key == LoomFilterKey.EDITOR) {
+			return applyUserFilter(query, "editor_uuid", filter);
 		}
 		throw new LoomRestException(400, LoomRestErrorCode.BAD_FILTER_KEY, "Unknown filter field " + key.id() + " for " + getTypeName());
+	}
+
+	private SelectConditionStep<?> applyUserFilter(SelectConditionStep<?> query, String column, Filter filter) {
+		Field<UUID> field = getTable().field(column, UUID.class);
+		if (field == null) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_FILTER_KEY,
+				"Unknown filter field " + filter.filterKey().id() + " for " + getTypeName());
+		}
+		return query.and(field.eq(parseUuid(filter.valueStr(), filter.filterKey())));
+	}
+
+	/**
+	 * Parse a filter value that has to be a uuid.
+	 *
+	 * <p>
+	 * {@code UUID.fromString} throws {@link IllegalArgumentException}, which reaches the client as a 500. A malformed value in a query string is the
+	 * caller's mistake, so it gets a 400 that names the offending key.
+	 * </p>
+	 */
+	protected UUID parseUuid(String value, FilterKey key) {
+		try {
+			return UUID.fromString(value);
+		} catch (IllegalArgumentException e) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_FILTER_KEY,
+				"Filter " + key.id() + " expects a uuid but got '" + value + "'.");
+		}
 	}
 
 	public T findByUUID(UUID id) {

@@ -16,6 +16,8 @@ import { useAuth } from "../../context/AuthContext";
 import { listPools, createPool, updatePool, deletePool, PoolResponse } from "../../api/pools";
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 
@@ -215,10 +217,21 @@ export default function AssetPoolsView() {
   const { showToast } = useToast();
   const { token } = useAuth();
   const { t } = useTranslation();
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   // /pools caps at 25 rows per page — page it rather than passing off page one as the whole set.
+  // Sort and creator are query parameters, so changing either restarts the listing (LOOM_UI.md §7.5.2).
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listPools(token, paging).then(r => pageFrom(r, mapResponseToPool)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listPools(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, mapResponseToPool))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<AssetPool>(loadPage, p => p.id);
   const pools = page.items;
@@ -388,8 +401,9 @@ export default function AssetPoolsView() {
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
-              placeholder={t("assetPools.search.placeholder")}
+            placeholder={t("assetPools.search.placeholder")}
             size="small"
+            data-testid="asset-pools-search"
             sx={{ flex: 1, maxWidth: 360 }}
             InputProps={{
               startAdornment: (
@@ -399,6 +413,19 @@ export default function AssetPoolsView() {
               ),
             }}
           />
+
+          {creators.length > 0 && (
+            <ListFilterSelect
+              value={creator}
+              onChange={setCreator}
+              options={creators}
+              allLabel={t("assetPools.filter.allCreators")}
+              testId="asset-pools-filter-creator"
+              minWidth={160}
+            />
+          )}
+
+          <ListSortControl value={sortState} onChange={setSortState} testId="asset-pools-sort" />
         </Box>
       </Box>
 

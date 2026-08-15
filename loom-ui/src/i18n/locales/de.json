@@ -132,7 +132,9 @@
       "clear": "Filter zurücksetzen",
       "remix": "Remixe",
       "remixCount_one": "{{count}} Remix",
-      "remixCount_other": "{{count}} Remixe"
+      "remixCount_other": "{{count}} Remixe",
+      "allCreators": "Alle Ersteller",
+      "allCollections": "Alle Sammlungen"
     },
     "tooltip": {
       "small": "Klein — nur Vorschaubild",
@@ -297,6 +299,9 @@
         "description": "Lade Medien in diese Bibliothek hoch — sie erscheinen hier und können getaggt, analysiert und geprüft werden.",
         "action": "Assets hochladen"
       }
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "collections": {
@@ -344,6 +349,9 @@
     },
     "toast": {
       "deleted": "Sammlung gelöscht"
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "tasks": {
@@ -518,6 +526,9 @@
       "title": "Noch nichts getaggt?",
       "description": "Tags beschreiben den Inhalt deiner Medien, damit du — und der Agent — sie in Sekunden wiederfindest.",
       "action": "Ersten Tag anlegen"
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "profile": {
@@ -1802,6 +1813,9 @@
       "title": "Noch keine Storage-Pools",
       "description": "Asset-Pools legen fest, wo Binärdaten gespeichert und repliziert werden. Lege einen an, um deinen Medien ein Zuhause zu geben.",
       "action": "Ersten Pool anlegen"
+    },
+    "filter": {
+      "allCreators": "Alle Ersteller"
     }
   },
   "reactions": {
@@ -2343,6 +2357,16 @@
       "removeMember": "Das Asset konnte nicht aus dem Remix entfernt werden",
       "setSource": "Das Original konnte nicht geändert werden",
       "add": "Das Asset konnte nicht zum Remix hinzugefügt werden"
+    }
+  },
+  "list": {
+    "sort": {
+      "label": "Sortieren nach",
+      "name": "Name",
+      "created": "Erstellt",
+      "edited": "Zuletzt bearbeitet",
+      "ascending": "Aufsteigend",
+      "descending": "Absteigend"
     }
   }
 }

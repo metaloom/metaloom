@@ -19,6 +19,8 @@ import {
 } from "../../api/tags";
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 
@@ -186,11 +188,25 @@ function TagTreeRow({
 export default function TagsView() {
   const { token } = useAuth();
   const { t } = useTranslation();
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
+
   // /tags caps at 25 rows per page, and a tag tree built from one page is missing branches
   // rather than merely being short — page it.
+  //
+  // Sort and creator are query parameters, so they belong in this dependency list: changing either
+  // has to discard the rows and the cursor and start the listing again (LOOM_UI.md §7.5.2).
   const loadPage = useMemo(
-    () => (token ? (paging: PagingParams) => listTags(token, paging).then(r => pageFrom(r, tag => tag)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listTags(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, tag => tag))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const page = usePagedList<TagResponse>(loadPage, tag => tag.uuid);
   const allTags = page.items;
@@ -376,20 +392,36 @@ export default function TagsView() {
             </Tooltip>
           </Box>
         </Box>
-        <TextField
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder={t("tags.search.placeholder")}  
-          size="small"
-          sx={{ maxWidth: 320 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <TextField
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={t("tags.search.placeholder")}
+            size="small"
+            data-testid="tags-search"
+            sx={{ maxWidth: 320, flex: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          {creators.length > 0 && (
+            <ListFilterSelect
+              value={creator}
+              onChange={setCreator}
+              options={creators}
+              allLabel={t("tags.filter.allCreators")}
+              testId="tags-filter-creator"
+              minWidth={160}
+            />
+          )}
+
+          <ListSortControl value={sortState} onChange={setSortState} testId="tags-sort" />
+        </Box>
       </Box>
 
       {/* Tree + Detail Sidebar */}

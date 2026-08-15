@@ -132,7 +132,9 @@
       "clear": "Clear filters",
       "remix": "Remixes",
       "remixCount_one": "{{count}} remix",
-      "remixCount_other": "{{count}} remixes"
+      "remixCount_other": "{{count}} remixes",
+      "allCreators": "All creators",
+      "allCollections": "All collections"
     },
     "tooltip": {
       "small": "Small — thumbnail only",
@@ -297,6 +299,9 @@
         "description": "Upload media into this library and it will show up here, ready to be tagged, analyzed and reviewed.",
         "action": "Upload assets"
       }
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "collections": {
@@ -353,6 +358,9 @@
       "createFailed": "Failed to create collection",
       "updateFailed": "Failed to update collection",
       "deleteFailed": "Failed to delete collection"
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "tasks": {
@@ -527,6 +535,9 @@
       "title": "Nothing tagged yet?",
       "description": "Tags describe what is in your media so you — and the agent — can find it again in seconds.",
       "action": "Create your first tag"
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "profile": {
@@ -1811,6 +1822,9 @@
       "title": "No storage pools yet",
       "description": "Asset pools define where binaries are stored and replicated. Create one to give your media a home.",
       "action": "Create your first pool"
+    },
+    "filter": {
+      "allCreators": "All creators"
     }
   },
   "reactions": {
@@ -2352,6 +2366,16 @@
       "removeMember": "Could not remove the asset from the remix",
       "setSource": "Could not change the original",
       "add": "Could not add the asset to the remix"
+    }
+  },
+  "list": {
+    "sort": {
+      "label": "Sort by",
+      "name": "Name",
+      "created": "Created",
+      "edited": "Last edited",
+      "ascending": "Ascending",
+      "descending": "Descending"
     }
   }
 }

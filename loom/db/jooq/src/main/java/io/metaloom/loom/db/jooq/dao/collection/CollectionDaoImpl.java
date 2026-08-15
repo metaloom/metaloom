@@ -12,6 +12,8 @@ import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
+import io.metaloom.filter.Filter;
+import io.metaloom.loom.api.filter.LoomFilterKey;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.model.collection.Collection;
@@ -92,6 +94,23 @@ public class CollectionDaoImpl extends AbstractJooqDao<Collection> implements Co
 			.where(COLLECTION_ASSET.ASSET_UUID.eq(assetUuid));
 
 		return loadPage(query, fromId, pageSize, null, null, null);
+	}
+
+	/**
+	 * Exact-match name filter. Substring search over collections stays a client concern — the LHS filter grammar has no {@code contains} operation,
+	 * and a listing route is not the place to grow one when {@code /search/results} already ranks by relevance.
+	 *
+	 * <p>
+	 * Filtering by creator needs nothing here: {@code collection} carries the {@code creator_uuid} audit column, so {@code AbstractJooqDao} handles
+	 * {@code creator[eq]=} for it.
+	 * </p>
+	 */
+	@Override
+	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
+		if (filter.filterKey() == LoomFilterKey.NAME) {
+			return query.and(JooqCollection.COLLECTION.NAME.eq(filter.valueStr()));
+		}
+		return super.applyFilter(query, filter);
 	}
 
 }

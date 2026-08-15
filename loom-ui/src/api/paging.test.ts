@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pagingQuery, withPaging } from "./paging";
+import { filterExpression, pagingQuery, withPaging } from "./paging";
 
 describe("pagingQuery", () => {
   it("returns an empty string when no paging is requested", () => {
@@ -31,6 +31,59 @@ describe("pagingQuery", () => {
 
   it("url-encodes the cursor", () => {
     expect(pagingQuery({ from: "a b&c" })).toBe("?from=a+b%26c");
+  });
+
+  it("serializes the sort column and direction", () => {
+    expect(pagingQuery({ sort: "name", dir: "asc" })).toBe("?sort=name&dir=asc");
+    expect(pagingQuery({ sort: "edited", dir: "desc" })).toBe("?sort=edited&dir=desc");
+  });
+
+  it("drops a direction with no column — on its own it would reverse the default uuid order", () => {
+    expect(pagingQuery({ dir: "desc" })).toBe("");
+  });
+
+  it("serializes a filter in the server's LHS grammar", () => {
+    expect(pagingQuery({ filters: [{ key: "creator", value: "u-1" }] }))
+      .toBe("?filter=creator%5Beq%5D%3Du-1");
+  });
+
+  it("joins several filters with a comma into one parameter", () => {
+    // Repeating the key would earn "Parameter filter was found multiple times"; the parser splits
+    // a single value on the comma instead.
+    const query = pagingQuery({ filters: [{ key: "creator", value: "u-1" }, { key: "collection", value: "c-9" }] });
+    expect(new URLSearchParams(query.slice(1)).get("filter")).toBe("creator[eq]=u-1,collection[eq]=c-9");
+  });
+
+  it("omits blank filter values rather than sending an empty term", () => {
+    expect(pagingQuery({ filters: [{ key: "creator", value: "" }] })).toBe("");
+    expect(pagingQuery({ filters: [] })).toBe("");
+  });
+
+  it("carries paging, sorting and filtering together", () => {
+    const params = new URLSearchParams(
+      pagingQuery({ limit: 25, from: "abc", sort: "created", dir: "desc", filters: [{ key: "creator", value: "u-1" }] }).slice(1),
+    );
+    expect(params.get("limit")).toBe("25");
+    expect(params.get("from")).toBe("abc");
+    expect(params.get("sort")).toBe("created");
+    expect(params.get("dir")).toBe("desc");
+    expect(params.get("filter")).toBe("creator[eq]=u-1");
+  });
+});
+
+describe("filterExpression", () => {
+  it("is empty for nothing to filter on", () => {
+    expect(filterExpression()).toBe("");
+    expect(filterExpression([])).toBe("");
+  });
+
+  it("renders one term", () => {
+    expect(filterExpression([{ key: "name", value: "holiday" }])).toBe("name[eq]=holiday");
+  });
+
+  it("skips terms with no value, keeping the ones that have one", () => {
+    expect(filterExpression([{ key: "creator", value: "" }, { key: "collection", value: "c-1" }]))
+      .toBe("collection[eq]=c-1");
   });
 });
 

@@ -112,6 +112,102 @@ link:../../ui/[Loom UI admin area]. Note that the API must allow your browser's 
 <div id="swagger-ui"></div>
 ++++
 
+== Listing, sorting and filtering
+
+Every collection route (`/assets`, `/collections`, `/users`, …) answers with `{ data, _metainfo }`
+and accepts the same four query parameters.
+
+[options="header",cols="1,1,4"]
+|===
+| Parameter | Default | Description
+
+| `limit`
+| `25`
+| Page size. A bare `GET /api/v1/assets` returns a *page*, not the collection.
+
+| `from`
+| —
+| Seek cursor: the uuid to continue *after*. Take it from `_metainfo.lastUuid` of the previous page.
+
+| `sort`
+| `uuid`
+| Column to order by — `name`, `created`, `edited`, and per type also `username`, `firstname`,
+  `lastname`, `email`, `sha512`, `md5`.
+
+| `dir`
+| `asc`
+| `asc` or `desc`.
+|===
+
+Primary keys are time-ordered (UUIDv7), so the default order is the order elements were created in:
+a new element appears at the end of the list rather than in an unpredictable position.
+
+.List the assets most recently edited first
+[source,bash]
+----
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://loom.example.com/api/v1/assets?sort=edited&dir=desc&limit=50"
+----
+
+=== Filtering
+
+`filter` takes one or more terms in the form `field[eq]=value`, several of them separated by commas
+in a *single* `filter` parameter. Terms are combined with AND.
+
+[options="header",cols="1,1,3"]
+|===
+| Field | Value | Available on
+
+| `name`
+| exact name
+| Collections, tags, libraries, persons, and assets (matched against the filename)
+
+| `creator` / `editor`
+| user uuid
+| Anything with a creator — assets, collections, tags, libraries, tasks, …
+
+| `collection`
+| collection uuid
+| Assets — returns the members of that collection
+
+| `username`
+| exact username
+| Users
+
+| `size`
+| byte range
+| Assets
+
+| `status`
+| state name
+| Pipeline runs and run items
+|===
+
+.Assets in one collection, created by one user, oldest first
+[source,bash]
+----
+curl -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "filter=collection[eq]=$COLLECTION_UUID,creator[eq]=$USER_UUID" \
+  --data-urlencode "sort=created" \
+  --get "https://loom.example.com/api/v1/assets"
+----
+
+[NOTE]
+====
+`creator` takes a *uuid*, not a username, so a filter kept in a bookmark or a saved view survives
+the user being renamed. Every element response carries `status.creator.uuid`.
+
+Filters match exactly — there is no "contains". For text search across the catalogue use
+link:../../features/search/[the search endpoints], which rank by relevance.
+====
+
+[WARNING]
+====
+When you page a *sorted* listing, `from` must name a row that still exists — resuming needs that
+row's value in the sort column. If the element has been deleted in the meantime the request answers
+`400`; start the listing again. The default (unsorted) order has no such restriction.
+====
+
 == Endpoint Reference
 
 The tables below are a reading guide to the most-used routes, grouped the way you are likely to need

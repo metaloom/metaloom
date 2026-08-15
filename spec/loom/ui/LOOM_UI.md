@@ -489,6 +489,41 @@ field filters the rows already loaded — which is why those views also page (§
 A term that matches nothing shows the inline hint, never the `EmptyState` — see the rule above.
 Where a view shows both, the testid distinguishes them (`memory-empty` vs `memory-no-match`).
 
+### 7.5.2 Sorting and filtering a list
+
+`ListSortControl` and `ListFilterSelect` in [ListControls.tsx](../../../loom-ui/src/components/ListControls.tsx)
+are the shared controls. Both are **server-side**, and that is the whole point of them:
+
+> A listing route serves a page at a time. A comparator or a predicate applied to `page.items`
+> answers a question about the loaded page, not about the collection — the same defect `ListPaging`
+> exists to keep out of the row counts.
+
+So the state feeds `PagingParams` (`sort`, `dir`, `filters`), and the `useMemo` that builds the
+loader **must list it in the dependency array**. That makes `usePagedList` drop its rows and its
+cursor and start again, which is required rather than incidental: a keyset cursor points into one
+particular ordering.
+
+| | Control | Sends |
+|---|---|---|
+| Sort column | `<feature>-sort` (`name` / `created` / `edited`) | `?sort=` |
+| Direction | `<feature>-sort-direction` | `?dir=` |
+| Creator | `<feature>-filter-creator`, options from `useCreatorOptions` | `filter=creator[eq]=<uuid>` |
+| Collection (assets) | `assets-filter-collection` | `filter=collection[eq]=<uuid>` |
+
+The default is `created ASC` (`DEFAULT_SORT`) — under UUIDv7 that is also insertion order, so a new
+element appears at the end of the list rather than somewhere in the middle.
+
+Two deliberate asymmetries in `AssetBrowser`:
+
+- The **type** filter stays local. `/assets` has no mime parameter to delegate it to, which is why
+  it is the one control that goes wrong on a partly loaded catalog.
+- Sort and the creator filter **hide** while a search term is active. `/search/assets` ranks by
+  relevance and takes no creator, so leaving them on screen would show controls that quietly stop
+  applying. The collection filter stays, because that route does take `?collection=`.
+
+Filter pickers render only when they have options (`creators.length > 0`), so a user without
+`READ_USER` sees no creator control rather than an empty one.
+
 ### 7.6 Chat workspace split
 
 `ChatWorkspace` is three columns: sessions rail (fixed 220px), chat column, workspace panel.
@@ -683,11 +718,11 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-100 specs in two flavours, distinguished by filename suffix:
+101 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (65) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (66) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -702,6 +737,11 @@ Playwright invocation, so no explicit env block is needed.
 Typical mocked-spec shape: `mock…(page)` route handlers → `login(page)` (fill
 `Username`/`Password` placeholders, click *Sign in*, assert the username field is hidden) →
 assertions on `data-testid` locators.
+
+> A mock that returns a **fixed** payload cannot test a server-side control. `list-sort-filter-mocked.spec.ts`
+> therefore implements `?sort=`/`?dir=`/`?filter=` in the route handler and asserts on the rendered
+> order — a spec that only checked the query string would pass equally against a view that sent the
+> right parameters and then re-sorted the response locally, which is the bug worth catching.
 
 ### 8.3 Running
 
@@ -767,6 +807,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `HELP_TOPICS` / `HelpTopic` / `helpUrl` | `src/help/topics.ts` | The coachmark registry and the `/help/?t=&q=` builder (§7.10) |
 | `StatusChip` / `Tone` / `toneStyles` | `src/components/StatusChip.tsx` | green/amber/red/neutral status pill. Extracted from `MaintenanceView` so the two operator screens paint the same states the same colour |
 | `ListPaging` | `src/components/ListPaging.tsx` | "Showing X of Y" + load-more button for a paged list (§11.3) |
+| `ListSortControl` / `ListFilterSelect` / `DEFAULT_SORT` | `src/components/ListControls.tsx` | Server-side sort column, direction and one-of-many filters for a listing view (§7.5.2) |
+| `useCreatorOptions` | `src/hooks/useCreatorOptions.ts` | The user list shaped for a "created by" filter; fails quietly to `[]` without `READ_USER` (§7.5.2) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
 | `Title` | `src/components/Title.tsx` | Page heading |
 | `usePagedList` / `pageFrom` | `src/hooks/usePagedList.ts` | Loads a collection page by page; `items`, `totalCount`, `hasMore`, `loadMore`, `setItems` (§11.3) |

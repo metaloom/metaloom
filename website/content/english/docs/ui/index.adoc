@@ -241,6 +241,35 @@ card-size views. Videos, images, audio and documents are all represented.
 
 image::assets.png[Asset browser,role=img-fluid]
 
+=== Narrowing and ordering a list
+
+The toolbar above the assets — and above the collections, in the same shape — lets you cut the list
+down and choose how it reads:
+
+* *Collection* shows only the assets that belong to one collection.
+* *Created by* shows only what a particular person added.
+* *Type* narrows to video, image, audio or documents.
+* *Sort by* orders the list by *Name*, *Created* or *Last edited*, and the arrow beside it switches
+  between ascending and descending.
+
+Filters combine, so picking a collection and a person shows the assets that are in that collection
+*and* were added by that person. The *Clear filters* chip beside the count resets them; your chosen
+order stays, since that is how you are reading the list rather than a restriction on it.
+
+Sorting and filtering are applied by the server across the whole catalogue, not just the part
+already on screen — so ordering a collection of fifty thousand assets by name really does start at
+the beginning of the alphabet, and the *Showing X of Y* footer keeps counting the full match.
+
+Lists are ordered oldest-first by default. That is deliberate: something you have just created turns
+up at the end of the list, where you would look for it, instead of somewhere in the middle.
+
+[TIP]
+====
+Typing in the search box switches the asset browser over to full-text search, which ranks results by
+relevance. The sort and creator controls step aside while a search term is active, because relevance
+is the ordering at that point — clear the box to go back to browsing.
+====
+
 Opening an asset reveals the detail view: media preview, a timeline with markers, tags and metadata, and
 tabs for comments, annotations and reactions.
 

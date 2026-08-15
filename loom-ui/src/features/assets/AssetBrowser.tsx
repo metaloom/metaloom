@@ -29,6 +29,11 @@ import { hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
 import { SearchApiError, searchAssets } from "../../api/search";
 import type { PagingParams } from "../../api/paging";
 import { useSearch } from "../../context/SearchContext";
+import { listCollections } from "../../api/collections";
+import {
+  DEFAULT_SORT, ListFilterSelect, ListSortControl, type FilterOption, type SortState,
+} from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
@@ -100,6 +105,8 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
     <Paper
       elevation={0}
       onClick={handleClick}
+      data-testid="asset-card"
+      data-asset-name={asset.name}
       sx={{
         cursor: "pointer",
         position: "relative",
@@ -286,12 +293,33 @@ export default function AssetBrowser({ embedded = false }: Props) {
   // is not an AssetType: picking it hides the asset grid entirely and leaves only the remix band.
   const [typeFilter, setTypeFilter] = useState<AssetType | "all" | "remix">("all");
   const remixOnly = typeFilter === "remix";
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const [collection, setCollection] = useState("");
+  const creators = useCreatorOptions(token);
+  const [collectionOptions, setCollectionOptions] = useState<FilterOption[]>([]);
 
   // ── Browse mode ──
   // The server caps /assets at 25 rows, so the collection arrives a page at a time.
+  //
+  // Sort, creator and collection are query parameters rather than a pass over `assets`: the rows
+  // in memory are one page of the catalog, so narrowing or reordering them locally would answer a
+  // question about the page instead of about the collection. `typeFilter` stays local because the
+  // list route has no mime filter to delegate it to — which is why it is the one control that goes
+  // wrong on a partly loaded catalog, and why the footer keeps saying how much is loaded.
   const loadAssetPage = useMemo(
-    () => (token ? (paging: PagingParams) => listAssets(token, paging).then(r => pageFrom(r, toAsset)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listAssets(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: [
+          ...(creator ? [{ key: "creator", value: creator }] : []),
+          ...(collection ? [{ key: "collection", value: collection }] : []),
+        ],
+      }).then(r => pageFrom(r, toAsset))
+      : null),
+    [token, sortState.sort, sortState.dir, creator, collection],
   );
   const page = usePagedList<Asset>(loadAssetPage, a => a.id);
   const assets = page.items;
@@ -367,7 +395,15 @@ export default function AssetBrowser({ embedded = false }: Props) {
         token,
         // "remix" narrows a different axis than mime, so it contributes no mime prefix here; the
         // asset search it guards is not rendered under that filter anyway.
-        { q: term, limit: PAGE_SIZE, mime: remixOnly ? undefined : mimeFilterFor(typeFilter) },
+        {
+          q: term,
+          limit: PAGE_SIZE,
+          mime: remixOnly ? undefined : mimeFilterFor(typeFilter),
+          // Forwarded because /search/assets has its own `collection` parameter. The creator
+          // filter has no counterpart there, which is why that control hides while searching
+          // rather than silently ceasing to apply.
+          collection: collection || undefined,
+        },
         { signal: controller.signal },
       )
         .then(resp => {
@@ -398,11 +434,29 @@ export default function AssetBrowser({ embedded = false }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [token, term, searchMode, typeFilter, markUnavailable]);
+  }, [token, term, searchMode, typeFilter, collection, markUnavailable]);
 
   useEffect(() => {
     if (!token) return;
     listLibraries(token, { limit: PAGE_SIZE }).then(resp => setLibraries(resp.data ?? [])).catch(() => { /* libraries optional */ });
+  }, [token]);
+
+  // Options for the collection filter. Sorted by name so the picker reads alphabetically whatever
+  // order the catalog is in, and failing quietly: a user without READ_COLLECTION keeps the rest of
+  // the toolbar and simply does not see this control.
+  useEffect(() => {
+    if (!token) {
+      setCollectionOptions([]);
+      return;
+    }
+    let cancelled = false;
+    listCollections(token, { limit: 200, sort: "name", dir: "asc" })
+      .then(resp => {
+        if (cancelled) return;
+        setCollectionOptions((resp.data ?? []).map(c => ({ value: c.uuid, label: c.name })));
+      })
+      .catch(() => { if (!cancelled) setCollectionOptions([]); });
+    return () => { cancelled = true; };
   }, [token]);
 
   const toggleSelect = useCallback((id: string) => {
@@ -629,6 +683,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
             onChange={e => setQuery(e.target.value)}
             placeholder={t("assets.search.placeholder")}
             size="small"
+            data-testid="assets-search"
             sx={{ flex: 1, minWidth: 180 }}
             InputProps={{
               startAdornment: (
@@ -654,6 +709,35 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <MenuItem value="remix" data-testid="assets-filter-remix">{t("assets.filter.remix")}</MenuItem>
             </Select>
           </FormControl>
+
+          {collectionOptions.length > 0 && (
+            <ListFilterSelect
+              value={collection}
+              onChange={setCollection}
+              options={collectionOptions}
+              allLabel={t("assets.filter.allCollections")}
+              testId="assets-filter-collection"
+              minWidth={150}
+            />
+          )}
+
+          {/* Creator and sort apply to the browsed catalog. /search/assets ranks by relevance and
+              takes no creator, so offering either while a search term is active would show
+              controls that quietly do nothing. */}
+          {!searchMode && creators.length > 0 && (
+            <ListFilterSelect
+              value={creator}
+              onChange={setCreator}
+              options={creators}
+              allLabel={t("assets.filter.allCreators")}
+              testId="assets-filter-creator"
+              minWidth={150}
+            />
+          )}
+
+          {!searchMode && (
+            <ListSortControl value={sortState} onChange={setSortState} testId="assets-sort" />
+          )}
 
           <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)} size="small">
             <ToggleButton value="grid" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>
@@ -754,11 +838,15 @@ export default function AssetBrowser({ embedded = false }: Props) {
                 ? t("assets.search.hits", { count: searchTotal })
                 : `${typeFilter === "all" ? page.totalCount : filtered.length} ${t("assets.count")}`}
           </Typography>
-          {(typeFilter !== "all" || query) && (
+          {(typeFilter !== "all" || query || creator || collection) && (
             <Chip
               label={t("assets.filter.clear")}
               size="small"
-              onDelete={() => { setTypeFilter("all"); setQuery(""); }}
+              data-testid="assets-filter-clear"
+              // Clears the filters, not the sort: an ordering is how the user reads the list
+              // rather than a narrowing of it, and resetting it here would undo a choice they did
+              // not ask to undo.
+              onDelete={() => { setTypeFilter("all"); setQuery(""); setCreator(""); setCollection(""); }}
               sx={{ height: 18, fontSize: "0.65rem" }}
             />
           )}

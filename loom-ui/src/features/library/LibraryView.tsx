@@ -13,6 +13,8 @@ import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
 import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
+import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
+import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
 import { useSpace } from "../../context/SpaceContext";
@@ -52,11 +54,24 @@ export default function LibraryView() {
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<Array<{ id: string; name: string; description: string; meta: Record<string, unknown>; createdAt: string }>>([]);
   const [selectedLib, setSelectedLib] = useState<{ id: string; name: string; description: string; meta: Record<string, unknown>; createdAt: string } | null>(null);
+  const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
+  const [creator, setCreator] = useState("");
+  const creators = useCreatorOptions(token);
   // /assets caps at 25 rows per page. The per-library counts below are derived from whatever has
   // been loaded — there is no library-scoped count route — so paging is what makes them true.
+  //
+  // The sort and creator filter travel with the request for the same reason: the panel shows a
+  // window onto the catalog, and reordering that window locally would order the window.
   const loadAssetPage = useMemo(
-    () => (token ? (paging: PagingParams) => listAssets(token, paging).then(r => pageFrom(r, a => a)) : null),
-    [token],
+    () => (token
+      ? (paging: PagingParams) => listAssets(token, {
+        ...paging,
+        sort: sortState.sort,
+        dir: sortState.dir,
+        filters: creator ? [{ key: "creator", value: creator }] : undefined,
+      }).then(r => pageFrom(r, a => a))
+      : null),
+    [token, sortState.sort, sortState.dir, creator],
   );
   const assetPage = usePagedList<AssetResponse>(loadAssetPage, a => a.uuid);
   const assets = assetPage.items;
@@ -270,20 +285,36 @@ export default function LibraryView() {
                   </Box>
                 </Box>
               </Box>
-              <TextField
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder={t("library.search.placeholder")}
-                size="small"
-                sx={{ maxWidth: 320 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                <TextField
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder={t("library.search.placeholder")}
+                  size="small"
+                  data-testid="library-search"
+                  sx={{ maxWidth: 320 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+
+                {creators.length > 0 && (
+                  <ListFilterSelect
+                    value={creator}
+                    onChange={setCreator}
+                    options={creators}
+                    allLabel={t("library.filter.allCreators")}
+                    testId="library-filter-creator"
+                    minWidth={150}
+                  />
+                )}
+
+                <ListSortControl value={sortState} onChange={setSortState} testId="library-sort" />
+              </Box>
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
               {libraryAssets.length === 0 ? (

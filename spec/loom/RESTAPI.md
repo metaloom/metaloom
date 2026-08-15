@@ -118,12 +118,56 @@ Registered by `addListRoute` (keys in `QueryParameterKey`):
 |-----------|-----|------|---------|-------------|
 | Limit | `limit` | Integer | 25 | Page size |
 | From | `from` | UUID | null | Seek to the element with this UUID |
-| Filter | `filter` | String | null | LHS filter, e.g. `name[eq]=joedoe` |
-| Sort | `sort` | String | null | Sort field |
+| Filter | `filter` | String | null | LHS filter, e.g. `name[eq]=joedoe`; several terms comma-separated in **one** `filter` value |
+| Sort | `sort` | String | null | Sort field (`LoomSortKey`) |
 | Direction | `dir` | Enum | ASC | `ASCENDING` / `DESCENDING` |
 
 `addSearchRoute` registers a **disjoint** parameter set for `/search/*` (query + paging) — it is not
 the list parameter set.
+
+#### Sorting
+
+`LoomSortKey` names the column: `name`, `created`, `edited`, `username`, `firstname`, `lastname`,
+`email`, `collection`, `sha512`, `md5`, `uuid`. A key the type's table does not carry is a **400**
+naming both (`Unknown sort field sha512 for Collections`), not a 500 and not a silent fallback.
+
+Two things about the ordering that callers depend on:
+
+- **The uuid is always the last ORDER BY term.** A sort column is rarely unique — collections can
+  share a `created`, assets routinely share a `filename` — and keyset paging over a non-total order
+  drops or repeats rows at the page boundary. The primary key makes the order total.
+- **`?from=` stays a plain uuid.** Resuming a sorted page needs the cursor row's sort value too, so
+  `AbstractJooqDao` reads it back with one primary-key lookup rather than making the cursor opaque.
+  The consequence is that a cursor pointing at a **deleted** row is a 400 for a sorted listing
+  (`Cannot resume a sorted page from …`) while remaining valid for the default uuid ordering.
+  Restarting the listing is the fix; seeking from nothing would silently return page one and turn a
+  client's paging loop into an infinite one.
+
+Types may map a key onto a differently named column — `AssetDaoImpl` resolves `name` to `filename`,
+because the asset table has no `name` — so one spelling works across every list route.
+
+#### Filtering
+
+`LoomFilterKey` names the field, in LHS form `key[eq]=value`. **A key has to be registered with
+`LoomLHSFilterParser` as well as implemented in a DAO**: the parser rejects an unknown key before
+any DAO is reached, so a key implemented but unregistered is dead code over REST — which is what
+`name`, `collection` and `uuid` were.
+
+| Key | Where implemented | Value |
+|-----|-------------------|-------|
+| `uuid` | `AbstractJooqDao` (all types) | uuid |
+| `creator` / `editor` | `AbstractJooqDao`, for any table with the `CUDElement` audit columns | uuid |
+| `name` | `CollectionDaoImpl`, `TagDaoImpl`, `LibraryDaoImpl`, `PersonDaoImpl`, `CortexInstanceDaoImpl`, `NodeDescriptorRecordDaoImpl`; `AssetDaoImpl` maps it to `filename` | exact string |
+| `collection` | `TagDaoImpl` (column); `AssetDaoImpl` (membership via `collection_asset`) | string / uuid |
+| `username` | `UserDaoImpl` | string |
+| `size` | `AssetDaoImpl` (range) | size range |
+| `status`, `dry_run` | the pipeline run DAOs | enum / boolean |
+
+`creator`/`editor` take a **uuid, not a username** — usernames are mutable and a filter in a
+bookmarked URL has to survive a rename. Element responses carry `status.creator.uuid` for this.
+
+The grammar has **no `contains` operation**, so a filter narrows a listing but cannot substring-
+search it. Ranked text search is `/search/*`.
 
 ### 2.5 Router configuration (`RESTService.setupRouter()`)
 
