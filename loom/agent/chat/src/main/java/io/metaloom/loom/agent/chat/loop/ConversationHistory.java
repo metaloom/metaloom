@@ -156,7 +156,6 @@ public final class ConversationHistory {
 		ChatMessage user = ChatMessage.user(userMessage);
 
 		List<Exchange> exchanges = group(persisted);
-		int totalMessages = persisted == null ? 0 : persisted.size();
 
 		// The floor of the budget: what is spent before a single historical exchange is replayed. The
 		// system prompt and the incoming user message are not negotiable, so they are charged first and
@@ -229,11 +228,7 @@ public final class ConversationHistory {
 		}
 		history.add(user);
 
-		int droppedExchanges = firstKept;
-		if (totalMessages == 0) {
-			droppedExchanges = 0;
-		}
-		return new Assembly(history, used + noticeTokens, droppedMessages, droppedExchanges, replaySummary);
+		return new Assembly(history, used + noticeTokens, droppedMessages, firstKept, replaySummary);
 	}
 
 	/**

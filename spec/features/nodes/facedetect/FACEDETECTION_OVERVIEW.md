@@ -7,7 +7,7 @@
 
 Related specs: [features/nodes/NODES.md](../NODES.md) (node reference,
 `facedetect` row) · [guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) ·
-[features/pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) (typed ports).
+[../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) (typed ports).
 
 > **The end-to-end identity workflow lives elsewhere.** This file is about *which model runs and under
 > what licence*. How a detected face becomes a confirmed person — detect → embed → cluster → confirm —

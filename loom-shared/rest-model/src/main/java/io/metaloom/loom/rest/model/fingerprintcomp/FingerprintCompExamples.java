@@ -25,7 +25,7 @@ public interface FingerprintCompExamples extends ExampleValues {
 		model.setAssetUuid(uuidA().toString());
 		model.setNodeKind("fingerprint");
 		model.setAlgorithm("metaloom-multisector-v1");
-		model.setSectorIndex(0);
+		model.setWindowIndex(0);
 		model.setFingerprint("a1b2c3d4e5f6");
 		model.setProducerVersion("v1");
 		setCreatorEditor(model);
@@ -36,7 +36,7 @@ public interface FingerprintCompExamples extends ExampleValues {
 		FingerprintCompCreateRequest model = new FingerprintCompCreateRequest();
 		model.setNodeKind("fingerprint");
 		model.setAlgorithm("metaloom-multisector-v1");
-		model.setSectorIndex(0);
+		model.setWindowIndex(0);
 		model.setFingerprint("a1b2c3d4e5f6");
 		model.setProducerVersion("v1");
 		return model;

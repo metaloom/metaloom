@@ -337,7 +337,7 @@ the instance options, so the tool calls
 `NodeDescriptorRegistry.resolvePorts(kind, options)` — the same call `PortGraphAnalyzer`
 makes at save time. This is the **only** place in the system that serves resolved ports;
 `NodeDescriptorEndpoint` serves the static descriptor only
-([../features/pipeline/NODE_DATA_TYPES.md §3.4](../features/pipeline/NODE_DATA_TYPES.md)).
+([../features/nodes/NODE_DATA_TYPES.md §3.4](../features/nodes/NODE_DATA_TYPES.md)).
 
 **One write path.** All three go through `PipelineAuthoringService`
 (`loom/services/rest`), which `PipelineEndpointService.create`/`update` also call. The
@@ -518,7 +518,11 @@ before the server accepts requests.
 
 - builds LLM tool definitions from `listDescriptors()`
   (`new ToolDefinition(name, description, inputSchema)`), then appends sandbox
-  coding tools and `load_skill` — those are **not** MCP tools;
+  coding tools, `load_skill` and `map_over` — those are **not** MCP tools. The
+  agent-local ones are resolved inside `AgentLoop` because they spend that run's
+  LLM budget (`RunBudget`) and drive that run's `TurnStreamer`; registering them
+  would expose them to external MCP clients, which have neither. Keep new loop
+  primitives out of the registry for the same reason;
 - dispatches with `dispatch(name, args, request.user(), callerContext)` where the
   context carries user, groups, space and chat;
 - extracts `references`/`visuals` from the result and relays them on the SSE

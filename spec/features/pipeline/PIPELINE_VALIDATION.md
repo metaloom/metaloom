@@ -15,7 +15,7 @@ in the editor, not in a node. Section 3 explains why that sentence needed writin
 | Topic | Spec |
 |---|---|
 | What the parser builds, segmentation, source resolution, the engine, persistence, protocol | [PIPELINE.md](PIPELINE.md) |
-| The port model itself: content-type lattice, cardinality, XOR/EXCLUSIVE groups, fan-out/gather | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
+| The port model itself: content-type lattice, cardinality, XOR/EXCLUSIVE groups, fan-out/gather | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) |
 | Which requirement this closes and its conformance status | [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md) R11 |
 | How the editor renders and debounces the verdict | [../../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) 7.2 |
 | The `validate_pipeline` MCP tool's text rendering and permissions | [../../loom/MCP.md](../../loom/MCP.md) |
@@ -474,7 +474,7 @@ why `unsupportedNodeKinds` is a *warning* while an unknown *kind* is an error: t
 | Change the OpenAPI examples | `loom-shared/rest-model/.../model/pipeline/PipelineExamples.java` |
 | Read the customer-facing version | `website/content/english/docs/pipeline/index.adoc` ("Checking a Draft Before You Save It") |
 | Understand what the parser builds | [PIPELINE.md](PIPELINE.md) 5 |
-| Understand the port model being enforced | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
+| Understand the port model being enforced | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) |
 | Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
 
 ---

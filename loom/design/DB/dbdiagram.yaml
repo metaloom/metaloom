@@ -651,7 +651,7 @@ Table asset_fingerprint_comp {
   confidence real
 
   algorithm varchar [not null, note: "e.g. metaloom-multisector-v1"]
-  sector_index int [not null, default: 0]
+  window_index int [not null, default: 0]
   time_from bigint [note: "ms"]
   time_to bigint [note: "ms"]
   fingerprint varchar [not null]
@@ -663,12 +663,12 @@ Table asset_fingerprint_comp {
   editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
-    (asset_uuid, node_kind, algorithm, sector_index) [unique]
+    (asset_uuid, node_kind, algorithm, window_index) [unique]
     (asset_uuid)
     (algorithm, fingerprint) [note: "The dedup lookup"]
   }
 
-  note: "Perceptual fingerprints, one row per sector. Added V2.41 so FingerprintDedupNode has a queryable home."
+  note: "Perceptual fingerprints, one row per timeline window. Added V2.41 so FingerprintDedupNode has a queryable home; the column was renamed from sector_index in V2.105."
 }
 
 Table asset_segment_comp {

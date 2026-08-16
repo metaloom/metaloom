@@ -4,6 +4,10 @@
 > queue store, the React binding, the target model (library → pool), progress/cancel/retry, toasts
 > and the test setup.
 >
+> This file describes **what exists today**. Open work — everything not built and the one known
+> defect — lives in [../../tasks/LOOM_UI_UPLOAD_TASKS.md](../../tasks/LOOM_UI_UPLOAD_TASKS.md) and is
+> referenced from here by task number, never restated.
+>
 > This file is **not** the general UI shell — see [LOOM_UI.md](LOOM_UI.md) for stack, routing,
 > provider tree and conventions. It is **not** the upload endpoint contract either — see
 > [REST_BINARY_HANDLING.md](../../features/rest/REST_BINARY_HANDLING.md) for storage layout, pool
@@ -14,14 +18,20 @@
 
 ## 1. Progress Assessment
 
-### 1.1 Built
+### 1.1 Implemented
 
 - [x] Dedicated `/uploads` route and screen (`UploadView.tsx`)
 - [x] Multi-file selection via file picker (`multiple`) and drag-and-drop
 - [x] Per-file progress bars driven by real byte counts (XHR `upload.onprogress`)
 - [x] Weighted aggregate progress across the batch
 - [x] Per-file cancel, per-file retry, retry-all-failed, cancel-all, clear-finished
+- [x] Pause / resume, per file and for the whole queue — file-granular: a waiting file is held
+      back, a transfer already in flight always runs to completion (§2.3)
+- [x] Client-side filename filter over the queue (`uploads-search`), with an inline no-match hint
+      rather than the empty state — the whole queue is in memory, so the filter cannot be wrong about
+      a page it has not loaded
 - [x] Uploads survive route changes — the queue is a module-level store, not component state
+- [x] Concurrency configurable via `VITE_UPLOAD_CONCURRENCY`, defaulting to 3 (§7)
 - [x] Sidebar entry with active-count badge and a live progress bar
 - [x] Toasts on batch completion, failure and cancellation
 - [x] `beforeunload` warning while a batch is in flight (shared `useUnsavedChanges` hook)
@@ -30,33 +40,30 @@
 - [x] Backend: optional `poolUuid` form field on `POST /assets/upload`, guarded by `READ_ASSET_POOL`
 - [x] Duplicate detection surfaced (HTTP 200 → "already in Loom" rather than a failure)
 - [x] Asset browser upload dialog routed into the same queue (one upload code path)
-- [x] vitest coverage for the queue, the formatters and the request shaping
-- [x] Mocked Playwright coverage for the screen (18 specs), drag-and-drop included
+- [x] vitest coverage for the queue, the formatters and the request shaping (§8.1)
+- [x] Mocked Playwright coverage for the screen (20 specs), drag-and-drop included (§8.2), plus the
+      queue-filter case in `search-coverage-mocked.spec.ts`
+- [x] Java endpoint tests for the pool override, including the permission pairing (§8.3)
 - [x] Real-backend Playwright coverage: a generated PNG uploaded through the screen, read back by
       SHA-512, and shown as a real thumbnail in the asset grid (§8.4)
 - [x] Customer documentation on `website/content/english/docs/ui/` (§ Uploads), with two screenshots
       of three files in flight taken by `loom-ui/scripts/capture-upload-screenshots.mjs` (§8.5)
 
-### 1.2 Not built (deliberate)
+### 1.2 Not implemented
 
-- [ ] **Resumable / chunked upload.** The endpoint is single-shot multipart with no resume
-      (REST_BINARY_HANDLING.md gap list). A page reload therefore loses an in-flight batch; the UI
-      warns rather than pretending otherwise.
-- [ ] **Folder upload** (`webkitdirectory`). `onDrop` reads `dataTransfer.files` and knows nothing
-      about directory entries, so a dropped folder contributes no files. Pinned by a §8.2 case, so a
-      half-built version fails loudly.
-- [ ] **Persisted queue across reloads.** Would require re-picking the files anyway — a `File`
-      handle cannot be revived from storage.
-- [ ] **Per-upload bandwidth limit / pause.** No backpressure control on `XMLHttpRequest`.
-- [ ] **Upload from URL** (server-side fetch). No endpoint exists.
+Each item is a task in [../../tasks/LOOM_UI_UPLOAD_TASKS.md](../../tasks/LOOM_UI_UPLOAD_TASKS.md);
+the rationale, the implementation steps and the required tests live there.
 
-### 1.3 Known gaps
-
-- [ ] `MAX_CONCURRENT` is a hard-coded constant (3), not configurable.
-- [ ] Progress is byte-of-request, so it reaches 100% when the last byte is *sent*, before the server
-      has hashed and stored it. A large file shows a short pause at 100% before turning green.
-- [ ] The queue is cleared on logout only because `UploadProvider` unmounts; there is no explicit
-      logout hook calling `reset()`.
+- [ ] Logout does not clear the queue, abort in-flight transfers or drop the stored token — `reset()`
+      has no production caller (Task 1, the only known **defect** here)
+- [ ] No server-side settle phase: a finished send sits at 100% until the response arrives (Task 3)
+- [ ] Folder upload — `webkitdirectory` and directory entries (Task 4)
+- [ ] Resumable / chunked upload; the endpoint is single-shot multipart (Task 5)
+- [ ] Restoring an interrupted batch after a reload (Task 6, blocked by Task 5)
+- [ ] Pausing a transfer that is already running, rather than only what is still waiting — needs the
+      chunk boundary from Task 5 (Task 7 shipped the queue-level half)
+- [ ] Bandwidth ceiling (Task 9, blocked by Task 5)
+- [ ] Upload from a URL, i.e. a server-side fetch (Task 8)
 
 ---
 
@@ -105,15 +112,42 @@ that do not need progress.
 ### 2.2 Lifecycle of one item
 
 ```
-enqueue() → queued ──(slot free)──> uploading ──┬─ 201 ─> done
-                                                ├─ 200 ─> duplicate
-                                                ├─ err ─> error      ──retry()──> queued
-                                                └─abort─> cancelled  ──retry()──> queued
+                 ┌──pause()──> paused ──cancel()──> cancelled
+                 │               │
+                 │           resume()
+                 ▼               │
+enqueue() → queued <─────────────┘
+              │
+     (slot free)
+              ▼
+          uploading ──┬─ 201 ─> done
+                      ├─ 200 ─> duplicate
+                      ├─ err ─> error      ──retry()──> queued
+                      └─abort─> cancelled  ──retry()──> queued
 ```
 
 `pump()` starts as many queued items as `MAX_CONCURRENT` allows, and re-runs after each settle. When
 nothing is left running **and** the batch counters are non-zero, one `BatchOutcome` is emitted and
 the counters reset — that is what makes exactly one toast per batch rather than one per file.
+`paused` counts as busy for that check, so holding part of a batch keeps it open instead of raising a
+toast now and a second one after the resume.
+
+### 2.3 Pause is file-granular, and only forwards
+
+`pause(id)` moves a **queued** item to `paused`; `pump()` only ever starts `queued` ones, so the
+slot goes to the next waiting file instead. `resume` puts it back in line. `pauseAll` / `resumeAll`
+do the same for the whole queue.
+
+**A transfer already in flight is never paused.** `XMLHttpRequest.send()` hands the entire body to
+the browser, so the only way to stop it is `abort()`, which discards every byte already sent — that
+is `cancel`, and dressing it up as "pause" would silently destroy work on exactly the large files
+this screen exists for. `pause` on an uploading item is therefore a no-op, and `UploadRow` does not
+render the button for one. Pausing takes effect at the **file boundary**: what is running finishes,
+what has not started waits.
+
+A bandwidth ceiling has the same root cause and is not implemented — there is no seam inside one
+`send()` to delay. Chunked upload (tasks file Task 5) moves the boundary from the file to the chunk
+and makes both possible; the public API above does not have to change when it does.
 
 ---
 
@@ -189,8 +223,10 @@ is a success, not a failure, and the UI says so:
 |--------|----------|---------|
 | `uploadQueue.ts` | `loom-ui/src/features/uploads/` | Module-level queue: items, handles, concurrency, batch reporting |
 | `enqueue` / `cancel` / `retry` / `clearFinished` / `reset` | `uploadQueue.ts` | Queue mutations |
+| `pause` / `resume` / `pauseAll` / `resumeAll` | `uploadQueue.ts` | Hold waiting items back and release them; no effect on a running transfer (§2.3) |
 | `subscribe` / `subscribeBatch` | `uploadQueue.ts` | Per-change and per-batch listeners |
 | `summarize` | `uploadQueue.ts` | Derives `UploadSummary` (counts, weighted percent) |
+| `clampConcurrency` | `uploadQueue.ts` | Resolves `VITE_UPLOAD_CONCURRENCY` into `MAX_CONCURRENT`; falls back to `DEFAULT_CONCURRENCY` |
 | `setUploadToken` | `uploadQueue.ts` | Pushes the session token in — the queue has no React context |
 | `setUploaderForTesting` | `uploadQueue.ts` | Transport seam; production never calls it |
 | `UploadProvider` / `useUploads` | `features/uploads/UploadContext.tsx` | React binding, toasts, `beforeunload` guard via the shared `useUnsavedChanges` hook |
@@ -209,7 +245,9 @@ is a success, not a failure, and the UI says so:
 ## 6. Data Model
 
 ```ts
-type UploadStatus = "queued" | "uploading" | "done" | "duplicate" | "error" | "cancelled";
+type UploadStatus =
+  | "queued" | "uploading" | "paused"   // paused: held by the user, never started (§2.3)
+  | "done" | "duplicate" | "error" | "cancelled";
 
 interface UploadItem {
   id: string;               // "upload-<n>", monotonic
@@ -229,10 +267,11 @@ interface UploadItem {
 
 interface UploadSummary {
   items: UploadItem[];
-  activeCount: number;      // queued + uploading
+  activeCount: number;      // queued + uploading — paused is deliberately NOT active
   doneCount: number;
   duplicateCount: number;
   errorCount: number;
+  pausedCount: number;
   percent: number;          // 0..100, weighted by size
   isActive: boolean;
 }
@@ -241,23 +280,31 @@ interface BatchOutcome { uploaded: number; duplicates: number; failed: number; c
 ```
 
 Aggregate progress is **weighted by file size**, and settled items count as fully sent. That keeps
-the bar monotonic and stops one large file from being masked by many small ones.
+the bar monotonic and stops one large file from being masked by many small ones. A `paused` item is
+not settled, so it contributes its `loaded` (normally 0) and holds the percentage down — the bar
+reflects the batch the user still has, not the part they let through.
 
 ---
 
 ## 7. Configuration
 
-There are no new environment variables in the UI. The server-side guards that an upload can hit:
+One UI variable, plus the server-side guards that an upload can hit:
 
 | Variable | Default | Effect on upload |
 |----------|---------|------------------|
+| `VITE_UPLOAD_CONCURRENCY` | `3` (range `1`–`8`) | How many transfers run at once |
+| `VITE_API_BASE_URL` | `http://localhost:8092/api/v1` | Upload target base; set to `/api/v1` for same-origin builds |
 | `LOOM_STORAGE_MAX_UPLOAD_SIZE` | unset (no limit) | Larger request → **413**; surfaces as the item's error text |
 | `LOOM_STORAGE_MIN_FREE_SPACE` | unset | Would drop the volume below the floor → **507** |
 | `LOOM_STORAGE_UPLOAD_DIR` | process default | Where bytes land when the library has no pool |
 | `LOOM_S3_ACCESS_KEY` / `LOOM_S3_SECRET_KEY` | unset | Credentials for S3-backed pools; never in the REST model |
-| `VITE_API_BASE_URL` | `http://localhost:8092/api/v1` | Upload target base; set to `/api/v1` for same-origin builds |
 
-UI-side constant, not configurable: `MAX_CONCURRENT = 3` in `uploadQueue.ts`.
+`VITE_*` is a **build-time** substitution, so the concurrency is resolved once at module load:
+`const MAX_CONCURRENT = clampConcurrency(import.meta.env.VITE_UPLOAD_CONCURRENCY)`. A value that is
+unparseable, `0`, negative or above `8` **falls back to `3`** rather than being clamped to the
+nearest bound — a typo behaves as if the setting was never made, and `0` would leave the queue with
+nothing ever starting. Three suits a fast link; lower it for a saturated uplink or an S3-backed pool
+where each request carries its own latency.
 
 ---
 
@@ -270,7 +317,7 @@ spec.** There is no jsdom and no React Testing Library; do not add them.
 
 | File | Covers |
 |------|--------|
-| `src/features/uploads/uploadQueue.test.ts` | Concurrency cap, progress weighting, duplicate vs failure, cancel of running *and* queued items, retry, batch reported exactly once per drain, missing-token failure, `clearFinished` |
+| `src/features/uploads/uploadQueue.test.ts` | Concurrency cap and the `clampConcurrency` resolver, progress weighting, duplicate vs failure, cancel of running *and* queued items, retry, batch reported exactly once per drain, missing-token failure, `clearFinished`, and pause: a held item never starts, a running one is untouched, `resume` re-queues rather than restarts, the batch stays open while anything is paused and closes on resume **or** on cancelling the paused remainder |
 | `src/features/uploads/uploadFormat.test.ts` | Byte scaling, percent clamping, labels |
 | `src/api/assetUpload.test.ts` | Form shaping (`poolUuid` present/absent/blank), XHR wiring, 200-vs-201, abort semantics |
 
@@ -286,18 +333,23 @@ cd loom-ui
 
 ### 8.2 Playwright (mocked)
 
-`loom-ui/e2e/uploads-mocked.spec.ts` — 18 specs, no backend required. Notable cases:
+`loom-ui/e2e/uploads-mocked.spec.ts` — 20 specs, no backend required. Notable cases:
 
 - multi-file → one multipart request per file
 - **drag-and-drop** → the same one-request-per-file contract as the file input, plus the `dragging`
   highlight appearing on `dragover` and clearing on `drop`
 - a drop carrying no files (folder upload is unbuilt, §1.2) enqueues nothing, and the screen still
-  works afterwards
+  works afterwards — this case pins the unbuilt state, so it has to change when Task 4 lands
 - a custom `origin` travels as the form field; a blank one omits it, so the server's `upload` default
   applies
 - `upload-queue-heading` / `upload-totals` track the batch, and the percent is weighted by **size**:
   with three small files in flight and a big one still queued it stays well under half
 - `upload-cancel-all` with three in flight → three `cancelled`, zero `error`
+- `upload-pause-all` with three in flight and two waiting → the two go `paused`, the three finish,
+  no fourth request is made, no toast is raised, and the batch bars switch to their paused testids;
+  `upload-resume-all` then drains the rest and raises **one** toast counting all five
+- `upload-pause-<fileName>` / `upload-resume-<fileName>` on a single waiting file, asserting that a
+  freed slot goes to a queued file and never to the paused one
 - `upload-retry-failed` after two failures → exactly two further requests; the success is not re-sent
 - chosen pool appears as `poolUuid`; the default omits the field entirely
 - `GET /pools` → 403 hides the pool selector but leaves uploading available
@@ -305,9 +357,15 @@ cd loom-ui
   and see the item finished — the test that actually proves the queue outlives the unmount
 - 200 → `duplicate`, 507 → `error` + retry button, cancel → `cancelled`
 
+The **queue filter** is not tested here: it lives with the other search surfaces in
+`loom-ui/e2e/search-coverage-mocked.spec.ts` ("uploads: the queue filters by filename and says when
+nothing matches"), which asserts that a non-matching term shows `uploads-no-match` and **not**
+`upload-empty-state` — the queue is not empty, the filter just matched nothing.
+
 ```bash
 cd loom-ui
 ./node_modules/.bin/playwright test e2e/uploads-mocked.spec.ts
+./node_modules/.bin/playwright test e2e/search-coverage-mocked.spec.ts -g uploads
 ```
 
 Playwright has no file-drag API, so the drop cases build a `DataTransfer` inside the page with
@@ -399,6 +457,7 @@ capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing
 | Token flow | The queue has no React context. `UploadProvider` pushes the token via `setUploadToken`. |
 | Pool field | Omit `poolUuid` unless explicitly chosen. Never send `""`. |
 | Test ids | `upload-row-<fileName>` carries `data-status`; that attribute is the assertion surface for e2e. |
+| Status classification | A new `UploadStatus` has to be placed in **four** spots: `summarize`'s active filter, `isTerminal`, `pump`'s `stillBusy` check and `UploadView`'s `isSettled`. Missing the `stillBusy` one ends the batch early and fires the toast while work remains. |
 | i18n | Keys under `uploads.*`, and they must exist in **both** `en.json` and `de.json`. |
 
 ### 9.2 Gotchas
@@ -425,6 +484,22 @@ capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing
   warning is installed only while a batch runs and does not fire on an idle page. It registers no
   route guard: the queue is module-level and outlives every navigation, so only unloading costs
   anything.
+- 🔴 **Progress reaches 100% before the asset exists.** `upload.onprogress` counts bytes *sent*, so a
+  large file sits at a full blue bar while the server hashes and stores it. That pause is expected,
+  not a hang ([tasks](../../tasks/LOOM_UI_UPLOAD_TASKS.md) Task 3).
+- 🔴 **Unmounting `UploadProvider` does not clear the queue.** The store is module-level; an unmount
+  only disposes the subscriptions. `reset()` exists but has no production caller, and the `[token]`
+  effect never runs with `null` on logout because `AuthGate` swaps in `LoginPage` in the same render
+  — so the queue, its in-flight handles and the previous bearer token all survive a session change.
+  ([tasks](../../tasks/LOOM_UI_UPLOAD_TASKS.md) Task 1.)
+- 🔴 **A paused batch is not "active".** `isActive` counts queued + uploading only, so a fully paused
+  queue raises no `beforeunload` warning and shows the neutral bar
+  (`sidebar-upload-progress-paused`, `upload-batch-progress-paused`) rather than the primary one. It
+  also keeps the sidebar badge at zero — the badge counts work in motion. Reloading still loses the
+  held files, so a long pause is not a safe parking spot (§2.3).
+- 🔴 **A batch held open never toasts.** `paused` counts as busy in `pump`, so a user who pauses the
+  remainder and walks away gets no completion toast for the part that finished; it arrives when the
+  paused items are resumed or cancelled. That is the deliberate trade against toasting twice.
 - 🔴 **The asset grid does not auto-refresh from the server.** `AssetBrowser` reloads when the queue's
   settled count grows; without that, background-uploaded assets would not appear until a manual
   reload.
@@ -451,15 +526,28 @@ capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing
 | Pool → storage resolution | `loom/services/rest/.../service/impl/BinaryStorageResolver.java` |
 | Java client overload | `loom-client/common/.../method/AssetBinaryMethods.java` |
 | Mocked e2e specs | `loom-ui/e2e/uploads-mocked.spec.ts` (§8.2) |
+| Queue-filter e2e case | `loom-ui/e2e/search-coverage-mocked.spec.ts` (§8.2) |
 | Real-backend e2e spec | `loom-ui/e2e/uploads-backend.spec.ts` (§8.4) |
+| Open work / task list | [../../tasks/LOOM_UI_UPLOAD_TASKS.md](../../tasks/LOOM_UI_UPLOAD_TASKS.md) |
 | i18n strings | `loom-ui/src/i18n/locales/{en,de}.json` under `uploads.*` |
 | Customer docs | `website/content/english/docs/ui/index.adoc` (§ Uploads) |
 | Docs screenshots + how they are taken | `website/content/english/docs/ui/uploads{,-sidebar}.png` · `loom-ui/scripts/capture-upload-screenshots.mjs` |
 
 ---
 
-_Git HEAD revision: `fa8183e9`_
-_Last updated: 2026-08-09 (closed the e2e holes: drag-and-drop and the four unreferenced bulk/queue
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (pause / resume for the queue — new §2.3 on why it is file-granular, the
+`paused` status through the lifecycle, data model, key classes, conventions and gotchas; mocked specs
+18 → 20 (tasks file Task 7, closed for the queue-level scope; the bandwidth ceiling became Task 9).
+Earlier the same day: upload concurrency is now configurable via `VITE_UPLOAD_CONCURRENCY`
+(§1.1, §5, §7) — tasks file Task 2, closed. Earlier the same day: this file began tracking current
+state only: §1.2 "not built" and §1.3 "known
+gaps" moved to [../../tasks/LOOM_UI_UPLOAD_TASKS.md](../../tasks/LOOM_UI_UPLOAD_TASKS.md) as Tasks
+1–8. Added the queue filename filter and its coverage in `search-coverage-mocked.spec.ts`. Corrected
+the claim that a `UploadProvider` unmount clears the queue — it does not; `reset()` has no production
+caller, which is now Task 1)_
+
+_Previously: `fa8183e9`, 2026-08-09 (closed the e2e holes: drag-and-drop and the four unreferenced bulk/queue
 testids in §8.2, taking it 11 → 18 specs; new §8.4 `uploads-backend.spec.ts` moving real bytes end to
 end; documentation screenshots renumbered to §8.5)_
 

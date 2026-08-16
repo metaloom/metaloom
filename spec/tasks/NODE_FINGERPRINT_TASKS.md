@@ -20,13 +20,13 @@
 > | Name | What it is | Where |
 > |---|---|---|
 > | `sectorCount` in `MultiSectorVideoFingerprinterImpl` | Internal sampling trick: seek to a few points in the video, stack the frames from all of them into **one** 16×16 binary image, emit **one** 256-bit vector. Never leaves the fingerprinter. | video4j `fingerprint/v2/impl/` |
-> | `asset_fingerprint_comp.sector_index` (+ `time_from`/`time_to`) | A **timeline window**: one row per segment of the asset, "this hash covers 00:30–00:40". | `V2.41` |
+> | `asset_fingerprint_comp.window_index` (+ `time_from`/`time_to`) | A **timeline window**: one row per segment of the asset, "this hash covers 00:30–00:40". | `V2.41`; called `sector_index` until `V2.105` |
 >
 > The first buys robustness against re-encoding, rescaling and letterboxing of the *same span* of
 > content. It does nothing for excerpts: a 30-second clip cut from a 40-minute video samples entirely
 > different frames, so its whole-asset vector is unrelated to the source's. Only the second — real
 > timeline windows — makes a clip match a longer video, and **nothing in the repository produces
-> one**: `FingerprintNode.persist(...)` hardcodes `request.setSectorIndex(0)` and leaves
+> one**: `FingerprintNode.persist(...)` hardcodes `request.setWindowIndex(0)` and leaves
 > `time_from`/`time_to` NULL, and it is the only writer. The schema is ahead of the producer; the
 > producer is not ahead of the index.
 >
@@ -34,14 +34,15 @@
 > land together behind a single algorithm-id bump and one reindex — do not churn the corpus twice.
 > Task 3 (video4j) blocks Task 4 (cortex), and Task 4 blocks
 > [SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) Task 5, which has nothing to index until it lands.
-> Task 5 is independent documentation hygiene and can go at any time.
+> Task 5 was independent hygiene and landed first, on 2026-08-16 — the column is `window_index`
+> since `V2.105`, so Tasks 3-4 write `windowIndex` from the start.
 
 ## Progress Assessment
 
 - [ ] **Defect:** Task 1 — the fingerprint never samples past ~45% of a video
 - [ ] **Defect:** Task 2 — tuning is global mutable state and no `producer_version` is recorded
 - [ ] **Feature gap:** Task 3 (windowed fingerprinter, video4j) · Task 4 (emit one comp row per window)
-- [ ] **Hygiene:** Task 5 — stop calling timeline windows "sectors"
+- [x] **Hygiene:** Task 5 — stop calling timeline windows "sectors" — done 2026-08-16 (`V2.105`)
 
 ---
 
@@ -176,7 +177,7 @@ with a whole-asset hash, and no amount of index work fixes that: the vector for 
 is computed from that excerpt's own frames, at its own seek ratios, and shares nothing with the
 40-minute source's vector. What is needed is a hash **per span of the timeline**, so the clip's spans
 can be compared against the source's spans. `asset_fingerprint_comp` was designed for exactly this —
-`sector_index`, `time_from`, `time_to` — but no producer exists: `MultiSectorVideoFingerprinter.hash(VideoFile)`
+`window_index`, `time_from`, `time_to` — but no producer exists: `MultiSectorVideoFingerprinter.hash(VideoFile)`
 returns a single `Fingerprint` for the whole file and has no notion of a range.
 
 **Improvement Summary:** A `WindowedVideoFingerprinter` that walks the timeline and emits one
@@ -221,8 +222,8 @@ Work happens in the video4j repository, in fingerprint/src/main/java/io/metaloom
 
 **References:** [../cortex/SERVICE_VIDEO.md](../cortex/SERVICE_VIDEO.md) §"Native dependencies" ·
 [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §2 (query path), §7 · migration
-`V2.41__add_asset_fingerprint_comp.sql` (the `sector_index` / `time_from` / `time_to` columns this
-produces)
+`V2.41__add_asset_fingerprint_comp.sql` + `V2.105__rename_fingerprint_window_index.sql` (the
+`window_index` / `time_from` / `time_to` columns this produces)
 
 **Test Requirements:** In video4j, a new `WindowedVideoFingerprinterTest`: a 60 s video at W=10 s /
 S=2 s emits the expected window count with contiguous, non-decreasing, non-overlapping-in-time
@@ -239,10 +240,10 @@ existing fixture rather than adding a binary.
 
 **Argumentation Summary:** With Task 3 landed, the node is still the bottleneck:
 `FingerprintNode.compute(...)` produces one hex string, `persist(...)` writes one row at
-`sectorIndex = 0` with NULL times, and `OUT_FINGERPRINT` is a `ONE`-cardinality port carrying that
-single string. Until the node writes window rows, `sector_index > 0` remains a column that has never
+`windowIndex = 0` with NULL times, and `OUT_FINGERPRINT` is a `ONE`-cardinality port carrying that
+single string. Until the node writes window rows, `window_index > 0` remains a column that has never
 held a value in production, and [SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) Task 5 would build a
-per-sector index containing exactly one sector per asset.
+per-window index containing exactly one window per asset.
 
 **Improvement Summary:** Add an opt-in windowed mode that writes the whole-asset row plus one row
 per window under a distinct algorithm identifier, leaving the default behaviour and the existing
@@ -263,10 +264,10 @@ dedup path untouched.
    unchanged - FingerprintDedupNode is bound to that port and must not change behaviour here.
    Do not add a MANY-cardinality window port in this task; nothing consumes it yet and an unbound
    MANY port is a preview/debug-card liability (see NODES.md).
-4. persist(...): write the sector-0 row as today, then one row per window with sectorIndex = i + 1
-   (1-based, so sector 0 keeps its "whole asset" meaning), timeFrom / timeTo in milliseconds, and
+4. persist(...): write the window-0 row as today, then one row per window with windowIndex = i + 1
+   (1-based, so window 0 keeps its "whole asset" meaning), timeFrom / timeTo in milliseconds, and
    the window algorithm identifier. The unique key is (asset_uuid, node_kind, algorithm,
-   sector_index), so re-running the node upserts its own rows; a re-run with a *smaller* window
+   window_index), so re-running the node upserts its own rows; a re-run with a *smaller* window
    count leaves the tail rows orphaned - delete rows above the new count, or state plainly in the
    javadoc that changing the window size requires clearing the algorithm's rows first.
 5. Keep the whole thing best-effort exactly as persist() is today: a failed window write logs and
@@ -278,8 +279,8 @@ dedup path untouched.
    were never written; either include the mode in the cache key or check Loom for window rows
    before returning early.
 7. Update spec/features/nodes/NODES.md - the `fingerprint` persistence row (currently
-   "asset_fingerprint_comp (sector 0)") and the "Media components" open item that names
-   `fingerprint` as hard-writing sectorIndex = 0.
+   "asset_fingerprint_comp (window 0)") and the "Media components" open item that names
+   `fingerprint` as hard-writing windowIndex = 0.
 ```
 
 **References:** [../features/nodes/NODES.md](../features/nodes/NODES.md) (persistence table,
@@ -289,8 +290,8 @@ dedup path untouched.
 [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §4
 
 **Test Requirements:** `FingerprintNodeTest`: with `windowedEnabled = false` the node writes exactly
-one request at `sectorIndex = 0` (the no-regression case); with it on, the captured requests are one
-sector-0 row plus N window rows with 1-based sector indices, non-null millisecond ranges and the
+one request at `windowIndex = 0` (the no-regression case); with it on, the captured requests are one
+window-0 row plus N window rows with 1-based window indices, non-null millisecond ranges and the
 window algorithm string. A cache-hit case asserts window rows are still written.
 `FingerprintNodeIntegrationTest` reads the components back through REST and asserts the count and
 the time ranges. `FingerprintNodeOptionsValidationTest` covers stride > window and stride <= 0. Run
@@ -299,55 +300,62 @@ the time ranges. `FingerprintNodeOptionsValidationTest` covers stride > window a
 
 ---
 
-## Task 5: Stop calling timeline windows "sectors"
+## Task 5: Stop calling timeline windows "sectors" — DONE 2026-08-16
 
-**Argumentation Summary:** The name collision documented at the top of this file is not merely
-cosmetic — it is written into the schema and has already produced a wrong task specification. The
-comment on `V2.41__add_asset_fingerprint_comp.sql` line 50 reads *"Which sector of a multi-sector
+**Argumentation Summary:** The name collision documented at the top of this file was not merely
+cosmetic — it was written into the schema and had already produced a wrong task specification. The
+comment on `V2.41__add_asset_fingerprint_comp.sql` line 50 read *"Which sector of a multi-sector
 fingerprint; 0 for whole-asset fingerprints"*, which states the two concepts are the same thing.
 They are not: the multi-sector fingerprint's sectors are folded into one vector and never surface as
-rows, while `sector_index` numbers timeline windows that carry `time_from` / `time_to`. Anyone
-reading the schema concludes the windows already exist. The Task 5 entry in
-[SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) previously asserted exactly that, and would have
-produced a per-sector index holding one sector per asset.
+rows, while the column numbers timeline windows that carry `time_from` / `time_to`. Anyone reading
+the schema concluded the windows already existed. The Task 5 entry in
+[SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) asserted exactly that, and would have produced a
+per-window index holding one window per asset.
 
-**Improvement Summary:** Correct the schema comment and the specs that repeat it; optionally rename
-the column once the windowed producer exists and the churn is worth it.
+**Improvement Summary:** The column is `window_index`, the comments say what it means, and the specs
+that repeated the conflation are corrected.
 
 ```
-1. Correct the column comments in a new migration (COMMENT ON is DDL - do not edit V2.41, it has
-   run everywhere). New text for sector_index: "Timeline window index within the asset: 0 is the
-   whole-asset fingerprint, 1..n are windows with time_from/time_to set. Unrelated to the internal
-   sectors of the multi-sector fingerprint algorithm, which are folded into a single vector."
-   Take the next free version (V2.104 at the time of writing - check
-   loom/db/flyway/src/main/resources/db/migration/ and sort numerically, not lexically) and re-run
-   ./setup-pool.sh after adding it. No jOOQ regeneration is needed: COMMENT ON changes no column
-   shape.
-2. Fix the same conflation in spec/loom/DOMAIN.md (the asset_fingerprint_comp row) and
-   spec/features/nodes/NODES.md §"Media components", which lists sector_index alongside
-   stream_index and frame_number as if all three were the same kind of discriminator.
-3. Decide on a rename to `window_index` and record the decision either way. It is the clearer name,
-   but it costs a migration plus jOOQ regeneration, the REST model
-   (FingerprintCompCreateRequest / -Response), the Java client, the generated Python client and its
-   parity test, and the OpenAPI document regenerated from inside loom/doc. If the answer is no,
-   say so in DOMAIN.md so the question is not reopened.
-4. Do this after Task 4, not before: renaming a column while its first real producer is being
-   written doubles the merge surface for no gain.
+1. `V2.105__rename_fingerprint_window_index.sql` renames sector_index -> window_index and rewrites
+   the table, window_index, time_from and time_to comments. COMMENT ON is DDL, so V2.41 is left
+   untouched - it has run everywhere. ALTER TABLE ... RENAME COLUMN carries
+   asset_fingerprint_comp_unique_key over by itself; no index was rebuilt and no row held anything
+   but the default 0.
+2. The rename decision was taken rather than deferred, and is recorded as closed in
+   ../loom/DOMAIN.md §4 so the question is not reopened. It cost, in one change: jOOQ regeneration
+   (loom/db/jooq/generate.sh - 5 files), the REST model (FingerprintCompModel /
+   -CreateRequest / -Response), FingerprintCompEndpointService and SimilarityEndpointService, the
+   Java client method javadoc, FingerprintNode in cortex, the demo seed, four test classes, the
+   OpenAPI document regenerated from inside loom/doc (plus the committed website copies), and the
+   generated Python client with its parity suite.
+3. Specs corrected: ../loom/DOMAIN.md (component table + the closed-decision note),
+   ../features/nodes/NODES.md (the `fingerprint` row and §"Media components", which had listed the
+   column beside stream_index and frame_number as if all three were the same kind of
+   discriminator), ../loom/PERSISTENCE.md, ../loom/SEARCH_LUCENE.md §3/§7,
+   DATABASE_TASKS.md, SEARCH_LUCENE_TASKS.md Task 5, ../METALOOM_CONTEXT.md,
+   loom/design/DB/dbdiagram.yaml and the customer-facing
+   website/content/english/docs/nodes/fingerprint/index.adoc.
+4. Done before Tasks 3-4 rather than after. The ordering note originally said the opposite, on the
+   grounds that renaming a column while its first real producer is being written doubles the merge
+   surface. The producer work had not started, so the cheaper order was to rename first and let
+   Tasks 3-4 be written in the final vocabulary; their task text here has been restated to match.
 ```
 
-**References:** [../loom/DOMAIN.md](../loom/DOMAIN.md) · [../features/nodes/NODES.md](../features/nodes/NODES.md)
-§"Media components" · [SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) Task 5 ·
+**References:** [../loom/DOMAIN.md](../loom/DOMAIN.md) §4 (the recorded decision) ·
+[../features/nodes/NODES.md](../features/nodes/NODES.md) §"Media components" ·
+[SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md) Task 5 ·
 [../guidelines/CODING.md](../guidelines/CODING.md) (a schema change must update the matching spec)
 
-**Test Requirements:** No behavioural change if only steps 1-2 are taken; verify with
-`./setup-pool.sh` followed by `mvn test -pl loom/db/jooq -Dtest=AssetFingerprintSegmentCompDaoTest`
-that the new migration applies cleanly. If step 3 goes ahead, the full column-rename checklist
-applies: jOOQ regeneration via `loom/db/jooq/generate.sh`, then
-`mvn test -pl loom/db/jooq -Dtest=AssetFingerprintSegmentCompDaoTest` and
-`mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest,DemoFingerprintSeedTest`, the OpenAPI
-regeneration from inside `loom/doc`, and the Python client parity test.
+**Test Requirements:** Verified with `./setup-pool.sh` after the migration (the pool template shows
+`window_index` and the new comment), then `mvn test -pl loom/db/jooq
+-Dtest=AssetFingerprintSegmentCompDaoTest,AssetCascadeTest` (18), `mvn test -pl loom/core
+-Dtest=SimilarAssetsEndpointTest,DemoFingerprintSeedTest,DedupGroupEndpointTest` (26), `mvn test -pl
+loom/services/lucene,cortex/nodes/fingerprint/core` (47) and `clients/python/test.sh` (122) — all
+green.
 
 ---
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (new file — the producer-side half of clip matching, split out of
-tasks/SEARCH_LUCENE_TASKS.md Task 5)_
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (Task 5 done: `V2.105` renames `asset_fingerprint_comp.sector_index` to
+`window_index`, and the rename decision is recorded as closed in loom/DOMAIN.md §4. Tasks 3-4
+restated in the new vocabulary. Earlier: new file — the producer-side half of clip matching, split
+out of tasks/SEARCH_LUCENE_TASKS.md Task 5)_

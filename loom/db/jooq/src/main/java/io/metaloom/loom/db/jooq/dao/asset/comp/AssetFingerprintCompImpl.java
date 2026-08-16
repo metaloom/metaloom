@@ -5,7 +5,7 @@ import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 public class AssetFingerprintCompImpl extends AbstractAssetCompImpl<AssetFingerprintComp> implements AssetFingerprintComp {
 
 	private String algorithm;
-	private int sectorIndex;
+	private int windowIndex;
 	private Long timeFrom;
 	private Long timeTo;
 	private String fingerprint;
@@ -22,13 +22,13 @@ public class AssetFingerprintCompImpl extends AbstractAssetCompImpl<AssetFingerp
 	}
 
 	@Override
-	public int getSectorIndex() {
-		return sectorIndex;
+	public int getWindowIndex() {
+		return windowIndex;
 	}
 
 	@Override
-	public AssetFingerprintComp setSectorIndex(int sectorIndex) {
-		this.sectorIndex = sectorIndex;
+	public AssetFingerprintComp setWindowIndex(int windowIndex) {
+		this.windowIndex = windowIndex;
 		return this;
 	}
 

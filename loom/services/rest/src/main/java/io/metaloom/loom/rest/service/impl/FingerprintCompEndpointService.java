@@ -31,7 +31,7 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
  * Endpoint service for the perceptual fingerprint component ({@code asset_fingerprint_comp}).
  *
  * <p>
- * A cortex node posts its computed fingerprint tagged with {@code node_kind}/{@code algorithm}/{@code sector_index}; re-posting the same key upserts
+ * A cortex node posts its computed fingerprint tagged with {@code node_kind}/{@code algorithm}/{@code window_index}; re-posting the same key upserts
  * the single row.
  * </p>
  */
@@ -102,19 +102,19 @@ public class FingerprintCompEndpointService extends AbstractEndpointService {
 
 			UUID userUuid = lrc.userUuid();
 			AssetFingerprintComp comp = compDao.createFingerprintComp(userUuid, assetUuid, request.getNodeKind());
-			// algorithm and sector_index are part of the component identity and must be set before the upsert so the natural key matches.
+			// algorithm and window_index are part of the component identity and must be set before the upsert so the natural key matches.
 			comp.setAlgorithm(request.getAlgorithm());
-			comp.setSectorIndex(request.getSectorIndex());
+			comp.setWindowIndex(request.getWindowIndex());
 			comp.setFingerprint(request.getFingerprint());
 			comp.setTimeFrom(request.getTimeFrom());
 			comp.setTimeTo(request.getTimeTo());
 			if (request.getProducerVersion() != null) {
 				comp.setProducerVersion(request.getProducerVersion());
 			}
-			// Upsert on (asset_uuid, node_kind, algorithm, sector_index): re-running the fingerprint node replaces its own row.
+			// Upsert on (asset_uuid, node_kind, algorithm, window_index): re-running the fingerprint node replaces its own row.
 			AssetFingerprintComp stored = compDao.upsertFingerprintComp(comp);
-			// Index the whole-asset fingerprint only: the k-NN index holds one vector per asset (sector 0), matching what FingerprintNode produces.
-			if (stored.getSectorIndex() == 0) {
+			// Index the whole-asset fingerprint only: the k-NN index holds one vector per asset (window 0), matching what FingerprintNode produces.
+			if (stored.getWindowIndex() == 0) {
 				reindex(stored);
 			}
 			FingerprintCompResponse response = modelBuilder.toFingerprintCompResponse(stored);
@@ -148,7 +148,7 @@ public class FingerprintCompEndpointService extends AbstractEndpointService {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Fingerprint component not found.");
 			}
 			compDao.deleteFingerprintComp(compUuid);
-			if (comp.getSectorIndex() == 0) {
+			if (comp.getWindowIndex() == 0) {
 				unindex(assetUuid);
 			}
 			lrc.sendNoContent();

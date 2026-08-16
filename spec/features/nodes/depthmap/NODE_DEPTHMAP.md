@@ -16,7 +16,7 @@
 |---|---|
 | The Python server, its HTTP contract, error codes, env and deployment | [../../../sidecars/DEPTH_SIDECAR.md](../../../sidecars/DEPTH_SIDECAR.md) |
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Where node options come from (worker YAML vs. node definition) | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) |
 | The consumer that turns the map into spatial relations | `scene-layout` — [NODE_SCENE_LAYOUT.md](../scene-layout/NODE_SCENE_LAYOUT.md) |
@@ -452,7 +452,7 @@ curl -s localhost:9120/health                  # expect convention:"NEARNESS"
 | The hash-segmented output path | `HashUtils.segmentPath`; `ThumbnailNode.resolveThumbnailPath` |
 | Affinity / segmentation | `loom/pipeline/…/graph/{PipelineSegmenter,AffinityValidator,PipelineGraphNode}.java` |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Cortex config precedence | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) |
 | Definition of done for a code change | [../../../guidelines/CODING.md](../../../guidelines/CODING.md) |

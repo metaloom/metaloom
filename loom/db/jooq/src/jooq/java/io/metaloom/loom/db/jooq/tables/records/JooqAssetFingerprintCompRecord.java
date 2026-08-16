@@ -18,7 +18,7 @@ import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Perceptual fingerprints of an asset, one row per sector. Indexed by
+ * Perceptual fingerprints of an asset, one row per timeline window. Indexed by
  * (algorithm, fingerprint) so dedup is an index scan rather than a table walk.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
@@ -155,24 +155,30 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
     }
 
     /**
-     * Setter for <code>public.asset_fingerprint_comp.sector_index</code>. Which
-     * sector of a multi-sector fingerprint; 0 for whole-asset fingerprints
+     * Setter for <code>public.asset_fingerprint_comp.window_index</code>.
+     * Timeline window index within the asset: 0 is the whole-asset fingerprint,
+     * 1..n are windows with time_from/time_to set. Unrelated to the internal
+     * sectors of the multi-sector fingerprint algorithm, which are folded into
+     * a single vector.
      */
-    public void setSectorIndex(Integer value) {
+    public void setWindowIndex(Integer value) {
         set(9, value);
     }
 
     /**
-     * Getter for <code>public.asset_fingerprint_comp.sector_index</code>. Which
-     * sector of a multi-sector fingerprint; 0 for whole-asset fingerprints
+     * Getter for <code>public.asset_fingerprint_comp.window_index</code>.
+     * Timeline window index within the asset: 0 is the whole-asset fingerprint,
+     * 1..n are windows with time_from/time_to set. Unrelated to the internal
+     * sectors of the multi-sector fingerprint algorithm, which are folded into
+     * a single vector.
      */
-    public Integer getSectorIndex() {
+    public Integer getWindowIndex() {
         return (Integer) get(9);
     }
 
     /**
      * Setter for <code>public.asset_fingerprint_comp.time_from</code>. Start of
-     * the window this sector covers, in milliseconds
+     * the window this row covers, in milliseconds. NULL on the whole-asset row.
      */
     public void setTimeFrom(Long value) {
         set(10, value);
@@ -180,7 +186,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     /**
      * Getter for <code>public.asset_fingerprint_comp.time_from</code>. Start of
-     * the window this sector covers, in milliseconds
+     * the window this row covers, in milliseconds. NULL on the whole-asset row.
      */
     public Long getTimeFrom() {
         return (Long) get(10);
@@ -188,7 +194,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     /**
      * Setter for <code>public.asset_fingerprint_comp.time_to</code>. End of the
-     * window this sector covers, in milliseconds
+     * window this row covers, in milliseconds. NULL on the whole-asset row.
      */
     public void setTimeTo(Long value) {
         set(11, value);
@@ -196,7 +202,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     /**
      * Getter for <code>public.asset_fingerprint_comp.time_to</code>. End of the
-     * window this sector covers, in milliseconds
+     * window this row covers, in milliseconds. NULL on the whole-asset row.
      */
     public Long getTimeTo() {
         return (Long) get(11);
@@ -362,7 +368,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     @Override
     public Field<Integer> field10() {
-        return JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP.SECTOR_INDEX;
+        return JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP.WINDOW_INDEX;
     }
 
     @Override
@@ -452,7 +458,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     @Override
     public Integer component10() {
-        return getSectorIndex();
+        return getWindowIndex();
     }
 
     @Override
@@ -542,7 +548,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     @Override
     public Integer value10() {
-        return getSectorIndex();
+        return getWindowIndex();
     }
 
     @Override
@@ -641,7 +647,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
 
     @Override
     public JooqAssetFingerprintCompRecord value10(Integer value) {
-        setSectorIndex(value);
+        setWindowIndex(value);
         return this;
     }
 
@@ -730,7 +736,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
     /**
      * Create a detached, initialised JooqAssetFingerprintCompRecord
      */
-    public JooqAssetFingerprintCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String algorithm, Integer sectorIndex, Long timeFrom, Long timeTo, String fingerprint, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetFingerprintCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String algorithm, Integer windowIndex, Long timeFrom, Long timeTo, String fingerprint, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP);
 
         setUuid(uuid);
@@ -742,7 +748,7 @@ public class JooqAssetFingerprintCompRecord extends UpdatableRecordImpl<JooqAsse
         setTaskUuid(taskUuid);
         setConfidence(confidence);
         setAlgorithm(algorithm);
-        setSectorIndex(sectorIndex);
+        setWindowIndex(windowIndex);
         setTimeFrom(timeFrom);
         setTimeTo(timeTo);
         setFingerprint(fingerprint);

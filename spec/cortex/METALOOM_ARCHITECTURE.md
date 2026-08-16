@@ -6,7 +6,7 @@
 > **Not here (do not duplicate):** pipeline graph model and validation →
 > [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) · node kinds,
 > ports and descriptors → [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) ·
-> port/content types → [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) ·
+> port/content types → [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) ·
 > Cortex CLI/config → [CONFIGURATION.md](CONFIGURATION.md) · Cortex internals →
 > [CORTEX.md](CORTEX.md) · WebSocket frames → [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) ·
 > metrics catalogue → [../features/ops/METRICS.md](../features/ops/METRICS.md) ·
@@ -14,10 +14,12 @@
 > [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) ·
 > binary/asset locations → [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
 >
-> **Open work:** [METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md) ·
-> **deferred scheduling/batching refinements + the Variant C decision record:**
-> [METALOOM_ARCHITECTURE_V2_PLAN_C.md](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) (a task list
-> since 2026-08-11; the build record it used to carry is §11 of this file)
+> **Open work — one file:** [METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md).
+> Tasks 1-12 are correctness, security and repo-truth; **Tasks 13-18** are the deferred
+> scheduling/batching refinements, and **Appendix A** is the Variant C decision record (Q1/Q4/Q5).
+> Both were merged in from `METALOOM_ARCHITECTURE_V2_TASKS.md` on 2026-08-16; that file and its
+> predecessor `concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md` are gone. The build record they used to
+> carry is §11 of this file.
 
 ---
 

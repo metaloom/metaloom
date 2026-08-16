@@ -8,7 +8,7 @@ public class FingerprintCompResponse extends AbstractCreatorEditorRestResponse<F
 	private String assetUuid;
 	private String nodeKind;
 	private String algorithm;
-	private int sectorIndex;
+	private int windowIndex;
 	private Long timeFrom;
 	private Long timeTo;
 	private String fingerprint;
@@ -46,13 +46,13 @@ public class FingerprintCompResponse extends AbstractCreatorEditorRestResponse<F
 	}
 
 	@Override
-	public int getSectorIndex() {
-		return sectorIndex;
+	public int getWindowIndex() {
+		return windowIndex;
 	}
 
 	@Override
-	public FingerprintCompResponse setSectorIndex(int sectorIndex) {
-		this.sectorIndex = sectorIndex;
+	public FingerprintCompResponse setWindowIndex(int windowIndex) {
+		this.windowIndex = windowIndex;
 		return this;
 	}
 

@@ -142,11 +142,15 @@ public class ChatStreamEndpointTest extends AbstractEndpointTest {
 			assertEquals(List.of(
 				"agent_start",
 				"turn_start",
+				// Context accounting of the prompt about to go out — estimated, because the eviction
+				// decision it explains is made before the server can report anything (CHAT.md §4.4).
+				"context",
 				"reasoning_delta",
 				"tool_start",
 				"tool_end",
 				"turn_end",
 				"turn_start",
+				"context",
 				"text_delta",
 				"turn_end",
 				"message_end",

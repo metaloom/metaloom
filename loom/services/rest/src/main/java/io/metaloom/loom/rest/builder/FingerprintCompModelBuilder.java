@@ -17,7 +17,7 @@ public interface FingerprintCompModelBuilder extends ModelBuilder, UserModelBuil
 		}
 		response.setNodeKind(comp.getNodeKind());
 		response.setAlgorithm(comp.getAlgorithm());
-		response.setSectorIndex(comp.getSectorIndex());
+		response.setWindowIndex(comp.getWindowIndex());
 		response.setTimeFrom(comp.getTimeFrom());
 		response.setTimeTo(comp.getTimeTo());
 		response.setFingerprint(comp.getFingerprint());

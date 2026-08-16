@@ -279,7 +279,7 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 - **Spec** — add the node to [NODES.md](../features/nodes/NODES.md): the node-list table
   (§3), the persistence table (§2), the cache-key table (§4) when the key is more than the media
   path, the Dagger wiring and descriptor counts (§5.1, §5.2) and the options tables (§6.2, §6.3).
-  Also add the port row to [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.
+  Also add the port row to [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) §4.
 - **Demo data** — `DemoDatabaseInitializer` seeds demo pipelines. Add the node to a demo pipeline
   graph **when it fits an existing ingest/publish story**; the GPU sidecar nodes (`imagegen`, `tts`,
   `depthmap`, `videogen`) are deliberately left out because the demo container has no sidecar —

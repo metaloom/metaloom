@@ -16,7 +16,7 @@
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
 | The one-paragraph current-state summary of this node | [../NODES.md](../NODES.md) §3.4 — **do not duplicate it here** |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.6 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The full REST surface of `/assets/:uuid/tags` | [../../../loom/RESTAPI.md](../../../loom/RESTAPI.md) §4.4 |
 | Why a tag is searchable at all | [../../search/SEARCH.md](../../search/SEARCH.md) |
@@ -111,7 +111,7 @@ back into the options through a JSON field.
 
 A `tags : scalar/string` MANY output is the obvious design and is rejected **on the declaration**: a
 node that runs `PER_ELEMENT` may not declare a `MANY` output
-([../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §6.4), so declaring one would
+([../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §6.4), so declaring one would
 bar this node from ever sitting downstream of a fan-out such as `facedetect`. The applied set travels
 as one `struct/json` value on `applied`, and `count` carries the number for cheap wiring into a
 `filter`.
@@ -562,7 +562,7 @@ configuration. The existing variables that decide whether it can write at all:
 - 🔴 **Tags are global.** `(name, collection)` is unique instance-wide, so a `tagTemplate` rule without
   `allowedTags` lets one bad regex litter the shared namespace permanently.
 - 🔴 **No `MANY` output port.** A `PER_ELEMENT` node declaring one is rejected *on the declaration*
-  ([../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §6.4), which would bar this
+  ([../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §6.4), which would bar this
   node from ever sitting downstream of `facedetect`.
 - 🔴 **Failure is `.abort()`, never `.next()`.** `NodeContextImpl.next()` ignores `failureCause` and
   reports SUCCESS. Several older nodes get this wrong; do not copy them.
@@ -609,7 +609,7 @@ configuration. The existing variables that decide whether it can write at all:
 | The seeded demo pipelines | `loom/core/…/boot/DemoDatabaseInitializer.java` |
 | The customer page | [website/content/english/docs/nodes/tag/index.adoc](../../../../website/content/english/docs/nodes/tag/index.adoc) |
 | The one-paragraph summary in the node system | [../NODES.md](../NODES.md) §3.4 |
-| Port cardinality, fan-out, the validation rules | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.6, §6, §8 |
+| Port cardinality, fan-out, the validation rules | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.6, §6, §8 |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The human tagging workflow this node writes alongside | [../../../workflows/WORKFLOW_MANUAL_SORT.md](../../../workflows/WORKFLOW_MANUAL_SORT.md) |
 | The disposal workflow that depends on the withdrawal rule | [../../../workflows/WORKFLOW_TRASH.md](../../../workflows/WORKFLOW_TRASH.md) |

@@ -7,9 +7,9 @@
 >
 > **Not in scope** — covered elsewhere, do not duplicate:
 > - Node lifecycle, per-node configuration and persistence targets, capability matrix →
->   [../pipeline-nodes/NODES.md](../nodes/NODES.md)
+>   [NODES.md](NODES.md)
 > - Engine internals, run state, dispatch protocol, segmentation, affinity, DB schema →
->   [PIPELINE.md](PIPELINE.md)
+>   [PIPELINE.md](../pipeline/PIPELINE.md)
 > - Design rationale, locked decisions, phase plan → [NODE_DATA_TYPES_PLAN.md](../../concept/NODE_DATA_TYPES_PLAN.md)
 > - DAOs and persistence → [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md),
 >   [../../loom/DOMAIN.md](../../loom/DOMAIN.md)
@@ -26,14 +26,14 @@ arrives at. Three previously independent concerns are now one statement:
 
 | Concern | Declared by | Enforced by |
 |---|---|---|
-| **What kind of thing this is** | `PortSpec.contentType` — an id `family/subtype` from `ContentTypeRegistry` | `ContentTypeLattice.isAssignable(actual, declared)` — one implementation, called at save time **and** at run start (`PortGraphAnalyzer:135`) |
-| **One or many** | `PortSpec.cardinality` = `ONE` \| `MANY` | Multi-edge rule (`PortGraphAnalyzer:141-146`) and the execution-mode computation (§6.4) |
-| **What Java type the value is** | `InputPort<T>` / `OutputPort<T>` plus the content type | `ValueCoercer.coerce(...)` on write and on read, then `port.valueType().cast(...)` (`NodeContextImpl:144-149`) |
+| **What kind of thing this is** | `PortSpec.contentType` — an id `family/subtype` from `ContentTypeRegistry` | `ContentTypeLattice.isAssignable(actual, declared)` — one implementation, called at save time **and** at run start (`PortGraphAnalyzer.validateEdgeTypes`) |
+| **One or many** | `PortSpec.cardinality` = `ONE` \| `MANY` | Multi-edge rule (`PortGraphAnalyzer.validateEdgeTypes`) and the execution-mode computation (§6.4) |
+| **What Java type the value is** | `InputPort<T>` / `OutputPort<T>` plus the content type | `ValueCoercer.coerce(...)` on write and on read, then `port.valueType().cast(...)` (`NodeContextImpl.read`) |
 
 ```mermaid
 graph TB
     subgraph DESIGN["Design time — loom-shared/node-model"]
-        CT["ContentTypeRegistry<br/>39 ids · 8 families"]
+        CT["ContentTypeRegistry<br/>40 ids · 8 families"]
         LAT["ContentTypeLattice<br/>isAssignable(actual, declared)"]
         PS["PortSpec<br/>id · contentType · cardinality<br/>required · group"]
         ND["NodeDescriptor<br/>inputPorts / outputPorts<br/>inputGroups / outputGroups"]
@@ -63,19 +63,19 @@ graph TB
 
 **The sentence to remember:** a node no longer reads *"the output named `face_count` from the node
 someone called `facedetect`"*; it reads *"my input port `detections`"*, and the engine resolves
-which upstream `(node, port)` fills it from the wired edges (`PipelineRunEngine.buildInputs:1249`).
+which upstream `(node, port)` fills it from the wired edges (`PipelineRunEngine.buildInputs`).
 
 ---
 
 ## 2. The Content-Type Vocabulary
 
 A content type id is **always** `family/subtype`; `family/*` is the family root. There are
-**8 families and 39 registered ids**, every family carrying its own wildcard
-(`ContentTypeRegistry.FAMILIES:80`, `all():86-137`).
+**8 families and 40 registered ids**, every family carrying its own wildcard
+(`ContentTypeRegistry.FAMILIES`, `ContentTypeRegistry.all()`).
 
 `ContentType` — the record served to the UI — carries `id`, `label`, `family`, `description`,
 `wildcard`. `family` and `wildcard` are **derived from the id** in the constructor
-(`ContentType:40-46`); there is no `superType` parent pointer, because the supertype of
+(`ContentType`); there is no `superType` parent pointer, because the supertype of
 `detection/face` is structurally `detection/*`.
 
 | Family (one editor colour) | Ids |
@@ -97,13 +97,13 @@ Two distinctions the families exist to enforce:
   Every hash kind names its output port `hash`; the content type is what distinguishes them.
 
 The whole vocabulary is served by `NodeDescriptorEndpoint` at
-`GET /api/v1/pipeline/node-descriptors` (`{nodeDescriptors, contentTypes}`, `:52-53`) and at
-`GET /api/v1/pipeline/content-types` (`:69`). **Never hardcode labels or families in TypeScript** — only
+`GET /api/v1/pipeline/node-descriptors` (`{nodeDescriptors, contentTypes}`) and at
+`GET /api/v1/pipeline/content-types`. **Never hardcode labels or families in TypeScript** — only
 the *rule* is mirrored (§10).
 
 ### 2.1 The lattice — the whole rule
 
-`ContentTypeLattice.isAssignable:79-92`:
+`ContentTypeLattice.isAssignable`:
 
 ```
 assignable(actual, declared) :=
@@ -116,7 +116,7 @@ assignable(actual, declared) :=
   though both travel as a Java `String`. The absence of cross-family rules is what keeps the
   TypeScript mirror five lines long.
 - **Sibling subtypes are not assignable.** `media/image` does not satisfy `media/video`.
-- **The producer-wildcard arm is *provisional*.** `isProvisional(actual, declared)` (`:98-100`)
+- **The producer-wildcard arm is *provisional*.** `isProvisional(actual, declared)`
   marks the case where a source declares `media/*` and the consumer wants `media/image`: save-time
   accepts it; the real verdict is only reachable at runtime with the file in hand, and `MediaRef`
   carries the answer (§5).
@@ -140,7 +140,7 @@ assignability and that every family in `FAMILIES` has a registered wildcard.
 | `group` | Id of the `PortGroup` this port belongs to |
 | `description` | Shown on hover. `NodeDescriptorPortsTest` asserts every port has one |
 
-Fluent factories `one` / `many` / `optionalOne` / `optionalMany` (`PortSpec:60-77`), plus
+Fluent factories `one` / `many` / `optionalOne` / `optionalMany` (`PortSpec`), plus
 `.inGroup(groupId)` and `.describedAs(label, description)`.
 
 ### 3.2 `PortGroup` — alternatives and exclusivity
@@ -148,57 +148,89 @@ Fluent factories `one` / `many` / `optionalOne` / `optionalMany` (`PortSpec:60-7
 | Mode | Applies to | Rule | Factory |
 |---|---|---|---|
 | *(ungrouped)* | inputs | Independent **AND**. Each port's own `required` applies | — |
-| `XOR` | inputs | **Exactly one** member wired when the group is `required`; **at most one** otherwise | `PortGroup.xor(id, label)` (`:44`) / `optionalXor` (`:51`) |
-| `EXCLUSIVE` | outputs | **At most one** member may have outgoing edges | `PortGroup.exclusive(id, label)` (`:58`) |
+| `XOR` | inputs | **Exactly one** member wired when the group is `required`; **at most one** otherwise | `PortGroup.xor(id, label)` / `optionalXor` |
+| `EXCLUSIVE` | outputs | **At most one** member may have outgoing edges | `PortGroup.exclusive(id, label)` |
 
 > ⚠️ **No descriptor uses `EXCLUSIVE`.** The mode, its validation
-> (`PortGraphAnalyzer.validateExclusiveOutputs:194-214`) and its factory all exist and are wired, but
-> the only groups any provider declares are the three `XOR` `media_alt` groups on `whisper`,
-> `facedetect` and `captioning`. Note that `watermark` — which emits `image` *or* `video` depending
-> on the item — is the obvious candidate and does **not** use it. Do not assume the exclusive path
-> has run outside `PortGraphAnalyzerTest` and the editor's client-side mirror.
+> (`PortGraphAnalyzer.validateExclusiveOutputs`) and its factory all exist and are wired, but the
+> only groups declared anywhere are **five** `XOR` `media_alt` groups — on `captioning`,
+> `facedetect`, `objectdetect`, `sam2` and `whisper`, each pairing an `image`/`audio` port with a
+> `video` one. Note that `watermark` — which emits `image` *or* `video` depending on the item — is
+> the obvious `EXCLUSIVE` candidate and does **not** use it. Do not assume the exclusive path has
+> run outside `PortGraphAnalyzerTest` and the editor's client-side mirror.
 
-### 3.3 `NodeDescriptor` and the kind counts
+### 3.3 Where descriptors come from, and the kind counts
 
-`NodeDescriptor` carries `inputPorts`, `outputPorts`, `inputGroups`, `outputGroups`, `dynamicPorts`
-(`:35-47`) alongside `kind`/`name`/`description`/`icon`/`category`/`parameters`. There are no
-`inputs`/`outputs` fields.
+**A node declares its contract once, on itself.** `@NodeSpec` on the class, `@PortDoc` on the
+`InputPort`/`OutputPort` constants it executes against, `@ParamDoc` / `@ParamOverride` on its
+options fields (`cortex/api/.../node/spec/`). There is no second copy to keep in agreement — the
+26 hand-written `*DescriptorProvider` classes this document used to enumerate are **gone**.
+
+Loom cannot read those annotations: the node classes live in `cortex/`, and `loom-shared` must not
+depend on it — the dependency runs the other way, and inverting it would drag every node's
+transitive native libraries into the server. So the harvest runs at **build time**, in a module that
+can see both trees, and its output is committed:
+
+```
+@NodeSpec/@PortDoc/@ParamDoc on the node class          (cortex/nodes/**, the only copy anyone edits)
+   → NodeSpecHarvester / NodeSpecCatalog                 (cortex/api)
+   → loom-shared/node-model/src/main/resources/node-descriptors.json   (committed, 44 kinds)
+   → GeneratedNodeDescriptorProvider                     (ServiceLoader, what Loom boots with)
+```
+
+Only **two** providers are registered in the SPI file now: `GeneratedNodeDescriptorProvider`, which
+reads that resource, and `OrphanNodeDescriptorProvider`, a holding pen for the one contract with no
+node class behind it (`loom-fetch`, executed by Loom itself — see below).
+
+> **The committed resource is kept honest by `NodeSpecGoldenTest`** (`integration-test`), which
+> re-harvests every annotated node and fails if the result differs from what is committed. A stale
+> resource is a build failure, not a silently wrong palette. Regenerate with:
+>
+> ```bash
+> mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true
+> ```
+>
+> ⚠️ Install the cortex node module first — the harvest reads the **installed** jar, so an
+> un-installed annotation edit regenerates the old contract.
 
 **Distinguish two counts — they are not the same set:**
 
-| Count | Value | Where |
+| Count | Value | Derivation |
 |---|---|---|
-| **Descriptor kinds** (visible in the palette, validated by the parser) | **41**, from **26 providers** | `META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
-| **Runnable kinds** (a worker can actually execute) | **35** with S3 and both clouds configured, **32** with none | 30 × `@Binds @IntoMap @StringKey` in `cortex/nodes/*/…NodeModule.java`, plus `filesystem-source`, `asset-source` and — each conditionally, per configured provider — `s3-source`, `gdrive-source` and `onedrive-source`, registered by hand in `RegistryNodeRegistrar` |
+| **Descriptor kinds** (in the palette, validated by the parser) | **45** | 44 in `node-descriptors.json` + `loom-fetch` from `OrphanNodeDescriptorProvider` |
+| **Runnable kinds** (a worker can execute) | **46** with S3 and both clouds configured, **43** with none | 41 × `@Binds @IntoMap @StringKey` in `cortex/nodes/*/…NodeModule.java`, plus 5 hand-registered in `RegistryNodeRegistrar`: `filesystem-source` and `asset-source` always, `s3-source` / `gdrive-source` / `onedrive-source` each only when that provider is configured |
 
-> ⚠️ [PIPELINE.md](PIPELINE.md) §8 still says "25 providers / 39 kinds". **34 from 26 is the current
-> number** (the eight `filter-*` kinds collapsed into one `filter`); recount with the commands in §14
-> rather than trusting either file.
+The two sets still do not coincide, and the mismatch is smaller and better understood than it was:
 
-The two sets do not coincide, and the mismatch is real, not a bookkeeping artefact:
+- **Descriptor but not runnable (1): `loom-fetch`** — and this is **not a gap**. It is executed by
+  Loom, not by a worker: it is the source of every ad-hoc node run (`POST /api/v1/node-runs`), and
+  `PipelineRunEngine.onItemDiscovered` synthesises its `media` output directly rather than
+  dispatching a `SOURCE_TASK`. A `loom-fetch` node reaching a dispatcher is a graph-builder bug, not
+  a missing worker. `facedescription`, which used to sit in this row, now has a `@StringKey` binding.
+- **Runnable but no descriptor (2): `sha512-dedup` and `asset-source`.** Neither can be placed from
+  the palette, and `PipelineGraphParser` rejects an unknown kind, so `asset-source` reaches a worker
+  only via a Loom-injected asset-scoped run.
 
-- **Descriptor but not runnable (2):** `facedescription` and `loom-fetch`. This set used to include
-  nine `filter-*` kinds whose implementations lived in `cortex/pipeline-core/.../node/filter/` and
-  which no module contributed to the `@StringKey` multibinding; they are **deleted**, replaced by the
-  one runnable `filter` kind (§4.5).
-- **Runnable but no descriptor (2):** `sha512-dedup` and `asset-source`. Neither can be placed from
-  the palette, and `PipelineGraphParser` rejects an unknown kind (`:222-225`), so `asset-source`
-  reaches a worker only via a Loom-injected asset-scoped run.
+> ⚠️ **Do not copy a kind count out of another spec file.** They disagree, and they rot. Re-derive
+> with the commands in §14; this section is the one place that states the derivation.
 
 ### 3.4 Dynamic ports — `NodePortResolver`
 
-Three kinds only know their ports once configured. The SPI is discovered by `ServiceLoader` and
+**Four** kinds only know their ports once configured. The SPI is discovered by `ServiceLoader` and
 applied only to descriptors that set `dynamicPorts`; `NodeDescriptorRegistry.resolvePorts(kind,
-options)` (`:88-102`) returns a `ResolvedPorts` record either way, so a `script` node's per-instance
-outputs are validated exactly like a fixed kind's.
+options)` returns a `ResolvedPorts` record either way, so a `script` node's per-instance outputs are
+validated exactly like a fixed kind's. The four kinds with `dynamicPorts: true` in the committed
+resource are exactly the four resolvers registered in the SPI file — a descriptor that sets the flag
+without a resolver draws no output handles at all and cannot be wired up.
 
 | Kind | Resolver | Resolves to |
 |---|---|---|
 | `script` | `ScriptPortResolver` | One output port per `outputs[]` declaration — see the mapping below |
-| `llm` | `LlmPortResolver` (extends `PromptPortResolver`) | One `result_<promptId> : text/plain ONE` per configured prompt; a single `result` port when none are configured, so the node stays connectable (`PromptPortResolver:24,27`) |
+| `filter` | `FilterPortResolver` | One **selective** port per `buckets[]` row, plus `other` (selective), `passed` and `bucket` (§4.5). The only selective ports anywhere |
+| `llm` | `LlmPortResolver` (extends `PromptPortResolver`) | One `result_<promptId> : text/plain ONE` per configured prompt; a single `result` port when none are configured, so the node stays connectable |
 | `vlm` | `VlmPortResolver` (extends `PromptPortResolver`) | Same shape |
 
-`ScriptPortResolver.ScriptOutputType:76-88` maps the `ScriptValueType` vocabulary onto a content
+`ScriptPortResolver.ScriptOutputType` maps the `ScriptValueType` vocabulary onto a content
 type **plus a cardinality**:
 
 | Declared type | Content type | Cardinality |
@@ -222,16 +254,19 @@ N of these" was invisible. **A `script` node is the canonical fan-out producer.*
 > entry degrades to "this port does not exist" and save-time validation reports the unwired edge. A
 > resolver that threw would take out the whole descriptor listing.
 
-> 🔴 **`resolvePorts` has exactly one caller: `PortGraphAnalyzer:78`.** The REST descriptor endpoint
-> serves only the *static* descriptor, and no endpoint takes `kind` + `options`. The editor
-> therefore cannot ask the server for a `script`/`llm`/`vlm` node's effective ports; it mirrors the
-> three resolvers in TypeScript instead (§10).
+> 🔴 **`resolvePorts` is not reachable over REST.** It has two callers — `PortGraphAnalyzer.analyze`
+> (save time and run start) and the MCP tool `GetNodeDescriptorTool` — and the REST descriptor
+> endpoint serves only the *static* descriptor, with no route taking `kind` + `options`. The editor
+> therefore cannot ask the server for a configured `script`/`filter`/`llm`/`vlm` node's effective
+> ports; it mirrors all four resolvers in TypeScript instead (§10). Owned by
+> [../pipeline/NODE_SCHEMA.md](../pipeline/NODE_SCHEMA.md) §7 and
+> [../../tasks/NODE_SCHEMA_TASKS.md](../../tasks/NODE_SCHEMA_TASKS.md) Task 1.
 
 ---
 
 ## 4. Per-Node Port Reference
 
-Regenerated from `loom-shared/node-model/.../spec/*DescriptorProvider.java`. Cardinality is `ONE`
+Regenerated from the committed `node-descriptors.json` (§3.3). Cardinality is `ONE`
 unless marked **MANY**; `(opt)` marks `required = false`.
 
 ### 4.1 Sources — category `SOURCE`
@@ -244,7 +279,9 @@ unless marked **MANY**; `(opt)` marks `required = false`.
 | `onedrive-source` | — | `media : media/*` |
 | `loom-fetch` | — | `media : media/*` |
 
-All three emit the family wildcard: the concrete kind is unknown until the file is opened (§2.1, §5).
+All five emit the family wildcard: the concrete kind is unknown until the file is opened (§2.1, §5).
+`loom-fetch` is the odd one — it is the only descriptor with no node class, because Loom executes it
+itself (§3.3).
 
 ### 4.2 Hash and identity
 
@@ -304,7 +341,7 @@ the same shape `watermark` uses for its image/video branch.
 | `imagegen` | `prompt : text/*` *(opt)*, `media : media/image` *(opt)* | `image : artifact/image`, `flag : scalar/string` |
 | `videogen` | `prompt : text/*` *(opt)*, `media : media/image` *(opt)* | `video : artifact/video`, `flag : scalar/string` |
 | `watermark` | `media : media/*` | `image : artifact/image`, `video : artifact/video`, `flag : scalar/string` |
-| `image-manipulation` | `image : media/image`, `detections : detection/*` *(MANY, opt)* | `image : artifact/image`, `geometry : struct/json`, `flag : scalar/string` |
+| `image-manipulation` | `image : media/image`, `detections : detection/*` **MANY** *(opt)* | `image : artifact/image`, `geometry : struct/json`, `flag : scalar/string` |
 | `script` | `media : media/*` *(opt)*, `data : struct/json` *(opt)*, `text : text/*` *(opt)* | **dynamic** — from the `outputs` option (§3.4) |
 
 `fingerprint.is_complete` and `thumbnail.is_complete` exist so those nodes stop hard-coding an
@@ -336,7 +373,7 @@ Reserved bucket ids: `other`, `passed`, `bucket`, `media`, `text`.
 finds it by its `control/` family, not by name. `bucket` is deliberately **not** selective: a node
 wired to it runs whichever branch the item took, which is the escape hatch from routing.
 
-`filterBy` selects a `FilterStrategy` from the `@FilterByKey` map multibinding. Four values:
+`filterBy` selects a `FilterStrategy` from the `@FilterByKey` map multibinding. **Six** values:
 
 | `filterBy` | Reads | Bucket `match` hints | Cost |
 |---|---|---|---|
@@ -344,10 +381,18 @@ wired to it runs whichever branch the item took, which is the escape hatch from 
 | `MIME` | the file name, through `MediaContentTypes` (`cortex-common`) | `image/*`, `video/mp4`, bare `image` = `image/*`, `*` = everything; **no hint falls back to the bucket id** | none |
 | `SIZE` | `LoomMedia.size()` | `<10MB`, `>=1GB`, `1MB..100MB` (lower inclusive, upper exclusive), bare `10MB` = `<=10MB`. `KB`/`MB`/`GB`/`TB` are 1024-based | none |
 | `DATE` | `Files.getLastModifiedTime` | `>=2024-01-01`, `2024-01-01..2024-12-31` (**both ends cover the whole day**), bare `2024-03-17` = that day, `age<30d` / `age>1y` (`h`/`d`/`w`/`m`/`y`) | none |
+| `RATING` | the asset's rating on the `FilterItem` | comma-separated conditions — `>=8`, a bare `8` for exactly that rating, and a hint for "nobody rated this". Outside the review screen's scale a hint is a typo, and `validateBuckets` says so | one Loom read per item |
+| `TAG` | the asset's tags on the `FilterItem`, scoped by the `tagSource` option (`ANY` by default) | comma-separated hints with `!` negation. A bucket matches when **at least one positive hint matches and no negated one does**; a bucket of only negations matches when none are present. Like `MIME`, no `match` falls back to the bucket id | one Loom read per item |
+
+`RATING` and `TAG` route on a **human decision** rather than on the file, which is why
+`classify(...)` takes a `FilterItem` — the item's media *plus* the `AssetResponse` `FilterNode`
+already holds — instead of a bare `NodeContext`. Handing it down beats giving a strategy a
+`LoomClient`: a strategy has no asset identity of its own and would re-derive the SHA-512 and load
+the asset a second time, per item, forever.
 
 Buckets are tried in declaration order and the first match wins, so a narrow bucket above a broad one
-behaves as written. The three metadata strategies take **no `LLMProvider`**, which is the point: a
-graph that only splits images from video runs on a worker with no model backend reachable.
+behaves as written. The five non-`LANGUAGE` strategies take **no `LLMProvider`**, which is the point: a graph that only
+splits images from video runs on a worker with no model backend reachable.
 
 Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus a value in the
 descriptor's enum — never an edit to `FilterNode`. Two seam methods carry the per-strategy parts:
@@ -358,7 +403,9 @@ descriptor's enum — never an edit to `FilterNode`. Two seam methods carry the 
 - `FilterStrategy.validateBuckets(...)` is called from `configure(...)`. `SIZE` and `DATE` use it to
   refuse `<10 megabytes` or `last month` up front. Without it a typo'd hint would start a run in
   which **every** item lands in `other` — indistinguishable from data that genuinely did not match.
-  `LANGUAGE` and `MIME` keep the permissive default; neither has a hint it could reject.
+  `RATING` rejects a condition outside the review screen's scale for the same reason. `LANGUAGE`,
+  `MIME` and `TAG` keep the permissive default — each falls back to the bucket id, so an empty
+  `match` column is legal rather than a typo.
 
 **Routing semantics** — see §8.6.
 
@@ -366,17 +413,25 @@ descriptor's enum — never an edit to `FilterNode`. Two seam methods carry the 
 
 | Kind | Input ports | Output ports |
 |---|---|---|
-| `hash-dedup` | `hash : hash/*` | `duplicate : media/*` *(selective)*, `original : scalar/string` |
+| `hash-dedup` | `hash : hash/*` | `duplicate : media/*`, `original : scalar/string` |
 | `fingerprint-dedup` | `fingerprint : hash/fingerprint` | — |
-| `fingerprint-dedup-apply` | `hash : hash/*` | `confirmed_dup : media/*` *(selective)*, `keep_path : scalar/string` |
+| `fingerprint-dedup-apply` | `hash : hash/*` | `confirmed_dup : media/*`, `keep_path : scalar/string` |
 | `move` | `media : media/*` | `moved : scalar/boolean`, `path : scalar/string`, `flag : scalar/string` |
 | `assign` | `media : media/*` | `assigned : scalar/boolean`, `target : scalar/string` |
 | `s3-sink` | `artifacts : artifact/*` **MANY** | `result : struct/json`, `count : scalar/integer`, `flag : scalar/string` |
-| `tag` | `media : media/*`, `text : text/*` *(opt)*, `number : scalar/number` *(opt)*, `flag : scalar/boolean` *(opt)*, `struct : struct/*` *(opt)*, `labels : scalar/string` *(MANY, opt)* | `applied : struct/json`, `count : scalar/integer` |
+| `tag` | `media : media/*`, `text : text/*` *(opt)*, `number : scalar/number` *(opt)*, `flag : scalar/boolean` *(opt)*, `struct : struct/*` *(opt)*, `labels : scalar/string` **MANY** *(opt)* | `applied : struct/json`, `count : scalar/integer` |
 
-Both dedup nodes gained a **selective** media port in the supersede: silence on it is the "do not
-act" signal, exactly as a filter's bucket ports work, and wiring it into `move` is what relocates the
-file. Neither node moves anything itself any more.
+Neither dedup node moves a file any more: each reports on a media port and a `move` node acts.
+`hash-dedup.duplicate` and `fingerprint-dedup-apply.confirmed_dup` are the report ports.
+
+> 🔴 **Those two ports are documented as selective and are not.** Both nodes' javadoc says silence on
+> the port is the "do not act" signal, exactly as a filter's bucket ports work — but neither
+> `@PortDoc` sets `selective = true`, so the harvested descriptor carries `selective: false` and the
+> engine's routing rule (§8.6) never fires for them. A `move` node wired to `duplicate` is therefore
+> dispatched for **every** item, with nothing on its required `media` input, instead of only for the
+> duplicates. This has never been true in any descriptor — it is a doc-vs-code gap, not a regression
+> of the annotation sweep — and it is Task 1 in
+> [../../tasks/NODE_DATA_TYPES_TASKS.md](../../tasks/NODE_DATA_TYPES_TASKS.md).
 
 ⚠️ `move`'s `path` is a `scalar/string`, deliberately not `artifact/file`. That family means "a file
 this node produced", and typing a relocated original as one would make it an upload candidate for a
@@ -394,7 +449,7 @@ picked their source by the element's origin node id would reintroduce `nodeId:ou
 
 A fourth sink, `loom`, used to sit here with three optional hash input ports. Porting it to bind by
 **port type** killed the `md5sum` id-override trap; it was then deleted altogether, because every
-hash node persists its own hash inside `compute()`. See [NODES.md](../nodes/NODES.md) §2.
+hash node persists its own hash inside `compute()`. See [NODES.md](NODES.md) §2.
 
 ---
 
@@ -405,7 +460,7 @@ a resolvable handle, and per-element dispatch reuses the same reference. **But**
 media-consuming node also declares a real `media/*`-family input port, and every source declares a
 `media` output port, so the graph is fully wired and type-checked.
 
-`MediaRef` carries `mediaType` and a derived `contentType()` (`:51, :92-94`):
+`MediaRef` carries `mediaType` and a derived `contentType()`:
 
 ```java
 public static final String IMAGE = "image", VIDEO = "video", AUDIO = "audio",
@@ -416,21 +471,21 @@ public String contentType() {
 }
 ```
 
-`mediaType` defaults to `UNKNOWN` in the constructor (`:59`), so an un-annotated `MediaRef` degrades
+`mediaType` defaults to `UNKNOWN` in the constructor, so an un-annotated `MediaRef` degrades
 to the wildcard rather than lying. The engine stamps the source node's `media` output from it when
-an item is discovered (`PipelineRunEngine:333`):
+an item is discovered (`PipelineRunEngine.onItemDiscovered`):
 
 ```java
 outputs.put(SOURCE_MEDIA_PORT, PortPayload.one(media.contentType(), origin, media.getPath()));
 ```
 
-`SOURCE_MEDIA_PORT` is the literal `"media"` (`PipelineRunEngine:95`) — **every source descriptor
+`SOURCE_MEDIA_PORT` is the literal `"media"` (`PipelineRunEngine.SOURCE_MEDIA_PORT`) — **every source descriptor
 must name its output port `media`**, otherwise the first hop of every graph is unwired at runtime
 while still validating at save time.
 
 The rest of the media-reference story (`ProcessableMedia.reference()`, `MediaReferenceResolver`,
 `s3://` URIs, the S3 materializer and cache) is unchanged and documented in
-[../pipeline-nodes/NODES.md](../nodes/NODES.md) and
+[NODES.md](NODES.md) and
 [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 
 ---
@@ -460,14 +515,14 @@ The rest of the media-reference story (`ProcessableMedia.reference()`, `MediaRef
 |---|---|
 | `sourcePort` and `targetPort` are **required on every edge**; no positional fallback, no legacy alias | `PipelineGraphParser:297-303` — *"Every edge must carry sourcePort and targetPort"* |
 | `branch` stays edge-level (`ANY` \| `PASS` \| `REJECT`) | `:305-314` |
-| **The dedupe key is the whole port tuple** `from.sourcePort->to.targetPort` | `:319` |
+| **The dedupe key is the whole port tuple** `from.sourcePort->to.targetPort` | `applyEdges` |
 | `dependencies` are derived from the same pass: each distinct `(source, target)` pair contributes one scheduling dependency, however many ports it feeds | `:325-327` |
 | A definition declares a top-level `version`; the parser reads up to `CURRENT_DEFINITION_VERSION = 1` and refuses anything higher by name. An absent version means 1 | `:68, :110-130` |
 | `options` is the documented per-node shape; `config` is accepted as a **legacy alias** and loses to `options` when both are present | `readOptions:255-269` |
 
 > ✅ **The legacy inline `dependencies[]` shape is rejected, not silently accepted.** A node object
 > carrying a `dependencies` key throws `GraphValidationException` naming the fix
-> (`PipelineGraphParser:190-197`). There is no `applyInlineDependencies` method. This closes the hole
+> (`PipelineGraphParser`, pass 1). There is no `applyInlineDependencies` method. This closes the hole
 > where such a graph passed port validation vacuously and every node received empty inputs.
 
 ### 6.2 `InputBinding`
@@ -478,14 +533,14 @@ public record InputBinding(String targetPortId, String sourceNodeId, String sour
 ```
 
 The parser constructs bindings through the 4-arg convenience constructor (`targetIsMany = false`);
-`PortGraphAnalyzer` then re-stamps each one via `withTargetCardinality(...)` (`:93-102`), so the
+`PortGraphAnalyzer` then re-stamps each one via `withTargetCardinality(...)`, so the
 engine builds a task's inputs from the graph alone and never consults the descriptor registry at
 dispatch time. `PipelineGraphNode` carries `inputBindings`, `demandedOutputs`, `executionMode` and
 `fanOutDriver`.
 
 ### 6.3 `PortGraphAnalyzer` — the five rules
 
-`analyze(graphName, nodes, topologicalOrder)` (`:69-105`) runs when a definition is saved **and**
+`analyze(graphName, nodes, topologicalOrder)` runs when a definition is saved **and**
 again when a run starts.
 
 | # | Rule | Where |
@@ -496,12 +551,13 @@ again when a run starts.
 | 4 | An input port with more than one incoming edge must be `MANY` | `:141-146` |
 | 5 | Execution modes propagate; nested fan-out and cross-driver zips are rejected | `:234-291` |
 
-Source nodes are exempt from rule 3 (`node.isSource()` short-circuits satisfaction, `:154-156`).
+Source nodes are exempt from rule 3 (`node.isSource()` short-circuits satisfaction).
 
-> ⚠️ **A null registry disables all of it.** `analyze` returns immediately when `registry == null`
-> (`:70-74`), leaving every node `SINGLE`. That is the path taken by `new PipelineGraphParser()` —
-> used by `PipelineRunRecovery:68` and by most unit tests. **A recovered run therefore re-parses
-> without port checking and without fan-out classification.**
+> ⚠️ **A null registry disables all of it.** `analyze` returns immediately when `registry == null`,
+> leaving every node `SINGLE`. That is the path taken by the no-arg `new PipelineGraphParser()`,
+> which most unit tests use. ✅ **`PipelineRunRecovery` no longer does** — it builds
+> `new PipelineGraphParser(nodeDescriptorRegistry)`, so a resumed run gets the same port checking and
+> fan-out classification as the original.
 
 ### 6.4 Effective multiplicity and `ExecutionMode`
 
@@ -515,18 +571,18 @@ mode(n) = PER_ELEMENT  iff some ONE-cardinality input of n is bound to an effect
 ```
 
 Propagation runs in topological order, so a node's inputs are always resolved before it is
-classified (`:240-290`). `fanOutDriver(n)` is the node whose `MANY` output made `n` per-element; a
-per-element node passes its own driver on rather than naming itself (`driverOf:297-303`).
+classified. `fanOutDriver(n)` is the node whose `MANY` output made `n` per-element; a
+per-element node passes its own driver on rather than naming itself (`driverOf`).
 
 **Two v1 restrictions, enforced as validation errors:**
 
 - **No nested fan-out.** A node that runs `PER_ELEMENT` and *also* declares a `MANY` output is
-  rejected outright (`:283-288`) — *"Nested fan-out is not supported - gather with a sequence input
+  rejected outright — *"Nested fan-out is not supported - gather with a sequence input
   first"*. This fires on the **declaration**, not on the downstream wiring: stricter than the design,
   which only rejected such an output when it fed a `ONE` input. A single integer `Origin.seq` cannot
   address a sequence of sequences either way.
 - **One origin lineage per zip.** Two `ONE` inputs fed by per-element branches must trace to the same
-  `fanOutDriver`, otherwise the elements have no meaningful correspondence (`:267-273`).
+  `fanOutDriver`, otherwise the elements have no meaningful correspondence.
 
 ⚠️ **A `SINGLE` node may declare more than one `MANY` output, and one does.** `objectdetect` emits
 `detections` (one per object) *and* `labels` (one per distinct class) — the first node to do so.
@@ -567,12 +623,12 @@ In `loom-shared/pipeline-model`. A port's value on the wire is always a payload,
 
 | Type | Port-model fields |
 |---|---|
-| `NodeTask` | `inputs : Map<inputPortId, PortPayload>` (`:40`), `elementSeq : int` (`:37`), `demandedOutputs : Set<String>` + `isDemanded(portId)` (`:41, :159`) |
+| `NodeTask` | `inputs : Map<inputPortId, PortPayload>`, `elementSeq : int`, `demandedOutputs : Set<String>` + `isDemanded(portId)` |
 | `NodeTaskResult` | `outputs : Map<outputPortId, PortPayload>` + `output(portId)`, `elementSeq` echoed back from the task |
 | `SegmentTask` | `getInputs() : Map<String, PortPayload>` |
 | `MediaRef` | `+ mediaType`, `+ contentType()` (§5) |
 
-`NodeTaskResult.getFilterPassed()` (`:140-155`) scans the outputs for the first payload whose content
+`NodeTaskResult.getFilterPassed()` scans the outputs for the first payload whose content
 type starts with `control/`, so a filter may name its port whatever it likes and branch routing still
 works. It tolerates a stringified `"true"`, because the Cortex disk caches stringify every value.
 
@@ -583,14 +639,14 @@ Converts payload maps to and from `io.vertx.core.json.JsonObject` for the
 
 - It lives in **`loom/pipeline`, not `pipeline-model`** — deliberately. `pipeline-model` has no
   Vert.x dependency and the codec needs `JsonObject`.
-- **Encoding is total; decoding is deliberately lenient** (`:73-114`). A row written before this
+- **Encoding is total; decoding is deliberately lenient**. A row written before this
   shape existed yields an empty payload map rather than throwing, and one unreadable port does not
   cost the caller the others: *"losing a cached result is an inconvenience, failing recovery over it
   is an outage."*
 
 ### 7.4 Coercion — `ValueCoercer`
 
-One arm per family (`coerce:38`, family switch `:47-54`), throwing `ValueCoercionException` naming
+One arm per family (`ValueCoercer.coerce`, family switch), throwing `ValueCoercionException` naming
 the port, the content type and what was wrong.
 
 | Declared family / type | Rule |
@@ -604,7 +660,7 @@ the port, the content type and what was wrong.
 | `struct/*` | `Map`, `Collection` or an encoded string — **validated here, at the boundary**, so a non-encodable value fails *that one task* instead of blowing up at persist time and clearing the whole batch |
 | unknown family | Hard failure |
 
-**`scalar/integer` always widens to `Long`** (`:78-96`). Running the coercer at both boundaries is
+**`scalar/integer` always widens to `Long`**. Running the coercer at both boundaries is
 not redundant: the JSON round trip in between re-narrows a `Long` that fits in 32 bits back to an
 `Integer`, and the read-side pass re-widens it. That is the single reason the historic
 `ClassCastException` on `video_frame_count` stops being reachable.
@@ -613,9 +669,9 @@ not redundant: the JSON round trip in between re-narrows a `Long` that fits in 3
 
 | Site | When |
 |---|---|
-| `NodeContextImpl.coerce(OutputPort, value)` (`:177-178`) | A node calls `output(...)` or `outputElement(...)` |
+| `NodeContextImpl.coerce(OutputPort, value)` | A node calls `output(...)` or `outputElement(...)` |
 | `NodeResultMapper.toPayloads(...)` | The result is turned into wire `PortPayload`s, with the origin stamped per element |
-| `NodeContextImpl.read(InputPort, raw)` (`:144-149`) | A node calls `input(...)` / `inputs(...)`; the coerced value is then checked with `port.valueType().isInstance(...)` and cast |
+| `NodeContextImpl.read(InputPort, raw)` | A node calls `input(...)` / `inputs(...)`; the coerced value is then checked with `port.valueType().isInstance(...)` and cast |
 
 Two arms the design called for are **not** implemented: emitting an **undeclared port id** and
 emitting a **non-selected `EXCLUSIVE`-group port** are not hard failures.
@@ -633,25 +689,25 @@ index: the result, the in-flight task uuid, the attempt count and the retry mark
 boolean isSettled() { return elementCount != null && elementResults.size() >= elementCount; }
 ```
 
-**That redefinition IS the gather barrier** (`NodeExecState:102-104`). `elementCount` is `1` at
-construction for a `SINGLE` node and `null` for a `PER_ELEMENT` one (`:58`), so a fanned-out node is
+**That redefinition IS the gather barrier** (`NodeExecState.isSettled`). `elementCount` is `1` at
+construction for a `SINGLE` node and `null` for a `PER_ELEMENT` one, so a fanned-out node is
 *never* settled until its driver has told it how many elements there are.
 
-`rollup()` (`:120-133`) folds elements into one `NodeState` for callers that still think in whole
+`rollup()` folds elements into one `NodeState` for callers that still think in whole
 nodes — any `FAILED` ⇒ `FAILED`, else any `COMPLETED` ⇒ `COMPLETED`, else `SKIPPED`.
-`representative()` (`:139`) picks a result for branch evaluation and the asset sink.
+`representative()` picks a result for branch evaluation and the asset sink.
 
 ### 8.2 The dispatch loop
 
-`PipelineRunEngine.advance(ItemState)` (`:754`) walks the topological order and, for each node:
+`PipelineRunEngine.advance(ItemState)` walks the topological order and, for each node:
 
-1. `dependenciesSettled(state, node)` (`:889`) — **this is the gather.** For a dependency that fanned
+1. `dependenciesSettled(state, node)` — **this is the gather.** For a dependency that fanned
    out it asks "have *all* of its elements settled?", so a node consuming a fanned-out branch
    automatically waits for the whole branch.
 2. If `PER_ELEMENT` and `elementCount == null`, read it off the driver's settled result via
-   `fanOutSize` (`:791, :1321`).
+   `fanOutSize`.
 3. `elementCount == 0` — the upstream sequence was empty — settles the node as
-   `SKIPPED("Upstream sequence was empty")` (`:806`) rather than leaving the item permanently
+   `SKIPPED("Upstream sequence was empty")` rather than leaving the item permanently
    incomplete.
 4. For every `seq` in `0 .. elementCount-1`, run the skip check, then the capacity / kind-capacity /
    circuit-breaker / retry gates — all of which guard `(node, seq)` rather than `(node)` — then
@@ -661,12 +717,12 @@ The `seq` is carried on `NodeTask` and echoed back on `NodeTaskResult` so `recor
 result to the right slot.
 
 > **Segments stay SINGLE-only.** A segment is only considered for `seq == 0` of a `SINGLE` node
-> (`:857`); a `PER_ELEMENT` node always dispatches per node. This is the fallback the design allowed
+>; a `PER_ELEMENT` node always dispatches per node. This is the fallback the design allowed
 > for, taken deliberately.
 
 ### 8.3 `buildInputs` — where the gather materialises
 
-`PipelineRunEngine:1249`. For each binding, the producer's elements are collected **in sequence
+`PipelineRunEngine.buildInputs`. For each binding, the producer's elements are collected **in sequence
 order** across all of its executions, then:
 
 | Target port | Behaviour |
@@ -680,7 +736,7 @@ element cannot silently shift the alignment.
 
 ### 8.4 Element-level skip, failure and branch semantics
 
-`evaluateSkip(state, node, seq)` (`:903`) with `elementScopedState` (`:951`):
+`evaluateSkip(state, node, seq)` with `elementScopedState`:
 
 | Situation | Behaviour |
 |---|---|
@@ -709,7 +765,7 @@ graph LR
 4. Nothing in the definition JSON says "gather" or "fan out" — both fall out of the two ports'
    cardinalities, decided when the graph is parsed.
 
-The `Full Processing` demo pipeline is exactly this shape (`DemoDatabaseInitializer:319`).
+The `Full Processing` demo pipeline is exactly this shape (`DemoDatabaseInitializer`).
 
 > ⚠️ **No shipped kind declares a `ONE`-cardinality `detection/*` input**, so no seeded pipeline
 > exercises `PER_ELEMENT` end to end. The gather path has a demo; the fan-out path is covered only by
@@ -740,7 +796,7 @@ topological order (`stampBindings`):
 Inheritance is what makes a branch of any depth work: if the branch does not fire, the node on it is
 skipped, its own outputs are empty, and *its* consumers must skip in turn. A one-hop rule would leave
 the grandchild running with empty inputs — exactly the non-transitivity `FilterBranch` still has
-(`PipelineGraphNode:181-186`).
+(`PipelineGraphNode`).
 
 The predicate (`evaluateSkip`, after the `FilterBranch` block):
 
@@ -782,18 +838,33 @@ plus stamping cases in `PortGraphAnalyzerTest` and two segment cases in `Pipelin
 The historical defect audit — what the typed-port model fixed and why — lives in
 [NODE_DATA_TYPES_PLAN.md](../../concept/NODE_DATA_TYPES_PLAN.md). What follows is only what is **still open**.
 
-| # | Gap | Detail |
-|---|---|---|
-| 1 | 🔴 **`ResultOrigin` never reaches the wire** | `NodeTaskResult` has no origin field. `AbstractMediaNode.recordNodeResult` hardcodes `ledger.setOrigin(ResultOrigin.COMPUTED.name())` (`:150`) instead of reading `ctx.resultOrigin()`, so `asset_node_result.origin` is always `COMPUTED` even on a `LOCAL` cache hit |
-| 2 | 🔴 **No run/task provenance on the node-result ledger** | `AssetNodeResult` has `setRunUuid`/`setTaskUuid` (`:88, :92`) and the columns exist, but `NodeResultCreateRequest` carries neither field and nothing on the Cortex write path sets them. A ledger row cannot be traced back to the run that produced it |
-| 3 | **Recovery re-parses with a null registry** | `PipelineRunRecovery:68` uses `new PipelineGraphParser()`, so a resumed run gets no port checking and no fan-out classification (§6.3) |
-| 4 | ~~**`FILTER_PASSED` exists as two constants with different values**~~ | **Fixed.** The dead `FilterBranch.FILTER_PASSED = "filter_passed"` is deleted; `PipelineNode.FILTER_PASSED = "passed"` is the only one left, and routing reads neither — `getFilterPassed()` matches on the `control/` family |
-| 5 | **Undeclared and non-selected-`EXCLUSIVE` ports are not rejected on emit** | The design called for both to fail the task by name (§7.4) |
-| 6 | **No `PortPayload` round-trip test** | Nothing asserts `output → JSON → JSONB → input` preserves type *and* origin tags. `PortPayloads`' lenient decode path is untested |
-| 7 | **No `ValueCoercerTest`** | The coercer is the only thing standing between a node and a `ClassCastException`, and has no direct test — only whatever the engine and node suites exercise incidentally |
-| 8 | **`PipelineValidationServiceTest` barely exercises ports** | 29 test methods, one mention of `sourcePort`. The delegated §6.3 rules are almost never reached from the REST side |
-| 9 | **`facedescription` and `loom-fetch` have descriptors but no runnable binding** | §3.3. A graph using them saves and validates, and no worker advertises the kind. The nine `filter-*` kinds that used to head this row are gone — see §4.5 |
-| 10 | **No Java-side fixture export for the TS contract test** | `contentTypes.test.ts` transcribes its fixture from `ContentTypeLatticeTest` by hand; the two implementations can still drift (§10) |
+| # | Gap | Detail | Task |
+|---|---|---|---|
+| 1 | 🔴 **The two dedup report ports are not selective** | `hash-dedup.duplicate` and `fingerprint-dedup-apply.confirmed_dup` are documented in their own javadoc as "silence means do not act", but neither `@PortDoc` sets `selective = true`. A `move` node wired to one runs for every item with an empty required input (§4.6) | 1 |
+| 2 | 🔴 **`ResultOrigin` never reaches the wire** | `NodeTaskResult` has no origin field. `AbstractMediaNode.recordNodeResult` hardcodes `ledger.setOrigin(ResultOrigin.COMPUTED.name())` instead of reading `ctx.resultOrigin()`, so `asset_node_result.origin` is always `COMPUTED` even on a `LOCAL` cache hit | 2 |
+| 3 | 🔴 **No run/task provenance on the node-result ledger** | `AssetNodeResult` has `setRunUuid`/`setTaskUuid` and the columns exist, but `NodeResultCreateRequest` carries neither field and nothing on the Cortex write path sets them. A ledger row cannot be traced back to the run that produced it | 3 |
+| 4 | **Undeclared and non-selected-`EXCLUSIVE` ports are not rejected on emit** | The design called for both to fail the task by name (§7.4). `ValueCoercer` has neither arm | 4 |
+| 5 | **No `ValueCoercerTest`, no `PortPayload` round-trip test** | The coercer is the only thing between a node and a `ClassCastException` and has no direct test; nothing asserts `output → JSON → JSONB → input` preserves type *and* origin tags, and `PortPayloads`' lenient decode path is untested | 5 |
+| 6 | **`PipelineValidationServiceTest` barely exercises ports** | 38 test methods, one mention of `sourcePort`. The delegated §6.3 rules are almost never reached from the REST side | 6 |
+| 7 | **No descriptor uses `EXCLUSIVE`** | The mode, its validation and the editor's mirror all exist; the only groups declared anywhere are five `XOR` `media_alt` groups. `watermark` is the obvious candidate (§3.2) | 7 |
+| 8 | **No server-side port-resolution endpoint** | `resolvePorts(kind, options)` is reachable from `PortGraphAnalyzer.analyze` and from the MCP `GetNodeDescriptorTool`, but from no REST route, so the editor mirrors all four resolvers in TypeScript (§3.4, §10) | *owned by [NODE_SCHEMA_TASKS.md](../../tasks/NODE_SCHEMA_TASKS.md) Task 1* |
+| 9 | **No Java-side fixture export for the TS contract tests** | `contentTypes.test.ts` and `portResolvers.test.ts` transcribe their fixtures by hand; the two implementations can drift and only a reviewer notices. Moot for the resolver half if [NODE_SCHEMA_TASKS.md](../../tasks/NODE_SCHEMA_TASKS.md) Task 1 deletes that mirror; the lattice mirror stays either way | 11 |
+| 10 | **Port checking is skipped when a definition has no `edges` key** | `PipelineValidationService.collectErrors` returns before the port pass. A single-node definition is legal, so this is not always wrong — but it is not stated anywhere the author can see | 6 |
+| 11 | **Counters count nodes, not executions** | `PipelineRunEngine.nodeProgressSnapshot()` buckets on `isInFlight(nodeId)` / `isSettled(nodeId)`, so a node fanned out to 200 elements reports the same `[active, pending]` as one running once, and the run-item detail has no per-node `k/N elements` display | 10 |
+| 12 | ⚠️ **No shipped kind declares a `ONE`-cardinality `detection/*` input** | So no seeded or shippable graph exercises `PER_ELEMENT` end to end. The gather path is demoed; the fan-out path is covered only by `PipelineRunEngineFanOutTest` and `PortGraphAnalyzerTest` (§8.5) | 11 |
+| 13 | **Result reuse is hard-coded to element 0** | `DaoRunStateStore`'s incremental-reuse lookup passes `elementSeq = 0`, so a `PER_ELEMENT` node re-runs in full on an unchanged asset | 12 |
+
+**Closed since the last revision of this file**, verified against the tree:
+
+- ~~`facedescription` and `loom-fetch` have descriptors but no runnable binding~~ — `facedescription`
+  has a `@StringKey` binding; `loom-fetch` is executed by Loom itself and is not a gap (§3.3).
+- ~~Recovery re-parses with a null registry~~ — `PipelineRunRecovery` now builds
+  `new PipelineGraphParser(nodeDescriptorRegistry)`, so a resumed run gets full port checking and
+  fan-out classification.
+- ~~`FILTER_PASSED` exists as two constants with different values~~ — the dead
+  `FilterBranch.FILTER_PASSED` is deleted; routing reads neither, matching on the `control/` family.
+- ~~The nine `filter-*` descriptor kinds are advertised and cannot run~~ — replaced by one runnable
+  `filter` kind (§4.5).
 
 ---
 
@@ -804,29 +875,28 @@ HTTP is not viable.
 
 | File | Contents |
 |---|---|
-| `loom-ui/src/features/pipeline/contentTypes.ts` (101 lines) | `family`, `isWildcard`, `wildcardOf`, `isAssignable` (the three arms, never crossing families), `isProvisional`, `FAMILY_COLORS` (eight entries, `:72`), `contentTypeColor`, `findContentType`, `contentTypeLabel` |
-| `loom-ui/src/features/pipeline/portResolvers.ts` (162 lines) | `SCRIPT_OUTPUT_TYPES` (with `MANY` on `TEXT_LIST` / `IMAGE_LIST`), `PROMPT_PORT_PREFIX = "result_"`, the `result` fallback, `hasPortResolver`, `resolveOutputPorts`, `resolveInputPorts` |
+| `loom-ui/src/features/pipeline/contentTypes.ts` (101 lines) | `family`, `isWildcard`, `wildcardOf`, `isAssignable` (the three arms, never crossing families), `isProvisional`, `FAMILY_COLORS` (eight entries), `contentTypeColor`, `findContentType`, `contentTypeLabel` |
+| `loom-ui/src/features/pipeline/portResolvers.ts` (239 lines) | `SCRIPT_OUTPUT_TYPES` (with `MANY` on `TEXT_LIST` / `IMAGE_LIST`), `PROMPT_PORT_PREFIX = "result_"`, the `result` fallback, the filter's bucket ports, `hasPortResolver`, `resolveOutputPorts`, `resolveInputPorts`. **Mirrors all four Java resolvers** |
 | `contentTypes.test.ts` / `portResolvers.test.ts` | Vitest contract suites pinned against the Java `ContentTypeLatticeTest` / `NodePortResolverTest` |
 
 > ⚠️ **`FAMILY_COLORS` is the only thing the UI owns**, because a colour is a UI decision. Type ids,
 > labels and descriptions are served by `/api/v1/pipeline/content-types` and must never be hardcoded
 > in TypeScript.
 >
-> ⚠️ **The contract test is hand-written, not generated** (§9 gap 10).
+> ⚠️ **The contract tests are hand-written, not generated** (§9 gap 9).
 
 ### The editor — port-aware, shipped
 
-`PipelineEditor.tsx` (3739 lines). React Flow handle ids **are** port ids, one handle per declared
-port, family-coloured, with a squared-off doubled mark for `MANY` (`:371-433`) and a tooltip stating
-`ONE`/`MANY` (`:179`).
+`PipelineEditor.tsx` (4949 lines). React Flow handle ids **are** port ids, one handle per declared
+port, family-coloured, with a squared-off doubled mark for `MANY` and a tooltip stating `ONE`/`MANY`.
 
 | Behaviour | Where |
 |---|---|
-| `isValidConnection(conn)` — unknown port, `isAssignable`, duplicate edge, non-`MANY` single-connection, `XOR` input group, `EXCLUSIVE` output group, each with a message naming the ports | `:1672-1735` |
-| Wired `XOR`/`EXCLUSIVE` siblings grey out | `:1559` |
-| `getGraphJson` persists `sourcePort` / `targetPort` / `branch` | `:1816, :1848-1860` |
-| A whole-graph client-side validator mirroring unknown-port, assignability and multi-edge rules | `:2157-2215` |
-| Playwright coverage | `loom-ui/e2e/pipeline-ports-mocked.spec.ts` (354 lines) |
+| `isValidConnection(conn)` — unknown port, `isAssignable`, duplicate edge, non-`MANY` single-connection, `XOR` input group, `EXCLUSIVE` output group, each with a message naming the ports | `isValidConnection` |
+| Wired `XOR`/`EXCLUSIVE` siblings grey out | the handle renderer |
+| `getGraphJson` persists `sourcePort` / `targetPort` / `branch` | `getGraphJson` |
+| A whole-graph client-side validator mirroring unknown-port, assignability and multi-edge rules | `validateGraph` |
+| Playwright coverage | `loom-ui/e2e/pipeline-ports-mocked.spec.ts` (447 lines) |
 
 Note that the editor reads `data.portsIn` / `data.portsOut`, which come from the served descriptor
 plus the TS resolver mirrors — it never asks the server for a configured node's effective ports (§3.4).
@@ -845,12 +915,12 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 | **Coerce at the boundary, never cast in a node** | `ctx.input(PORT)` is only safe because `ValueCoercer` ran on both sides |
 | **A `MANY` port's elements are always seq-ordered and origin-tagged** | The gather concatenates in seq order and the zip matches on `origin.seq`. Never emit unordered |
 | **A per-element node may not declare a `MANY` output** | Nested fan-out is rejected at validation; a single integer `seq` cannot address a sequence of sequences |
-| **A descriptor is still not a registration** | Adding ports does not make a kind runnable; it needs `@Binds @IntoMap @StringKey("<kind>")` or a `factory.register(...)`. Eleven descriptor kinds have neither (§3.3) |
+| **A descriptor is still not a registration** | Adding ports does not make a kind runnable; it needs `@Binds @IntoMap @StringKey("<kind>")` or a `factory.register(...)`. Exactly one descriptor kind has neither, and it is deliberate: `loom-fetch` is executed by Loom (§3.3) |
 | **Emit structured data as JSON** | A `struct/*` value must be a `Map`, `Collection` or encoded string — `ValueCoercer.coerceStruct` rejects anything else *at the node*, which stops one bad value clearing a persist batch |
 | **Adding a script value type means touching the TS mirror** | The obligation moved from `SCRIPT_VALUE_CONTENT_TYPE` to `portResolvers.ts`; it did not go away |
 | **Adding a content type means touching three places** | `ContentTypeRegistry.all()`, the `nodeviz` `TYPES` table on the website, and — only if you added a *family* — `FAMILY_COLORS` |
 | **Never hardcode content-type labels in TypeScript** | They are served by `/api/v1/pipeline/content-types`; only the *rule* is mirrored |
-| **Port rules live in the parser, not in a second validator** | `PipelineValidationService.collectPortErrors` delegates. Validation here drifted across three copies until Task 8 collapsed them into that one class — do not add another. See [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
+| **Port rules live in the parser, not in a second validator** | `PipelineValidationService.collectPortErrors` delegates. Validation here drifted across three copies until Task 8 collapsed them into that one class — do not add another. See [PIPELINE_VALIDATION.md](../pipeline/PIPELINE_VALIDATION.md) |
 | **A null `NodeDescriptorRegistry` silently disables port checking** | `new PipelineGraphParser()` is the no-checking constructor. Convenient in tests, dangerous in production paths (§6.3) |
 | **Port checking only runs when an `edges` key is present** | `PipelineValidationService.collectErrors` returns before it otherwise. A definition with no `edges` array skips port validation on the REST path entirely |
 | **Re-run `./setup-pool.sh` after a Flyway change** | `V2.60__pipeline_node_task_element_seq.sql` and later migrations make pooled test databases stale |
@@ -861,14 +931,14 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 
 | Class | Module / package | Purpose |
 |---|---|---|
-| `ContentTypeRegistry` | `loom-shared/node-model` · `io.metaloom.loom.nodes.spec` | The `family/subtype` vocabulary — 39 ids, 8 families |
+| `ContentTypeRegistry` | `loom-shared/node-model` · `io.metaloom.loom.nodes.spec` | The `family/subtype` vocabulary — 40 ids, 8 families |
 | `ContentTypeLattice` | ″ | `isAssignable(actual, declared)` / `isProvisional` — the single Java implementation |
 | `ContentType` | ″ | Served vocabulary entry: `id`, `label`, `family`, `description`, `wildcard` |
 | `PortSpec` / `PortGroup` / `PortGroupMode` / `Cardinality` | ″ | The port model |
 | `NodeDescriptor` | ″ | `inputPorts` / `outputPorts` / `inputGroups` / `outputGroups` / `dynamicPorts` |
-| `NodeDescriptorProvider` | ″ | ServiceLoader SPI — 26 providers, 34 kinds |
-| `NodePortResolver` | ″ | SPI for options-derived ports |
-| `ScriptPortResolver` / `PromptPortResolver` / `LlmPortResolver` / `VlmPortResolver` | ″ | The three registered implementations |
+| `NodeDescriptorProvider` | ″ | ServiceLoader SPI — **two** implementations: `GeneratedNodeDescriptorProvider` (reads the committed harvest, 44 kinds) and `OrphanNodeDescriptorProvider` (`loom-fetch`) |
+| `NodePortResolver` | ″ | SPI for options-derived ports — four registered implementations |
+| `ScriptPortResolver` / `FilterPortResolver` / `PromptPortResolver` / `LlmPortResolver` / `VlmPortResolver` | ″ | The four registered resolvers (`PromptPortResolver` is the shared llm/vlm base) |
 | `ResolvedPorts` | ″ | A node instance's effective ports; what validation always works against |
 | `NodeDescriptorRegistry` | ″ | `resolvePorts(kind, options)`; loads both SPIs |
 | `ValueCoercer` / `ValueCoercionException` | ″ | One arm per family; applied at both boundaries |
@@ -884,14 +954,16 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 | `PipelineRunEngine` | ″ | `advance`, `buildInputs`, `fanOutSize`, per-element gates |
 | `AssetSink` | ″ | `persist(MediaRef, nodeId, Map<String, PortPayload>)` |
 | `PipelineValidationService` | `loom/services/rest` · `…rest.validation` | Structural rules + delegated port rules |
-| `DaoRunStateStore` / `PipelineRunRecovery` / `DaoAssetSink` | `loom/services/rest` · `…rest.service.impl` | Run-state and output persistence. Both fan-out keying bugs are fixed: the buffer key is `item/node#seq` (`:319-320`), recovery restores a `List<RestoredTask>` carrying `elementSeq` (`:190-204`), and `DaoAssetSink` selects hashes by **content type** via `hashOfType(...)` |
+| `DaoRunStateStore` / `PipelineRunRecovery` / `DaoAssetSink` | `loom/services/rest` · `…rest.service.impl` | Run-state and output persistence. Both fan-out keying bugs are fixed: the buffer key is `item/node#seq`, recovery restores a `List<RestoredTask>` carrying `elementSeq`, and `DaoAssetSink` selects hashes by **content type** via `hashOfType(...)` |
 | `NodeDescriptorEndpoint` | `loom/services/rest` · `…rest.endpoint.impl` | Serves descriptors + content types |
 | `InputPort<T>` / `OutputPort<T>` / `Element<T>` / `NodeInputs` / `PortOutput` | `cortex/api` · `io.metaloom.cortex.api.node` | The node-author port API |
 | `NodeContext` / `NodeContextImpl` | `cortex/api` · `…node.context` | `input`/`inputs`/`isWired`/`isDemanded`/`origin`/`output`/`outputElement`/`artifacts` |
 | `NodeResultMapper` | `cortex/node-runtime` · `io.metaloom.cortex.runtime` | `toPayloads` (coerce + stamp origin), `toInputs` |
 | `ArtifactCache` / `ArtifactKey` / `Artifact` | `cortex/api` · `…node.artifact` | Not a port type — the segment-scoped home for an intermediate that must **not** be serialised. Reached via `NodeInputs.artifacts()` |
 | `RegistryNodeRegistrar` | `cortex/cli` · `…cli.dagger` | Hand-registers `filesystem-source` / `asset-source` and, per configured provider, `s3-source` / `gdrive-source` / `onedrive-source`; adapts every `@StringKey` kind |
-| `NodePortConformanceTest` | `integration-test` · `…test.integration.node` | Descriptor ↔ runtime port-constant parity |
+| `NodeSpec` / `PortDoc` / `ParamDoc` / `ParamOverride` / `PortGroupDoc` | `cortex/api` · `…node.spec` | The annotations a node declares its contract with — the only copy anyone edits |
+| `NodeSpecHarvester` / `NodeSpecCatalog` | ″ | Reads those annotations into `NodeDescriptor`s at build time |
+| `NodeSpecGoldenTest` / `NodeDescriptorResourceGenerator` | `integration-test` · `…test.integration.node` | Re-harvests every annotated node and fails if `node-descriptors.json` differs; the generator writes it (§3.3). **Replaced `NodePortConformanceTest`** — parity is now structural, not asserted |
 | `contentTypes.ts` / `portResolvers.ts` / `PipelineEditor.tsx` | `loom-ui/src/features/pipeline` | The TS mirrors and the port-aware editor |
 | `nodeviz.js` | `website/themes/meghna-hugo/static/plugins/nodeviz` | Docs renderer; speaks the same vocabulary |
 
@@ -917,8 +989,10 @@ unchanged: [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md),
 | The content-type vocabulary | `loom-shared/node-model/.../spec/ContentTypeRegistry.java` |
 | The assignability rule | `loom-shared/node-model/.../spec/ContentTypeLattice.java` |
 | The port model | `loom-shared/node-model/.../spec/{PortSpec,PortGroup,PortGroupMode,Cardinality,ResolvedPorts}.java` |
-| Every kind's ports | `loom-shared/node-model/.../spec/*DescriptorProvider.java` (table in §4) |
-| Dynamic ports | `loom-shared/node-model/.../spec/{NodePortResolver,ScriptPortResolver,PromptPortResolver}.java` |
+| Every kind's ports | `loom-shared/node-model/src/main/resources/node-descriptors.json` (the committed harvest; table in §4) |
+| Where a kind's ports are **declared** | `@NodeSpec` / `@PortDoc` on the node class in `cortex/nodes/<kind>/core/.../<Kind>Node.java` — the only copy to edit |
+| The harvest and its golden test | `cortex/api/.../node/spec/NodeSpecHarvester.java`, `integration-test/.../NodeSpecGoldenTest.java` |
+| Dynamic ports | `loom-shared/node-model/.../spec/{NodePortResolver,ScriptPortResolver,FilterPortResolver,PromptPortResolver}.java` |
 | The descriptor SPI list | `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
 | The resolver SPI list | `…/META-INF/services/io.metaloom.loom.nodes.spec.NodePortResolver` |
 | Boundary coercion | `loom-shared/node-model/.../spec/ValueCoercer.java` |
@@ -932,14 +1006,16 @@ unchanged: [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md),
 | Save-time validation | `loom/services/rest/.../validation/PipelineValidationService.java` (`collectPortErrors`) |
 | Demo pipelines (7) | `loom/core/.../boot/DemoDatabaseInitializer.java` (`edge(id, src, srcPort, tgt, tgtPort)`) |
 | The node-author API | `cortex/api/.../node/{InputPort,OutputPort,Element,NodeInputs}.java`, `…/node/context/NodeContext.java` |
-| **Count descriptor kinds** | `grep -c 'setKind("' loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/*DescriptorProvider.java \| …` — or `grep -rho 'setKind("[^"]*"' … \| sort -u \| wc -l` |
-| **Count runnable kinds** | `grep -ran '@StringKey(' cortex/ --include=*.java \| grep -v target \| grep -v /test/` (subtract the one script-*engine* binding) + `factory.register(` in `cortex/cli/.../RegistryNodeRegistrar.java` |
+| **Count descriptor kinds** | `python3 -c "import json;print(len(json.load(open('loom-shared/node-model/src/main/resources/node-descriptors.json'))))"` **+ 1** for `loom-fetch` from `OrphanNodeDescriptorProvider` |
+| **Count runnable kinds** | `grep -ran '@StringKey(' cortex/ --include=*.java \| grep -v target \| grep -v /test/` — resolve the ~9 symbolic `XNode.KIND` keys, drop the `GraalJsScriptEngine.ID` script-*engine* binding and the `@StringKey("<id>")` that lives in a javadoc — then add `factory.register(` in `cortex/cli/.../RegistryNodeRegistrar.java` |
 | The TS mirrors and the editor | `loom-ui/src/features/pipeline/{contentTypes,portResolvers}.ts`, `PipelineEditor.tsx` |
 | Docs diagram vocabulary | `website/themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (`TYPES`) |
-| Typed payload persistence targets | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2 |
+| Typed payload persistence targets | [NODES.md](NODES.md) §2 |
 
-> **Gotcha when grepping the UI:** `PipelineEditor.tsx` has lines long enough that GNU grep treats it
-> as binary and reports nothing. Always use `grep -a` on it.
+> **Gotcha when grepping:** `PipelineEditor.tsx` **and `PortGraphAnalyzer.java`** have lines long
+> enough (or bytes odd enough — `file` calls the latter `data`) that GNU grep treats them as binary
+> and reports *nothing at all*, not even a "Binary file matches" line. Always use `grep -a` on them.
+> A silent empty result from either file means the flag, not the absence of the symbol.
 
 ---
 
@@ -958,8 +1034,10 @@ mvn -q test -pl loom/pipeline -Dtest='PortGraphAnalyzerTest+PipelineGraphParserT
 # Engine (needs ./setup-pool.sh for the persistence/recovery suites)
 mvn -q test -pl loom/pipeline
 
-# Descriptor ↔ node port-constant parity (sees both trees)
-mvn -q test -pl integration-test -Dtest=NodePortConformanceTest
+# The committed descriptor resource still equals the annotations (sees both trees)
+mvn -q test -pl integration-test -Dtest=NodeSpecGoldenTest
+# ...and to regenerate it after an annotation edit (install the cortex module first):
+mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true
 
 # TS mirrors
 cd loom-ui && yarn vitest run src/features/pipeline
@@ -969,18 +1047,18 @@ cd loom-ui && yarn playwright test e2e/pipeline-ports-mocked.spec.ts
 | Test | Cases | Asserts |
 |---|---|---|
 | `ContentTypeLatticeTest` | 11 | Every arm of `isAssignable`, both wildcard directions, the *absence* of cross-family and sibling assignability, and that every family has a registered wildcard |
-| `NodeDescriptorPortsTest` | 8 | Well-formed port ids, no duplicates per side, every port names a **known** content type and has a description, grouped ports reference a group on their own side, every group has ≥ 2 members, dynamic kinds declare no static outputs and have a resolver |
-| `NodePortResolverTest` | 10 | Script list types become `MANY`; every declared type maps; case-insensitive parsing; graceful degradation on malformed options; one prompt port per prompt; the `result` fallback |
-| `PortGraphAnalyzerTest` | 20 | Type mismatch, wildcard-into-subtype, unknown ports, unsatisfied/over-satisfied XOR, EXCLUSIVE outputs, multi-edge into `ONE`, `PER_ELEMENT` classification, nested fan-out, cross-driver zip, demanded outputs |
+| `NodeDescriptorPortsTest` | 10 | Well-formed port ids, no duplicates per side, every port names a **known** content type and has a description, grouped ports reference a group on their own side, every group has ≥ 2 members, dynamic kinds declare no static outputs and have a resolver |
+| `NodePortResolverTest` | 15 | Script list types become `MANY`; every declared type maps; case-insensitive parsing; graceful degradation on malformed options; one prompt port per prompt; the `result` fallback |
+| `PortGraphAnalyzerTest` | 23 | Type mismatch, wildcard-into-subtype, unknown ports, unsatisfied/over-satisfied XOR, EXCLUSIVE outputs, multi-edge into `ONE`, `PER_ELEMENT` classification, nested fan-out, cross-driver zip, demanded outputs |
 | `PipelineGraphParserTest` | — | Port-tuple dedupe, the `dependencies[]` rejection, the version gate, `options`/`config` aliasing |
 | `PipelineRunEngineFanOutTest` | 12 | Driver runs once and branches run per element; each element task carries only its own element; the gather waits for every element of both branches and receives them seq-ordered; out-of-order arrival still gathers in order; an empty sequence skips the chain and the run completes; a failed element skips only that element downstream; a blocking gather is skipped when any element failed while a non-blocking one runs with the survivors; a failed element is retried *as that element*; two items fan out independently |
 | `PipelineRunEngineRecoveryTest` | — | A half-fanned item is restored from persisted rows |
-| `NodePortConformanceTest` | 3 | Reflects over each node's `IN_*`/`OUT_*` constants and holds them against its descriptor — port ids, content types and cardinalities both ways — with `DYNAMIC_KINDS = {script, llm, vlm}` exempted (`:88, :125`) and a guard that fails if too few nodes were on the class path to be meaningful. **This is what makes the `llm_result` / `md5sum` defect class a build failure** |
+| `NodeSpecGoldenTest` | 3 | Re-harvests every annotated node and asserts the result equals the committed `node-descriptors.json`, kind for kind and port for port. **This is what makes the `llm_result` / `md5sum` defect class a build failure**, and it replaced `NodePortConformanceTest`: with the descriptor derived from the node's own constants there is no second declaration left to drift |
 | `contentTypes.test.ts` / `portResolvers.test.ts` | — | The TypeScript mirrors against a hand-transcribed fixture |
 | `pipeline-ports-mocked.spec.ts` | — | One handle per declared port, a valid connection, a refused incompatible connection with a reason, XOR sibling disabling, script handles from the `outputs` option, and a save → reload → save round trip preserving ports and `branch` |
 
 Per-node end-to-end coverage lives in `integration-test/` — see
-[../pipeline-nodes/NODES.md](../nodes/NODES.md) §12. Those **do** need `./setup-pool.sh`.
+[NODES.md](NODES.md) §12. Those **do** need `./setup-pool.sh`.
 
 ---
 
@@ -988,18 +1066,19 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 
 ### Vocabulary and port model
 
-- [x] `ContentTypeRegistry` (39 ids, 8 families, one wildcard each); `ContentTypes` deleted
+- [x] `ContentTypeRegistry` (40 ids, 8 families, one wildcard each); `ContentTypes` deleted
 - [x] `ContentTypeLattice.isAssignable` + `isProvisional`; `ContentType.superType` deleted
 - [x] `PortSpec`, `PortGroup`, `PortGroupMode`, `Cardinality`; `NodeInput` / `NodeOutput` deleted
 - [x] `NodeDescriptor` carries `inputPorts` / `outputPorts` / `inputGroups` / `outputGroups` / `dynamicPorts`
-- [x] All 26 providers / 41 descriptor kinds declare ports, incl. the three `XOR` `media_alt` groups
-- [x] `NodePortResolver` SPI + `script` / `llm` / `vlm` implementations; `ResolvedPorts`
+- [x] All 45 descriptor kinds declare ports, incl. five `XOR` `media_alt` groups. The 26 hand-written providers are gone: a node declares its contract with `@NodeSpec`/`@PortDoc`/`@ParamDoc` and the build-time harvest is committed to `node-descriptors.json`, guarded by `NodeSpecGoldenTest` (§3.3)
+- [x] `NodePortResolver` SPI + `script` / `filter` / `llm` / `vlm` implementations; `ResolvedPorts`
 - [x] `ValueCoercer` + `ValueCoercionException`
 - [ ] Java fixture export for the TS contract test (the TS fixture is hand-transcribed)
-- [ ] No descriptor uses `EXCLUSIVE`; that path is untested outside `PortGraphAnalyzerTest` and the editor
-- [ ] Two descriptor kinds (`facedescription`, `loom-fetch`) have no runnable binding; `sha512-dedup` and `asset-source` are runnable with no descriptor (§3.3)
+- [ ] No descriptor uses `EXCLUSIVE`; that path is untested outside `PortGraphAnalyzerTest` and the editor (gap 7)
+- [x] `facedescription` is runnable; `loom-fetch` is executed by Loom, not a worker, and is no longer counted as a gap. `sha512-dedup` and `asset-source` remain runnable with no descriptor, deliberately (§3.3)
 - [x] The nine `filter-*` descriptor kinds are gone — one runnable `filter` kind replaces them (§4.5)
 - [x] Port routing: `PortSpec.selective`, inherited `InputBinding.routed`, the segmenter break (§8.6)
+- [ ] 🔴 The two dedup report ports are documented as selective and are not, so routing never fires for them (gap 1)
 
 ### Parser, validation and engine
 
@@ -1014,8 +1093,8 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] Retry, circuit breaker, capacity and dead-letter re-keyed to `(node, seq)`
 - [x] `PortPayloads` JSON codec; `AssetSink.persist` takes port payloads
 - [x] Segmenter: `PER_ELEMENT` nodes always dispatch per node (the SINGLE-only fallback)
-- [ ] `PipelineRunRecovery` re-parses with a **null registry**, so a resumed run gets no port checking
-- [ ] Port checking is skipped entirely when a definition has no `edges` key
+- [x] `PipelineRunRecovery` re-parses **with** the descriptor registry, so a resumed run gets full port checking
+- [ ] Port checking is skipped entirely when a definition has no `edges` key (gap 10)
 
 ### Wire and persistence
 
@@ -1027,9 +1106,10 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] `DaoRunStateStore` buffers and looks up by `(item, node, elementSeq)`
 - [x] `PipelineRunRecovery` restores a `List<RestoredTask>` carrying `elementSeq` — a half-fanned item survives
 - [x] `DaoAssetSink` selects hashes by **content type**, not by port id
-- [ ] 🔴 `ResultOrigin` never reaches the wire; `asset_node_result.origin` is hardcoded `COMPUTED`
-- [ ] 🔴 `run_uuid` / `task_uuid` are never set on a node-result ledger row
-- [ ] No `PortPayload` round-trip test; no `ValueCoercerTest`
+- [ ] 🔴 `ResultOrigin` never reaches the wire; `asset_node_result.origin` is hardcoded `COMPUTED` (gap 2)
+- [ ] 🔴 `run_uuid` / `task_uuid` are never set on a node-result ledger row (gap 3)
+- [ ] No `PortPayload` round-trip test; no `ValueCoercerTest` (gap 5)
+- [ ] Result reuse in `DaoRunStateStore` is hard-coded to `elementSeq = 0` (gap 13)
 
 ### Node API and the Cortex sweep
 
@@ -1040,7 +1120,7 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] `CortexNodeAdapter.process(LoomMedia, NodeInputs)` delivers ports
 - [x] All node-id-string options deleted (`textSources`, `sourceNodeId`/`sourceOutputKey`, `detectionSources`, `depthNodeId`, `ScriptNodeOptions.requiredInputs`, `S3SinkNodeOptions.artifacts`/`autoDiscover`)
 - [x] `NodeInputs` carries a segment-scoped `ArtifactCache` alongside the ports: outputs are what travels to Loom, artifacts are what must not
-- [x] `NodePortConformanceTest` exists in `integration-test/` and is green — descriptor ↔ port-constant parity is enforced
+- [x] `NodeSpecGoldenTest` keeps the committed descriptor resource equal to the annotations — the defect class `NodePortConformanceTest` used to catch is now structurally impossible
 - [x] `FILTER_PASSED` reconciled — the dead loom-shared constant is deleted
 
 ### Editor
@@ -1055,7 +1135,7 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] XOR input groups and EXCLUSIVE output groups grey out their siblings once one member is wired
 - [x] A `MANY` handle renders squared-off and doubled; the port tooltip states `ONE`/`MANY`
 - [x] `pipeline-ports-mocked.spec.ts` covers the round trip
-- [ ] No per-node `k/N elements` progress in the run monitor
+- [ ] No per-node `k/N elements` progress in the run monitor; counters still count nodes, not executions (gap 11)
 
 ### Deferred (out of scope by design)
 
@@ -1066,5 +1146,13 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (port-validation entry points renamed and re-pointed at PIPELINE_VALIDATION.md). Earlier: (4.5: the `filter` node's strategies)_
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (moved here from `features/pipeline/` and re-verified against the tree.
+The 26 hand-written descriptor providers are gone — a node declares its contract with
+`@NodeSpec`/`@PortDoc`/`@ParamDoc` and the build-time harvest is committed and guarded by
+`NodeSpecGoldenTest` (§3.3); 45 descriptor kinds / 46 runnable; 40 content-type ids; five XOR groups,
+not three; `filter` is a fourth dynamic-port kind and now carries six strategies; §4 tables
+regenerated from the committed resource; §9 rewritten — four gaps closed, the dedup selectivity gap
+found; line-number citations replaced with symbol names, which had drifted by up to 500 lines. Work
+items split out to tasks/NODE_DATA_TYPES_TASKS.md. Earlier: port-validation entry points renamed and
+re-pointed at PIPELINE_VALIDATION.md)_

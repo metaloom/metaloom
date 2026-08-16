@@ -254,7 +254,7 @@ Java test conventions: [../guidelines/CODING.md](../guidelines/CODING.md).
 | Java HTTP client | `cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentClient.java` |
 | Node behaviour, ports, persistence | [NODE_SENTIMENT.md](../features/nodes/sentiment/NODE_SENTIMENT.md) |
 | Node system reference | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
-| Typed port / content-type model | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Typed port / content-type model | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Sidecar index + port allocation | [`sidecars/README.md`](../../sidecars/README.md) |
 | Repo entry point / module map | [../CONTEXT.md](../CONTEXT.md) |
 | Definition of done for code | [../guidelines/CODING.md](../guidelines/CODING.md) |

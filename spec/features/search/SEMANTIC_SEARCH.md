@@ -419,7 +419,7 @@ an arbitrary number of rankers.
 AbstractMediaNode<EmbeddingNodeOptions>`, `name() = "embedding"`, an HTTP client to the inference host,
 `node_kind='embedding'`, `subject_index=0`, `frame_number` = the sampled frame for video. It needs a
 `NodeDescriptor` + `*DescriptorProvider` with real ports and a `NodePortConformanceTest` entry
-([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)). Persist via
+([../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md)). Persist via
 `client().createEmbedding(...)` **and** an `asset_node_result` ledger row — the two-step pattern
 `WhisperNode` establishes ([../pipeline-nodes/NODES.md](../nodes/NODES.md) §2).
 
@@ -760,7 +760,7 @@ Both live in `loom/db/jooq/src/test/.../search/`:
 | Which embedder is bound, and the boot probe | `loom/core/.../dagger/SearchModule.java#textEmbedder` |
 | What a user is told about all this | `website/content/english/docs/ui/index.adoc` — "Searching by Meaning" |
 | Node result persistence pattern | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2; `WhisperNode` |
-| Port/descriptor obligations for a new node | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
+| Port/descriptor obligations for a new node | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) |
 | Sidecar precedent for a Python model server | `sidecars/tts/`; `cortex/nodes/captioning/` (`SmolVLMClient`) |
 | Sidecar precedent for an OpenAI-compatible host | `sidecars/llamacpp/` (chat), `sidecars/llamacpp-embeddings/` (embeddings) |
 | Postgres image pins to change or guard | `start-postgres.sh`, `test-database/*.y*ml`, `loom/db/jooq/pom.xml:109`, `helm/loom/values.yaml` |

@@ -6,7 +6,8 @@ import {
 import {
   CloudUploadOutlined, CloseOutlined, ReplayOutlined, CheckCircleOutlined,
   ErrorOutlineOutlined, ContentCopyOutlined, BlockOutlined, FolderOutlined,
-  CloudOutlined, DeleteSweepOutlined, SearchOutlined,
+  CloudOutlined, DeleteSweepOutlined, SearchOutlined, PauseCircleOutlined,
+  PlayArrowOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
@@ -18,7 +19,8 @@ import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { listPools, PoolResponse } from "../../api/pools";
 import { useUploads } from "./UploadContext";
 import {
-  UploadItem, UploadStatus, cancel, cancelAll, clearFinished, enqueue, retry, retryFailed,
+  UploadItem, UploadStatus, cancel, cancelAll, clearFinished, enqueue, pause, pauseAll,
+  resume, resumeAll, retry, retryFailed,
 } from "./uploadQueue";
 import { formatBytes, percentOf, progressLabel } from "./uploadFormat";
 import { PAGE_SIZE } from "../../hooks/pagedList";
@@ -38,6 +40,8 @@ function StatusIcon({ status }: { status: UploadStatus }) {
       return <ErrorOutlineOutlined sx={{ fontSize: 18, color: tokens.accent.red }} />;
     case "cancelled":
       return <BlockOutlined sx={{ fontSize: 18, color: tokens.text.tertiary }} />;
+    case "paused":
+      return <PauseCircleOutlined sx={{ fontSize: 18, color: tokens.text.secondary }} />;
     default:
       return <CloudUploadOutlined sx={{ fontSize: 18, color: tokens.text.tertiary }} />;
   }
@@ -47,7 +51,7 @@ function barColor(status: UploadStatus): "primary" | "success" | "error" | "info
   if (status === "done") return "success";
   if (status === "duplicate") return "info";
   if (status === "error") return "error";
-  if (status === "cancelled") return "inherit";
+  if (status === "cancelled" || status === "paused") return "inherit";
   return "primary";
 }
 
@@ -104,11 +108,29 @@ function UploadRow({ item }: { item: UploadItem }) {
           </Tooltip>
         )
       ) : (
-        <Tooltip title={t("uploads.action.cancel")}>
-          <IconButton size="small" data-testid={`upload-cancel-${item.fileName}`} onClick={() => cancel(item.id)}>
-            <CloseOutlined sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
+        <>
+          {/* Only a waiting file can be held back — a running transfer has no seam to stop at
+              (uploadQueue.pause). So an uploading row keeps the cancel button alone. */}
+          {item.status === "queued" && (
+            <Tooltip title={t("uploads.action.pause")}>
+              <IconButton size="small" data-testid={`upload-pause-${item.fileName}`} onClick={() => pause(item.id)}>
+                <PauseCircleOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {item.status === "paused" && (
+            <Tooltip title={t("uploads.action.resume")}>
+              <IconButton size="small" data-testid={`upload-resume-${item.fileName}`} onClick={() => resume(item.id)}>
+                <PlayArrowOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title={t("uploads.action.cancel")}>
+            <IconButton size="small" data-testid={`upload-cancel-${item.fileName}`} onClick={() => cancel(item.id)}>
+              <CloseOutlined sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        </>
       )}
     </Box>
   );
@@ -334,7 +356,9 @@ export default function UploadView() {
             <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, flex: 1 }} data-testid="upload-queue-heading">
               {summary.isActive
                 ? t("uploads.queue.active", { done: summary.doneCount + summary.duplicateCount, total: summary.items.length, percent: summary.percent })
-                : t("uploads.queue.idle", { count: summary.items.length })}
+                : summary.pausedCount > 0
+                  ? t("uploads.queue.paused", { count: summary.pausedCount })
+                  : t("uploads.queue.idle", { count: summary.items.length })}
             </Typography>
 
             <TextField
@@ -359,7 +383,21 @@ export default function UploadView() {
                 {t("uploads.action.retryFailed")}
               </Button>
             )}
-            {summary.isActive && (
+            {/* Pausing holds back what has not started; whatever is already in flight finishes. */}
+            {summary.items.some(i => i.status === "queued") && (
+              <Button size="small" startIcon={<PauseCircleOutlined sx={{ fontSize: 15 }} />} onClick={pauseAll} data-testid="upload-pause-all"
+                sx={{ textTransform: "none", fontSize: "0.76rem" }}>
+                {t("uploads.action.pauseAll")}
+              </Button>
+            )}
+            {summary.pausedCount > 0 && (
+              <Button size="small" startIcon={<PlayArrowOutlined sx={{ fontSize: 15 }} />} onClick={resumeAll} data-testid="upload-resume-all"
+                sx={{ textTransform: "none", fontSize: "0.76rem" }}>
+                {t("uploads.action.resumeAll")}
+              </Button>
+            )}
+            {/* Paused items are not "active", but they are still cancellable work. */}
+            {(summary.isActive || summary.pausedCount > 0) && (
               <Button size="small" color="error" startIcon={<CloseOutlined sx={{ fontSize: 15 }} />} onClick={cancelAll} data-testid="upload-cancel-all"
                 sx={{ textTransform: "none", fontSize: "0.76rem" }}>
                 {t("uploads.action.cancelAll")}
@@ -371,10 +409,14 @@ export default function UploadView() {
             </Button>
           </Box>
 
-          {summary.isActive && (
+          {(summary.isActive || summary.pausedCount > 0) && (
             <LinearProgress
               variant="determinate"
               value={summary.percent}
+              // A held batch keeps its bar so the progress is not lost, but drops the accent colour
+              // so a glance tells running from paused.
+              color={summary.isActive ? "primary" : "inherit"}
+              data-testid={summary.isActive ? "upload-batch-progress" : "upload-batch-progress-paused"}
               sx={{ height: 3, bgcolor: tokens.bg.overlay }}
             />
           )}

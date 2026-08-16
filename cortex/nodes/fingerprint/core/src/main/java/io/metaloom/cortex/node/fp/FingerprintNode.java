@@ -165,7 +165,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	}
 
 	/**
-	 * Persist the computed whole-video fingerprint as a sector-0 {@code asset_fingerprint_comp} row and record a ledger entry. Best-effort and a no-op
+	 * Persist the computed whole-video fingerprint as a whole-asset (window 0) {@code asset_fingerprint_comp} row and record a ledger entry. Best-effort and a no-op
 	 * when the asset is not yet known to Loom or we run offline.
 	 */
 	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, String fingerprint) {
@@ -176,7 +176,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 			FingerprintCompCreateRequest request = new FingerprintCompCreateRequest();
 			request.setNodeKind(name());
 			request.setAlgorithm(ALGORITHM);
-			request.setSectorIndex(0);
+			request.setWindowIndex(0);
 			request.setFingerprint(fingerprint);
 			UUID compUuid = client().createAssetFingerprintComp(asset.getUuid(), request).sync().body().getUuid();
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, ALGORITHM, resultRef("asset_fingerprint_comp", compUuid));

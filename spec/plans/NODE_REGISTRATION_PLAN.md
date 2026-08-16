@@ -10,7 +10,7 @@
 >
 > | Topic | Spec |
 > |---|---|
-> | What a `NodeDescriptor` *is*, ports, content types, cardinality | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+> | What a `NodeDescriptor` *is*, ports, content types, cardinality | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 > | The shipped descriptor contract, how it is authored and harvested, and its remaining gaps | [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) · [../tasks/NODE_SCHEMA_TASKS.md](../tasks/NODE_SCHEMA_TASKS.md) |
 > | Node lifecycle, the `@StringKey` multibinding, worker whitelist/blacklist | [../features/nodes/NODES.md](../features/nodes/NODES.md) §5, §7 |
 > | Engine, dispatch, definition JSON, `unsupportedNodeKinds` | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
@@ -1284,7 +1284,7 @@ refactor away from a spurious body-hash difference between two workers announcin
 | The two node pickers | `PipelineEditor.tsx` — the search bar (`addNodeOpen`, :3220) and the `N`-key `CommandPaletteContent` (:2066) |
 | How the UI already renders worker liveness | [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) — REST snapshot + `PROCESSOR` events, relative `lastSeen`; the model §7.4 copies |
 | The editor's REST/event surface, as built | [../loom/ui/PIPELINE_EDITOR.md §8](../loom/ui/PIPELINE_EDITOR.md) |
-| The port model a spec must respect | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| The port model a spec must respect | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | What already ships of the schema work | [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) §13 |
 | Rules for adding a node | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Test-pool setup after a migration | [../../.claude/CLAUDE.md](../../.claude/CLAUDE.md) · `./setup-pool.sh` |

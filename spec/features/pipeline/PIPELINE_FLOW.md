@@ -1,7 +1,7 @@
 # Pipeline Flow — What Actually Travels Between Nodes
 
 > **Scope.** This file answers one question: **what is the thing that moves through a pipeline?**
-> It is the *conceptual* companion to [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md), which is the
+> It is the *conceptual* companion to [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md), which is the
 > *mechanical* reference. If you want the port table, the lattice rule, the coercion matrix or the
 > engine's five validation rules, go there. If you are trying to build a mental model — or you are
 > looking at the editor wondering "which of the three texts on this item does my node get?" — start
@@ -9,7 +9,7 @@
 >
 > **Not in scope** — covered elsewhere, do not duplicate:
 > - Port specs, content types, cardinality, the analyzer rules, `ValueCoercer` →
->   [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md)
+>   [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md)
 > - Node lifecycle, per-node persistence targets, the node catalogue →
 >   [../pipeline-nodes/NODES.md](../nodes/NODES.md)
 > - Engine internals, run state, dispatch protocol, DB schema → [PIPELINE.md](PIPELINE.md)
@@ -108,7 +108,7 @@ Three levels of "the asset", do not confuse them:
 
 The `media/*` **port** exists on top of the ambient reference so the graph is fully wired and
 type-checked: a `media/image`-only node cannot be connected to a video source without the analyzer
-saying so at save time. See [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §5 for why both exist.
+saying so at save time. See [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §5 for why both exist.
 
 ### 2.3 The port payload — the only real data flow
 
@@ -223,7 +223,7 @@ public static final InputPort<String> IN_SUMMARY =
 The precedent already ships: `scene-layout` takes `depth : struct/depthmap` **and**
 `detections : detection/* MANY` from two different upstream nodes, and `dominant-color` takes
 `media : media/image` **and** an optional `detections : detection/*`
-([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4.3).
+([../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §4.3).
 
 Naming the ports for their *role* (`transcript`, `summary`) rather than their type is what makes the
 node readable: the code says `ctx.input(IN_TRANSCRIPT)`, and the editor shows two labelled handles.
@@ -241,7 +241,7 @@ for (Element<String> face : ctx.inputs(IN_DETECTIONS)) {
 ```
 
 That is not ambiguity — it is a declared sequence, seq-ordered, all from one origin item. The
-gather/fan-out mechanics are in [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §8.
+gather/fan-out mechanics are in [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §8.
 
 ---
 
@@ -265,7 +265,7 @@ The accumulating structure exists (§2.4) and you should keep that picture — j
 
 | Problem | Why it is fatal |
 |---|---|
-| **Reintroduces the lookup-by-name defect** | A node receiving a bag must select from it — by node id, by key, or by type. Node-id selection is exactly the defect class the port refactor removed: ids are author-chosen, so renaming a node in the editor silently starved a downstream lookup (`sentiment`'s `textSources`, `LoomNode`'s `md5sum`, `llm_result` vs `llm_result_<promptId>` — [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §9.1) |
+| **Reintroduces the lookup-by-name defect** | A node receiving a bag must select from it — by node id, by key, or by type. Node-id selection is exactly the defect class the port refactor removed: ids are author-chosen, so renaming a node in the editor silently starved a downstream lookup (`sentiment`'s `textSources`, `LoomNode`'s `md5sum`, `llm_result` vs `llm_result_<promptId>` — [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §9.1) |
 | **Nothing is checkable at save time** | If selection happens at runtime against whatever the bag holds, the editor cannot tell you a pipeline is broken. Today `PortGraphAnalyzer` rejects a bad graph before a single file is touched |
 | **Fan-out has no coherent meaning** | Three faces are three elements of one port. In a bag model, what is "the asset with three faces appended" when the next node runs per face? |
 | **Unbounded payloads** | A gather already ships all N elements inline. A bag would ship every prior node's output to every downstream node, whether wanted or not |
@@ -303,7 +303,7 @@ The model is simpler than it currently reads. Every item below is a genuine defe
 
 1. **Media is ambient *and* a port.** The single biggest source of "wait, what does a node actually
    receive?". `NodeTask.media` is always there; `media : media/*` must also be wired. Both are
-   deliberate ([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §5) but nothing states plainly that
+   deliberate ([../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §5) but nothing states plainly that
    *"the file handle is context; the port is the type-checked graph statement about it."*
 
 2. **The word "output" means two things.** A node's *output port* (wire) and a node's *persisted
@@ -323,7 +323,7 @@ The model is simpler than it currently reads. Every item below is a genuine defe
 
 5. **The one demo that exercises the interesting case is the gather, not the fan-out.** No shipped
    kind declares a `ONE`-cardinality `detection/*` input, so nothing in the demo data shows a node
-   running once per face ([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §8.5). Fan-out reads as theory.
+   running once per face ([../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §8.5). Fan-out reads as theory.
 
 ---
 
@@ -354,7 +354,7 @@ gaps are in coverage and ergonomics.
 
 5. **Show `k/N elements` in the run monitor.** A per-element node currently reports as one node, so
    the fan-out is invisible while it runs. Already tracked in
-   [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §17.
+   [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §17.
 
 6. **Finish the descriptor/body reconciliation and drop the legacy "Output Keys" column** from
    [NODES.md](../nodes/NODES.md) §3 once the sweep lands, so there is one answer to "what
@@ -430,7 +430,7 @@ Six sentences that between them answer almost every "what travels?" question:
 | A node's own view of all this | `cortex/api/.../node/context/NodeContext.java` |
 | How the asset row is resolved | `cortex/common/.../node/AbstractMediaNode.java` → `fetchAsset` |
 | Where node output becomes a catalogue component | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2 |
-| The per-kind port table | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4 |
+| The per-kind port table | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §4 |
 | Demo graphs | `loom/core/.../boot/DemoDatabaseInitializer.java` |
 
 ---
@@ -509,7 +509,7 @@ mvn -q test -pl loom-shared/node-model
 
 The open defects in the mechanics ( `DaoRunStateStore` ignoring `elementSeq`, `PipelineRunRecovery`
 collapsing a fanned-out item, the inline `dependencies[]` fallback bypassing port validation,
-recovery re-parsing with a null registry) are listed in [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §9.2
+recovery re-parsing with a null registry) are listed in [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §9.2
 and §17. They affect whether the flow *works*, not what it *is*.
 
 ---

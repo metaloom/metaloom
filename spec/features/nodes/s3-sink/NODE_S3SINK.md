@@ -17,7 +17,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, the persistence matrix | [../NODES.md](../NODES.md) |
-| Port content types, cardinality, the `artifact/*` family | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §2, §4.6 |
+| Port content types, cardinality, the `artifact/*` family | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §2, §4.6 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The shared `cortex/s3-common` client, credential and caching model | [../s3-source/NODE_S3SOURCE.md](../s3-source/NODE_S3SOURCE.md) |
 | Every `CORTEX_S3_*` flag and where worker options come from | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) §2.2 |
@@ -457,7 +457,7 @@ Re-run and confirm `Last Modified` is unchanged (the `IF_DIFFERENT` skip);
 | Customer-facing page | [website/content/english/docs/nodes/s3-sink/index.adoc](../../../../website/content/english/docs/nodes/s3-sink/index.adoc) |
 | The `CORTEX_S3_*` flags | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) §2.2 |
 | The shared S3 client and credential model | [../s3-source/NODE_S3SOURCE.md](../s3-source/NODE_S3SOURCE.md) |
-| The `artifact/*` family and MANY ports | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §2, §4.6 |
+| The `artifact/*` family and MANY ports | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §2, §4.6 |
 | Loom's byte endpoints and pool model | [../../rest/REST_BINARY_HANDLING.md](../../rest/REST_BINARY_HANDLING.md) |
 | The real fix this node substitutes for | [../../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |

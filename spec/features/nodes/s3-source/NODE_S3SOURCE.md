@@ -18,7 +18,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, the source-node capability matrix | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The egress half — uploads, key templates, `OverwritePolicy`, artifact assets | `s3-sink`, [../NODES.md](../NODES.md) §3 |
 | Every `CORTEX_S3_*` flag in one authoritative table | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) |
@@ -79,7 +79,7 @@ Three separable pieces follow from that, and they are worth keeping apart when r
 Named `media` exactly as `filesystem-source`, `asset-source` and the cloud-drive sources name theirs,
 so a downstream node stays wired when the source is swapped. Typed `media/*` because the concrete
 kind is only known once the object is fetched — see
-[../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md).
+[../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md).
 
 🔴 **`process()` emits the `media` port and nothing else.** The typed port model replaced the older
 `uri` / `bucket` / `key` / `source` / `state` output keys. Bucket, key and diff state are scan
@@ -485,7 +485,7 @@ run 2 emits nothing; a fresh `mc cp` makes run 3 process exactly one item;
 | Loom's *own* S3 backend (unrelated code) | `loom/services/s3/…/S3BinaryStorage.java` · `loom/services/rest/…/BinaryStorageResolver.java` |
 | All `CORTEX_S3_*` flags in one table | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---

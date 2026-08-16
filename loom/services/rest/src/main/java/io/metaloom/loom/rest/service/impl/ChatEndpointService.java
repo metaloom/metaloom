@@ -23,6 +23,7 @@ import io.metaloom.loom.rest.model.chat.ChatModel;
 import io.metaloom.loom.rest.model.chat.ChatUpdateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.vertx.core.json.JsonObject;
 
 @Singleton
 public class ChatEndpointService extends AbstractCRUDEndpointService<ChatDao, Chat> {

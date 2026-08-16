@@ -19,7 +19,7 @@ import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 import io.metaloom.loom.db.model.asset.AssetSegmentComp;
 
 /**
- * Covers the two component tables added for node results that previously had nowhere to go: multi-sector fingerprints (worked case 13) and time ranged
+ * Covers the two component tables added for node results that previously had nowhere to go: windowed perceptual fingerprints (worked case 13) and time ranged
  * segments (worked cases 8 and 9).
  */
 public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
@@ -37,15 +37,15 @@ public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
 	}
 
 	@Test
-	public void testMultiSectorFingerprint() {
+	public void testWindowedFingerprint() {
 		UUID assetUuid = assetUuid();
 
-		for (int sector = 0; sector < 8; sector++) {
+		for (int window = 0; window < 8; window++) {
 			AssetFingerprintComp comp = dao().createFingerprintComp(userUuid(), assetUuid, "fingerprint");
 			comp.setAlgorithm("metaloom-multisector-v1");
-			comp.setSectorIndex(sector);
-			comp.setTimeFrom(sector * 1000L).setTimeTo((sector + 1) * 1000L);
-			comp.setFingerprint("fp-" + sector);
+			comp.setWindowIndex(window);
+			comp.setTimeFrom(window * 1000L).setTimeTo((window + 1) * 1000L);
+			comp.setFingerprint("fp-" + window);
 			dao().upsertFingerprintComp(comp);
 		}
 
@@ -54,18 +54,18 @@ public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
 	}
 
 	@Test
-	public void testFingerprintRerunUpsertsEachSector() {
+	public void testFingerprintRerunUpsertsEachWindow() {
 		UUID assetUuid = assetUuid();
 
 		for (int run = 0; run < 2; run++) {
-			for (int sector = 0; sector < 4; sector++) {
+			for (int window = 0; window < 4; window++) {
 				AssetFingerprintComp comp = dao().createFingerprintComp(userUuid(), assetUuid, "fingerprint");
-				comp.setAlgorithm("v1").setSectorIndex(sector).setFingerprint("run" + run + "-" + sector);
+				comp.setAlgorithm("v1").setWindowIndex(window).setFingerprint("run" + run + "-" + window);
 				dao().upsertFingerprintComp(comp);
 			}
 		}
 
-		assertEquals(4, dao().loadFingerprintComps(assetUuid).size(), "A second run must not double the sectors");
+		assertEquals(4, dao().loadFingerprintComps(assetUuid).size(), "A second run must not double the window rows");
 		assertEquals("run1-2", dao().loadFingerprintComp(assetUuid, "fingerprint", "v1", 2).getFingerprint());
 	}
 
@@ -77,7 +77,7 @@ public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
 		UUID assetUuid = assetUuid();
 
 		AssetFingerprintComp comp = dao().createFingerprintComp(userUuid(), assetUuid, "fingerprint");
-		comp.setAlgorithm("v1").setSectorIndex(0).setFingerprint("deadbeef");
+		comp.setAlgorithm("v1").setWindowIndex(0).setFingerprint("deadbeef");
 		dao().upsertFingerprintComp(comp);
 
 		List<AssetFingerprintComp> hits = dao().findByFingerprint("v1", "deadbeef");
@@ -97,7 +97,7 @@ public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
 		String algorithm = "hex-projection-" + UUID.randomUUID();
 
 		AssetFingerprintComp comp = dao().createFingerprintComp(userUuid(), assetUuid, "fingerprint");
-		comp.setAlgorithm(algorithm).setSectorIndex(0).setFingerprint("deadbeef");
+		comp.setAlgorithm(algorithm).setWindowIndex(0).setFingerprint("deadbeef");
 		dao().upsertFingerprintComp(comp);
 
 		List<HexFingerprint> fingerprints;

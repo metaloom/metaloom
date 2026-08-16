@@ -156,13 +156,20 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   /**
    * The upload entry carries a thin progress bar while a batch is running. It is the only ambient
    * signal that background work is happening once the user has left the upload screen.
+   *
+   * A paused batch keeps the bar — the work is still there, waiting on the user — but in the
+   * neutral colour, so "held" never looks like "running" from across the room.
    */
   const renderUploadProgress = () =>
-    uploads.isActive ? (
-      <Box sx={{ px: collapsed ? 0.5 : 1.5, pb: 0.5 }} data-testid="sidebar-upload-progress">
+    uploads.isActive || uploads.pausedCount > 0 ? (
+      <Box
+        sx={{ px: collapsed ? 0.5 : 1.5, pb: 0.5 }}
+        data-testid={uploads.isActive ? "sidebar-upload-progress" : "sidebar-upload-progress-paused"}
+      >
         <LinearProgress
           variant="determinate"
           value={uploads.percent}
+          color={uploads.isActive ? "primary" : "inherit"}
           sx={{ height: 3, borderRadius: tokens.radius.full, bgcolor: tokens.bg.overlay }}
         />
       </Box>

@@ -231,7 +231,7 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
 | which port | `sidecars/README.md`, `TtsNodeOptions.ttsPort` = `9100` |
 | how the node consumes it | `cortex/nodes/tts/core/.../TtsNode.java`, [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | node options schema / defaults | `TtsDescriptorProvider`, [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
-| port types + cardinality rules | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| port types + cardinality rules | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | where the WAV bytes go | `metaPath/tts_bin/…`; [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) §2.1 |
 | why nothing is uploaded to Loom | [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | metrics emitted (`recordAiCall`/`recordAiCacheHit` with `"tts"`) | [../features/ops/METRICS.md](../features/ops/METRICS.md) |

@@ -824,6 +824,7 @@ runtime config.
 | `VITE_PROXY_TARGET` | `vite.config.ts` (dev only) | unset → no proxy | Backend for the dev-server `/api` proxy; the path is **not** rewritten |
 | `VITE_PORT` | `playwright.config.ts` | `3000` | Dev-server port used by the E2E webServer |
 | `VITE_HELP_BASE_URL` | `src/help/topics.ts` | `https://metaloom.io/help` | Where the documentation coachmarks point (§7.10). For an installation with no route to the public internet, a mirror |
+| `VITE_UPLOAD_CONCURRENCY` | `src/features/uploads/uploadQueue.ts` | `3` (range `1`–`8`) | Parallel uploads ([LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) §7). Unparseable or out-of-range values fall back to the default rather than being clamped |
 
 > `VITE_WS_URL` and `VITE_MCP_URL` are **not** read anywhere — earlier revisions of this spec
 > listed them in error. The WS URL is derived from `VITE_API_BASE_URL`.

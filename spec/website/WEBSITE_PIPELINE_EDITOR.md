@@ -19,7 +19,7 @@ login.
 |---|---|---|
 | **This page** (`website/`, vanilla JS, no backend) | **this file** | The `/pipeline-editor/` page, `pipeline-editor.js`, `pipeline-editor.css`, the staged descriptor snapshot and the simulator's semantics |
 | The **product** editor (`loom-ui/`, React Flow, talks to Loom) | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) | Canvas, CRUD, versions, run history, `POST /pipelines/:uuid/run` |
-| The **type system and engine** | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md), [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) | `PortSpec`, `ContentTypeRegistry`, `PortGraphAnalyzer`, `ExecutionMode`, the real gather |
+| The **type system and engine** | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md), [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) | `PortSpec`, `ContentTypeRegistry`, `PortGraphAnalyzer`, `ExecutionMode`, the real gather |
 | The **site** it is published on (build, checks, publish flow) | [WEBSITE.md](WEBSITE.md) | Hugo build, `build.sh` checks, `check-links.mjs`, GitHub Pages publish |
 
 [WEBSITE.md](WEBSITE.md) § *The Pipeline Editor page* is the short entry in the site catalogue and
@@ -271,7 +271,7 @@ the palette, which no check catches.
 ## The type engine mirror
 
 `isAssignable(actual, declared)` is a verbatim port of the TypeScript rule
-([NODE_DATA_TYPES.md § 2.1](../features/pipeline/NODE_DATA_TYPES.md), § 10 for the mirror contract):
+([../features/nodes/NODE_DATA_TYPES.md § 2.1](../features/nodes/NODE_DATA_TYPES.md), § 10 for the mirror contract):
 
 1. exact id match → assignable;
 2. different families → never assignable;
@@ -407,7 +407,7 @@ intentional (the visitor sees *why* it was wrong rather than the drag silently d
 both are noted in [Progress Assessment](#progress-assessment).
 
 > Two known simplifications against
-> [NODE_DATA_TYPES.md § 3.2](../features/pipeline/NODE_DATA_TYPES.md): input groups are only enforced
+> [../features/nodes/NODE_DATA_TYPES.md § 3.2](../features/nodes/NODE_DATA_TYPES.md): input groups are only enforced
 > for `mode === "XOR"` (any other mode is ignored), and *every* output group is treated as exclusive
 > regardless of its `mode`. Neither is observable today — the snapshot declares only `XOR` input
 > groups and no output groups at all.
@@ -526,7 +526,7 @@ Breakpoints survive `Reset`: they are how a visitor sets the run up *before* pre
 The page teaches the *shape* of the model, not the engine. Keep this list accurate — it is the
 honesty contract of the whole page.
 
-| Real engine ([NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md), [PIPELINE.md](../features/pipeline/PIPELINE.md)) | This simulator |
+| Real engine ([../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md), [PIPELINE.md](../features/pipeline/PIPELINE.md)) | This simulator |
 |---|---|
 | `PortGraphAnalyzer` computes effective multiplicity and `ExecutionMode` (`SINGLE`/`PER_ELEMENT`) statically, propagating in topological order | Fan-out is *observed* at run time: "a `ONE` input got >1 element" |
 | `fanOutDriver` lineage rules: nested fan-out rejected, one origin lineage per zip | Neither restriction is validated |
@@ -887,7 +887,7 @@ and the demo blockers recorded below are now closed.
       (`link:../../pipeline-editor/`), so a reader who wants to *try* the model is sent there from
       the two pages that describe it
 - [ ] The mirror against `contentTypes.ts` is reviewer-enforced only (no shared fixture) — the same
-      gap [NODE_DATA_TYPES.md § 10](../features/pipeline/NODE_DATA_TYPES.md) records for the UI mirror
+      gap [../features/nodes/NODE_DATA_TYPES.md § 10](../features/nodes/NODE_DATA_TYPES.md) records for the UI mirror
 
 ---
 _Git HEAD revision: `27894151`_

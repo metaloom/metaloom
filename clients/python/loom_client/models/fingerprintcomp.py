@@ -14,7 +14,7 @@ class FingerprintCompCreateRequest(MetaModel):
 
     node_kind: str | None = None
     algorithm: str | None = None
-    sector_index: int = 0
+    window_index: int = 0
     time_from: int | None = None
     time_to: int | None = None
     fingerprint: str | None = None
@@ -36,7 +36,7 @@ class FingerprintCompResponse(CreatorEditorResponse):
     asset_uuid: str | None = None
     node_kind: str | None = None
     algorithm: str | None = None
-    sector_index: int = 0
+    window_index: int = 0
     time_from: int | None = None
     time_to: int | None = None
     fingerprint: str | None = None

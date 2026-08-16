@@ -4,7 +4,7 @@
 > Format follows [TASKS.template.md](TASKS.template.md).
 >
 > **Context:** [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) (technical
-> spec) · [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (what the
+> spec) · [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) (what the
 > contract means) · [../plans/NODE_REGISTRATION_PLAN.md](../plans/NODE_REGISTRATION_PLAN.md) (how a
 > worker announces one)
 >
@@ -73,7 +73,7 @@ optimistic pre-render pinned by a contract test against the route.
 ```
 
 **References:** [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) §7 ·
-[../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §3.4 ·
+[../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) §3.4 ·
 `GetNodeDescriptorTool` javadoc (which states the gap explicitly) ·
 [../loom/PYTHON_CLIENT.md](../loom/PYTHON_CLIENT.md)
 **Test Requirements:** Extend `NodeDescriptorEndpointTest` rather than adding a class — a `script`
@@ -178,7 +178,7 @@ edge key does not. `mvn -o -pl loom/doc test`
 **Argumentation Summary:** The counts in this area have been wrong in several files at once, and each
 wrong number gets copied forward. At this revision the truth is **45 advertised node ids** (44
 generated plus `loom-fetch`), **2 descriptor providers**, **40 content types** and **4 port
-resolvers**. Against that: [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md)
+resolvers**. Against that: [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md)
 §3.3 still says "41 kinds from 26 providers" and warns that PIPELINE.md says "25 providers / 39 kinds";
 §3.4 lists three resolvers and omits `filter`, and its closing note describes a three-resolver
 TypeScript mirror. [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) tells an author to bump
@@ -187,6 +187,16 @@ either write a wrong number into a fifth file or conclude the code is broken.
 
 **Improvement Summary:** One sweep that replaces every hardcoded count with the current value and, where
 a count is genuinely volatile, with the command that recomputes it.
+
+> ✅ **Steps 1 and 2 are done (2026-08-16).** `NODE_DATA_TYPES.md` was moved to `features/nodes/` and
+> re-verified against the tree in the same pass: §3.3 now states 45 descriptor kinds from 2 providers
+> and describes the annotation harvest, §3.4 lists all four resolvers including `filter`, §10 says
+> four mirrored resolvers, and the `resolvePorts` note names both callers and points here. Its §2
+> count is 40 content types, and every line-number citation in the file was replaced with a symbol
+> name — they had drifted by up to 500 lines. **Steps 3, 4 and 5 are still open**; the step-5 grep
+> currently hits `METALOOM_CONTEXT.md:920`, `cortex/METALOOM_ARCHITECTURE.md:254`,
+> `website/WEBSITE_PIPELINE_EDITOR.md:40,256`, `plans/NODE_REGISTRATION_PLAN.md:640` and the stale-
+> neighbour note in `features/pipeline/NODE_SCHEMA.md:439`, which can now be deleted.
 
 ```
 1. NODE_DATA_TYPES.md §3.3: replace the kind/provider table with 45 node ids / 2 providers,

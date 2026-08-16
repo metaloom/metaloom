@@ -21,7 +21,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Worker configuration, `CORTEX_META_PATH`, container mounts | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) |
 | Getting the marked bytes off the worker | `s3-sink`, [../NODES.md](../NODES.md) §2.1 |
@@ -137,7 +137,7 @@ ffmpeg -nostdin -hide_banner -loglevel error -y -i <in> -i <overlay.png> \
 Exactly one of `OUT_IMAGE` / `OUT_VIDEO` is written per item; a node wired to the other one simply
 receives nothing for that item. That is how an image-only and a video-only downstream branch are
 expressed **without a filter node** — the idiom [../NODES.md](../NODES.md) §"Two outputs express a
-branch" generalises from here, and [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md)
+branch" generalises from here, and [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md)
 § port routing records that a downstream port fed by both delivers when *either* fires.
 
 ### 3.2 🔴 Relative X/Y address the inset box, not the frame
@@ -462,7 +462,7 @@ cd loom-ui && node scripts/capture-node-config-screenshots.mjs watermark \
 | The docs fixture recipe | `integration-test/…/node/docs/DocsFixtureGenerator.java` (`simple("watermark", …)`) |
 | The customer page | [website/content/english/docs/nodes/watermark/index.adoc](../../../../website/content/english/docs/nodes/watermark/index.adoc) |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node like this one | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Where the bytes should eventually go | [../../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 

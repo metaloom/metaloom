@@ -5,7 +5,7 @@
 >
 > **Context:** [PIPELINE.md](../features/pipeline/PIPELINE.md) (technical spec) ·
 > [PIPELINE_REQUIREMENTS.md](../features/pipeline/PIPELINE_REQUIREMENTS.md) (requirement → status) ·
-> [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (ports, cardinality, fan-out) ·
+> [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) (ports, cardinality, fan-out) ·
 > [PIPELINE_VALIDATION.md](../features/pipeline/PIPELINE_VALIDATION.md) (the one validator) ·
 > [PIPELINE_FLOW.md](../features/pipeline/PIPELINE_FLOW.md) (item lifecycle)
 >
@@ -148,7 +148,7 @@ by binding, not by name.
 ```
 
 **References:** [PIPELINE.md §7.3](../features/pipeline/PIPELINE.md) (affinity segmentation) ·
-[NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (port model) ·
+[../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) (port model) ·
 `SegmentNode.java`, `SegmentTaskRunner.java`, `InputBinding.java`
 **Test Requirements:** A `loom/pipeline` test that a two-node segment wired `a.image_out ->
 b.media_in` produces a `SegmentTask` whose second `SegmentNode` carries that binding, and a
@@ -482,9 +482,9 @@ not open a parallel task.
 | `asset_node_result` provenance — `origin` hard-coded `COMPUTED`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest` | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18** |
 | Re-baselining `WORKFLOWS.md` and `METALOOM_CONTEXT.md` | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 16** (Task 17 above covers only `spec/features/pipeline/`) |
 | Ad-hoc ("pipelineless") node execution — `pipeline_run.kind = ADHOC`, the `/api/v1/node-runs` routes | [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md). It reuses `PipelineGraphParser`, `PipelineRunEngine` and `WebSocketNodeDispatcher` unchanged |
-| Task-state retention sweep (decided, not built) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [PIPELINE.md §9.2](../features/pipeline/PIPELINE.md) |
+| Task-state retention sweep (decided, not built) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) **Task 7** · [PIPELINE.md §9.2](../features/pipeline/PIPELINE.md) |
 | Per-node task inspection API (`leased_by`, attempts, dead-letter reason) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) |
-| Adaptive dispatch width; priority with aging; straggler re-dispatch; dispatch batching; adaptive result batch size | [PLAN_C](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) **Tasks 1-5** (that file became a task list on 2026-08-11) |
+| Adaptive dispatch width; priority with aging; straggler re-dispatch; dispatch batching; adaptive result batch size | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) **Tasks 13-17** (merged there from `METALOOM_ARCHITECTURE_V2_TASKS.md` on 2026-08-16 — its Task 13 is *not* this file's Task 13) |
 | Per-item opt-in event stream | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) **Task 3** |
 | UI: run deep-linking (Task 3), a cross-pipeline run activity view (Task 4), deleting the unreachable legacy `src/` trees (Task 5) | [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) |
 | Node-level gaps: `asset-source` descriptor, per-node docs, kinds with no runtime producer | [NODES.md §10](../features/nodes/NODES.md) |

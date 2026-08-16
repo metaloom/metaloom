@@ -21,18 +21,45 @@
 > transcript normalization — superseded by CTX5 · **EXE1, EXE2, EXE3, EXE5** ad-hoc node execution —
 > recorded in [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md) §1.
 >
-> **Blocking:** CTX1 gates CTX2/CTX3/CTX4/CTX6/CTX8/LP5 (nothing can be budgeted before anything
-> counts) · CTX2 gates SEC2 (SEC2 removes the only way to unwedge a long chat) · SEC1 gates RD2 and
+> **Blocking:** CTX3 is now independent (CTX1 landed) · SEC1 gates RD2 and
 > RD5 (they are the first code that reads attacker-controllable asset text) · RD1's filter object is
 > reused by RD3, RD4 and EXE4 — build it once · LP2 gates ACT1/ACT2 bulk writes.
+>
+> **Landed 2026-08-16 — CTX1, CTX2, CTX4** (task text removed; the numbers stay retired so citations
+> resolve to a gap rather than to the wrong task). Recorded in
+> [LOOM_UI_CHAT.md §4.4](../chat/LOOM_UI_CHAT.md). What was built:
+> `ContextBudget` (chars/4 estimate, `LOOM_AI_CONTEXT_RESERVE_TOKENS`) · a `context` SSE frame per
+> turn · `chat.meta.lastRun` · `ConversationHistory` — a pure assembler that evicts whole exchanges
+> newest-first, honours `LOOM_AI_HISTORY_MAX_MESSAGES` and never orphans a `tool_call_id` ·
+> `chat.meta.summary` rolled forward by one `completeText` call past
+> `LOOM_AI_COMPACTION_THRESHOLD_MESSAGES` and replayed as a delimited `<conversation_summary>`
+> system block · `ChatMeta.SERVER_OWNED_KEYS` stripped by `ChatEndpointService`.
+>
+> **Landed 2026-08-16 — LP4**, with the slice of **LP5** it depends on. `map_over` + `FanOut` run one
+> instruction over up to `LOOM_AI_FANOUT_MAX_ITEMS` items in tool-less child contexts at
+> `LOOM_AI_FANOUT_CONCURRENCY`, cap each answer, report failures as data and optionally reduce.
+> `RunBudget` carries `LOOM_AI_MAX_LLM_CALLS_PER_RUN`, claimed by parent turns and children alike.
+> Recorded in [LOOM_UI_CHAT.md §3.1](../chat/LOOM_UI_CHAT.md). **LP5 is not done** — see its task
+> below for what remains. Two LP4 sub-items were deliberately not built: `useWorkingSet` needs CTX6,
+> and the aggregate fan-out result is capped by its own `LOOM_AI_FANOUT_CHILD_MAX_CHARS` rather than
+> CTX3's not-yet-existing global tool-result cap.
+>
+> **CTX1 was built larger than specified.** genai-utils now exposes `TokenUsage` (the `usage` object
+> OpenAI-compatible servers attach to a response), so the loop no longer has to guess after the fact:
+> `TurnResult.usage` carries the measured counts through both `TurnStreamer` implementations, they
+> are reported on `turn_end` and in `chat.meta.lastRun`, and `chat.meta.tokenCalibration` corrects
+> the estimator against them for the next run. The estimator itself stays — eviction has to be
+> decided *before* the request goes out, which is exactly when no measurement exists.
 
 ## Progress Assessment
 
-- [ ] **Defects:** CTX2, CTX3, SEC2, RD1, RD3, MEM2 — see the table below
-- [ ] Context handling CTX1, CTX4–CTX8 — none started
+- [ ] **Defects:** CTX3, SEC2 (partially fixed), RD1, RD3, MEM2 — see the table below
+- [x] Context handling **CTX1, CTX2, CTX4** — landed 2026-08-16, see the header note
+- [ ] Context handling CTX3, CTX5–CTX8 — none started
 - [ ] Node execution follow-ups EXE4, EXE6, EXE7, EXE8 — none started
 - [ ] Retrieval and comprehension RD2, RD4, RD5, RD6 — none started
-- [ ] Loop primitives LP1–LP5 — none started
+- [x] Loop primitives **LP4** — landed 2026-08-16, incl. the LLM-call ceiling of LP5
+- [ ] Loop primitives LP1, LP2, LP3, LP5 (partial) — see the header note
 - [ ] Acting on the catalog SEC1, ACT1, ACT2 — none started
 - [ ] Hygiene QW1–QW7 — none started
 - [ ] Sessions / skills / memory F4, F5, SES1, MEM1–MEM3 — none started. MEM2 and MEM3 were added on
@@ -47,119 +74,43 @@ wrong result, not because they are improvements.
 
 | ID | Defect | Failure | Severity |
 |---|---|---|---|
-| **CTX2** | `AgentLoop.buildHistory` replays every element of `chat.messages` with no cap | Once the replayed transcript exceeds `LOOM_AI_CONTEXT_WINDOW` the provider rejects the request and the loop maps it to a terminal `LLM_ERROR`. `persist()` appends the user message before the `"error".equals(status)` check, so every retry leaves the transcript one message longer: the chat cannot recover by itself. `ChatWorkspace.tsx` only ever sends `meta`, so recovery needs a hand-written `POST /chats/:uuid` carrying a shorter `messages` array, or deleting the chat. | High |
 | **CTX3** | `AgentLoop.executeToolCall` returns the untruncated tool result into the live history (only the persisted `resultSummary` is capped at 2048) | One large `search_assets`, `run_shell` or `load_skill` result overflows the window mid-run and fails the turn. Needs no history at all — it can happen on the first message of a new chat. `RunNodeProbeTool` and `GetJobTool` already carry `// TODO(CTX3)` markers and cap independently against `LOOM_AGENT_EXEC_RESULT_MAX_CHARS`. | High |
 | **RD1** | `SearchAssetsTool` declares `query` and `mimeType` and reads neither — it calls `assetDao.loadPage(null, limit, null, null, null)`. `SearchTranscriptTool` returns a hard-coded stub whose text tells the model it "will query the asset_doc_comp table" | Any search returns the first N assets in DAO order while the descriptor promises "Search for assets by filename, MIME type, tags, or any metadata". The model reports the wrong assets confidently and has no way to detect it. Neither tool has a unit test. | High |
 | **RD3** | `AssetStatisticsTool` loads 10 000 assets into memory, aggregates in Java, silently truncates at that cap and ignores its `collection` parameter | On a library larger than 10 000 assets every reported count is wrong with no truncation notice, and a scoped question is answered library-wide. | Medium |
 | **MEM2** | No migration and no demo role grants any `*_MEMORY` permission, and `PERMISSION_GROUPS` in `AdminArea.tsx` has no Memory group | With `LOOM_AGENT_MEMORY_ENABLED=true` the `/memory` view and all four MCP tools 403 for every user, and the admin area offers no way to fix it — the permission can only be granted through the REST role API. The demo seeds three memory notes and grants the Editor role (which the demo assistant runs as) nothing that can read them. The `admin.roles.permission.*_MEMORY` locale labels already exist and are dead. | Medium |
-| **SEC2** | `chat.messages` and `chat.meta` are client-writable through `POST /api/v1/chats/:uuid` | `ChatEndpointService` lines 79–80 copy `getMessages()`/`getMeta()` straight onto the row, so a caller can author a transcript the loop replays as genuine `assistantWithToolCalls` + `toolResult` pairs. Self-inflicted today; becomes cross-user injection once CTX7 injects a published session's history, and a control surface once CTX4/CTX6/LP3 store the summary, working set and plan in `chat.meta`. Contradicts [LOOM_UI_CHAT.md §5](../chat/LOOM_UI_CHAT.md), which states the server owns the transcript. | Medium |
+| **SEC2** | `chat.messages` is client-writable through `POST /api/v1/chats/:uuid` | `ChatEndpointService` copies `getMessages()` straight onto the row, so a caller can author a transcript the loop replays as genuine `assistantWithToolCalls` + `toolResult` pairs. Self-inflicted today; becomes cross-user injection once CTX7 injects a published session's history. **Partially fixed 2026-08-16:** the `chat.meta` half is closed — `ChatMeta.SERVER_OWNED_KEYS` (`summary`, `tokenCalibration`, `lastRun`) are stripped from client writes, which CTX4 made urgent since the summary re-enters as a *system* block. The transcript itself is still open, and still contradicts [LOOM_UI_CHAT.md §5](../chat/LOOM_UI_CHAT.md), which states the server owns it. | Medium |
 
-`CTX1` is not itself a defect — it is the missing instrument that makes CTX2 and CTX3 invisible
-until they fire, which is why it is scheduled alongside them.
+`CTX1` landed on 2026-08-16 and with it the instrument CTX3 was invisible without: the `context`
+frame and `chat.meta.lastRun` now show what filled the window, and `turn_end` carries the counts the
+model server actually reported.
 
 ## Recommended order
 
 | # | Task | Size | Why now |
 |---|---|---|---|
-| 1 | **CTX2** budgeted history replay | S | Defect. The replay overflows the window and every later message fails the same way, each one leaving the transcript longer. |
-| 2 | **CTX3** cap tool results entering the live history | S | Defect, and two shipped tools already work around its absence. |
-| 3 | **CTX1** token accounting | S | Makes CTX2/CTX3/CTX4/CTX8 measurable instead of guessed. |
-| 4 | **SEC2** stop the client writing the transcript | S | Defect. Right after CTX2 — it is currently the only way to unwedge a chat. |
-| 5 | **QW1, QW2, QW3, QW7** | S | Two known defects and two [CODING.md](../guidelines/CODING.md) test-coverage violations. |
-| 6 | **RD1** `find_assets` | M | Removes two tools that lie to the model, and defines the filter vocabulary RD3/RD4/EXE4 all reuse. |
-| 7 | **RD4** `node_coverage`, **RD3** `aggregate_assets` | M | The cheapest tools with the widest operator reach; RD3 closes a wrong-numbers defect. |
-| 8 | **EXE7** render the `job-card` the backend already emits | S | The chat silently drops a visual that ships — a one-file UI fix. |
-| 9 | **CTX6** working set, **CTX4** compaction | M | Multi-turn coherence; both need CTX1. |
-| 10 | **RD2** dossier + **SEC1** injection delimiting | L | Gates roughly 45 of the 88 catalogued requests. Land them together — RD2 without SEC1 opens an injection surface. |
-| 11 | **EXE4** curated operations, **ACT1/ACT2** catalog writes behind **LP2** | L | The write tier; do not start before the confirmation primitive exists. |
+| ~~1~~ | ~~**CTX2** budgeted history replay~~ · ~~**CTX1** token accounting~~ · ~~**CTX4** compaction~~ | — | **Landed 2026-08-16** — see the header note and [LOOM_UI_CHAT.md §4.4](../chat/LOOM_UI_CHAT.md). |
+| 1 | **CTX3** cap tool results entering the live history | S | Defect, and two shipped tools already work around its absence. Now the last way a single turn can still overflow the window: CTX2 bounds the *replayed* transcript, not what a tool appends to it mid-run. |
+| 2 | **SEC2** stop the client writing the transcript | S | Defect, now half-fixed — the `chat.meta` keys the loop feeds back into the prompt are closed, `chat.messages` is not. No longer urgent as the unwedging escape hatch (CTX2 removed the need), so it can wait behind CTX3. |
+| 3 | **QW1, QW2, QW3, QW7** | S | Two known defects and two [CODING.md](../guidelines/CODING.md) test-coverage violations. |
+| 4 | **RD1** `find_assets` | M | Removes two tools that lie to the model, and defines the filter vocabulary RD3/RD4/EXE4 all reuse. |
+| 5 | **RD4** `node_coverage`, **RD3** `aggregate_assets` | M | The cheapest tools with the widest operator reach; RD3 closes a wrong-numbers defect. |
+| 6 | **EXE7** render the `job-card` the backend already emits | S | The chat silently drops a visual that ships — a one-file UI fix. |
+| 7 | **CTX6** working set | M | Multi-turn coherence. `ContextBudget` and the `<conversation_summary>` block are the pattern its `<working_set>` block should follow. |
+| 8 | **CTX8** stable, budgeted static prefix | S | Cheap now that the estimator exists — and `turn_end.cachedPromptTokens` measures directly whether prefix-cache reuse actually happens, which CTX8 could previously only argue for. |
+| 9 | **RD2** dossier + **SEC1** injection delimiting | L | Gates roughly 45 of the 88 catalogued requests. Land them together — RD2 without SEC1 opens an injection surface. The compaction prompt and the replayed summary block already carry SEC1's data-not-instructions wording; reuse it rather than rewording it. |
+| 10 | **EXE4** curated operations, **ACT1/ACT2** catalog writes behind **LP2** | L | The write tier; do not start before the confirmation primitive exists. |
+| 11 | **LP5** remainder — tool call, node task and wall clock ceilings | S | `RunBudget` exists and is wired; adding a counter to it is now a small change. The node-task ceiling is the one that needs real plumbing across the MCP boundary. |
 
 ---
 
 ## A. Context handling
 
-*Nothing in `loom/agent/chat` or `genai-utils` counts tokens — `grep -r "estimateTokens\|countTokens"`
-returns nothing. `AiOptions.getContextWindow()` (16384) is reported to the provider by
-`AgentLoop.model()` and used as a budget by nobody. Everything in this section follows from that.*
-
-### Task CTX1: Introduce a context budget and make token spend observable — S
-
-**Argumentation Summary:** The system prompt (base + `<available_skills>` + a memory index block),
-the tool schemas for up to 17 permitted MCP tools plus the coding tools, the whole replayed
-transcript and every tool result are concatenated blind in `AgentLoop.run()`. When the total exceeds
-the window the provider error becomes a terminal `LLM_ERROR` and the operator gets no signal about
-what filled the window. Every other task in this section is guesswork without a number.
-
-**Improvement Summary:** A `ContextBudget` helper that estimates the token cost of a
-`List<ChatMessage>` + `List<ToolDefinition>`, a per-turn `context` SSE frame, and a per-run record in
-`chat.meta` so spend is visible in the UI and assertable in tests.
-
-```
-1. Add loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/ContextBudget.java with
-   estimate(List<ChatMessage>), estimate(List<ToolDefinition>) and estimate(String). Use a
-   documented chars/4 heuristic — do NOT add a tokenizer dependency; the number only has to be good
-   enough to drive eviction, and the javadoc must say so plainly.
-2. Expose limit() = AiOptions.getContextWindow(), a completion reserve (new
-   LOOM_AI_CONTEXT_RESERVE_TOKENS, default 2048, added to
-   loom-shared/api/src/main/java/io/metaloom/loom/api/options/AiOptions.java incl. its
-   @EnvironmentVariable annotation and its overrideWithEnv() line) and remaining(used).
-3. Add CONTEXT to AgentEventType (loom/agent/chat/.../event/AgentEventType.java) and emit it from
-   AgentLoop.runTurns() before each streamTurn call:
-   {turn, estimatedTokens, limit, systemTokens, toolTokens, historyTokens}.
-4. In AgentLoop.persist(), write chat.meta.lastRun = {turns, estimatedPromptTokensPeak, toolCalls,
-   durationMs}. One small object, never an accumulating history.
-5. Log at WARN once per run when the peak estimate exceeds 80% of the window.
-6. Document the new frame in spec/chat/LOOM_UI_CHAT.md §4.2 and the new variable in §9, in the
-   same change.
-7. loom-ui: add "context" to the AgentStreamEvent union in loom-ui/src/api/agent.ts (which today
-   declares exactly 11 event names) and either handle it or state in the type comment that it is
-   deliberately ignored. If it is surfaced, add the case arm in
-   loom-ui/src/features/chat/ChatWorkspace.tsx (switch at ~line 628) — note agent_start/turn_start/
-   turn_end already have no arm, so an unhandled type is silently dropped today.
-```
-
-**References:** [AGENTIC_CHAT_PLAN.md §5.1](../chat/AGENTIC_CHAT_PLAN.md) ·
-[LOOM_UI_CHAT.md §4.2, §9](../chat/LOOM_UI_CHAT.md)
-**Test Requirements:** New `ContextBudgetTest` (empty, multi-message, tool-schema, monotonicity).
-`AgentLoopTest` cases asserting a `context` frame per turn and `chat.meta.lastRun` persisted.
-`mvn -q test -pl loom/agent/chat`.
-
----
-
-### Task CTX2: Bound the replayed transcript so a long chat cannot wedge itself — S — DEFECT
-
-**Argumentation Summary:** `AgentLoop.buildHistory(chat)` (line ~547) walks every element of
-`chat.messages` and appends it — user turns, assistant turns, and a reconstructed
-`assistantWithToolCalls` + `toolResult` pair per recorded tool call — with no cap. At
-`LOOM_AI_CONTEXT_WINDOW=16384` a few dozen exchanges overflow it, and the failure ratchets:
-`persist()` calls `messages.add(userMessage)` before the error check, so each failed attempt leaves
-the transcript longer than the attempt that failed.
-
-**Improvement Summary:** Assemble the history newest-first against `ContextBudget`, keep the system
-prompt and the current user message unconditionally, drop whole exchanges from the front once the
-budget is spent, and tell the model in-band that it happened.
-
-```
-1. In AgentLoop.buildHistory, keep the existing per-message conversion but build into "exchange"
-   groups (a user message plus the assistant messages and tool pairs that followed it) so an
-   assistantWithToolCalls is never separated from its toolResult messages — an orphaned tool_call
-   id is a 400 on most OpenAI-compatible servers.
-2. Walk the groups newest-first accumulating ContextBudget.estimate; stop when the running total
-   plus the system prompt, the tool schemas and the incoming user message would exceed
-   limit() - reserve.
-3. When at least one group was dropped, insert a single system message directly after the system
-   prompt: "[<n> earlier exchanges were omitted to fit the context window.]".
-4. Add LOOM_AI_HISTORY_MAX_MESSAGES (default 0 = budget-driven only) to AiOptions as an operator
-   escape hatch, applied as an additional ceiling.
-5. Keep the assembly pure and side-effect free so it is unit-testable without a DB.
-```
-
-**References:** [LOOM_UI_CHAT.md §4.3](../chat/LOOM_UI_CHAT.md) R4/R5 ·
-[AGENTIC_CHAT_PLAN.md §5.1](../chat/AGENTIC_CHAT_PLAN.md) · CTX1 (needed), CTX4 (replaces the drop
-with a summary), SEC2 (blocked on this)
-**Test Requirements:** `AgentLoopTest` cases: a 200-message synthetic transcript produces a history
-within budget; the elision notice appears exactly once; no `toolResult` survives without its
-`assistantWithToolCalls` parent; a short transcript passes through unchanged (extend the existing
-`testTranscriptReplay`). `mvn -q test -pl loom/agent/chat`.
+*`AiOptions.getContextWindow()` is now an actual budget: `ContextBudget` estimates against it before
+each turn, `ConversationHistory` evicts whole exchanges to fit it, `chat.meta.summary` carries the
+evicted prefix forward, and `TokenUsage` from genai-utils measures what it really cost (CTX1, CTX2,
+CTX4 — [LOOM_UI_CHAT.md §4.4](../chat/LOOM_UI_CHAT.md)). What remains open below is everything the
+budget does not yet reach: tool results appended mid-run (CTX3), full-fidelity recall (CTX5), the
+working set (CTX6), session context refs (CTX7) and the static prefix (CTX8).*
 
 ---
 
@@ -201,7 +152,6 @@ yields an error tool result rather than a silent partial load. `mvn -q test -pl 
 
 ---
 
----
 
 ### Task CTX5: Keep full-fidelity tool results and let the agent recall them — M
 
@@ -350,7 +300,11 @@ window silently.
    LOOM_AI_STATIC_PREFIX_WARN_RATIO (default 0.35) of the context window, naming the three
    contributors and their sizes — that message is what an operator needs to choose between trimming
    skills, lowering LOOM_AGENT_MEMORY_PROMPT_MAX_CHARS and raising the window.
-3. Report systemTokens/toolTokens separately in CTX1's CONTEXT frame.
+3. ~~Report systemTokens/toolTokens separately in CTX1's CONTEXT frame.~~ **Done** — the `context`
+   frame already breaks them out. What is still missing here is the *warning*, and the sort order.
+   Note that `turn_end.cachedPromptTokens` now measures prefix-cache reuse directly, so step 1 can
+   be verified rather than argued: a stable prefix should show a high cached fraction from turn 2
+   onwards, and a reordered one should not.
 ```
 
 **References:** [AGENTIC_CHAT_CONTEXT_DATA.md §12](../chat/AGENTIC_CHAT_CONTEXT_DATA.md) ·
@@ -859,64 +813,48 @@ outstanding items.
 
 ---
 
-### Task LP4: Sub-agent fan-out for map-reduce work — L
+### Task LP5: A per-run cost and effort guard — S — PARTIALLY LANDED
 
-**Argumentation Summary:** "Summarize these 50 transcripts", "find the recurring themes in last
-quarter's uploads" and "which of these ten clips should we lead with" are map-reduce over a set that
-cannot fit one 16k context. One context and one thread means the request either overflows or is not
-attempted. This is `NEW N11` in the requests file and a real ceiling on the analysis tier.
+**Status:** `RunBudget`
+(`loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/RunBudget.java`) shipped with LP4 on
+2026-08-16 carrying **one** ceiling, `LOOM_AI_MAX_LLM_CALLS_PER_RUN` (64), claimed by parent turns and
+`map_over` children alike, with the tallies in `chat.meta.lastRun`. Claims are compare-and-set so
+concurrent children cannot overshoot. Exhaustion is an error tool result inside a fan-out and a
+non-terminal `error {code: LLM_BUDGET}` at a parent turn — the run still completes with a persisted
+message either way. `RunBudgetTest` covers the ceiling, the disabled case, the tally and the
+concurrent-claim invariant.
 
-**Improvement Summary:** A bounded fan-out primitive: run the same prompt over N items in parallel
-child contexts, then reduce, with hard caps on fan-out and total spend.
+**Argumentation Summary:** The LLM-call dimension is closed because LP4 multiplied it. The other
+three are still open: `LOOM_AI_MAX_TURNS` caps round trips but not tool calls, not dispatched node
+tasks and not wall clock. Node execution ships, so this is the first agent capability that costs real
+GPU time — and `NodeExecOptions` bounds a single job, not a run.
 
-```
-1. Add a fan-out helper in loom/agent/chat that runs K child LLM calls through the existing
-   TurnStreamer seam (so it stays testable without an LLM), each with its own small context: the
-   item's dossier or tool result plus one instruction. No tools in child contexts for v1 — a child
-   that can call tools is a second agent and needs its own permission story.
-2. Agent-local tool map_over {items | useWorkingSet, instruction, reduceInstruction?} capped by
-   LOOM_AI_FANOUT_MAX_ITEMS (default 25) and LOOM_AI_FANOUT_CONCURRENCY (default 4).
-3. Feed CTX1's budget: the reduce step must fit the parent window, so cap each child's returned text
-   and say when a child was truncated.
-4. Report per-item failures as data in the reduced result — a fan-out where 3 of 25 failed must say
-   so rather than quietly reducing over 22.
-5. Count child calls against LP5's RunBudget and refuse past LOOM_AI_MAX_LLM_CALLS_PER_RUN.
-```
-
-**References:** [AGENTIC_CHAT_PLAN.md §5.1](../chat/AGENTIC_CHAT_PLAN.md) ·
-[CHAT_USER_REQUESTS.md N11](../chat/CHAT_USER_REQUESTS.md) (requests 27, 34, 77) · CTX1, CTX6, LP5
-**Test Requirements:** `AgentLoopTest` with a scripted `TurnStreamer`: fan-out over N items reduces
-correctly; item and concurrency caps hold; a failing child is reported, not swallowed; the per-run
-LLM call ceiling refuses further fan-out with a readable tool result.
-
----
-
-### Task LP5: A per-run cost and effort guard — S
-
-**Argumentation Summary:** Nothing bounds what a run may spend. `LOOM_AI_MAX_TURNS` caps LLM round
-trips but not tool calls, not fan-out (LP4), not dispatched node tasks and not wall clock. Node
-execution now ships, so this is the first agent capability that costs real GPU time — and
-`NodeExecOptions` bounds a single job, not a run.
-
-**Improvement Summary:** One `RunBudget` object carried by the loop, checked by every expensive
-primitive, with exhaustion surfaced as a tool result rather than a crash.
+**Improvement Summary:** Add the remaining three counters to the existing `RunBudget`, following the
+shape the LLM-call one already sets.
 
 ```
-1. Add loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/RunBudget.java tracking tool
-   calls, LLM calls, dispatched node tasks, estimated tokens (CTX1) and wall clock, each with a
-   ceiling: LOOM_AI_MAX_TOOL_CALLS_PER_RUN (40), LOOM_AI_MAX_LLM_CALLS_PER_RUN (64),
-   LOOM_AGENT_EXEC_MAX_TASKS_PER_RUN (200), LOOM_AI_MAX_RUN_DURATION_MS (600000).
-2. Model it on the existing AgentLoop.memoryWriteBudgetExhausted(...) — exhaustion returns an ERROR
-   tool result telling the model to stop and answer with what it has. Never abort the run; a bounded
-   agent that reports its limit is more useful than one that dies.
-3. Record the final tallies in chat.meta.lastRun alongside CTX1's token peak.
+1. Add to RunBudget: tool calls (LOOM_AI_MAX_TOOL_CALLS_PER_RUN, 40), dispatched node tasks
+   (LOOM_AGENT_EXEC_MAX_TASKS_PER_RUN, 200) and wall clock (LOOM_AI_MAX_RUN_DURATION_MS, 600000).
+   Copy the tryLlmCall() shape: compare-and-set, a refused claim is not counted, and a false becomes
+   an error tool result.
+2. Tool calls are the easy one — AgentLoop.executeToolCall is the single choke point, right next to
+   the existing memoryWriteBudgetExhausted check.
+3. Node tasks are the hard one, and the reason this was not finished alongside LP4: the count lives
+   behind the MCP boundary (NodeRunService, reached via RunNodeGraphTool / RunNodeProbeTool), so the
+   loop cannot observe it without either threading the RunBudget through MCPCallerContext or having
+   the node tools report task counts back in their result envelope. Decide which and record it in
+   spec/chat/AGENTIC_NODE_EXECUTION.md §9 — a design decision, not a wiring task.
+4. Wall clock is checked between turns and between tool calls, where `cancelled` already is.
+5. Extend the lastRun tallies; llmCalls/maxLlmCalls are already there.
 ```
 
 **References:** [AGENTIC_CHAT_PLAN.md §5.1, §8](../chat/AGENTIC_CHAT_PLAN.md) ·
-[AGENTIC_NODE_EXECUTION.md §9](../chat/AGENTIC_NODE_EXECUTION.md) · CTX1, LP4
-**Test Requirements:** `AgentLoopTest`: each ceiling produces the error tool result and the run still
-completes with a persisted message; the tallies land in `chat.meta.lastRun`. The existing
-`testMemoryWriteBudgetBecomesAnErrorResultWithoutAbortingTheRun` is the shape to copy.
+[LOOM_UI_CHAT.md §3.1](../chat/LOOM_UI_CHAT.md) ·
+[AGENTIC_NODE_EXECUTION.md §9](../chat/AGENTIC_NODE_EXECUTION.md) · CTX1, LP4 (landed)
+**Test Requirements:** Extend `RunBudgetTest` per counter and `AgentLoopTest` for each new ceiling:
+the error tool result appears and the run still completes with a persisted message; the tallies land
+in `chat.meta.lastRun`. `testMemoryWriteBudgetBecomesAnErrorResultWithoutAbortingTheRun` and the
+existing `testPerRunLlmCallCeilingRefusesFurtherFanOut` are the shapes to copy.
 
 ---
 

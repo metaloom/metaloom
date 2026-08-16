@@ -42,6 +42,7 @@ import io.metaloom.loom.api.options.SandboxOptions;
 import io.metaloom.loom.common.skill.BuiltinSkills;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
+import io.metaloom.loom.db.model.chat.ChatMeta;
 import io.metaloom.loom.db.model.chatsession.ChatSession;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionSkillPin;
@@ -92,23 +93,12 @@ public class AgentLoop {
 	private static final int COMPACTION_MESSAGE_MAX_CHARS = 1024;
 
 	/**
-	 * {@code chat.meta} key holding the rolling conversation summary. Server-owned — see {@link #SERVER_OWNED_META_KEYS}.
+	 * The agent-local map-reduce tool (CHAT_TASKS LP4). Resolved here rather than through the {@link MCPToolRegistry} because it spends this run's LLM
+	 * budget and drives this run's {@link TurnStreamer} — it is a loop primitive, not a catalog capability, and it must never be reachable from an external
+	 * MCP client.
 	 */
-	public static final String META_SUMMARY = "summary";
+	public static final String MAP_OVER_TOOL = "map_over";
 
-	/** {@code chat.meta} key holding the estimator correction this chat converged on. Server-owned. */
-	public static final String META_TOKEN_CALIBRATION = "tokenCalibration";
-
-	/**
-	 * Keys of {@code chat.meta} that only the loop may write.
-	 *
-	 * <p>
-	 * {@code summary} re-enters a later run as a delimited <em>system</em> block and {@code tokenCalibration} decides how much transcript survives eviction,
-	 * so a client able to set either could author what the agent believes happened, or starve the history. {@code POST /chats/:uuid} strips them
-	 * (see {@code ChatEndpointService}), which is the narrow half of SEC2 that CTX4 makes urgent — the rest of SEC2 (the transcript itself) is still open.
-	 * </p>
-	 */
-	public static final Set<String> SERVER_OWNED_META_KEYS = Set.of(META_SUMMARY, META_TOKEN_CALIBRATION, "lastRun");
 
 	private final AiOptions options;
 	private final SandboxOptions sandboxOptions;
@@ -151,6 +141,9 @@ public class AgentLoop {
 
 	/** Estimator correction derived from measured usage, carried across runs on {@code chat.meta.tokenCalibration}. */
 	private double calibration = 1.0d;
+
+	/** What this run may still spend. Built in {@link #run()}; fan-out children consume from it concurrently. */
+	private RunBudget runBudget = new RunBudget(0);
 
 	/**
 	 * What the prompt discloses and {@code load_skill} can resolve: the built-in skills that ship with Loom, followed by the ones the user activated
@@ -230,6 +223,7 @@ public class AgentLoop {
 		boolean firstExchange = chat.getMessages() == null || chat.getMessages().isEmpty();
 		calibration = readCalibration(chat);
 		budget = new ContextBudget(options.getContextWindow(), options.getContextReserveTokens(), calibration);
+		runBudget = new RunBudget(options.getMaxLlmCallsPerRun());
 
 		// Tools are built before the history because their schemas are charged to the same budget the
 		// transcript then competes for — assembling the history first would budget against a number that
@@ -358,6 +352,14 @@ public class AgentLoop {
 				return "aborted";
 			}
 			final int turnNo = turn;
+			// A parent turn is an LLM call like any fan-out child, and shares one ceiling with them.
+			// Exhausting it here ends the run the same way the turn limit does: gracefully, with whatever
+			// text accumulated, rather than by throwing.
+			if (!runBudget.tryLlmCall()) {
+				emitError("LLM_BUDGET", "The agent reached the maximum of " + runBudget.maxLlmCalls()
+					+ " LLM calls for this run before producing a final answer.", false);
+				return "completed";
+			}
 			turnsRun = turn;
 			emit(AgentEventType.TURN_START, new JsonObject().put("turn", turnNo));
 			int estimatedPromptTokens = emitContext(turnNo, history);
@@ -514,6 +516,18 @@ public class AgentLoop {
 			} else {
 				resultText = skill.content();
 			}
+		} else if (MAP_OVER_TOOL.equals(name)) {
+			try {
+				resultText = mapOver(args);
+			} catch (MapOverRejection e) {
+				// A malformed invocation is a readable rejection the model can fix, never a failed run.
+				isError = true;
+				resultText = "ERROR: " + e.getMessage();
+			} catch (Exception e) {
+				log.warn("map_over failed", e);
+				isError = true;
+				resultText = "ERROR: " + e.getMessage();
+			}
 		} else if (CodingTools.NAMES.contains(name)) {
 			// Coding tools run inside this chat's isolated Session Runner (provisioned on first use),
 			// keyed by the chat uuid. pi rule: a failed tool becomes an error result so the loop continues.
@@ -568,6 +582,186 @@ public class AgentLoop {
 		return ChatMessage.toolResult(callId, name, resultText);
 	}
 
+	/**
+	 * A {@code map_over} invocation the loop refuses to run, carrying the sentence the model is told. Distinct from a genuine failure so the two are not
+	 * logged or worded alike: a rejection is the model's mistake to fix, a failure is ours.
+	 */
+	private static class MapOverRejection extends RuntimeException {
+
+		private static final long serialVersionUID = 1L;
+
+		MapOverRejection(String message) {
+			super(message);
+		}
+	}
+
+	/**
+	 * Run the agent-local map-reduce tool (CHAT_TASKS LP4).
+	 *
+	 * <p>
+	 * Maps {@code instruction} over every item in its own child context, then optionally reduces the answers with a second call. Caps are enforced here
+	 * rather than inside {@link FanOut} so the refusal can be phrased for the model.
+	 * </p>
+	 */
+	private String mapOver(JsonObject args) {
+		String instruction = args.getString("instruction");
+		if (instruction == null || instruction.isBlank()) {
+			throw new MapOverRejection("map_over requires a non-empty 'instruction' describing what to do with each item.");
+		}
+		List<FanOut.Item> items = parseFanOutItems(args.getValue("items"));
+		if (items.isEmpty()) {
+			throw new MapOverRejection("map_over requires a non-empty 'items' array. Retrieve the items first, then map over them.");
+		}
+		int maxItems = options.getFanoutMaxItems();
+		if (items.size() > maxItems) {
+			// Truncating would be worse than refusing: the model would reduce over a silently smaller set
+			// and report a confident answer about items it never saw.
+			throw new MapOverRejection("map_over accepts at most " + maxItems + " items and was given " + items.size()
+				+ ". Narrow the set or process it in batches of " + maxItems + ".");
+		}
+		if (runBudget.isLlmBudgetExhausted()) {
+			throw new MapOverRejection("This run has reached its limit of " + runBudget.maxLlmCalls()
+				+ " LLM calls. Stop fanning out and answer with what you have.");
+		}
+
+		FanOut fanOut = new FanOut(turnStreamer, model(), runBudget, cancelled);
+		FanOut.Result result = fanOut.map(items, instruction, options.getFanoutConcurrency(), options.getFanoutChildMaxChars());
+		String rendered = renderFanOut(result);
+
+		String reduceInstruction = args.getString("reduceInstruction");
+		if (reduceInstruction == null || reduceInstruction.isBlank()) {
+			return rendered;
+		}
+		String reduced = fanOut.reduce(reduceInstruction, rendered);
+		if (reduced == null || reduced.isBlank()) {
+			// A failed reduce degrades to the per-item answers rather than to nothing — a worse answer,
+			// but never a missing one, and the model can still reduce them itself in its next turn.
+			return rendered + "\n\n[The reduce step produced no result. The per-item answers above are unreduced.]";
+		}
+		return rendered + "\n\n--- reduced ---\n" + reduced.strip();
+	}
+
+	/**
+	 * Accept either {@code ["text", …]} or {@code [{"label":"…","text":"…"}, …]}.
+	 *
+	 * <p>
+	 * Both shapes exist because both are natural: a bare string list is what a model writes by hand, and the labelled form is what it produces after a
+	 * search, where the label is the filename or uuid that makes the answers correlatable. Items missing a label get a positional one so every answer can
+	 * always be traced back to an input.
+	 * </p>
+	 */
+	private static List<FanOut.Item> parseFanOutItems(Object raw) {
+		if (raw == null) {
+			return List.of();
+		}
+		if (!(raw instanceof JsonArray array)) {
+			throw new MapOverRejection("map_over expects 'items' to be an array of strings or of {label, text} objects.");
+		}
+		List<FanOut.Item> items = new ArrayList<>();
+		for (int i = 0; i < array.size(); i++) {
+			Object element = array.getValue(i);
+			String label = "item " + (i + 1);
+			String text;
+			if (element instanceof JsonObject object) {
+				text = object.getString("text");
+				if (object.getString("label") != null && !object.getString("label").isBlank()) {
+					label = object.getString("label");
+				}
+			} else if (element instanceof String string) {
+				text = string;
+			} else if (element == null) {
+				continue;
+			} else {
+				text = String.valueOf(element);
+			}
+			if (text == null || text.isBlank()) {
+				throw new MapOverRejection("map_over item " + (i + 1) + " has no text. Each item must be a non-empty string or carry a 'text' field.");
+			}
+			items.add(new FanOut.Item(label, text));
+		}
+		return items;
+	}
+
+	/**
+	 * Render a fan-out for the model.
+	 *
+	 * <p>
+	 * The header states the tally before any answer appears, and failures are listed explicitly. A fan-out where some children failed must read as such at a
+	 * glance — the failure mode this guards against is the model reducing over a silently smaller set and presenting the result as complete.
+	 * </p>
+	 */
+	private static String renderFanOut(FanOut.Result result) {
+		StringBuilder sb = new StringBuilder();
+		long failures = result.failures();
+		sb.append("map_over over ").append(result.results().size()).append(" item(s): ")
+			.append(result.successes()).append(" succeeded, ").append(failures).append(" failed.");
+		if (result.budgetExhausted()) {
+			sb.append(" The run's LLM call budget ran out part-way through, so some items were never attempted.");
+		}
+		if (failures > 0) {
+			sb.append(" Treat the result as covering only the successful items and say so when you answer.");
+		}
+		sb.append("\n");
+
+		for (FanOut.ItemResult item : result.results()) {
+			if (item.failed()) {
+				continue;
+			}
+			sb.append("\n[").append(item.index() + 1).append("] ").append(item.label()).append("\n")
+				.append(item.text());
+			if (item.truncated()) {
+				sb.append("\n[answer truncated to fit the context window]");
+			}
+			sb.append("\n");
+		}
+
+		if (failures > 0) {
+			sb.append("\nFailed items (").append(failures).append("):\n");
+			for (FanOut.ItemResult item : result.results()) {
+				if (item.failed()) {
+					sb.append("[").append(item.index() + 1).append("] ").append(item.label()).append(" — ").append(item.error()).append("\n");
+				}
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * The declared schema of {@code map_over}.
+	 *
+	 * <p>
+	 * Hand-written rather than built through {@code MCPToolDescriptor.buildInputSchema}, which has no array support — and which is the MCP layer's concern
+	 * anyway, where this tool deliberately does not live.
+	 * </p>
+	 */
+	private JsonObject mapOverSchema() {
+		JsonObject itemSchema = new JsonObject()
+			.put("oneOf", new JsonArray()
+				.add(new JsonObject().put("type", "string"))
+				.add(new JsonObject()
+					.put("type", "object")
+					.put("properties", new JsonObject()
+						.put("label", new JsonObject().put("type", "string").put("description", "Short identifier echoed back with this item's answer"))
+						.put("text", new JsonObject().put("type", "string").put("description", "The material to apply the instruction to")))
+					.put("required", new JsonArray().add("text"))));
+		return new JsonObject()
+			.put("type", "object")
+			.put("properties", new JsonObject()
+				.put("items", new JsonObject()
+					.put("type", "array")
+					.put("maxItems", options.getFanoutMaxItems())
+					.put("items", itemSchema)
+					.put("description", "The items to process, at most " + options.getFanoutMaxItems()
+						+ ". Each is either a string or {label, text}."))
+				.put("instruction", new JsonObject()
+					.put("type", "string")
+					.put("description", "Applied to each item on its own. Ask for one short answer per item."))
+				.put("reduceInstruction", new JsonObject()
+					.put("type", "string")
+					.put("description", "Optional. When set, the per-item answers are combined by one further call using this instruction.")))
+			.put("required", new JsonArray().add("items").add("instruction"));
+	}
+
 	private JsonObject persist(Chat chat, String status, long durationMs) {
 		JsonObject userMessage = new JsonObject()
 			.put("id", UUID.randomUUID().toString())
@@ -613,16 +807,19 @@ public class AgentLoop {
 			.put("turns", turnsRun)
 			.put("estimatedPromptTokensPeak", estimatedPromptTokensPeak)
 			.put("toolCalls", recordedToolCalls.size())
-			.put("durationMs", durationMs);
+			.put("durationMs", durationMs)
+			// llmCalls exceeds `turns` whenever a fan-out ran — that gap is the whole point of tracking it.
+			.put("llmCalls", runBudget.llmCalls())
+			.put("maxLlmCalls", runBudget.maxLlmCalls());
 		if (runUsage.isReported()) {
 			lastRun.put("promptTokensPeak", measuredPromptTokensPeak)
 				.put("promptTokens", runUsage.promptTokens())
 				.put("completionTokens", runUsage.completionTokens())
 				.put("totalTokens", runUsage.totalTokens())
 				.put("cachedPromptTokens", runUsage.cachedPromptTokens());
-			meta.put(META_TOKEN_CALIBRATION, round(calibration));
+			meta.put(ChatMeta.TOKEN_CALIBRATION, round(calibration));
 		}
-		meta.put("lastRun", lastRun);
+		meta.put(ChatMeta.LAST_RUN, lastRun);
 		if ("error".equals(status)) {
 			meta.put("lastError", Instant.now().toString());
 		} else {
@@ -739,7 +936,7 @@ public class AgentLoop {
 	 */
 	private ConversationHistory.Summary readSummary(Chat chat) {
 		JsonObject meta = chat.getMeta();
-		return meta == null ? null : ConversationHistory.Summary.fromJson(meta.getJsonObject(META_SUMMARY));
+		return meta == null ? null : ConversationHistory.Summary.fromJson(meta.getJsonObject(ChatMeta.SUMMARY));
 	}
 
 	/**
@@ -750,7 +947,7 @@ public class AgentLoop {
 		if (meta == null) {
 			return 1.0d;
 		}
-		Double stored = meta.getDouble(META_TOKEN_CALIBRATION);
+		Double stored = meta.getDouble(ChatMeta.TOKEN_CALIBRATION);
 		return stored == null ? 1.0d : stored;
 	}
 
@@ -799,7 +996,7 @@ public class AgentLoop {
 
 			ConversationHistory.Summary summary = new ConversationHistory.Summary(text, messages.size(), budget.estimate(text), model.id());
 			JsonObject meta = chat.getMeta() != null ? chat.getMeta() : new JsonObject();
-			meta.put(META_SUMMARY, summary.toJson());
+			meta.put(ChatMeta.SUMMARY, summary.toJson());
 			chat.setMeta(meta);
 			chatDao.update(chat);
 			log.info("Compacted chat {}: summary now covers {} messages ({} chars)", chat.getUuid(), summary.throughMessageIndex(), text.length());
@@ -891,6 +1088,15 @@ public class AgentLoop {
 				tools.add(new ToolDefinition(tool.name(), tool.description(), tool.inputSchema()));
 			}
 		}
+		// map_over is a loop primitive, not a catalog capability: it needs no permission because it reads
+		// nothing the caller did not already put in its arguments, and it is always available so the model
+		// has an alternative to pulling 50 transcripts into one context and overflowing the window.
+		tools.add(new ToolDefinition(
+			MAP_OVER_TOOL,
+			"Apply one instruction to each of several items in parallel, each in its own isolated context, then optionally combine the answers. "
+				+ "Use this when a question spans more items than fit in one context — summarizing many transcripts, finding themes across many "
+				+ "assets, or scoring a set. Each item is processed independently and cannot call tools, so pass everything an item needs as its text.",
+			mapOverSchema()));
 		if (!activeSkills.isEmpty()) {
 			tools.add(new ToolDefinition(
 				SkillPromptBuilder.LOAD_SKILL_TOOL,

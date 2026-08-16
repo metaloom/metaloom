@@ -12,7 +12,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.3 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.3 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Document **body text** extraction | [../SERVICE_TIKA.md](../SERVICE_TIKA.md) — the `tika` node |
 | **Measured** media properties (real fps, frame count, bitrate) | the `quality` node, [../NODES.md](../NODES.md) §3.1 |

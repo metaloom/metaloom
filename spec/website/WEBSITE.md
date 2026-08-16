@@ -19,7 +19,7 @@ coding agent that has to add or restructure site content, or fix the build/publi
 | Spec-tree entry point / routing | [../CONTEXT.md](../CONTEXT.md) |
 | The `/pipeline-editor/` page (backend-free editor + simulator) | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
 | Client-side semantic search over `/docs/**` (index, model, ranking, the box) **and `/help/`** | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) |
-| Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | REST API (source of the staged OpenAPI document) | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
 | The product pipeline editor in `loom-ui` | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
@@ -344,7 +344,7 @@ Renderer: `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (no-op without 
 
 > **Keep the vocabulary in step.** `TYPES[*].ct` must be ids that exist in
 > `ContentTypeRegistry.all()`. Adding a content type to the product means adding it there **and**
-> here — [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) § 2.
+> here — [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) § 2.
 
 **Port text wraps; row heights follow.** SVG `<text>` neither wraps nor shrinks, and the port box is
 only ~208 px wide inside its icon inset while the descriptions are whole sentences — the longest is

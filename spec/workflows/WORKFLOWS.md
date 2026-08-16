@@ -319,7 +319,7 @@ Conventions that apply to every workflow test:
 | Machine-written audit columns | `loom/db/flyway/.../V2.47__machine_written_audit_columns.sql` |
 | Tag placement + provenance | `loom/db/flyway/.../V2.71__tag_asset_placements.sql` |
 | The node system and per-node reference | [../features/nodes/NODES.md](../features/nodes/NODES.md) |
-| Typed ports, cardinality, fan-out | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Typed ports, cardinality, fan-out | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | What travels between nodes | [../features/pipeline/PIPELINE_FLOW.md](../features/pipeline/PIPELINE_FLOW.md) |
 | Adding a node at all | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Definition of done for a code change | [../guidelines/CODING.md](../guidelines/CODING.md) |

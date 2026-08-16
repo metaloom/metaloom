@@ -22,7 +22,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | **Measured latency and caption-quality numbers, the serve commands, the model comparison** | [../../../concept/NODE_VIDEO_CAPTIONING_REPORT.md](../../../concept/NODE_VIDEO_CAPTIONING_REPORT.md) |
 | The raw benchmark JSON and the captured run environment | [../video-captioning-results/](../video-captioning-results/) |
@@ -53,7 +53,7 @@ image | video  (XOR group "media_alt")  ──▶  captioning  ──▶  captio
 
 `text/caption` is a leaf of the `text/*` family, so the `caption` port feeds any `text/*` input —
 `translate`, `tts`, `sentiment`, `guard`, `tag`, `script`, and the `prompt` port of `imagegen` /
-`videogen`. See [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md).
+`videogen`. See [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md).
 
 ---
 
@@ -503,7 +503,7 @@ Video tests call `assumeVideo4j()` / initialise `Video4j` statically; see
 | Measured latency / quality, and the serve commands | [../../../concept/NODE_VIDEO_CAPTIONING_REPORT.md](../../../concept/NODE_VIDEO_CAPTIONING_REPORT.md) |
 | Raw benchmark data + captured run environment | [../video-captioning-results/](../video-captioning-results/) |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port / content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port / content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The video subsystem and its native requirements | [../../../cortex/SERVICE_VIDEO.md](../../../cortex/SERVICE_VIDEO.md) |
 

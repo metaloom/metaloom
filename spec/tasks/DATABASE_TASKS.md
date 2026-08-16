@@ -43,7 +43,7 @@ those tables yet.
 | 1 — Rework geo/doc/image/video/audio comps | `V2.38` | All five dropped and recreated on the §4 contract; typed discriminators (`method`+`time_from`, `page_number`, `stream_index`); restored `image_encoding`, added `fps`/`frame_count`/`blurriness`/`orientation`/`bit_depth`/`rotation`; generated `text_search tsvector` on `asset_doc_comp` |
 | 2 — Rework `asset_transcript_comp` | `V2.39` | Key `(asset_uuid, node_kind, stream_index, lang)`; `audio_comp_uuid` FK `ON DELETE SET NULL`; `transcript_json` kept for the UI; generated `text_search`; `duration` moved to **bigint milliseconds** |
 | 3 — Harden `asset_json_comp` as the generic sink | `V2.40` | `schema_type NOT NULL` + `variant`, key `(asset_uuid, node_kind, schema_type, variant)`, `data NOT NULL DEFAULT '{}'`, GIN `jsonb_path_ops`, promotion policy as a table COMMENT |
-| 4 — Add `asset_fingerprint_comp` | `V2.41` | One row per sector, key `(asset_uuid, node_kind, algorithm, sector_index)`, dedup lookup index on `(algorithm, fingerprint)` |
+| 4 — Add `asset_fingerprint_comp` | `V2.41` | One row per timeline window, key `(asset_uuid, node_kind, algorithm, window_index)` (`sector_index` until the V2.105 rename), dedup lookup index on `(algorithm, fingerprint)` |
 | 5 — Add `asset_segment_comp` | `V2.42` | Scenes / silence / shots / chapters in one table, key `(asset_uuid, node_kind, segment_type, seq)`, range CHECK, overlap index |
 | 6 — Rework `detection` / `embedding` | `V2.43` | Provenance + idempotency keys on both; `embedding.detection_uuid` FK; duplicated geometry dropped (one normalized convention); `dimensions` added; camelCase `fromTime`/`toTime` → `time_from`/`time_to`; storage decision deferred in a column COMMENT (**since decided — see §5.1**) |
 | 7 — `attachment` as the derived-binary sink | `V2.44` | `CONTACT_SHEET`/`POSTER_FRAME`/`WAVEFORM`/`PROXY`/`EXTRACTED_AUDIO` enum values; provenance + `variant`; partial unique index `(asset_uuid, type, node_kind, variant)`; `asset_uuid` gained `ON DELETE CASCADE` |
@@ -127,7 +127,7 @@ never generalised to JSON-blob or legitimately-empty results.
 ## 3. Rules the schema encodes
 
 - Multiplicity is **always** expressed by typed columns (`stream_index`, `page_number`,
-  `lang`, `sector_index`, `seq`, `frame_number`+`detection_index`, `cluster_index`), never by
+  `lang`, `window_index`, `seq`, `frame_number`+`detection_index`, `cluster_index`), never by
   appending rows with the same key.
 - **Never gate a component write on the asset's mime type.** An MP3 legitimately owns an
   `asset_image_comp` (cover art); a PDF has embedded images; a video has a document track.
@@ -237,7 +237,7 @@ inventing a second shape.
 | `asset_audio_comp` | `(asset_uuid, node_kind, stream_index)` |
 | `asset_transcript_comp` | `(asset_uuid, node_kind, stream_index, lang)` |
 | `asset_json_comp` | `(asset_uuid, node_kind, schema_type, variant)` |
-| `asset_fingerprint_comp` | `(asset_uuid, node_kind, algorithm, sector_index)` |
+| `asset_fingerprint_comp` | `(asset_uuid, node_kind, algorithm, window_index)` |
 | `asset_segment_comp` | `(asset_uuid, node_kind, segment_type, seq)` |
 | `detection` | `(asset_uuid, node_kind, frame_number, detection_index)` |
 | `embedding` | `(asset_uuid, node_kind, type, model, frame_number, subject_index)` — `model` added by `V2.75` |

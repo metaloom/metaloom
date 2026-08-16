@@ -12,6 +12,7 @@ import { BackendChatReference, BackendChatVisual } from "./chat";
 export type AgentEventType =
   | "agent_start"
   | "turn_start"
+  | "context"
   | "reasoning_delta"
   | "text_delta"
   | "tool_start"
@@ -31,6 +32,44 @@ export interface AgentStartEvent {
 export interface AgentDeltaEvent {
   turn: number;
   text: string;
+}
+
+/**
+ * Context accounting of the turn about to be sent (CHAT.md §4.2).
+ *
+ * These are estimates — the eviction decision they explain is made before the
+ * request goes out, so no measured count exists yet. The server-reported counts
+ * arrive on `turn_end` as `promptTokens` / `completionTokens` / `cachedPromptTokens`
+ * when the model server reports usage at all.
+ *
+ * Deliberately not surfaced in the UI today: ChatWorkspace has no arm for it, so
+ * it is dropped like `agent_start` / `turn_start` / `turn_end` already are. It is
+ * declared here so the union stays a faithful description of the wire protocol
+ * and an operator debugging a wedged chat can read it off the network tab.
+ */
+export interface AgentContextEvent {
+  turn: number;
+  /** Estimated prompt cost, equal to systemTokens + toolTokens + historyTokens. */
+  estimatedTokens: number;
+  /** LOOM_AI_CONTEXT_WINDOW. */
+  limit: number;
+  /** LOOM_AI_CONTEXT_RESERVE_TOKENS, held back for the completion. */
+  reserve: number;
+  systemTokens: number;
+  toolTokens: number;
+  historyTokens: number;
+  /** Correction factor the chat learned from previously measured turns; 1.0 when uncalibrated. */
+  calibration: number;
+}
+
+/** `turn_end`; the token fields are present only when the model server reported usage. */
+export interface AgentTurnEndEvent {
+  turn: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedPromptTokens?: number;
 }
 
 export interface AgentToolStartEvent {

@@ -16,7 +16,7 @@
 |---|---|
 | The human review step — screen, keystrokes, test ids, optimistic rollback | [../../../workflows/WORKFLOW_DEDUP.md](../../../workflows/WORKFLOW_DEDUP.md) |
 | The node system, lifecycle, registration, kind counts | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.6 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | `dedup_group` / `dedup_group_member` as domain entities | [../../../loom/DOMAIN.md](../../../loom/DOMAIN.md) |
 | The similarity index discovery queries | [SEARCH_LUCENE.md](../../../loom/SEARCH_LUCENE.md) |
@@ -68,9 +68,14 @@ node could only ever answer for one hard-coded folder.
 > re-wiring their pipeline will find duplicates stop being moved with nothing in the log to say why.
 > This belongs in release notes, not just here.
 
-**Both media ports are selective**: silence is the "nothing to do" signal, exactly as a filter's
-bucket ports work ([../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.6). A
-node that emits nothing on a run has not failed.
+**Both media ports are *meant* to be selective**: silence is the "nothing to do" signal, exactly as a
+filter's bucket ports work ([../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.6). A node that emits
+nothing on a run has not failed.
+
+> 🔴 **They are not selective in the descriptor** (verified 2026-08-16). Neither `@PortDoc` sets
+> `selective = true`, so the engine's routing rule never fires and a `move` node wired to `duplicate`
+> is dispatched for **every** item with an empty required input. Fixing it is
+> [../../../tasks/NODE_DATA_TYPES_TASKS.md](../../../tasks/NODE_DATA_TYPES_TASKS.md) Task 1.
 
 ---
 
@@ -99,7 +104,7 @@ advertised `enabled` of the three common knobs.
 `node-descriptors.json` and the one placeable from the editor palette. But `name()` returns
 **`sha512-dedup`**, so ledger rows say `sha512-dedup` whichever id was placed. `sha512-dedup` is a
 pure alias kept so older pipeline definitions still resolve; it is runnable with no descriptor, which
-is why [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §3.3 counts it among the
+is why [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §3.3 counts it among the
 two such kinds. **Do not "fix" this by renaming.**
 
 ---
@@ -433,7 +438,7 @@ direct `user_permission` grant.
 | The customer page | [website/content/english/docs/nodes/dedup/index.adoc](../../../../website/content/english/docs/nodes/dedup/index.adoc) |
 | The similarity index this depends on | [SEARCH_LUCENE.md](../../../loom/SEARCH_LUCENE.md) |
 | The reference algorithm and its safeguards | `xdb-clean/FPDEDUP_PROCESS.md` |
-| Port ids and content types | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Port ids and content types | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4.6 |
 | The node system as a whole | [../NODES.md](../NODES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | REST / DAO conventions, definition of done | [../../../guidelines/CODING.md](../../../guidelines/CODING.md) · [../../../loom/RESTAPI.md](../../../loom/RESTAPI.md) · [../../../loom/PERSISTENCE.md](../../../loom/PERSISTENCE.md) |

@@ -13,7 +13,8 @@
 > **Scope boundary.** This file owns *indexing and querying* fingerprints. How a fingerprint is
 > **computed and persisted** — `FingerprintNode` and the video4j fingerprinter behind it — is
 > [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md), which also explains the `sector_index`
-> name collision that this file's Task 5 originally got wrong.
+> name collision that this file's Task 5 originally got wrong. The column is called `window_index`
+> since V2.105.
 >
 > **Removed as implemented** — this file does not carry task text for them: the SPI and both
 > implementations, the Dagger binding and boot guard, `SimilarityOptions`, the comp write/delete
@@ -144,9 +145,9 @@ volume mount, and `helm template loom helm/loom` (defaults) must emit none of th
 **Blocked by:** [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md) Tasks 3 and 4. Do not start
 this task before they land — there would be nothing to index. See the correction note below.
 
-**Argumentation Summary:** Only `sector_index == 0` — the whole-asset fingerprint — is indexed:
+**Argumentation Summary:** Only `window_index == 0` — the whole-asset fingerprint — is indexed:
 `FingerprintCompEndpointService.createFingerprintComp` guards the hook with
-`if (stored.getSectorIndex() == 0)` and `SimilarityEndpointService.loadFingerprint` selects sector 0.
+`if (stored.getWindowIndex() == 0)` and `SimilarityEndpointService.loadFingerprint` selects window 0.
 A 30-second excerpt of a 40-minute video is therefore not a near-duplicate of it at whole-asset
 level, which is the case an operator most expects a perceptual index to catch.
 
@@ -154,35 +155,37 @@ level, which is the case an operator most expects a perceptual index to catch.
 > models sectors "and `MultiSectorFingerprint` produces them, so the schema and the producer are
 > ahead of the index." **That is false, and it inverted the dependency.** The `sectorCount` inside
 > `MultiSectorVideoFingerprinterImpl` is an internal sampling trick — several seek points stacked
-> into **one** 256-bit vector — and it never emits per-window values. `sector_index` /
+> into **one** 256-bit vector — and it never emits per-window values. `window_index` /
 > `time_from` / `time_to` on the table model something different: timeline windows. The only writer
-> is `FingerprintNode.persist(...)`, which hardcodes `setSectorIndex(0)` and leaves the times NULL,
-> so **no row with `sector_index > 0` has ever existed**. Executing this task as originally written
-> would have produced a per-sector index containing exactly one sector per asset — the index that
-> already exists, with more code. The producer work now lives in
+> is `FingerprintNode.persist(...)`, which hardcodes `setWindowIndex(0)` and leaves the times NULL,
+> so **no row with `window_index > 0` has ever existed**. Executing this task as originally written
+> would have produced a per-window index containing exactly one window per asset — the index that
+> already exists, with more code. The column itself was renamed from `sector_index` in V2.105 so the
+> schema stops asserting the collision (NODE_FINGERPRINT_TASKS.md Task 5). The producer work now
+> lives in
 > [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md); this task is the indexing half only.
 
 **Improvement Summary:** Once the node writes window rows, extend the index to hold one document per
-window, keyed by `(asset_uuid, sector_index)`, and return the matching time range on each hit, while
+window, keyed by `(asset_uuid, window_index)`, and return the matching time range on each hit, while
 keeping the existing whole-asset query as the default.
 
 ```
-Precondition: asset_fingerprint_comp contains rows with sector_index > 0, written under their own
+Precondition: asset_fingerprint_comp contains rows with window_index > 0, written under their own
 algorithm identifier ("metaloom-window-v1") by NODE_FINGERPRINT_TASKS.md Task 4. Verify that before
 writing any code here.
 
-1. Design the key change first: the Lucene document key becomes asset_uuid + sector_index, so
+1. Design the key change first: the Lucene document key becomes asset_uuid + window_index, so
    `remove(assetUuid)` must delete every window of an asset (a term query on ASSET_FIELD, not a
-   single-document delete) and `index(...)` must upsert on the compound term. Add SECTOR_FIELD and
+   single-document delete) and `index(...)` must upsert on the compound term. Add WINDOW_FIELD and
    store time_from / time_to alongside it.
-2. Extend the SPI in loom-shared/api/.../api/search/: add the sector index and time range to
+2. Extend the SPI in loom-shared/api/.../api/search/: add the window index and time range to
    IndexedFingerprint, HexFingerprint and SimilarityHit. Keep the existing method signatures
-   working for whole-asset callers, defaulting sector to 0.
-3. Drop the sector-0 guard in FingerprintCompEndpointService and index every row. The two vector
+   working for whole-asset callers, defaulting the window to 0.
+3. Drop the window-0 guard in FingerprintCompEndpointService and index every row. The two vector
    populations are already kept apart by the algorithm identifier, which every query filters on -
-   do not rely on the sector number for that separation.
+   do not rely on the window number for that separation.
 4. In SimilarityEndpointService, add a query mode: default stays "whole asset vs whole asset"
-   (sector 0, whole-asset algorithm, both sides); a new `sectors=true` query parameter queries all
+   (window 0, whole-asset algorithm, both sides); a new `windows=true` query parameter queries all
    of the asset's windows under the window algorithm and collapses the hits per matched asset,
    keeping the best-scoring window and reporting its time range on SimilarAssetResponse. A hit's
    value to the user is largely that time range - it says where in the long video the clip came
@@ -202,13 +205,13 @@ writing any code here.
 **References:** [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md) (the blocking producer work,
 and the "sector" name collision) · [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3, §4, §7 ·
 [../loom/DOMAIN.md](../loom/DOMAIN.md) (`asset_fingerprint_comp`) · migration
-`V2.41__add_asset_fingerprint_comp.sql` ·
+`V2.41__add_asset_fingerprint_comp.sql` (+ `V2.105__rename_fingerprint_window_index.sql`) ·
 [../features/nodes/dedup/NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md)
 
 **Test Requirements:** New `LuceneSimilarityIndexTest` cases: a multi-window asset is removed in
 full by `remove(assetUuid)`; a window query finds a clip inside a longer asset; per-algorithm counts
 still hold with several windows per asset. New `SimilarAssetsEndpointTest` cases: the default query
-is unchanged by the presence of window rows, and `sectors=true` returns one collapsed hit per asset
+is unchanged by the presence of window rows, and `windows=true` returns one collapsed hit per asset
 with its time range. Run `./setup-pool.sh`, then
 `mvn test -pl loom/services/lucene -Dtest=LuceneSimilarityIndexTest` and
 `mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest,SearchIndexEndpointTest`.
@@ -254,8 +257,10 @@ Run it with `./node_modules/.bin/playwright test e2e/asset-similar-mocked.spec.t
 added alongside.
 
 ---
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (Task 5 corrected and scoped to indexing only — its false premise that a
-producer of per-sector fingerprints already exists is recorded inline; the producer work moved to
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (the column is `window_index` since V2.105; Task 5 renamed its field,
+query parameter and Lucene key accordingly. Earlier: Task 5 corrected and scoped to indexing only —
+its false premise that a producer of per-window fingerprints already exists is recorded inline; the
+producer work moved to
 tasks/NODE_FINGERPRINT_TASKS.md. Earlier: Task 3 done, the demo database seeds a near-duplicate
 fingerprint pair)_

@@ -15,7 +15,7 @@
 > | MCP tool surface and result envelopes | [MCP.md](../loom/MCP.md) |
 > | Worked user prompts and per-prompt gap assessment | [CHAT_USER_REQUESTS.md](CHAT_USER_REQUESTS.md) |
 > | How extracted metadata reaches the model | [AGENTIC_CHAT_CONTEXT_DATA.md](AGENTIC_CHAT_CONTEXT_DATA.md) |
-> | Node system, ports, per-node persistence | [NODES.md](../features/nodes/NODES.md), [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+> | Node system, ports, per-node persistence | [NODES.md](../features/nodes/NODES.md), [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 > | Pipeline engine, runs, dispatch | [PIPELINE.md](../features/pipeline/PIPELINE.md) |
 >
 > Status markers used below: `BUILT` · `PARTIAL` · `GAP` (nothing in the tree) · `BLOCKER`.

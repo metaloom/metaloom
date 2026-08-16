@@ -69,7 +69,7 @@ graph TB
     DN -->|"GET assets/:uuid/similar-assets"| SEP
 
     subgraph loom["Loom backend"]
-        FC["asset_fingerprint_comp<br/>(fingerprint hex, algorithm, sector_index)"]
+        FC["asset_fingerprint_comp<br/>(fingerprint hex, algorithm, window_index)"]
         HOOK["FingerprintCompEndpointService<br/>reindex() / unindex()"]
         SEP["SimilarityEndpointService"]
         ADM["SearchIndexRegistry / SearchIndexJobRunner<br/>REINDEX · DELTA_SYNC · DROP"]
@@ -309,7 +309,7 @@ templates none of these values yet — Task 2 in
 | **Closed means no-op, never an exception** | `close()` is idempotent and every entry point re-checks `available` inside the write lock, so a request racing the shutdown gets an empty list rather than an `AlreadyClosedException`. Any new method on `LuceneSimilarityIndex` / `LuceneVectorIndex` owes the same guard — the outer `if (!available)` alone is not enough, because a caller can be parked on the write lock while `close()` runs. §4.3 |
 | **No silent degradation** | A disabled index makes the routes answer **503**, never an empty list — "no duplicates" and "index off" must not look alike to a dedup node. |
 | **`sha512` comes from `asset`, not the comp** | The component table has no content hash, so every write path joins or loads it (§5). A path that passes `null` there silently degrades the hit for the dedup consumer — the compiler cannot catch it, so the endpoint and DAO tests do. |
-| **Sector 0 only, and there is nothing else to index** | The write hook indexes `sector_index == 0` and the query loads sector 0, matching what `FingerprintNode` writes — it hardcodes `setSectorIndex(0)` and is the only writer, so **no row with `sector_index > 0` has ever existed**. Do not read `MultiSectorFingerprint` as a producer of them: its "sectors" are seek points stacked into one vector, not timeline windows, and a whole-asset vector cannot match an excerpt. Clip matching needs a windowed producer first — [../tasks/NODE_FINGERPRINT_TASKS.md](../tasks/NODE_FINGERPRINT_TASKS.md) Tasks 3-4 — and only then the indexing half in [../tasks/SEARCH_LUCENE_TASKS.md](../tasks/SEARCH_LUCENE_TASKS.md) Task 5. |
+| **Window 0 only, and there is nothing else to index** | The write hook indexes `window_index == 0` and the query loads window 0, matching what `FingerprintNode` writes — it hardcodes `setWindowIndex(0)` and is the only writer, so **no row with `window_index > 0` has ever existed**. The column was called `sector_index` until V2.105. Do not read `MultiSectorFingerprint` as a producer of those rows: its "sectors" are seek points stacked into one vector, not timeline windows, and a whole-asset vector cannot match an excerpt. Clip matching needs a windowed producer first — [../tasks/NODE_FINGERPRINT_TASKS.md](../tasks/NODE_FINGERPRINT_TASKS.md) Tasks 3-4 — and only then the indexing half in [../tasks/SEARCH_LUCENE_TASKS.md](../tasks/SEARCH_LUCENE_TASKS.md) Task 5. |
 | **Lucene version** | There is **no local Lucene pin** and there must not be one: Lucene arrives transitively from video4j's `fingerprint-indexer` (`Lucene103Codec`). A local pin breaks the codec match with `xdb-clean`. |
 | **Hex, not `float[]`, at the boundary** | REST and the hooks use the hex overloads so the video4j codec stays inside `loom/services/lucene`. |
 | **`limit + 1`** | The endpoint over-fetches by one because the query asset always matches itself. Change the k-NN limit and you change the self-exclusion arithmetic. |
@@ -367,7 +367,7 @@ Existing coverage — extend these rather than starting new classes:
   its jobs on the admin surface.
 - **`DemoFingerprintSeedTest`** (`loom/core/src/test/java/io/metaloom/loom/core/boot/`) — 3 tests over
   the demo fixture: the four seeded comps carry the default algorithm, node kind `fingerprint` and
-  sector 0; the pair differs in exactly one byte of bit data under an identical header; and a rebuild
+  window 0; the pair differs in exactly one byte of bit data under an identical header; and a rebuild
   followed by a query returns the partner at `0.5` with its `sha512sum`, excluding the query asset and
   both unrelated videos. It calls `seedFingerprintComps` directly — `DemoDatabaseInitializer.init()`
   only populates an *empty* asset table and the pooled database is pre-populated, so a boot-time run
@@ -432,7 +432,7 @@ plus permission tests for any new route, an update to this file, and customer-fa
 - [x] `LuceneSimilarityIndex` — own documents (`asset_uuid` key, `algorithm` filter, delete), `ReentrantLock` for mutations, `SearcherManager` for reads
 - [x] `NoopSimilarityIndex` bound when disabled or unopenable; `SimilarityModule` degrades instead of failing boot
 - [x] `SimilarityOptions` on `LoomOptions`, env wiring and `validate()`
-- [x] Comp write/delete hooks in `FingerprintCompEndpointService` (sector 0, best-effort)
+- [x] Comp write/delete hooks in `FingerprintCompEndpointService` (window 0, best-effort)
 - [x] The matched asset's `sha512sum` on every hit — joined in by `streamHexFingerprintsByAlgorithm` on the rebuild paths, loaded per write on the hook
 - [x] `GET /assets/:uuid/similar-assets` and `POST /similarity-index/rebuild`
 - [x] Java and Python clients plus the REST DTOs
@@ -448,11 +448,12 @@ plus permission tests for any new route, an update to this file, and customer-fa
 - [ ] Task 2: the Helm chart templates no `LOOM_SIMILARITY_*` value
 - [x] Task 3: demo data seeds no fingerprints — done 2026-08-12, four comps including a near-duplicate pair (§4.2)
 - [x] Task 4: `close()` is never called on shutdown — done 2026-08-12, wired into `BootstrapInitializer.deinit()` for both Lucene indices (§4.3)
-- [ ] Task 5: only sector 0 is indexed — blocked on the producer, see [../tasks/NODE_FINGERPRINT_TASKS.md](../tasks/NODE_FINGERPRINT_TASKS.md)
+- [ ] Task 5: only window 0 is indexed — blocked on the producer, see [../tasks/NODE_FINGERPRINT_TASKS.md](../tasks/NODE_FINGERPRINT_TASKS.md)
 - [ ] Task 6: no UI surface for similar assets
 
 ---
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (Task 4: both Lucene indices are committed and closed on server shutdown,
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (V2.105 renames `sector_index` to `window_index`; §7 and the checklists
+follow. Earlier: Task 4: both Lucene indices are committed and closed on server shutdown,
 §4.3. Earlier: §7 gotcha corrected — `MultiSectorFingerprint` does not produce per-window rows and
 nothing else does either; producer work now tracked in tasks/NODE_FINGERPRINT_TASKS.md)_

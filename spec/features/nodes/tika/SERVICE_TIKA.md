@@ -16,7 +16,7 @@ Two modules carry the name "tika". They are **not** related; neither depends on 
 Adjacent specs — do not duplicate them:
 - [NODES.md](NODES.md) — the Cortex node system, the per-node table (`tika` row §164), and the open
   work items that already name `TikaNodeOptions`.
-- [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) — the port/content-type model.
+- [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) — the port/content-type model.
 - [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) — §5 registered YAML keys, §5.1
   common option fields, §3.1 default timeouts, and §1.1/§4 on why `CortexOptions.nodes` is never
   populated.
@@ -87,7 +87,7 @@ flowchart TD
 `OUT_CONTENT`: `SentimentNode.IN_TEXT`, `TtsNode.IN_TEXT`, `ScriptNode.IN_TEXT`,
 `BlacklistFilterNode.IN_TEXT` (MANY), `ImageGenNode.IN_PROMPT`, `VideoGenNode.IN_PROMPT`. Nodes bind
 by port and content type, never by upstream node id — see
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md).
+[../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md).
 
 ### 3.2 Control flow
 

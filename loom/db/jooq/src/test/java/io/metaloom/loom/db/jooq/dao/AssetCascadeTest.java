@@ -201,7 +201,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		d.transcript = transcript.getUuid();
 
 		AssetFingerprintComp fingerprint = comp().createFingerprintComp(userUuid, assetUuid, "fingerprint").setAlgorithm("metaloom-v1")
-			.setSectorIndex(0).setTimeFrom(0L).setTimeTo(1000L).setFingerprint("fp-0");
+			.setWindowIndex(0).setTimeFrom(0L).setTimeTo(1000L).setFingerprint("fp-0");
 		comp().storeFingerprintComp(fingerprint);
 		d.fingerprint = fingerprint.getUuid();
 

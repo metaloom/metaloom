@@ -2,12 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UploadAbortedError, UploadHandle, UploadResult } from "../../api/assets";
 import {
   BatchOutcome,
+  DEFAULT_CONCURRENCY,
   UploadSummary,
   cancel,
+  clampConcurrency,
   clearFinished,
   enqueue,
   getSummary,
+  pause,
+  pauseAll,
   reset,
+  resume,
+  resumeAll,
   retry,
   setUploadToken,
   setUploaderForTesting,
@@ -114,6 +120,26 @@ describe("uploadQueue", () => {
     expect(getSummary().items.filter((i) => i.status === "uploading")).toHaveLength(3);
   });
 
+  // The limit itself is resolved from VITE_UPLOAD_CONCURRENCY at module load, so the case above
+  // pins the default. These pin the resolver, which is where a bad value would do damage.
+  it("resolves the configured concurrency, falling back to the default", () => {
+    expect(clampConcurrency("1")).toBe(1);
+    expect(clampConcurrency("3")).toBe(3);
+    expect(clampConcurrency("8")).toBe(8);
+    expect(clampConcurrency(5)).toBe(5);
+
+    // Unset, unparseable or out of range: behave as if the setting was never made. Zero and
+    // negatives especially — they would leave the queue with nothing ever starting.
+    expect(clampConcurrency(undefined)).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency("")).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency("abc")).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency(NaN)).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency("0")).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency("-2")).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency("99")).toBe(DEFAULT_CONCURRENCY);
+    expect(clampConcurrency(Infinity)).toBe(DEFAULT_CONCURRENCY);
+  });
+
   it("forwards the pool override and origin to the transport", () => {
     enqueue([fileOf("a.jpg", 10)], {
       libraryUuid: "lib-1",
@@ -195,6 +221,117 @@ describe("uploadQueue", () => {
     expect(getSummary().items.find((i) => i.id === queued.id)!.status).toBe("cancelled");
     // Still only the three that were already running.
     expect(calls).toHaveLength(3);
+  });
+
+  it("holds a queued item back on pause and never starts it", async () => {
+    enqueue([1, 2, 3, 4].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+    const waiting = getSummary().items.find((i) => i.status === "queued")!;
+
+    pause(waiting.id);
+    expect(getSummary().items.find((i) => i.id === waiting.id)!.status).toBe("paused");
+
+    // A freed slot goes to a queued file, never to a paused one. Here there is no other queued
+    // file, so nothing new starts at all.
+    calls[0].resolve(ok());
+    await settle();
+    expect(calls).toHaveLength(3);
+    expect(getSummary().items.find((i) => i.id === waiting.id)!.status).toBe("paused");
+  });
+
+  it("leaves an in-flight transfer running — pause acts at the file boundary", async () => {
+    enqueue([fileOf("running.bin", 10)], { libraryUuid: "lib-1" });
+    const running = getSummary().items[0];
+    expect(running.status).toBe("uploading");
+
+    pause(running.id);
+
+    // No abort, no status change: the bytes already sent are never thrown away.
+    expect(calls[0].aborted).toBe(false);
+    expect(getSummary().items[0].status).toBe("uploading");
+
+    calls[0].resolve(ok());
+    await settle();
+    expect(getSummary().items[0].status).toBe("done");
+  });
+
+  it("resumes a paused item into the queue rather than restarting it", async () => {
+    enqueue([1, 2, 3, 4].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+    const waiting = getSummary().items.find((i) => i.status === "queued")!;
+    pause(waiting.id);
+
+    resume(waiting.id);
+    // A slot is already free? No — three are still running, so it goes back to waiting, not running.
+    expect(getSummary().items.find((i) => i.id === waiting.id)!.status).toBe("queued");
+    expect(calls).toHaveLength(3);
+
+    calls[0].resolve(ok());
+    await settle();
+    expect(getSummary().items.find((i) => i.id === waiting.id)!.status).toBe("uploading");
+    expect(calls).toHaveLength(4);
+  });
+
+  it("pauseAll holds the queue while running transfers finish, resumeAll releases it", async () => {
+    enqueue([1, 2, 3, 4, 5].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+
+    pauseAll();
+    let summary = getSummary();
+    expect(summary.pausedCount).toBe(2);
+    expect(summary.items.filter((i) => i.status === "uploading")).toHaveLength(3);
+
+    // Every running transfer completes and nothing takes its slot.
+    calls[0].resolve(ok());
+    calls[1].resolve(ok());
+    calls[2].resolve(ok());
+    await settle();
+    expect(calls).toHaveLength(3);
+
+    summary = getSummary();
+    expect(summary.doneCount).toBe(3);
+    // Nothing is in flight, so the batch is not "active" — but it is not finished either.
+    expect(summary.activeCount).toBe(0);
+    expect(summary.isActive).toBe(false);
+    expect(summary.pausedCount).toBe(2);
+
+    resumeAll();
+    expect(calls).toHaveLength(5);
+    expect(getSummary().pausedCount).toBe(0);
+  });
+
+  it("keeps the batch open while anything is paused and reports it once on resume", async () => {
+    const outcomes: BatchOutcome[] = [];
+    subscribeBatch((o) => outcomes.push(o));
+
+    enqueue([1, 2, 3, 4].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+    pauseAll();
+    calls.forEach((c) => c.resolve(ok()));
+    await settle();
+
+    // Three finished, one is held: no toast yet, or the user would get a second one on resume.
+    expect(outcomes).toHaveLength(0);
+
+    resumeAll();
+    calls[3].resolve(ok());
+    await settle();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toEqual({ uploaded: 4, duplicates: 0, failed: 0, cancelled: 0 });
+  });
+
+  it("closes a held batch when the paused remainder is cancelled", async () => {
+    const outcomes: BatchOutcome[] = [];
+    subscribeBatch((o) => outcomes.push(o));
+
+    enqueue([1, 2, 3, 4].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+    pauseAll();
+    calls.forEach((c) => c.resolve(ok()));
+    await settle();
+    expect(outcomes).toHaveLength(0);
+
+    cancel(getSummary().items.find((i) => i.status === "paused")!.id);
+    await settle();
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toEqual({ uploaded: 3, duplicates: 0, failed: 0, cancelled: 1 });
   });
 
   it("notifies subscribers on every change and stops after unsubscribe", async () => {

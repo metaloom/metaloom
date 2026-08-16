@@ -220,20 +220,26 @@
       "done": "Hochgeladen",
       "duplicate": "Bereits in Loom — mit vorhandenem Asset verknüpft",
       "error": "Fehlgeschlagen",
-      "cancelled": "Abgebrochen"
+      "cancelled": "Abgebrochen",
+      "paused": "Angehalten"
     },
     "action": {
       "cancel": "Diesen Upload abbrechen",
       "retry": "Wiederholen",
       "cancelAll": "Alle abbrechen",
       "retryFailed": "Fehlgeschlagene wiederholen",
-      "clearFinished": "Abgeschlossene entfernen"
+      "clearFinished": "Abgeschlossene entfernen",
+      "pause": "Diese Datei zurückhalten",
+      "resume": "Diese Datei fortsetzen",
+      "pauseAll": "Warteschlange anhalten",
+      "resumeAll": "Warteschlange fortsetzen"
     },
     "queue": {
       "active": "Wird hochgeladen — {{done}} von {{total}} fertig ({{percent}}%)",
       "idle": "{{count}} Datei(en) in dieser Sitzung",
       "search": "Warteschlange filtern",
-      "noMatch": "Keine Datei in der Warteschlange passt zu diesem Namen."
+      "noMatch": "Keine Datei in der Warteschlange passt zu diesem Namen.",
+      "paused": "Angehalten — {{count}} Datei(en) zurückgehalten"
     },
     "totals": "{{uploaded}} hochgeladen · {{duplicates}} bereits bekannt · {{failed}} fehlgeschlagen · {{bytes}} gesamt",
     "empty": {

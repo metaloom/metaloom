@@ -139,6 +139,13 @@ spec/
 │   │                                  #   Task 1 (retire clusters on a pack change) is blocking:
 │   │                                  #   today a new pack keeps verdicts decided on old vectors
 │   ├── PIPELINE_TASKS.md              # Pipeline work items (Task 14: FilterPortResolver.asList)
+│   ├── NODE_DATA_TYPES_TASKS.md       # NEW 2026-08-16 — 11 items for the typed-port model itself
+│   │                                  #   (features/nodes/NODE_DATA_TYPES.md §9). Task 1 is the only
+│   │                                  #   one with wrong behaviour today: the two dedup report ports
+│   │                                  #   are documented as selective and are not, so a `move` wired
+│   │                                  #   to `duplicate` runs for EVERY item. Task 12 is deliberately
+│   │                                  #   a pointer — server-side resolvePorts is NODE_SCHEMA_TASKS
+│   │                                  #   Task 1 and must not be duplicated
 │   ├── NODE_SCHEMA_TASKS.md           # NEW 2026-08-11 — 6 tasks for the node-contract surface.
 │   │                                  #   Task 1 is the only real machine gap: resolvePorts is not
 │   │                                  #   served over REST, so loom-ui mirrors all four resolvers
@@ -151,6 +158,11 @@ spec/
 │   │                                  #   written and called by nobody. See features/share/SHARE_SYSTEM.md
 │   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
 │   ├── LOOM_UI_TASKS.md               # UI work items
+│   ├── LOOM_UI_UPLOAD_TASKS.md        # NEW 2026-08-16 — 8 tasks for the /uploads screen and the
+│   │                                  #   background queue, moved out of loom/ui/LOOM_UI_UPLOAD.md
+│   │                                  #   (which now tracks current state only). Task 1 is the only
+│   │                                  #   defect: logout leaves the queue, its in-flight transfers
+│   │                                  #   and the old bearer token in place — reset() has no caller
 │   ├── DOC_TASKS.md                   # NEW 2026-08-11 — 16 tasks for the customer-facing website
 │   │                                  #   docs: 5 corrections to published pages (a legally
 │   │                                  #   incomplete Impressum, two "(planned)" claims for shipped
@@ -171,7 +183,7 @@ spec/
 │   │                                  #   windowed fingerprinter that clip matching actually needs
 │   │                                  #   and BLOCK SEARCH_LUCENE_TASKS.md Task 5. Read its header
 │   │                                  #   table before touching anything called "sector" — the
-│   │                                  #   algorithm's internal sectors and the sector_index column
+│   │                                  #   algorithm's internal sectors and the window_index column
 │   │                                  #   are unrelated, and conflating them produced a wrong task
 │   ├── SEARCH_LUCENE_TASKS.md         # NEW 2026-08-11 — 6 items for the fingerprint k-NN index
 │   │                                  #   (spec: loom/SEARCH_LUCENE.md). Task 1, the only defect
@@ -186,7 +198,14 @@ spec/
 │   │                                  #   client spike) gates all of Phase 2; Task 20 (CLIP node)
 │   │                                  #   is the only thing between here and text→image search
 │   ├── IMAGEGEN_NODE.md               # imagegen follow-ups
-│   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
+│   ├── METALOOM_ARCHITECTURE_TASK.md  # THE Variant C architecture backlog. Tasks 1–12 are
+│   │                                  #   correctness/security/repo-truth; Tasks 13–18 are the
+│   │                                  #   deferred scheduling & batching refinements, merged in
+│   │                                  #   from METALOOM_ARCHITECTURE_V2_TASKS.md on 2026-08-16.
+│   │                                  #   Also carries the Q1/Q4/Q5 decision record (Appendix A),
+│   │                                  #   why batching is correct (Appendix B) and the explicitly
+│   │                                  #   dropped ideas. NOTE: its Task 13 ≠ PIPELINE_TASKS.md
+│   │                                  #   Task 13 — always qualify which file
 │   └── METALOOM_CODEREVIEW.md         # Review findings
 ├── guidelines/
 │   ├── SPEC_RULES.md                  # RULES for writing spec files
@@ -197,6 +216,10 @@ spec/
 │                                      #   methods, hallucinations, duplicate enum values,
 │                                      #   self-contradicting values) → HTML report in spec/reports/
 ├── concept/
+│   ├── NODE_DATA_TYPES_PLAN.md        # The typed-port refactor's LOCKED decisions and its 21
+│   │                                  #   design-vs-implementation divergences — the institutional
+│   │                                  #   memory that exists nowhere else. Not the reference for
+│   │                                  #   the built system; that is features/nodes/NODE_DATA_TYPES.md
 │   ├── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: a `metadata-write` node emitting sidecars /
 │   │                                  #   embedded derivatives, incl. marking AI-written values
 │   │                                  #   (IPTC DigitalSourceType, C2PA). The inverse of the built
@@ -266,6 +289,14 @@ spec/
 │   │   │                              #   reference; a NODE_*.md is the deep spec for one kind
 │   │   ├── NODES.md                   # 🟢 The node system: lifecycle, ports, persistence, caching,
 │   │   │                              #   registration counts, per-node options. Start here
+│   │   ├── NODE_DATA_TYPES.md         # 🟢 MOVED HERE 2026-08-16 (was features/pipeline/). The
+│   │   │                              #   typed-port model: family/subtype lattice, ONE/MANY
+│   │   │                              #   cardinality, XOR groups, port-to-port edges, fan-out and
+│   │   │                              #   the implicit gather, coercion, the per-kind port table.
+│   │   │                              #   Re-verified 2026-08-16: the 26 hand-written descriptor
+│   │   │                              #   providers are GONE — contracts are harvested from
+│   │   │                              #   @NodeSpec/@PortDoc (see pipeline/NODE_SCHEMA.md).
+│   │   │                              #   Open work: tasks/NODE_DATA_TYPES_TASKS.md
 │   │   ├── captioning/
 │   │   │   └── NODE_VIDEO_CAPTIONING.md  # 🟢 BUILT: the `captioning` node — images via SmolVLM,
 │   │   │                              #   video via an OpenAI-compatible VLM. Not a kind of its own:
@@ -346,9 +377,6 @@ spec/
 │   │   │                              #   POST /pipelines/validate, the one-authority invariant
 │   │   ├── PIPELINE_FLOW.md           # Conceptual: WHAT travels between nodes — item vs ambient media
 │   │   │                              #   reference vs per-port payload; why nothing accumulates
-│   │   ├── NODE_DATA_TYPES.md         # 🟢 The typed-port model: family/subtype lattice, ONE/MANY
-│   │   │                              #   cardinality, XOR groups, port-to-port edges, fan-out/gather
-│   │   ├── NODE_DATA_TYPES_PLAN.md    # Design rationale + design-vs-implementation divergences
 │   │   ├── NODE_SCHEMA.md             # 🟢 NEW 2026-08-11 — where a node's contract comes from:
 │   │   │                              #   @NodeSpec/@PortDoc/@ParamDoc on the node, build-time
 │   │   │                              #   harvest, committed resource, REST + static snapshot.
@@ -398,11 +426,11 @@ spec/
 │   ├── BUILD.md                       # Maven modules, container image, native deps
 │   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
 │   ├── CORTEX.md                      # Architecture, module map, startup lifecycle, CLI
-│   ├── METALOOM_ARCHITECTURE.md       # Plain-language Loom↔Cortex interaction (as built)
-│   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
-│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C deferred scheduling/batching tasks +
-│                                      #   the Q1/Q4/Q5 decision record (build record removed
-│                                      #   2026-08-11; it is METALOOM_ARCHITECTURE.md §11)
+│   └── METALOOM_ARCHITECTURE.md       # Plain-language Loom↔Cortex interaction (as built).
+│                                      #   §11 is the progress record. Open work lives in
+│                                      #   tasks/METALOOM_ARCHITECTURE_TASK.md — neither
+│                                      #   METALOOM_ARCHITECTURE_TASK.md nor the retired
+│                                      #   METALOOM_ARCHITECTURE_V2_PLAN_C.md sits under cortex/
 ├── loom/
 │   ├── BUILD.md                       # Loom build pipeline
 │   ├── CONFIGURATION.md               # LoomOptions, config file, env vars, validation
@@ -433,7 +461,8 @@ spec/
 │       │                              #   (~80% server-side — move candidate, §7)
 │       ├── LOOM_UI.md                 # Loom UI specification
 │       ├── LOOM_UI_UPLOAD.md          # 🟢 Upload screen: background queue, multi-file drag & drop,
-│       │                              #   progress/cancel/retry, library → pool targeting
+│       │                              #   progress/cancel/retry, library → pool targeting.
+│       │                              #   Current state only — open work: tasks/LOOM_UI_UPLOAD_TASKS.md
 │       ├── PIPELINE_EDITOR.md         # Product pipeline editor: React Flow canvas, CRUD, validation
 │       ├── TASK_UI_AI_ML.md           # UI gap tasks: embeddings, clusters, detections, persons
 │       ├── TASK_UI_ASSETS_MEDIA.md    # UI gap tasks: assets, locations, pools, attachments
@@ -518,7 +547,7 @@ spec/
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | "Why was my pipeline rejected?" — validation rules, error codes, `POST /pipelines/validate` | [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
-| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
+| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md) (built model, **moved from features/pipeline/ on 2026-08-16**); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences; open work in [tasks/NODE_DATA_TYPES_TASKS.md](tasks/NODE_DATA_TYPES_TASKS.md) |
 | Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA.md](features/pipeline/NODE_SCHEMA.md) — how a contract is authored, harvested, served and exported; open work in [tasks/NODE_SCHEMA_TASKS.md](tasks/NODE_SCHEMA_TASKS.md) |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | Binary upload/download, storage layout, S3 vs filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
@@ -532,7 +561,7 @@ spec/
 | **What users will ask the chat, and whether Loom can answer** | [chat/CHAT_USER_REQUESTS.md](chat/CHAT_USER_REQUESTS.md) — 88 prompts, 24 open spots, ranked by what blocks the most |
 | **Getting node results (faces, captions, GPS, transcripts, detections) in front of the model** | [chat/AGENTIC_CHAT_CONTEXT_DATA.md](chat/AGENTIC_CHAT_CONTEXT_DATA.md) — render on read, do **not** materialize a markdown corpus per asset; `search_document` is already the precomputed text layer |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
-| **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**; the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
+| **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**, current state only; open work in [tasks/LOOM_UI_UPLOAD_TASKS.md](tasks/LOOM_UI_UPLOAD_TASKS.md); the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
@@ -848,13 +877,13 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **REST paths** | Always plural for method-carrying paths |
 | **REST updates** | `POST` creates **and** updates everywhere (backwards compatibility). User/Group/Asset also support `PATCH` (partial) and `PUT` (full replace — 400 if a replaceable field is missing). [RESTAPI.md](loom/RESTAPI.md) §1.2 |
 | **Test assertions** | Use the domain-specific `AbstractAssert` subclasses — do not hand-roll equality checks |
-| **Node data is addressed by port** | A node declares typed `InputPort`/`OutputPort` constants and reads `ctx.input(PORT)` / `ctx.inputs(PORT)`; the **edge** says where data comes from. `NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted — **never reintroduce a node-id-keyed lookup**. Content types are `family/subtype` ids checked by `ContentTypeLattice.isAssignable`; `ValueCoercer` runs at both wire boundaries. See [NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| **Node data is addressed by port** | A node declares typed `InputPort`/`OutputPort` constants and reads `ctx.input(PORT)` / `ctx.inputs(PORT)`; the **edge** says where data comes from. `NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted — **never reintroduce a node-id-keyed lookup**. Content types are `family/subtype` ids checked by `ContentTypeLattice.isAssignable`; `ValueCoercer` runs at both wire boundaries. See [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md) |
 | **Cardinality drives fan-out** | A `MANY` output makes every downstream `ONE` input run **once per element**; a `MANY` input **gathers** the branch and runs once. Nothing in the JSON declares this — it falls out of the ports. The gather barrier is `NodeExecState.isSettled()`, not a merge node |
 | **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | `PipelineValidationService` (loom-rest) is the **single** authority: structural rules (ids, uniqueness, cycles, reachability) its own, port rules delegated to `PipelineGraphParser` → `PortGraphAnalyzer`. The copies in `PipelineModelValidator` and `PipelineEditor.tsx` are deleted — do not add another. Two entry points, same rules: `collectErrors` (every problem; backs `POST /pipelines/validate`) and `validateDefinition` (throws on the first; backs create/update). Spec: [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **39 advertised kinds** — the literal asserted by `NodeDescriptorServiceLoaderTest`. Since the `d9bbc2dc` refactor the descriptors are one generated resource served by two providers (`GeneratedNodeDescriptorProvider` + `OrphanNodeDescriptorProvider`), not one hand-written provider per node. ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 34 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
-| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). All six `filterBy` values are implemented: `LANGUAGE` (one LLM round trip); `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider`; and `RATING` and `TAG`, which route on what reviewers recorded |
+| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [features/nodes/NODE_DATA_TYPES.md §8.6](features/nodes/NODE_DATA_TYPES.md). All six `filterBy` values are implemented: `LANGUAGE` (one LLM round trip); `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider`; and `RATING` and `TAG`, which route on what reviewers recorded |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
@@ -977,8 +1006,10 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `69252649`_
-_Last updated: 2026-08-15 (added the "no windows during a build" convention and the matching §0.2
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (registered tasks/LOOM_UI_UPLOAD_TASKS.md and marked
+loom/ui/LOOM_UI_UPLOAD.md as current-state-only in the tree and the routing table. Earlier:
+2026-08-15 — added the "no windows during a build" convention and the matching §0.2
 row: debug viewers are guarded by `HeadlessUtil`, surefire passes `-Dmetaloom.headless=true`.
 Earlier: registered test/E2E_TESTS.md and test/INTEGRATION_TESTS.md — the two test
 tiers that had no spec file; added the missing test/ block to the tree listing, two routing rows, and

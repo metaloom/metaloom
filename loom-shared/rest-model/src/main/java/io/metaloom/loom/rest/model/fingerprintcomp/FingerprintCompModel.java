@@ -7,7 +7,7 @@ import io.metaloom.loom.rest.model.RestModel;
  * Wire model for a perceptual fingerprint component ({@code asset_fingerprint_comp}).
  *
  * <p>
- * Identity: {@code (asset_uuid, node_kind, algorithm, sector_index)}. A cortex node posts a computed fingerprint here; re-posting the same key upserts
+ * Identity: {@code (asset_uuid, node_kind, algorithm, window_index)}. A cortex node posts a computed fingerprint here; re-posting the same key upserts
  * the row. The table is indexed by {@code (algorithm, fingerprint)} so "which other assets share this fingerprint" is an index scan.
  * </p>
  */
@@ -28,21 +28,23 @@ public interface FingerprintCompModel<T extends FingerprintCompModel<T>> extends
 	T setAlgorithm(String algorithm);
 
 	/**
-	 * Return which sector of a multi-sector fingerprint this is; 0 for whole-asset fingerprints. Part of the component identity.
+	 * Return the timeline window this row covers: 0 is the whole-asset fingerprint, 1..n are windows with {@code timeFrom}/{@code timeTo} set.
+	 * Unrelated to the internal sectors of the multi-sector fingerprint algorithm, which are folded into a single vector and never become rows. Part
+	 * of the component identity.
 	 */
-	int getSectorIndex();
+	int getWindowIndex();
 
-	T setSectorIndex(int sectorIndex);
+	T setWindowIndex(int windowIndex);
 
 	/**
-	 * Return the start of the window this sector covers, in milliseconds, or null.
+	 * Return the start of the window this row covers, in milliseconds, or null on the whole-asset row.
 	 */
 	Long getTimeFrom();
 
 	T setTimeFrom(Long timeFrom);
 
 	/**
-	 * Return the end of the window this sector covers, in milliseconds, or null.
+	 * Return the end of the window this row covers, in milliseconds, or null on the whole-asset row.
 	 */
 	Long getTimeTo();
 

@@ -18,7 +18,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The open work items on this node | [../../../tasks/IMAGEGEN_NODE.md](../../../tasks/IMAGEGEN_NODE.md) |
 | The sidecar fleet, its port bands and shared operational rules | [../../../sidecars/SIDECARS.md](../../../sidecars/SIDECARS.md) |
@@ -431,7 +431,7 @@ ledger path.
 | Open work on this node | [../../../tasks/IMAGEGEN_NODE.md](../../../tasks/IMAGEGEN_NODE.md) |
 | The byte-ingest gap | [../../rest/REST_BINARY_HANDLING.md](../../rest/REST_BINARY_HANDLING.md) |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The sibling built from this shape | `cortex/nodes/video-generation/` (`videogen`), [../../../sidecars/LTX2_SIDECAR.md](../../../sidecars/LTX2_SIDECAR.md) |
 | A sibling with the same ledger-only artifact story | [../sam2/NODE_SAM2.md](../sam2/NODE_SAM2.md) |

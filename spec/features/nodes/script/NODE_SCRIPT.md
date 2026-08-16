@@ -16,7 +16,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | The engine that schedules nodes, and true item fan-out | [../../pipeline/PIPELINE.md](../../pipeline/PIPELINE.md) |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Who may author a pipeline definition (`MANAGE_PIPELINE`) | [../../permissions/PERMISSIONS.md](../../permissions/PERMISSIONS.md) |
@@ -601,7 +601,7 @@ script` pipeline in the editor, run it, confirm the outputs land on the asset.
 | A reference node to copy for options + JSON comp | `cortex/nodes/sentiment/` |
 | A node that writes timeframes / produced bytes | `cortex/nodes/scene-detection/` · `cortex/nodes/image-generation/` |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---

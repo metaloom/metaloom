@@ -18,7 +18,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, source-node contract | [../NODES.md](../NODES.md) §4, §3.4 |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The full `CORTEX_GDRIVE_*` / `CORTEX_ONEDRIVE_*` tables | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) §2.3, §2.4, §6.2 |
 | The S3 source, its three scan strategies and its shading hazard | [../s3-source/NODE_S3SOURCE.md](../s3-source/NODE_S3SOURCE.md) |
@@ -576,7 +576,7 @@ Two fakes carry the suite, both in the `cloud-common` **test-jar**:
 | The customer pages | [website/content/english/docs/nodes/gdrive-source/index.adoc](../../../../website/content/english/docs/nodes/gdrive-source/index.adoc) · [onedrive-source/index.adoc](../../../../website/content/english/docs/nodes/onedrive-source/index.adoc) |
 | The env-var tables | [../../../cortex/CONFIGURATION.md](../../../cortex/CONFIGURATION.md) §2.3, §2.4, §6.2 |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | How ingest reaches an asset | [../../../workflows/WORKFLOW_UPLOAD.md](../../../workflows/WORKFLOW_UPLOAD.md) · [WORKFLOW_INGEST_MIGRATION.md](../../../workflows/WORKFLOW_INGEST_MIGRATION.md) |
 

@@ -71,7 +71,7 @@ This file tracks no progress — the linked specs do.
   Consequence: faulty data cannot be traced back to a worker. Blocks the review record in
   [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) and is cross-referenced from
   [WORKFLOW_AI_REVIEW.md](../workflows/WORKFLOW_AI_REVIEW.md). Line-level gaps are pinned in
-  [features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md). loom-ui would gain
+  [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md). loom-ui would gain
   a provenance row on `NodeResultDetail.tsx`, which today shows only the element seq.
 
 

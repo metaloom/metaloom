@@ -124,8 +124,21 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 | **Audio** | `asset_audio_comp` | `stream_index` | `lang`, `track_title`, `is_default`, `audio_bpm/sampling_rate/channels/bitrate/encoding`, `media_duration` | V2.18 → V2.38 |
 | **Transcript** | `asset_transcript_comp` | `stream_index`, `lang` | `transcript_text`, `transcript_json` (word-level timings, consumed by the UI panel), `model`, `duration`, `word_count`, generated `text_search`; `audio_comp_uuid` → `asset_audio_comp` **ON DELETE SET NULL** | V2.18 → rewritten V2.39 |
 | **JSON** | `asset_json_comp` | `schema_type`, `variant` | `data` jsonb NOT NULL (GIN `jsonb_path_ops`). The generic sink for `ocr`, `tika`, `metadata`, `caption`, `video-caption`, `face-description`, `llm`, `vlm`. Graduates to a typed table once a query must filter inside `data`. | V2.23 → rewritten V2.40 |
-| **Fingerprint** | `asset_fingerprint_comp` | `algorithm`, `sector_index` | `fingerprint`, `time_from`/`time_to`; index on `(algorithm, fingerprint)` makes dedup an index scan | V2.41 |
+| **Fingerprint** | `asset_fingerprint_comp` | `algorithm`, `window_index` | `fingerprint`, `time_from`/`time_to`; index on `(algorithm, fingerprint)` makes dedup an index scan | V2.41; `sector_index` renamed to `window_index` in V2.105 |
 | **Segment** | `asset_segment_comp` | `segment_type`, `seq` | `time_from`/`time_to`, `title`, `score`; `segment_type` CHECK ∈ SCENE, SILENCE, SHOT, CHAPTER | V2.42 |
+
+> **Naming decision — `window_index`, and the question is closed (V2.105).**
+> `asset_fingerprint_comp.window_index` numbers **timeline windows**: 0 is the whole-asset
+> fingerprint, 1..n are windows that carry `time_from`/`time_to`. It has nothing to do with the
+> *internal* sectors of the multi-sector fingerprint algorithm, which seeks a handful of points in
+> the video, stacks those frames into one 16×16 binary image and emits a **single** 256-bit vector —
+> those sectors are folded into one value and never become rows.
+> The column was called `sector_index` until V2.105, and the V2.41 schema comment ("Which sector of
+> a multi-sector fingerprint") asserted the two were the same thing. That is what made the rename
+> worth its cost: a reader of the schema concluded the windows already existed, and a task
+> specification was written on that assumption ([../tasks/SEARCH_LUCENE_TASKS.md](../tasks/SEARCH_LUCENE_TASKS.md)
+> Task 5, since corrected). It was renamed rather than only re-commented while every row still held
+> the default 0. Do not reopen the naming question.
 
 | Entity | Table | Purpose | Key relations | Since |
 |--------|-------|---------|---------------|-------|
@@ -510,7 +523,8 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |
-_Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-07 (the three pipeline status/state columns are typed by an enum parsed at
-the jOOQ converter boundary; V2.77 normalises the `FAILURE` rows `pipeline_run_item.state` used to
-collect. Earlier: reference sweep — no content changes)_
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (V2.105 renames `asset_fingerprint_comp.sector_index` to `window_index`
+and the naming question is recorded as closed. Earlier: the three pipeline status/state columns are
+typed by an enum parsed at the jOOQ converter boundary; V2.77 normalises the `FAILURE` rows
+`pipeline_run_item.state` used to collect)_

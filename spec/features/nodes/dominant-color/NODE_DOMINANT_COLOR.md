@@ -15,7 +15,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §2, §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §2, §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Where the detection boxes come from | `facedetect`, `objectdetect` — [../NODES.md](../NODES.md) §3.1 |
 | How node options are set per pipeline-node instance | [../NODES.md](../NODES.md) §7 |
@@ -151,7 +151,7 @@ annotations (§7).
 
 `detections` is `MANY` because one image has many boxes, and optional because measuring the whole
 frame is a perfectly good configuration on its own. `struct/color` is registered in
-`ContentTypeRegistry.STRUCT_COLOR` — see [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §2.
+`ContentTypeRegistry.STRUCT_COLOR` — see [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §2.
 
 ### 3.1 The payload
 
@@ -526,7 +526,7 @@ No database is needed for anything but the integration test; no sidecar is neede
 | Demo data | `loom/core/…/core/boot/DemoDatabaseInitializer.java` (`createDominantColorComp`) |
 | Customer-facing page | [website/content/english/docs/nodes/dominant-color/index.adoc](../../../../website/content/english/docs/nodes/dominant-color/index.adoc) |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---

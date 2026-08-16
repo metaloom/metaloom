@@ -15,7 +15,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Where the EXIF `Orientation` value is **recorded** (not applied) | [../metadata/METADATA_OVERVIEW.md](../metadata/METADATA_OVERVIEW.md) |
 | Where the subject boxes come from | `facedetect`, [../NODES.md](../NODES.md) §3.1 |
@@ -314,7 +314,7 @@ variables — it reads `metaPath` (`CORTEX_META_PATH`) from `CortexOptions` and 
 | The options + `validate()` | `…/imagemanip/ImageManipulationNodeOptions.java` |
 | The tests | `cortex/nodes/image-manipulation/core/src/test/…` |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---

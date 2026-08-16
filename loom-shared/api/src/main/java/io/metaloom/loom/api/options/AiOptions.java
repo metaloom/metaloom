@@ -28,6 +28,18 @@ public class AiOptions implements Option {
 	/** Upper bound on the stored conversation summary. */
 	public static final int DEFAULT_COMPACTION_MAX_CHARS = 4096;
 
+	/** Items a single {@code map_over} fan-out may cover. */
+	public static final int DEFAULT_FANOUT_MAX_ITEMS = 25;
+
+	/** Child LLM calls a fan-out runs at once. */
+	public static final int DEFAULT_FANOUT_CONCURRENCY = 4;
+
+	/** Characters kept from each child's answer before it re-enters the parent context. */
+	public static final int DEFAULT_FANOUT_CHILD_MAX_CHARS = 1024;
+
+	/** LLM calls one run may make in total, parent turns and fan-out children together. */
+	public static final int DEFAULT_MAX_LLM_CALLS_PER_RUN = 64;
+
 	@EnvironmentVariable(name = "LOOM_AI_ENABLED", description = "Override the flag which enables the chat agent.")
 	private boolean enabled = true;
 
@@ -66,6 +78,18 @@ public class AiOptions implements Option {
 
 	@EnvironmentVariable(name = "LOOM_AI_COMPACTION_MAX_CHARS", description = "Override the maximum length of the rolling conversation summary stored on the chat.")
 	private int compactionMaxChars = DEFAULT_COMPACTION_MAX_CHARS;
+
+	@EnvironmentVariable(name = "LOOM_AI_FANOUT_MAX_ITEMS", description = "Override how many items a single map_over fan-out may cover. A larger set must be split into batches by the agent.")
+	private int fanoutMaxItems = DEFAULT_FANOUT_MAX_ITEMS;
+
+	@EnvironmentVariable(name = "LOOM_AI_FANOUT_CONCURRENCY", description = "Override how many child LLM calls of a map_over fan-out run at the same time.")
+	private int fanoutConcurrency = DEFAULT_FANOUT_CONCURRENCY;
+
+	@EnvironmentVariable(name = "LOOM_AI_FANOUT_CHILD_MAX_CHARS", description = "Override how much of each fan-out child's answer is kept before it re-enters the parent context.")
+	private int fanoutChildMaxChars = DEFAULT_FANOUT_CHILD_MAX_CHARS;
+
+	@EnvironmentVariable(name = "LOOM_AI_MAX_LLM_CALLS_PER_RUN", description = "Override the total number of LLM calls one agent run may make, counting parent turns and map_over children together.")
+	private int maxLlmCallsPerRun = DEFAULT_MAX_LLM_CALLS_PER_RUN;
 
 	public boolean isEnabled() {
 		return enabled;
@@ -184,6 +208,42 @@ public class AiOptions implements Option {
 		return this;
 	}
 
+	public int getFanoutMaxItems() {
+		return fanoutMaxItems;
+	}
+
+	public AiOptions setFanoutMaxItems(int fanoutMaxItems) {
+		this.fanoutMaxItems = fanoutMaxItems;
+		return this;
+	}
+
+	public int getFanoutConcurrency() {
+		return fanoutConcurrency;
+	}
+
+	public AiOptions setFanoutConcurrency(int fanoutConcurrency) {
+		this.fanoutConcurrency = fanoutConcurrency;
+		return this;
+	}
+
+	public int getFanoutChildMaxChars() {
+		return fanoutChildMaxChars;
+	}
+
+	public AiOptions setFanoutChildMaxChars(int fanoutChildMaxChars) {
+		this.fanoutChildMaxChars = fanoutChildMaxChars;
+		return this;
+	}
+
+	public int getMaxLlmCallsPerRun() {
+		return maxLlmCallsPerRun;
+	}
+
+	public AiOptions setMaxLlmCallsPerRun(int maxLlmCallsPerRun) {
+		this.maxLlmCallsPerRun = maxLlmCallsPerRun;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.notBlank("url", url);
@@ -205,5 +265,9 @@ public class AiOptions implements Option {
 		OptionUtils.applyEnvInt("LOOM_AI_HISTORY_MAX_MESSAGES", this::setHistoryMaxMessages);
 		OptionUtils.applyEnvInt("LOOM_AI_COMPACTION_THRESHOLD_MESSAGES", this::setCompactionThresholdMessages);
 		OptionUtils.applyEnvInt("LOOM_AI_COMPACTION_MAX_CHARS", this::setCompactionMaxChars);
+		OptionUtils.applyEnvInt("LOOM_AI_FANOUT_MAX_ITEMS", this::setFanoutMaxItems);
+		OptionUtils.applyEnvInt("LOOM_AI_FANOUT_CONCURRENCY", this::setFanoutConcurrency);
+		OptionUtils.applyEnvInt("LOOM_AI_FANOUT_CHILD_MAX_CHARS", this::setFanoutChildMaxChars);
+		OptionUtils.applyEnvInt("LOOM_AI_MAX_LLM_CALLS_PER_RUN", this::setMaxLlmCallsPerRun);
 	}
 }

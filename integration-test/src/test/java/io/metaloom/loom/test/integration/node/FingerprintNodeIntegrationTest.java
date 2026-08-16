@@ -12,7 +12,7 @@ import io.metaloom.cortex.node.fp.FingerprintNodeOptions;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
 /**
- * Integration test for {@code FingerprintNode}. The node computes a real multi-sector video fingerprint (video4j/OpenCV) on a real video and writes sector 0
+ * Integration test for {@code FingerprintNode}. The node computes a real multi-sector video fingerprint (video4j/OpenCV) on a real video and writes the whole-asset (window 0) row
  * to {@code asset_fingerprint_comp}; the test reads the fingerprint component back through REST.
  */
 public class FingerprintNodeIntegrationTest extends AbstractNodeIntegrationTest {

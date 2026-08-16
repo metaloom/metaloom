@@ -133,11 +133,11 @@ public class SimilarityEndpointService extends AbstractEndpointService {
 	}
 
 	/**
-	 * The whole-asset fingerprint (sector 0) for the given algorithm, or null when the asset has none.
+	 * The whole-asset fingerprint (window 0) for the given algorithm, or null when the asset has none.
 	 */
 	private String loadFingerprint(UUID assetUuid, String algorithm) {
 		for (AssetFingerprintComp comp : compDao.loadFingerprintComps(assetUuid)) {
-			if (algorithm.equals(comp.getAlgorithm()) && comp.getSectorIndex() == 0 && comp.getFingerprint() != null) {
+			if (algorithm.equals(comp.getAlgorithm()) && comp.getWindowIndex() == 0 && comp.getFingerprint() != null) {
 				return comp.getFingerprint();
 			}
 		}

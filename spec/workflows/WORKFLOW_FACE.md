@@ -19,7 +19,7 @@ complex of the built-or-nearly-built ones.
 |---|---|
 | Which face models exist, their licences, the InspireFace pack format, model accuracy | [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) |
 | The node system, lifecycle, ports, registration, caching | [NODES.md](../features/nodes/NODES.md) |
-| Typed ports and cardinality | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Typed ports and cardinality | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Open UI work items for AI/ML entities (Embedding, Cluster, Detection, Person) | [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
 | Vector / ANN search strategy and the pgvector decision | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | The human-confirms-a-machine-proposal precedent this file copies | [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md), and its workflow half [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |

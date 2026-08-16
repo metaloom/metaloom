@@ -15,7 +15,7 @@
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Where the prompt boxes come from | `objectdetect`, `facedetect` — [../NODES.md](../NODES.md) §3.1 |
 | Keeping the produced masks off the worker | `s3-sink`, [../NODES.md](../NODES.md) §2.1 |
@@ -463,7 +463,7 @@ cd loom-ui && node scripts/capture-node-config-screenshots.mjs sam2 \
 | Why this node looks the way it does | §3 of this file — the decisions worth keeping, and §3.10 for the rejected alternatives |
 | The `struct/masks` content type | [ContentTypeRegistry.java](../../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ContentTypeRegistry.java) — `STRUCT_MASKS` |
 | The node system as a whole | [../NODES.md](../NODES.md) |
-| The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
+| The port/content-type model | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---

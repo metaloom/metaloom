@@ -16,7 +16,7 @@
 >
 > | Topic | Spec |
 > |---|---|
-> | What the contract *means* — content types, lattice, cardinality, groups, fan-out | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
+> | What the contract *means* — content types, lattice, cardinality, groups, fan-out | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) |
 > | Rationale and recorded divergences of the port model | [../../concept/NODE_DATA_TYPES_PLAN.md](../../concept/NODE_DATA_TYPES_PLAN.md) |
 > | The wire protocol by which a worker announces a contract | [../../plans/NODE_REGISTRATION_PLAN.md](../../plans/NODE_REGISTRATION_PLAN.md) |
 > | Engine, definition JSON, dispatch | [PIPELINE.md](PIPELINE.md) · [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
@@ -114,7 +114,7 @@ is the REST response, the announcement payload, the committed resource and the v
 | `version` | Contract version as announced by the worker. `null` for built-ins and for workers that declare none — unversioned disables skew detection rather than guessing an order (`NodeVersions`) |
 | `name`, `description`, `icon`, `category` | Authored prose and palette placement |
 | `color` | `#rgb`/`#rrggbb` literal or `null` (meaning: use the category default). `setColor` drops anything else, **including on the deserialization path**, because both editors write this into a style attribute and an announced third-party descriptor is not trusted with it |
-| `inputPorts`, `outputPorts` | `PortSpec` lists. Semantics in [NODE_DATA_TYPES.md §3](NODE_DATA_TYPES.md) |
+| `inputPorts`, `outputPorts` | `PortSpec` lists. Semantics in [../nodes/NODE_DATA_TYPES.md §3](../nodes/NODE_DATA_TYPES.md) |
 | `inputGroups`, `outputGroups` | `PortGroup` lists — XOR alternatives and EXCLUSIVE selections |
 | `dynamicPorts` | This type derives its real ports from its options through a `NodePortResolver` (§7) |
 | `parameters` | `NodeParameter` list — drives the edit form |
@@ -357,7 +357,7 @@ so a `script` node's per-instance outputs are validated exactly like a fixed typ
 
 | Node id | Resolver | Resolves to |
 |---|---|---|
-| `script` | `ScriptPortResolver` | One output port per `outputs[]` declaration; the `ScriptValueType` vocabulary maps onto a content type **plus a cardinality** ([NODE_DATA_TYPES.md §3.4](NODE_DATA_TYPES.md)) |
+| `script` | `ScriptPortResolver` | One output port per `outputs[]` declaration; the `ScriptValueType` vocabulary maps onto a content type **plus a cardinality** ([../nodes/NODE_DATA_TYPES.md §3.4](../nodes/NODE_DATA_TYPES.md)) |
 | `llm` | `LlmPortResolver` (extends `PromptPortResolver`) | One `result_<promptId> : text/plain ONE` per configured prompt; a single `result` port when none are configured, so the node stays connectable |
 | `vlm` | `VlmPortResolver` (extends `PromptPortResolver`) | Same shape |
 | `filter` | `FilterPortResolver` | One selective `media/*` port per `buckets[]` entry, plus the always-present `other` (selective catch-all), `passed` (`control/filter` boolean) and `bucket` (the decision as a string, not selective) |
@@ -436,10 +436,12 @@ editor can say "no worker currently offers this".
 | Dynamic-port node ids | **4** — `filter`, `llm`, `script`, `vlm` | `jq '[.[]|select(.dynamicPorts)|.nodeId]' <resource>` |
 | Port resolvers | **4** | `META-INF/services/io.metaloom.loom.nodes.spec.NodePortResolver` |
 
-> **Stale neighbours.** [NODE_DATA_TYPES.md §3.3/§3.4](NODE_DATA_TYPES.md) still says "41 kinds from
-> 26 providers" and lists three resolvers; [../nodes/NODES.md](../nodes/NODES.md) §5.2 and
-> [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) carry their own numbers. Reconciling
-> them is [../../tasks/NODE_SCHEMA_TASKS.md](../../tasks/NODE_SCHEMA_TASKS.md) Task 4.
+> **Stale neighbours.** ✅ [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) agrees with this
+> table as of 2026-08-16 — §3.3 and §3.4 were re-verified against the tree when that file moved out
+> of this directory. [../nodes/NODES.md](../nodes/NODES.md) §5.2 and
+> [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) still carry their own numbers;
+> reconciling them is [../../tasks/NODE_SCHEMA_TASKS.md](../../tasks/NODE_SCHEMA_TASKS.md) Task 4
+> steps 3-5.
 
 ---
 
@@ -571,7 +573,7 @@ reads the contract from, and whether a worker announces one.
 | `GeneratedNodeDescriptorProvider` | same | Reads the committed harvest; throws when it is missing |
 | `OrphanNodeDescriptorProvider` | same | `loom-fetch` only — not a pattern |
 | `NodePortResolver`, `Script`/`Prompt`/`Llm`/`Vlm`/`FilterPortResolver`, `ResolvedPorts` | same | Dynamic ports |
-| `ValueCoercer` | same | Type enforcement at both wire boundaries — see [NODE_DATA_TYPES.md §7.4](NODE_DATA_TYPES.md) |
+| `ValueCoercer` | same | Type enforcement at both wire boundaries — see [../nodes/NODE_DATA_TYPES.md §7.4](../nodes/NODE_DATA_TYPES.md) |
 | `NodeSpec` / `PortDoc` / `ParamDoc` / `PortGroupDoc` / `ParamOverride` | `io.metaloom.cortex.api.node.spec` | The authoring surface |
 | `NodeSpecHarvester` | same | Reflection into a `NodeDescriptor`; `STANDARD_EVENTS` |
 | `NodeSpecCatalog` | same | `BUILT_IN_NODE_CLASSES`, `harvestRunnable()`, third-party `NodeSpecSource` |
@@ -615,7 +617,7 @@ reads the contract from, and whether a worker announces one.
   `new PipelineGraphParser()` supplies null. A test that means to assert validation must pass a real
   registry, or it asserts nothing.
 - **Every source node must name its output port `media`** — `PipelineRunEngine.SOURCE_MEDIA_PORT` is
-  the literal string ([NODE_DATA_TYPES.md §5](NODE_DATA_TYPES.md)).
+  the literal string ([../nodes/NODE_DATA_TYPES.md §5](../nodes/NODE_DATA_TYPES.md)).
 - **Changing a port `ONE` to `MANY` is a behaviour change, not documentation** — it converts every
   downstream `ONE` consumer to per-element dispatch.
 - **The static snapshot is copied by hand.** After changing any annotation, regenerate and re-stage,
@@ -637,10 +639,10 @@ reads the contract from, and whether a worker announces one.
 | The five touch-points for a new node | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) §2 |
 | Dynamic port resolvers | `loom-shared/node-model/.../spec/{Script,Prompt,Llm,Vlm,Filter}PortResolver.java` |
 | The TypeScript mirror to be retired | `loom-ui/src/features/pipeline/portResolvers.ts` |
-| What the port model *means* | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §2–§3 |
-| The per-node port table | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4 |
-| Fan-out, gather, per-element dispatch | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §8 |
-| The five port validation rules | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §6.3 · [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
+| What the port model *means* | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §2–§3 |
+| The per-node port table | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §4 |
+| Fan-out, gather, per-element dispatch | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §8 |
+| The five port validation rules | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) §6.3 · [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
 | How a worker announces a contract | [../../plans/NODE_REGISTRATION_PLAN.md](../../plans/NODE_REGISTRATION_PLAN.md) |
 | Node lifecycle, options, persistence, side effects | [../nodes/NODES.md](../nodes/NODES.md) §1–§5 |
 | The MCP tool an agent uses to place a node | `loom/services/mcp/.../tool/impl/GetNodeDescriptorTool.java` · [../../loom/MCP.md](../../loom/MCP.md) |

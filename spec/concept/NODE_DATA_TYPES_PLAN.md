@@ -4,7 +4,7 @@
 > follow-ups (§4) and one behavioural gap in the demo/shippable graphs.
 >
 > **This file is no longer the reference for the built system.** That is
-> [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md), which owns the vocabulary, the per-node port table, the
+> [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md), which owns the vocabulary, the per-node port table, the
 > wire shapes, the fan-out semantics, the key-classes table and the current defect audit.
 >
 > **What this file is for, and the only reason to keep it:**
@@ -15,10 +15,10 @@
 > 3. the **remaining open work** (§4) and the **deliberately deferred** items (§5).
 >
 > Everything the design said that the code now simply *does* has been removed from this file — read
-> the code, or [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
+> the code, or [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md).
 >
 > **Companion documents**
-> - [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model.
+> - [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) — the reference for the built model.
 > - [PIPELINE.md](../features/pipeline/PIPELINE.md) — engine, run state, dispatch protocol, segmentation, affinity.
 > - [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) — node lifecycle, per-node configuration
 >   and persistence targets.
@@ -61,7 +61,7 @@ which upstream `(node, port)` fills it from the wired edges.
 ## 2. Already implemented
 
 One row per delivered item. Paths are the place to read, not a summary of behaviour — for behaviour
-see [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
+see [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md).
 
 | Delivered | Lives in |
 |---|---|
@@ -165,7 +165,7 @@ model; each is a follow-up.
 - [ ] **`ValueCoercerTest`** — one case per family; `Long` survives the round trip; a non-encodable
       `struct` fails exactly **one** task rather than clearing the persist batch.
 - [ ] **`PortPayloadRoundTripTest`** — `output → JSON → JSONB → input` preserves the content type
-      **and** the origin tags. This is the round trip [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) flags
+      **and** the origin tags. This is the round trip [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) flags
       as unprotected.
 - [ ] **Java-side fixture export for the TS contract tests** (divergence 16). `contentTypes.test.ts`
       and `portResolvers.test.ts` assert against hand-transcribed data, so a Java-side change to the
@@ -199,7 +199,7 @@ model; each is a follow-up.
 
 - [ ] **Descriptor-kind vs runnable-kind counts disagree across spec files.** A descriptor is not a
       registration: a kind needs `@Binds @IntoMap @StringKey("<kind>")` in Cortex to be runnable, and
-      the two sets differ. Pick one derivation, state it in [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md),
+      the two sets differ. Pick one derivation, state it in [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md),
       and have every other spec cross-reference it instead of repeating a number.
 
 ---
@@ -268,7 +268,7 @@ behave differently. See [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATI
 
 | Need | Path |
 |---|---|
-| **What the model is and how to use it** (vocabulary, per-node ports, wire shapes, defect audit) | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| **What the model is and how to use it** (vocabulary, per-node ports, wire shapes, defect audit) | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Engine, dispatch, run state, affinity | [PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Node lifecycle, per-node config and persistence | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
@@ -327,7 +327,7 @@ Phase-level state. Item-level detail for anything unchecked is in §4.
       segments, elements by reference (§5).
 
 **When can this file be deleted?** When §4 is empty and §3 has been folded into
-[NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) as a "why it looks like this" section. Until then §3 is the
+[../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) as a "why it looks like this" section. Until then §3 is the
 only record of the twenty-one places where the built system diverges from its design.
 
 ---

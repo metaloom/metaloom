@@ -10,7 +10,7 @@ that `PipelineGraphParser` on the Java side must be able to read verbatim.
 | If you are looking for | Read instead |
 |---|---|
 | The marketing site's standalone editor (no backend, hardcoded node catalogue) | [../../website/WEBSITE_PIPELINE_EDITOR.md](../../website/WEBSITE_PIPELINE_EDITOR.md) |
-| The type system itself — content-type vocabulary, `family/subtype`, cardinality, XOR/EXCLUSIVE groups, fan-out/gather | [../../features/pipeline/NODE_DATA_TYPES.md](../../features/pipeline/NODE_DATA_TYPES.md) |
+| The type system itself — content-type vocabulary, `family/subtype`, cardinality, XOR/EXCLUSIVE groups, fan-out/gather | [../../features/nodes/NODE_DATA_TYPES.md](../../features/nodes/NODE_DATA_TYPES.md) |
 | The engine, the definition schema's server side, node descriptors, Loom↔Cortex protocol | [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) |
 | The validation rules themselves, error codes, and the `/pipelines/validate` contract | [../../features/pipeline/PIPELINE_VALIDATION.md](../../features/pipeline/PIPELINE_VALIDATION.md) |
 | REST endpoint contracts and payload schemas | [../RESTAPI.md](../RESTAPI.md) |
@@ -253,7 +253,7 @@ Two residual defects in these channels (see §1):
 ## 6. Ports on the canvas
 
 The port model itself is specified in
-[NODE_DATA_TYPES.md](../../features/pipeline/NODE_DATA_TYPES.md); this is the rendering contract.
+[../../features/nodes/NODE_DATA_TYPES.md](../../features/nodes/NODE_DATA_TYPES.md); this is the rendering contract.
 
 - Descriptor fields are **`inputPorts` / `outputPorts`** (plus `inputGroups` / `outputGroups`,
   `dynamicPorts`) — not `inputs`/`outputs`.
@@ -614,7 +614,7 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 | Change event handling | `loom-ui/src/api/pipelineEvents.ts` |
 | Change the version diff | `loom-ui/src/features/pipeline/pipelineDiff.ts`, `PipelineVersionDiff.tsx` |
 | See how the server parses what we emit | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java` |
-| See the server-side port rules | `PipelineValidationService` — see [NODE_DATA_TYPES.md](../../features/pipeline/NODE_DATA_TYPES.md) §13 |
+| See the server-side port rules | `PipelineValidationService` — see [../../features/nodes/NODE_DATA_TYPES.md](../../features/nodes/NODE_DATA_TYPES.md) §13 |
 | Add a UI string | `loom-ui/src/i18n/locales/{en,de}.json` → `pipeline.*` |
 
 ---

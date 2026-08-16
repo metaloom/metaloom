@@ -6,7 +6,7 @@
 >
 > **Context:** [../features/nodes/NODES.md](../features/nodes/NODES.md) (the node system) ·
 > [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) (rules for adding one) ·
-> [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (the port model)
+> [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) (the port model)
 >
 > **Scope of this file:** cross-cutting defects and the highest-severity per-node work. Each node
 > spec carries its own `Progress Assessment` section with the full follow-up list for that kind —
@@ -426,7 +426,7 @@ key (deleted, replaced by `keepExcludeFolder`), and `:801-802` claims `HashDedup
 5-line empty stub" and that `FingerprintDedupApplyNode` "has no unit test at all" — the real counts
 are 4 and 12. `NODES.md:597,616` likewise still marks the `s3-sink` `artifacts` option and
 `autoDiscover` as "still live" when both are deleted, which
-[../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md):1041 already
+[../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md):1041 already
 records correctly. Because `NODES.md` is the file agents are told to start from, each wrong line
 propagates.
 

@@ -18,7 +18,7 @@ the fingerprint is robust to transcoding, resolution changes and minor edits, so
 | Input ports | `media` (commonly runs alongside hashing)
 | Output ports | `fingerprint` — connect it to link:../dedup/[fingerprint dedup] or a similarity search
 | Requirements | OpenCV / video4j **native runtime** (video decoding). CPU-bound; no GPU required. Decoding video is I/O- and CPU-heavy for long files.
-| Persists to | `asset_fingerprint_comp` (sector 0) + `asset_node_result` ledger
+| Persists to | `asset_fingerprint_comp` (window 0) + `asset_node_result` ledger
 |===
 
 The perceptual fingerprint is produced by the multi-sector algorithm from the `video4j-fingerprint`

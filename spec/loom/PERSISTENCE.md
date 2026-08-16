@@ -193,7 +193,7 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.38__rework_asset_components` | geo/doc/image/video/audio onto the shared component contract (provenance, per-table idempotency key, nullable audit) |
 | `V2.39__rework_asset_transcript_comp` | per-track FK, `lang` in the key, generated `tsvector` FTS column |
 | `V2.40__rework_asset_json_comp` | `schema_type NOT NULL`, `variant`, GIN on `data` |
-| `V2.41__add_asset_fingerprint_comp` | multi-sector perceptual fingerprint |
+| `V2.41__add_asset_fingerprint_comp` | perceptual fingerprint, one row per timeline window |
 | `V2.42__add_asset_segment_comp` | time-ranged segments (scenes/silence/shots/chapters) |
 | `V2.43__rework_detection_embedding` | provenance + idempotency keys, `embedding.detection_uuid`, one geometry convention, cascade on `detection.asset_uuid` |
 | `V2.44__attachment_provenance` | attachment becomes the derived-binary sink (node provenance, `variant`, cascade) |
@@ -242,6 +242,7 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.99__add_share_feedback` | `share_comment`, `share_annotation`, `share_reaction` - what a visitor says back. Separate from `comment`/`reaction`/`annotation` because all three require `creator_uuid NOT NULL REFERENCES "user"` and a share visitor has none. Geometry is **normalised 0..1** and time is **seconds as a float**, unlike `annotation`'s pixels and whole seconds. Reaction uniqueness is three PARTIAL unique indexes with the share standing in for the creator. ⚠️ Also rewrites `notification_type_check` in full - the replacement must carry every value added since V2.70, not only the ones that file listed |
 | `V2.84__read_metric_permission` | `READ_METRIC` enum value only — gates `GET /api/v1/metrics` on the app port. The unauthenticated Prometheus scrape on the monitoring port is unaffected |
 | `V2.104__uuidv7_defaults` | Every generated uuid column default goes from `uuid_generate_v4()` to `uuidv7()`, so the keyset page order becomes insertion order. Driven off `pg_attrdef` rather than a list of 55 columns. 🔴 Raises **PostgreSQL 18** as the floor (`uuidv7()` is an 18 built-in) and guards it with an explicit version check. See [UUIDv7 keys](#uuidv7-keys) |
+| `V2.105__rename_fingerprint_window_index` | `asset_fingerprint_comp.sector_index` → `window_index`, plus corrected column comments. The old name and its V2.41 comment claimed the column numbered the *internal* sectors of the multi-sector fingerprint algorithm; it numbers timeline windows. `RENAME COLUMN` carries the unique key over by itself, and no row had ever held anything but the default 0. See [DOMAIN.md](DOMAIN.md) §4 |
 
 ### Migration patterns
 
@@ -592,8 +593,9 @@ Schema current through **`V2.84`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (`V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
+Earlier: `V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
 subsystem lands beside this layer: 29 named checks over the invariants the schema relies on but does
 not enforce, wired into `CRUDDaoTestcases` and both cascade suites. Owned by
 [../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md). Two defects it found on its first

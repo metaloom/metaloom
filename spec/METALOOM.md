@@ -16,7 +16,7 @@ recipes or feature descriptions.
 | How Loom and Cortex interact | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
 | Loom internals / lifecycle / DI | [loom/LOOM.md](loom/LOOM.md) |
 | Cortex internals / CLI / startup | [cortex/CORTEX.md](cortex/CORTEX.md) |
-| Node ports, payload types, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| Node ports, payload types, fan-out | [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md) |
 
 ---
 
@@ -205,7 +205,7 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
   `FacedetectMedia` no longer exist. Nodes exchange typed **port payloads**
   (`io.metaloom.cortex.api.node.payload.*`); `cortex/core-media` is now just result value types
   (`WhisperResult`, `Scene`, …). See
-  [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md).
+  [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md).
 - **Two node base classes still coexist**, bridged by `CortexNodeAdapter`: ~30 nodes extend the
   Cortex `AbstractMediaNode` (via `AbstractFilesystemNode`), ~10 extend the pipeline
   `AbstractPipelineNode`. Never extend both.

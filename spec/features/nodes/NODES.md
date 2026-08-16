@@ -7,7 +7,7 @@
 >
 > | Topic | Spec |
 > |---|---|
-> | Ports, content types, cardinality, fan-out/gather, per-kind port table | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
+> | Ports, content types, cardinality, fan-out/gather, per-kind port table | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
 > | DAG execution, task dispatch, pipeline JSON, Loom↔Cortex protocol | [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) |
 > | Cortex module map, startup, Dagger assembly, monitoring, env vars | [../../cortex/CORTEX.md](../../cortex/CORTEX.md) |
 > | **Definition of done for a new node** (rules, not background) | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
@@ -69,7 +69,7 @@ and ignores `failureCause`. See §9 for the exact list of nodes still doing it.
 A cache hit is **SUCCESS with `ResultOrigin.LOCAL`, never SKIPPED** — a SKIPPED node's outputs are
 treated as absent by the engine, which starves every node bound to that port. This was a real bug in
 `FingerprintNode` (it bailed in `isProcessable()` and emitted nothing); resolved 2026-08-01, recorded
-in [NODE_DATA_TYPES.md §11](../pipeline/NODE_DATA_TYPES.md).
+in [NODE_DATA_TYPES.md §11](NODE_DATA_TYPES.md).
 
 ### 1.3 Ports, not node ids
 
@@ -79,7 +79,7 @@ Nodes exchange values over **typed ports** declared as `public static final` con
 
 **`NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted** — only javadoc mentions them.
 The whole model (content-type lattice, cardinality, `PortGroup`, dynamic ports, per-kind port table)
-lives in [NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md). Do not restate it here.
+lives in [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md). Do not restate it here.
 
 ### 1.4 What was removed
 
@@ -129,7 +129,7 @@ shadows the base method — do not copy it.
 | `md5`, `sha256`, `chunk-hash` | `assets/:uuid` update → `asset` hash columns | `updateAsset` |
 | `sha512` | **ledger only** — the SHA-512 *is* the asset identity, nothing to write back | — |
 | `consistency` | `assets/:uuid` update → `asset` consistency block | `updateAsset` |
-| `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (sector 0) | `createAssetFingerprintComp` |
+| `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (window 0) | `createAssetFingerprintComp` |
 | `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=face`), then `…/embeddings/bulk` → `embedding`, then `…/clusters/bulk` → `cluster` + `embedding_cluster`, plus one `FACE_CROP` `attachment` per face | `bulkCreateAssetDetections`, `bulkCreateAssetEmbeddings`, `bulkCreateAssetClusters`, `uploadFaceCrop` |
 | `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
@@ -184,7 +184,7 @@ which are flat.
 ### 3.1 Processing nodes (`AbstractMediaNode`)
 
 Port ids only; content types and cardinality are in
-[NODE_DATA_TYPES.md §4](../pipeline/NODE_DATA_TYPES.md).
+[NODE_DATA_TYPES.md §4](NODE_DATA_TYPES.md).
 
 | Kind | Class · module | Processes | In → Out ports | Persists | Runtime dep |
 |---|---|---|---|---|---|
@@ -315,7 +315,7 @@ atomically, **preserving the extension** (otherwise `isVideo()` — which delega
 `FilterNode extends AbstractMediaNode<FilterNodeOptions> implements PipelineConfigurable`, kind
 `filter`, **not `@Singleton`** (`configure` mutates it per task). It routes each item onto exactly one
 of its dynamic bucket ports — the port *is* the branch, see
-[NODE_DATA_TYPES.md §4.5 and §8.6](../pipeline/NODE_DATA_TYPES.md).
+[NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md).
 
 `filterBy` picks a `FilterStrategy` from a `Map<FilterBy, Provider<FilterStrategy>>` multibinding.
 Six values, in three cost tiers: `LANGUAGE` classifies the wired `text` through the shared
@@ -323,7 +323,7 @@ Six values, in three cost tiers: `LANGUAGE` classifies the wired `text` through 
 **no `LLMProvider` at all**, so a filter-only graph runs with no model backend reachable; and `TAG`
 and `RATING` route on what a **person** recorded, so they need Loom but no model — `TAG` reads the
 asset the node already loaded, `RATING` costs one `listAssetReaction` call per item, memoised per run.
-The hint grammars are tabulated in [NODE_DATA_TYPES.md §4.5](../pipeline/NODE_DATA_TYPES.md).
+The hint grammars are tabulated in [NODE_DATA_TYPES.md §4.5](NODE_DATA_TYPES.md).
 
 `RATING` and `TAG` are why manual review is worth doing at all — see
 [../../workflows/WORKFLOW_MANUAL_SORT.md](../../workflows/WORKFLOW_MANUAL_SORT.md) §5. Both answer
@@ -365,7 +365,7 @@ A rule addresses a **port id** (`text`, `number`, `flag`, `struct`, `labels`), n
 than failing the item.
 
 🔴 **No `MANY` output port, on purpose.** A `PER_ELEMENT` node declaring one is rejected *on the
-declaration* ([NODE_DATA_TYPES.md §6.4](../pipeline/NODE_DATA_TYPES.md)), so a `tags : scalar/string
+declaration* ([NODE_DATA_TYPES.md §6.4](NODE_DATA_TYPES.md)), so a `tags : scalar/string
 MANY` output — the obvious design — would bar the node from ever sitting downstream of `facedetect`.
 The applied set travels as one `struct/json` value on `applied`.
 
@@ -809,14 +809,17 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ### Media components
 
-- [ ] **Component tables are not yet split per node.** `stream_index`, `sector_index`, `seq` and
+- [ ] **Component tables are not yet split per node.** `stream_index`, `window_index`, `seq` and
       `frame_number` discriminators exist, but `whisper` hard-writes `streamIndex = 0` and
-      `fingerprint` writes `sectorIndex = 0`. Only `scene-detection` emits a genuine multi-row set;
+      `fingerprint` writes `windowIndex = 0`. Only `scene-detection` emits a genuine multi-row set;
       `facedetect` rows are frame-indexed. Multi-track / multi-stream extraction is open.
-      ⚠️ `sector_index` is **not** the same discriminator as the others: it numbers *timeline
-      windows* (with `time_from`/`time_to`), and is unrelated to the internal sectors of the
-      multi-sector fingerprint algorithm, which are folded into a single vector and never become
-      rows. Nothing has ever written `sector_index > 0`; the windowed producer that would is
+      ⚠️ `window_index` is **not** the same kind of discriminator as the others: `stream_index` and
+      `frame_number` address something that exists in the file, while `window_index` numbers
+      *timeline windows* the producer chooses (row 0 is the whole asset, rows 1..n carry
+      `time_from`/`time_to`). It is unrelated to the internal sectors of the multi-sector
+      fingerprint algorithm, which are folded into a single vector and never become rows — the
+      column was called `sector_index` until V2.105 and said otherwise. Nothing has ever written
+      `window_index > 0`; the windowed producer that would is
       [../../tasks/NODE_FINGERPRINT_TASKS.md](../../tasks/NODE_FINGERPRINT_TASKS.md) Tasks 3-4.
 
 ### Ops
@@ -893,8 +896,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `98a6dbe1`_
-_Last updated: 2026-08-12 (§"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
+_Git HEAD revision: `67000540`_
+_Last updated: 2026-08-16 (V2.105 renames the column to `window_index`, so §"Media components" and the `fingerprint` row name it that; the conflation with the algorithm's internal sectors is spelled out rather than only flagged. Earlier: §"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
 
 _Previously: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
 all four `filterBy` values are implemented. Earlier the same day: added the routing row for

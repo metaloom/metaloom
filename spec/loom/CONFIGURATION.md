@@ -197,6 +197,16 @@ Names mirror Cortex's `CORTEX_S3_*` (`S3ClientOptions`).
 | `LOOM_AI_THINK_ENABLED` | `true` | `AiOptions` | Reasoning/think mode |
 | `LOOM_AI_STREAMING` | `false` | `AiOptions` | True token streaming (else turn-granular) |
 | `LOOM_AI_TITLE_GENERATION` | `true` | `AiOptions` | Automatic chat title generation |
+| `LOOM_AI_CONTEXT_RESERVE_TOKENS` | `2048` | `AiOptions` | Held back for the completion; the prompt is budgeted against `window - reserve` |
+| `LOOM_AI_HISTORY_MAX_MESSAGES` | `0` | `AiOptions` | Ceiling on replayed persisted messages; `0` = budget-driven only |
+| `LOOM_AI_COMPACTION_THRESHOLD_MESSAGES` | `20` | `AiOptions` | Messages past the summary watermark that trigger a compaction pass |
+| `LOOM_AI_COMPACTION_MAX_CHARS` | `4096` | `AiOptions` | Cap on the stored rolling conversation summary |
+| `LOOM_AI_FANOUT_MAX_ITEMS` | `25` | `AiOptions` | Items one `map_over` fan-out may cover |
+| `LOOM_AI_FANOUT_CONCURRENCY` | `4` | `AiOptions` | Child LLM calls of a fan-out running at once |
+| `LOOM_AI_FANOUT_CHILD_MAX_CHARS` | `1024` | `AiOptions` | Cap on each child's answer before it re-enters the parent context |
+| `LOOM_AI_MAX_LLM_CALLS_PER_RUN` | `64` | `AiOptions` | Total LLM calls per run, parent turns and fan-out children together; `0` disables |
+
+See [LOOM_UI_CHAT.md §4.4](../chat/LOOM_UI_CHAT.md) for how the four interact.
 
 ### 4.8 `sandbox` — `SandboxOptions` (per-session coding sandbox)
 

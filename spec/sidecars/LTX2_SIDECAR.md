@@ -8,7 +8,7 @@ Cortex **`videogen`** node.
 **Scope of this file:** the Python sidecar — HTTP contract, loading/quantization, env vars,
 deployment. The Java node that calls it (ports, options, persistence, pipeline behaviour)
 is specified in [NODES.md](../features/nodes/NODES.md) and
-[NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md); node option defaults in
+[../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md); node option defaults in
 [CONFIGURATION.md](../cortex/CONFIGURATION.md). Do not duplicate those here.
 
 ## Progress Assessment
@@ -242,7 +242,7 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
 | Why it fits 24 GB / what was ruled out | `sidecars/ltx2-sidecar/ltx_loader.py` module docstring |
 | The port table for all sidecars | `sidecars/README.md` |
 | The node's options and their defaults | [CONFIGURATION.md](../cortex/CONFIGURATION.md), [NODES.md](../features/nodes/NODES.md) |
-| The node's port types / content types | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| The node's port types / content types | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Why the MP4 is not stored in Loom | [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | The metric names emitted per AI call | [METRICS.md](../features/ops/METRICS.md) |
 | How to add another sidecar-backed node | [NEW_NODE.md](../guidelines/NEW_NODE.md), [CODING.md](../guidelines/CODING.md) |

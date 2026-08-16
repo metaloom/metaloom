@@ -14,7 +14,7 @@ when they disagree, the code wins and this file gets fixed in the same change
 | Loom internals, DI, lifecycle | [loom/LOOM.md](loom/LOOM.md) |
 | Cortex internals, control channel | [cortex/CORTEX.md](cortex/CORTEX.md) |
 | Entities, tables, relations | [loom/DOMAIN.md](loom/DOMAIN.md) |
-| Ports, payloads, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| Ports, payloads, fan-out | [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md) |
 
 **Component values used below:** `Platform` (whole product), `Loom` (backend), `Cortex`
 (worker), `Loom+Cortex` (shared wire/model vocabulary), `loom-ui`, `CLI`, `Sidecar`.
@@ -220,4 +220,4 @@ Same word, different meaning — check the component column before assuming.
 ---
 
 _Git HEAD revision: `d9bbc2dc`_
-_Last updated: 2026-08-03 (initial glossary, derived from METALOOM.md, loom/LOOM.md, loom/DOMAIN.md, cortex/CORTEX.md and features/pipeline/NODE_DATA_TYPES.md)_
+_Last updated: 2026-08-03 (initial glossary, derived from METALOOM.md, loom/LOOM.md, loom/DOMAIN.md, cortex/CORTEX.md and features/nodes/NODE_DATA_TYPES.md)_

@@ -1992,13 +1992,13 @@ public class DemoDatabaseInitializer {
 	}
 
 	/**
-	 * One fingerprint component, in the shape {@code FingerprintNode} writes: node kind {@code fingerprint}, the default algorithm and sector 0, which
-	 * is the only sector the index reads.
+	 * One fingerprint component, in the shape {@code FingerprintNode} writes: node kind {@code fingerprint}, the default algorithm and window 0, which
+	 * is the only window the index reads.
 	 */
 	private static AssetFingerprintComp seedFingerprintComp(AssetComponentDao assetComponentDao, UUID userUuid, Asset asset, String hex) {
 		AssetFingerprintComp comp = assetComponentDao.createFingerprintComp(userUuid, asset.getUuid(), DEMO_FINGERPRINT_NODE_KIND);
 		comp.setAlgorithm(SimilarityOptions.DEFAULT_ALGORITHM);
-		comp.setSectorIndex(0);
+		comp.setWindowIndex(0);
 		comp.setFingerprint(hex);
 		return assetComponentDao.upsertFingerprintComp(comp);
 	}

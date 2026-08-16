@@ -4,7 +4,7 @@ import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.common.AbstractMetaModel;
 
 /**
- * Create/upsert request for a perceptual fingerprint component. Keyed by {@code (asset, node_kind, algorithm, sector_index)}; re-posting the same key
+ * Create/upsert request for a perceptual fingerprint component. Keyed by {@code (asset, node_kind, algorithm, window_index)}; re-posting the same key
  * rewrites the row.
  */
 public class FingerprintCompCreateRequest extends AbstractMetaModel<FingerprintCompCreateRequest>
@@ -12,7 +12,7 @@ public class FingerprintCompCreateRequest extends AbstractMetaModel<FingerprintC
 
 	private String nodeKind;
 	private String algorithm;
-	private int sectorIndex;
+	private int windowIndex;
 	private Long timeFrom;
 	private Long timeTo;
 	private String fingerprint;
@@ -41,13 +41,13 @@ public class FingerprintCompCreateRequest extends AbstractMetaModel<FingerprintC
 	}
 
 	@Override
-	public int getSectorIndex() {
-		return sectorIndex;
+	public int getWindowIndex() {
+		return windowIndex;
 	}
 
 	@Override
-	public FingerprintCompCreateRequest setSectorIndex(int sectorIndex) {
-		this.sectorIndex = sectorIndex;
+	public FingerprintCompCreateRequest setWindowIndex(int windowIndex) {
+		this.windowIndex = windowIndex;
 		return this;
 	}
 

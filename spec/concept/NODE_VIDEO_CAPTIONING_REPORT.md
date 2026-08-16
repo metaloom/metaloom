@@ -332,7 +332,7 @@ Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
 | Raw result sets + captured environment | [video-captioning-results/](video-captioning-results/) |
 | Design rationale, options and open work | [NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md) |
 | Node system reference | [NODES.md](../features/nodes/NODES.md) |
-| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Typed port / content-type model | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | New-node checklist | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | The harness | `cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java` |
 | Strategy implementations | `cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java` |

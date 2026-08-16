@@ -175,12 +175,12 @@ public interface AssetComponentDao extends Dao {
 	/**
 	 * Load the fingerprint component with the given identity, or null when it does not exist.
 	 */
-	AssetFingerprintComp loadFingerprintComp(UUID assetUuid, String nodeKind, String algorithm, int sectorIndex);
+	AssetFingerprintComp loadFingerprintComp(UUID assetUuid, String nodeKind, String algorithm, int windowIndex);
 
 	void storeFingerprintComp(AssetFingerprintComp comp);
 
 	/**
-	 * Insert or replace the component keyed by (asset, node kind, algorithm, sector index).
+	 * Insert or replace the component keyed by (asset, node kind, algorithm, window index).
 	 */
 	AssetFingerprintComp upsertFingerprintComp(AssetFingerprintComp comp);
 

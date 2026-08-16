@@ -34,69 +34,6 @@
 
 ---
 
-## Task 1: Replace the mock face/person seed in the Workflow view — ✅ DONE (2026-08-09)
-
-**Argumentation Summary:** `features/workflow/WorkflowView.tsx` is one of only **two** modules
-left in the tree that import `src/mock/` — `import { FACE_CLUSTERS, PERSONS } from "../../mock/data"`
-(line 20), plus a hardcoded VLM result string around line 582. Assets and detections in the same
-view are real (`listAssets`, `listAssetDetections`), so the face-detection and LLM workflow modes
-present **fabricated clusters and persons over genuine assets** — the most misleading state in the
-UI, because nothing marks the data as sample. The real endpoints (`/clusters`, `/persons`) are
-already consumed by `FaceDetectionManagement.tsx`.
-
-**Improvement Summary:** Feed the workflow face/person modes from `listClusters`/`listPersons` and
-remove the mock import, or badge the residual synthetic parts explicitly.
-
-```
-File: loom-ui/src/features/workflow/WorkflowView.tsx
-
-1. Delete the `../../mock/data` import. Load clusters via listClusters(token) (api/clusters.ts)
-   and persons via listPersons(token) (api/persons.ts) in an effect keyed on the auth token,
-   the same way FaceDetectionManagement.tsx already does.
-2. Map ClusterResponse/PersonResponse onto the local view models used at ~line 811 and ~line 985
-   instead of FACE_CLUSTERS.find(...)/PERSONS.
-3. The LLM mode result at ~line 582 has no REST source (LLM detections are not persisted —
-   Task 2). Until Task 2 lands, badge that panel "Sample data" rather than presenting it as an
-   inference result.
-4. After this change `src/mock/data.ts` has exactly one consumer left (MonitoringArea METRICS,
-   tracked in TASK_UI_SYSTEM.md) — update LOOM_UI.md §7.7 in the same commit.
-
-Edge cases: empty cluster/person lists must fall back to the shared EmptyState, not a blank
-keyboard-driven review screen; the workflow is keyboard-driven, so loading must not steal focus.
-```
-
-**References:** [WorkflowView.tsx](../../../loom-ui/src/features/workflow/WorkflowView.tsx) ·
-[api/clusters.ts](../../../loom-ui/src/api/clusters.ts) · [api/persons.ts](../../../loom-ui/src/api/persons.ts) ·
-[LOOM_UI.md](LOOM_UI.md) §7.7 (remaining mock data — must be updated with this task)
-
-**Test Requirements:** `loom-ui/e2e/workflow-rating-mocked.spec.ts` exists; add
-`e2e/workflow-faces-mocked.spec.ts` routing `/api/v1/clusters` and `/api/v1/persons` and
-asserting the rendered names come from the mocked responses. Run: `cd loom-ui && yarn e2e --grep workflow`.
-
-**Outcome (2026-08-09).** Done as part of
-[../../tasks/LOOM_UI_TASKS.md](../../tasks/LOOM_UI_TASKS.md) Task 12, which deleted `src/mock/`
-outright. Three deviations from the prompt above, each deliberate:
-
-- **Clusters come from `listAssetClusters`, not `listClusters`.** The face mode reviews the clusters
-  *within the asset in front of you*; an instance-wide list would put a stranger's face group on the
-  current card. Members come from `/clusters/:uuid/members`, since the join lives in
-  `embedding_cluster` and a face detection carries no cluster pointer. (That effect already existed;
-  what step 1 actually removed was the dead `FACE_CLUSTERS` join beside it.)
-- **Persons come from `listPersons`, loaded once per session** rather than per asset — it is the
-  same instance-wide vocabulary on every card. A failure costs the suggestions, not the ability to
-  type a name: the input is `freeSolo`.
-- **Step 3 is obsolete.** The LLM pane no longer needs a badge because it no longer invents
-  anything: it renders the asset's `vlm` `asset_json_comp` payloads — one card per prompt, labelled
-  with the prompt id (`variant`) and the model that answered (`producerVersion`). An asset with no
-  such component says so. Task 2 below is about a *different* gap (`LLMDetectionManagement`, prompt
-  definitions) and stays open.
-
-Covered by four new cases in `e2e/workflow-rating-mocked.spec.ts` rather than a new file — the
-cluster card and person options, the confirm payload, the vlm result with its chips, and the
-no-result case — since they share the whole mock backend that spec already installs.
-
----
-
 ## Task 2: Persist LLM detections through the detection endpoints
 
 **Argumentation Summary:** `features/detection/LLMDetectionManagement.tsx` imports exactly one api
@@ -136,49 +73,6 @@ detection.meta or stay client-side; assets with no LLM detections must render Em
 **Test Requirements:** `loom-ui/e2e/llm-detections-mocked.spec.ts` — a prompt run POSTs to
 `/assets/:uuid/detections`, a reload re-renders it from the list route, confirm/reject issue
 update/delete. Run: `cd loom-ui && yarn e2e --grep detection`.
-
----
-
-## Task 3: Let the person editor set the primary image — ✅ **DONE** (2026-08-10)
-
-> **Outcome:** superseded in shape by [WORKFLOW_FACE_TASKS.md](../../tasks/WORKFLOW_FACE_TASKS.md)
-> Task 6, which this was the UI half of. There is no `primaryImageUuid` to set any more: it pointed at
-> an *asset*, so for a person discovered in a video it resolved to the whole video file. A person now
-> owns their pictures, and `/persons/:id` (`features/persons/PersonDetail.tsx`) is where they are
-> uploaded, deleted and designated as the avatar — including the picker this task asked for, sourced
-> from the face crops of clusters confirmed to that person. The "not buildable today" note about a
-> true gallery no longer applies: `/persons/:uuid/images` is that sub-resource.
-> Specs: `e2e/person-detail-mocked.spec.ts` and the rewritten `e2e/persons-backend.spec.ts`.
-
-**Argumentation Summary:** `PersonResponse`/`PersonUpdateRequest` carry `primaryImageUuid` and
-`api/persons.ts` passes it through, but `features/faceDetection/PersonsPanel.tsx` `handleUpdate`
-(~line 54) sends only `{ alias, firstname, lastname }`. A person's primary image can therefore
-never be chosen from the UI, and person cards have no avatar.
-
-**Improvement Summary:** Include `primaryImageUuid` in the person update and add a picker plus a
-thumbnail on the person card.
-
-```
-File: loom-ui/src/features/faceDetection/PersonsPanel.tsx
-
-1. Add primaryImageUuid to the apiUpdatePerson payload in handleUpdate (~line 57).
-2. Picker: the natural source is the person's confirmed face detections — reuse the crop
-   rendering already used by FaceDetectionPanel.tsx rather than a generic asset browser.
-3. Render the current primary image as a thumbnail on the card and in the edit dialog;
-   support clearing it (send null).
-
-Not buildable today: a true image *gallery*. The person_image table exists but PersonEndpoint
-exposes CRUD only — no /persons/:uuid/images sub-resource. See "No REST surface" below.
-```
-
-**References:** [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) ·
-[api/persons.ts](../../../loom-ui/src/api/persons.ts) ·
-[PersonEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PersonEndpoint.java) ·
-[../DOMAIN.md](../DOMAIN.md) group 4
-
-**Test Requirements:** extend `loom-ui/e2e/persons-backend.spec.ts` (and add a mocked spec)
-asserting the update body contains `primaryImageUuid` and that clearing it round-trips.
-Run: `cd loom-ui && yarn e2e --grep persons`.
 
 ---
 

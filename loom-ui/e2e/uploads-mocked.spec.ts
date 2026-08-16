@@ -300,6 +300,66 @@ test.describe("Upload view – mocked", () => {
     captured.release!();
   });
 
+  test("pausing the queue holds back what has not started and releases it on resume", async ({ page }) => {
+    const captured = await mockRest(page, { hold: true });
+    await gotoUploads(page);
+
+    // Three saturate MAX_CONCURRENT; two wait. Only the waiting ones can be held.
+    await page.getByTestId("upload-file-input").setInputFiles(
+      ["p1.jpg", "p2.jpg", "p3.jpg", "p4.jpg", "p5.jpg"].map(n => fileOf(n))
+    );
+    await expect(page.getByTestId("upload-row-p5.jpg")).toHaveAttribute("data-status", "queued", { timeout: 10_000 });
+
+    await page.getByTestId("upload-pause-all").click();
+    await expect(page.getByTestId("upload-row-p4.jpg")).toHaveAttribute("data-status", "paused");
+    await expect(page.getByTestId("upload-row-p5.jpg")).toHaveAttribute("data-status", "paused");
+    // Pause never touches a transfer already on the wire.
+    await expect(page.getByTestId("upload-row-p1.jpg")).toHaveAttribute("data-status", "uploading");
+
+    // Let the three in flight finish. Nothing takes their slots, and the batch toast is withheld —
+    // a second one would follow on resume otherwise.
+    captured.release!();
+    await expect(page.getByTestId("upload-row-p3.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    expect(captured.uploads).toHaveLength(3);
+    await expect(page.getByTestId("upload-queue-heading")).toContainText("Paused — 2 file(s) held back");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+
+    // The batch bar stays, in its neutral treatment, and so does the sidebar's.
+    await expect(page.getByTestId("upload-batch-progress-paused")).toBeVisible();
+    await expect(page.getByTestId("sidebar-upload-progress-paused")).toBeVisible();
+    await expect(page.getByTestId("sidebar-upload-progress")).toHaveCount(0);
+
+    await page.getByTestId("upload-resume-all").click();
+    await expect(page.getByTestId("upload-row-p5.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    expect(captured.uploads).toHaveLength(5);
+    // One toast for the whole batch, counting the files from both sides of the pause.
+    await expect(page.getByRole("alert")).toContainText("5");
+  });
+
+  test("pauses and resumes a single queued file", async ({ page }) => {
+    const captured = await mockRest(page, { hold: true });
+    await gotoUploads(page);
+
+    await page.getByTestId("upload-file-input").setInputFiles(
+      ["q1.jpg", "q2.jpg", "q3.jpg", "q4.jpg"].map(n => fileOf(n))
+    );
+    const held = page.getByTestId("upload-row-q4.jpg");
+    await expect(held).toHaveAttribute("data-status", "queued", { timeout: 10_000 });
+
+    await page.getByTestId("upload-pause-q4.jpg").click();
+    await expect(held).toHaveAttribute("data-status", "paused");
+
+    // A running file finishing hands its slot to a queued file — never to a paused one.
+    captured.release!();
+    await expect(page.getByTestId("upload-row-q1.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    await expect(held).toHaveAttribute("data-status", "paused");
+    expect(captured.uploads).toHaveLength(3);
+
+    await page.getByTestId("upload-resume-q4.jpg").click();
+    await expect(held).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    expect(captured.uploads).toHaveLength(4);
+  });
+
   test("retry failed re-sends the failures and nothing else", async ({ page }) => {
     let failing = true;
     const captured = await mockRest(page, {

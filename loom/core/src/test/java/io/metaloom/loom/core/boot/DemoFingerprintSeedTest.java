@@ -86,7 +86,7 @@ public class DemoFingerprintSeedTest extends AbstractEndpointTest {
 	}
 
 	/**
-	 * The rows themselves: identity, algorithm and the sector the index actually reads.
+	 * The rows themselves: identity, algorithm and the window the index actually reads.
 	 */
 	@Test
 	public void testSeedWritesFingerprintCompsForTheDefaultAlgorithm() {
@@ -104,8 +104,8 @@ public class DemoFingerprintSeedTest extends AbstractEndpointTest {
 
 		for (AssetFingerprintComp comp : found) {
 			assertEquals("fingerprint", comp.getNodeKind(), "The node kind FingerprintNode writes under");
-			// The write hook and the query both use sector 0; a component on any other sector is invisible to both.
-			assertEquals(0, comp.getSectorIndex());
+			// The write hook and the query both use window 0; a component on any other window is invisible to both.
+			assertEquals(0, comp.getWindowIndex());
 			assertNotNull(comp.getFingerprint());
 		}
 	}

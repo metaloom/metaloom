@@ -10,7 +10,7 @@
 | Topic | Spec |
 |---|---|
 | Definition validation: the rules, error codes, `POST /pipelines/validate`, the client contract | [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
-| Port model, content types, cardinality, fan-out/gather, coercion, per-kind port tables | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
+| Port model, content types, cardinality, fan-out/gather, coercion, per-kind port tables | [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md) |
 | Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 | WebSocket framing, auth, reconnect, message-by-message reference | [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) |
 | Worker topology, registration, placement, leases, metrics | [../../cortex/METALOOM_ARCHITECTURE.md](../../cortex/METALOOM_ARCHITECTURE.md) |
@@ -26,7 +26,7 @@
    group); the worker answers and forgets.
 2. **Data is addressed by *port*, never by node id.** Every edge carries
    `sourcePort` + `targetPort`; `PortGraphAnalyzer` type-checks the whole graph at
-   save time *and* at run start. See [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md).
+   save time *and* at run start. See [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md).
 3. **`nodes[].dependencies[]` is rejected.** `PipelineGraphParser` throws on it. There
    is no fallback, no positional inference, no legacy alias.
 4. **A definition is parsed before a `pipeline_run` row exists.** A graph that cannot
@@ -113,7 +113,7 @@ graph TB
 | `loom/services/rest` | `PipelineEndpoint`, `PipelineEndpointService`, `PipelineValidationService`, `PipelineRunTracker`, `PipelineRunRegistry`, `PipelineRunRecovery`, `RunStatsAggregator`, `SourceOptionsResolver`, `DaoRunStateStore`, `DaoAssetSink`, `WebSocketNodeDispatcher`, `ProcessorEndpoint`, `ProcessorRegistry`, `PipelineEventBroadcaster` |
 | `loom/db/{api,jooq,flyway}` | `Pipeline`, `PipelineVersion`, `PipelineRun`, `PipelineRunItem`, `PipelineNodeTask` models + DAOs + migrations |
 | `loom-shared/pipeline-model` | The wire contract: `NodeTask`, `NodeTaskResult`, `NodeTaskResultBatch`, `SegmentTask(Result)`, `SegmentNode`, `MediaRef`, `PortPayload`, `DataElement`, `Origin`, `NodeState`, `FilterBranch` |
-| `loom-shared/node-model` | `NodeDescriptor` + port model + `NodeDescriptorRegistry` (see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md)) |
+| `loom-shared/node-model` | `NodeDescriptor` + port model + `NodeDescriptorRegistry` (see [../nodes/NODE_DATA_TYPES.md](../nodes/NODE_DATA_TYPES.md)) |
 | `loom-shared/rest-model` | `PipelineModel` + request/response DTOs, event DTOs, `PipelineModelValidator` |
 | `loom-ui/src/features/pipeline` | `PipelineEditor.tsx` (author), `portResolvers.ts`, `contentTypes.ts`, `pipelineDiff.ts` |
 
@@ -250,7 +250,7 @@ over the topological order.
 | Class | What it enforces |
 |---|---|
 | `PipelineGraphParser` | Node ids present + unique; kind present and **known to the registry**; edges reference existing nodes; ports present; edge dedupe; exactly one source |
-| `PortGraphAnalyzer` | Port existence, assignability, required-input satisfaction, XOR/EXCLUSIVE groups, multi-edge only into `MANY`, and `SINGLE`/`PER_ELEMENT` classification + `fanOutDriver`. See [NODE_DATA_TYPES.md §6.3](NODE_DATA_TYPES.md) |
+| `PortGraphAnalyzer` | Port existence, assignability, required-input satisfaction, XOR/EXCLUSIVE groups, multi-edge only into `MANY`, and `SINGLE`/`PER_ELEMENT` classification + `fanOutDriver`. See [../nodes/NODE_DATA_TYPES.md §6.3](../nodes/NODE_DATA_TYPES.md) |
 | `AffinityValidator` | Produces `AffinityWarning`s for affinity groups that cannot help |
 | `PipelineSegmenter` | Splits the graph into maximal same-affinity segments whose members are **related** — joined by an edge, or reading the same producer. The source node is never in one (the engine synthesises its result). A grouping that would create a segment-level cycle, or that needs two values for one input port id, is split rather than accepted |
 
@@ -398,7 +398,7 @@ sequenceDiagram
 | Concern | How |
 |---|---|
 | Dispatch choke point | `advance(ItemState)` — every path (first dispatch, retry, circuit un-park, capacity release) goes through it, so a single early-return gates them all |
-| Fan-out / gather | `ExecutionMode.PER_ELEMENT` nodes are dispatched once per element with `elementSeq`; the gather barrier is `NodeExecState.isSettled()`, not an author-placed merge node ([NODE_DATA_TYPES.md §8](NODE_DATA_TYPES.md)) |
+| Fan-out / gather | `ExecutionMode.PER_ELEMENT` nodes are dispatched once per element with `elementSeq`; the gather barrier is `NodeExecState.isSettled()`, not an author-placed merge node ([../nodes/NODE_DATA_TYPES.md §8](../nodes/NODE_DATA_TYPES.md)) |
 | Input assembly | `buildInputs(state, node, seq)` reads the node's `InputBinding`s; nothing is keyed by node id on the wire |
 | Backpressure | `maxInFlight` (default `DEFAULT_MAX_IN_FLIGHT = 256`) plus per-kind bulkheads via `setMaxInFlightForKind`. `whenCapacityAvailable(...)` is how `ProcessorEndpoint` withholds `SOURCE_ITEMS_ACK`, which throttles the **source scan itself** |
 | Retry | `RetryScheduler` + exponential backoff from `DEFAULT_RETRY_BASE_DELAY_MS = 1000` capped at `MAX_RETRY_DELAY_MS = 60000` |
@@ -699,7 +699,7 @@ so a second pass skips the work, with the durable copy in Loom. This holds an
 Package `io.metaloom.loom.nodes.spec` in **`loom-shared/node-model`**. The port model
 itself — `PortSpec`, `PortGroup`, `Cardinality`, `ContentTypeRegistry`,
 `ContentTypeLattice`, `ValueCoercer`, `NodePortResolver`, per-kind port tables — is
-specified in [NODE_DATA_TYPES.md §2-§4](NODE_DATA_TYPES.md). Not repeated here.
+specified in [../nodes/NODE_DATA_TYPES.md §2-§4](../nodes/NODE_DATA_TYPES.md). Not repeated here.
 
 **Counts, recounted from code at this HEAD:**
 
@@ -721,7 +721,7 @@ never read by anything**.
 
 ⚠️ **`resolvePorts` is not served over REST.** `NodeDescriptorEndpoint` exposes the
 *static* descriptor only, so the editor mirrors the three resolvers in TypeScript
-([NODE_DATA_TYPES.md §10](NODE_DATA_TYPES.md)).
+([../nodes/NODE_DATA_TYPES.md §10](../nodes/NODE_DATA_TYPES.md)).
 
 ⚠️ **Do not confuse** `io.metaloom.loom.nodes.spec.NodeMode` (UI descriptor) with
 `io.metaloom.cortex.pipeline.api.NodeMode` (runtime). Same name, distinct types.
@@ -760,7 +760,7 @@ the run exactly like the rows beside them.
 once a node downstream of a `MANY` output runs per element. Existing rows are already
 correct under the new key (`element_seq = 0`), so **no backfill is needed**. It also
 rewrites the `outputs` column comment: the value is keyed by output **port id**, each
-a `PortPayload` ([NODE_DATA_TYPES.md §7](NODE_DATA_TYPES.md)).
+a `PortPayload` ([../nodes/NODE_DATA_TYPES.md §7](../nodes/NODE_DATA_TYPES.md)).
 
 🔴 **`pipeline_run_item` is deliberately unchanged.** The fan-out happens *inside* one
 item because **the item is the origin** — that is what lets a later node gather the
@@ -1039,7 +1039,7 @@ them. The segmenter additionally refuses a group needing two different values fo
 port id from outside (§5).
 
 **Nodes never see a node id.** Envelope, coercion rules and fan-out semantics:
-[NODE_DATA_TYPES.md §7-§8](NODE_DATA_TYPES.md).
+[../nodes/NODE_DATA_TYPES.md §7-§8](../nodes/NODE_DATA_TYPES.md).
 
 ### 11.1 UI event socket
 
@@ -1159,7 +1159,7 @@ produce failure messages that name the port. Legacy-tree asserts live in
   `loadByPipelineAndVersion`, `loadLatestByPipeline`~~ — closed by `PipelineDaoTest` and
   `PipelineVersionDaoTest`. Note that `testLoadWithLatestVersionReturnsThePipelineRowOnly`
   pins what the method *does* rather than what it is named: Task 11 item 1 flips it.
-- Missing per [NODE_DATA_TYPES.md §11](NODE_DATA_TYPES.md): `PortPayload` round trip,
+- Missing per [../nodes/NODE_DATA_TYPES.md §11](../nodes/NODE_DATA_TYPES.md): `PortPayload` round trip,
   `ValueCoercer`, Playwright coverage of XOR siblings and `MANY` handle rendering.
 
 ### 13.4 The reference definition fixture
@@ -1346,7 +1346,7 @@ the fixture omits is a field nothing checks the stored representation of.
 - [ ] `Subscriber.queueCapacity` / `DEFAULT_QUEUE_CAPACITY` are dead
 
 See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakdown and
-[NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
+[../nodes/NODE_DATA_TYPES.md §17](../nodes/NODE_DATA_TYPES.md) for port-model progress.
 
 ---
 _Git HEAD revision: `da6b1760`_

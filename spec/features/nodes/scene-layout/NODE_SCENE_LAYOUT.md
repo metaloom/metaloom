@@ -19,7 +19,7 @@ nothing with this node but four letters. See [../../../cortex/SERVICE_VIDEO.md](
 | Not here | There |
 |---|---|
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
-| Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port content types and cardinality across all nodes | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | The depth map this node consumes, and the sidecar behind it | [../depthmap/NODE_DEPTHMAP.md](../depthmap/NODE_DEPTHMAP.md), [../../../sidecars/DEPTH_SIDECAR.md](../../../sidecars/DEPTH_SIDECAR.md) |
 | Where the boxes come from, and the `detection` table they also land in | [../../../workflows/WORKFLOW_OBJECT_DETECT.md](../../../workflows/WORKFLOW_OBJECT_DETECT.md), [../facedetect/FACEDETECTION_OVERVIEW.md](../facedetect/FACEDETECTION_OVERVIEW.md) |
@@ -535,7 +535,7 @@ ImageIO.write(map, "png", pngFile);
 | The detection schema and its bbox comment | `loom/db/flyway/…/V2.43__rework_detection_embedding.sql` |
 | The `asset_json_comp` schema and promotion policy | `loom/db/flyway/…/V2.40__rework_asset_json_comp.sql` |
 | The search extractor missing this schema type | `loom/db/flyway/…/V2.65__search_metadata_json_comp.sql` |
-| Port ids, content types, cardinality | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
+| Port ids, content types, cardinality | [../NODE_DATA_TYPES.md](../NODE_DATA_TYPES.md) §4 |
 | Why `depthNodeId` / `detectionSources` are gone | [../NODES.md](../NODES.md) §6.4 |
 | Where a node registers as a runnable kind | its `*NodeModule` (`@StringKey`) + `NodeCollectionModule.includes` |
 | Where a node registers for the UI | `@NodeSpec` on the node class + `NodeSpecCatalog` + `node-descriptors.json` |

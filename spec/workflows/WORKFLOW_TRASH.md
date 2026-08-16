@@ -405,7 +405,7 @@ variables:
 | The xattr-preserving helper | `io.metaloom.utils.fs.FileUtils` (external `utils` checkout) |
 | Device id already in the schema | `loom/db/flyway/.../V2.10__add_asset_location.sql` (`filekey_inode`, `filekey_stdev`) |
 | Rules for a new node | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
-| Ports and cardinality | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Ports and cardinality | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Node write-back / ledger convention | [../features/nodes/NODES.md](../features/nodes/NODES.md) §2 |
 | The marker's provenance rules | [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) |
 | Asset delete cascades | `loom/db/flyway/.../V2.74__asset_social_cascade.sql`; [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |

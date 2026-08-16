@@ -83,7 +83,7 @@ public class SimilarAssetsEndpointTest extends AbstractEndpointTest {
 		client.createAssetFingerprintComp(asset.getUuid(), new FingerprintCompCreateRequest()
 			.setNodeKind("fingerprint")
 			.setAlgorithm(ALGO)
-			.setSectorIndex(0)
+			.setWindowIndex(0)
 			.setFingerprint(hex)).sync();
 	}
 

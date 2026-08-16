@@ -220,20 +220,26 @@
       "done": "Uploaded",
       "duplicate": "Already in Loom — linked to the existing asset",
       "error": "Failed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "paused": "Paused"
     },
     "action": {
       "cancel": "Cancel this upload",
       "retry": "Retry",
       "cancelAll": "Cancel all",
       "retryFailed": "Retry failed",
-      "clearFinished": "Clear finished"
+      "clearFinished": "Clear finished",
+      "pause": "Hold this file back",
+      "resume": "Resume this file",
+      "pauseAll": "Pause queue",
+      "resumeAll": "Resume queue"
     },
     "queue": {
       "active": "Uploading — {{done}} of {{total}} done ({{percent}}%)",
       "idle": "{{count}} file(s) in this session",
       "search": "Filter queued files",
-      "noMatch": "No queued file matches that name."
+      "noMatch": "No queued file matches that name.",
+      "paused": "Paused — {{count}} file(s) held back"
     },
     "totals": "{{uploaded}} uploaded · {{duplicates}} already known · {{failed}} failed · {{bytes}} total",
     "empty": {

@@ -169,8 +169,8 @@ public class JooqPublic extends SchemaImpl {
     public final JooqAssetDocComp ASSET_DOC_COMP = JooqAssetDocComp.ASSET_DOC_COMP;
 
     /**
-     * Perceptual fingerprints of an asset, one row per sector. Indexed by
-     * (algorithm, fingerprint) so dedup is an index scan rather than a table
+     * Perceptual fingerprints of an asset, one row per timeline window. Indexed
+     * by (algorithm, fingerprint) so dedup is an index scan rather than a table
      * walk.
      */
     public final JooqAssetFingerprintComp ASSET_FINGERPRINT_COMP = JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP;

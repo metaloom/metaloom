@@ -35,6 +35,12 @@
 
 - [x] Chat session CRUD (`/api/v1/chats`, `chat` table, `ChatDao`, permissions)
 - [x] Agentic loop (`AgentLoop`) — transcript replay, tool dispatch, turn limit, abort, persistence
+- [x] Context budget + measured token accounting — `ContextBudget`, `context` frame, `turn_end` usage, `chat.meta.lastRun`, self-calibrating estimator (§4.4, CTX1)
+- [x] Bounded transcript replay — `ConversationHistory` evicts whole exchanges newest-first and says so in-band (§4.4, CTX2)
+- [x] Rolling conversation compaction — `chat.meta.summary` replayed as a delimited `<conversation_summary>` system block (§4.4, CTX4)
+- [x] Server-owned `chat.meta` keys stripped from client writes (`ChatMeta.SERVER_OWNED_KEYS`, §4.3)
+- [x] Bounded sub-agent fan-out — `map_over` + `FanOut`, tool-less child contexts, failures reported as data (§3.1, LP4)
+- [x] Per-run LLM call ceiling — `RunBudget`, claimed by parent turns and fan-out children (§3.1). The rest of LP5 (tool calls, node tasks, wall clock) is open
 - [x] `AgentService` — one active run per chat, `executeBlocking`, `abort()`
 - [x] SSE streaming endpoint `POST|DELETE /api/v1/chats/:uuid/stream`
 - [x] Turn-granular streaming (`BlockingTurnStreamer`) **and** true token/reasoning streaming (`StreamingTurnStreamer`, `LOOM_AI_STREAMING=true`)
@@ -49,7 +55,9 @@
 - [x] Chat sessions REST (`/api/v1/chat-sessions`) + session filesystem (`/api/v1/sessions/:uuid/files|download|preview`)
 - [x] UI: streaming transcript, markdown, hidden reasoning, action rows, chips, skills panel, greeting, split workspace
 - [x] UI views: `SkillManagementView`, `ChatSessionsView` / `ChatSessionDetail`, `MemoryView`
-- [x] Tests: `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest`, `ChatStreamEndpointTest`, mocked + backend Playwright specs
+- [ ] **Tool results entering the live in-run history are uncapped** — only the persisted `resultSummary` is truncated, so one large result can overflow the window on the first message of a new chat (CTX3)
+- [ ] **`chat.messages` is client-writable** through `POST /chats/:uuid` — only the server-owned `meta` keys are closed (§4.3, R12, SEC2)
+- [x] Tests: `AgentLoopTest`, `ContextBudgetTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest`, `ChatStreamEndpointTest`, mocked + backend Playwright specs
 - [ ] **`think` is dead on both ends** — the UI type declares it and `streamChatMessage` forwards it, but no caller ever sets it, and server-side `ChatStreamRequest.think` never reaches `AgentRequest`. The loop always uses `LOOM_AI_THINK_ENABLED` (§4.1, R1)
 - [ ] **`AiOptions.validate()` runs unconditionally** — `url`/`modelId` must be non-blank even with `LOOM_AI_ENABLED=false` (§9, R9)
 - [ ] No endpoint tests for `ChatSessionEndpoint` / `SessionFsEndpoint`
@@ -111,10 +119,11 @@ sequenceDiagram
     EP->>AS: run(AgentRequest, SseAgentEventSink)
     AS-->>EP: 409 AGENT_BUSY when a run is active
     AS->>AL: executeBlocking(loop.run())
-    AL->>AL: buildCallerContext · loadMemory · loadActiveSkills · buildHistory · buildTools
+    AL->>AL: buildCallerContext · loadMemory · loadActiveSkills · buildTools · buildHistory
     AL-->>UI: agent_start {chatUuid, model, maxTurns}
     loop turn = 1..maxTurns
         AL-->>UI: turn_start
+        AL-->>UI: context {estimatedTokens, limit, systemTokens, toolTokens, historyTokens}
         AL->>LLM: streamTurn(ctx)
         LLM-->>UI: reasoning_delta* / text_delta*
         alt no tool calls
@@ -130,8 +139,11 @@ sequenceDiagram
             AL-->>UI: turn_end
         end
     end
-    AL->>AL: persist(user + assistant message, chat.meta)
+    AL->>AL: persist(user + assistant message, chat.meta incl. lastRun)
     AL-->>UI: message_end {message}
+    opt messages past the summary watermark > threshold
+        AL->>LLM: completeText(summarize) → chat.meta.summary (best effort)
+    end
     opt first exchange && titleGeneration
         AL-->>UI: title {title}
         AL->>AL: generateDescription + captureSession (best effort)
@@ -158,6 +170,7 @@ interrupted), so there the abort still lands turn-granular via the post-turn che
 | Coding tool with non-zero shell exit | **Not** an error — exit code is appended to the result text so the model can react. |
 | LLM/provider failure | `error {code: LLM_ERROR, terminal: true}` → `agent_end{status:"error"}`. Only the **user** message is persisted, plus `chat.meta.lastError`; no `message_end` is emitted. |
 | Turn limit reached | Non-fatal `error {code: TURN_LIMIT, terminal: false}`, then the run finishes as **`completed`** with whatever text accumulated. |
+| Per-run LLM call ceiling reached (`LOOM_AI_MAX_LLM_CALLS_PER_RUN`) | Same shape: non-fatal `error {code: LLM_BUDGET, terminal: false}`, run finishes **`completed`**. Inside a `map_over` it is an error tool result instead, so the loop continues (§3.1). |
 | Memory write budget exceeded | Error tool result telling the model to stop writing (never aborts the run). |
 | Chat not found | `error {code: NOT_FOUND, terminal: true}` → `agent_end{status:"error"}`. |
 | Abort (client disconnect or `DELETE`) | Status `aborted` — but the partial assistant message **is** still persisted and `message_end` **is** still emitted. Only `"error"` suppresses both. |
@@ -174,6 +187,47 @@ The model is offered, in this order (`AgentLoop.buildTools()`):
 | Memory (MCP) | `get_memory`, `put_memory`, `list_memory`, `delete_memory` | `loom/agent/memory/.../tool` via `MemoryToolModule` — details in [CHAT_MEMORY.md](CHAT_MEMORY.md) |
 | Coding | `run_shell`, `read_file`, `write_file`, `list_files` | `CodingTools` — advertised **only** when `LOOM_AGENT_SANDBOX_ENABLED=true`; executed in a per-chat Session Runner via `SandboxOrchestrator.dispatchCodingTool(chatUuid, …)`, *not* through the MCP registry |
 | Agent-local | `load_skill` | added whenever anything is disclosed — the built-in skills (§7) mean that is every run |
+| Agent-local | `map_over` | §3.1. Always advertised. Resolved in `AgentLoop`, **never** through the MCP registry — it spends this run's LLM budget and drives this run's `TurnStreamer`, so it must be unreachable from an external MCP client |
+
+### 3.1 `map_over` — bounded fan-out
+
+"Summarize these 50 transcripts", "find the recurring themes in last quarter's uploads" and
+"which of these ten clips should we lead with" are map-reduce over a set that cannot fit one
+context. With one context and one thread the request either overflows the window or is not
+attempted at all.
+
+`map_over {items, instruction, reduceInstruction?}` runs `instruction` over each item in its
+own **child** context, concurrently, then optionally reduces the answers with one further
+call. `items` is either a string array or `[{label?, text}]`; unlabelled items get a
+positional label so every answer traces back to an input.
+
+A child is one `TurnStreamer.completeText` call over a **two-message context: the instruction
+and one delimited item**. It has no tools, no transcript, no system prompt and no memory.
+That isolation is what lets 25 items be processed without any of them paying for the others,
+and it is also the v1 security boundary — *a child that can call tools is a second agent*, and
+a second agent needs its own permission story, budget and audit trail. Widening this is a
+design task, not a parameter.
+
+| Rule | Why |
+|---|---|
+| Over `LOOM_AI_FANOUT_MAX_ITEMS` is a **readable rejection**, not a truncation | A truncated fan-out reduces over a silently smaller set and reports a confident answer about items it never saw |
+| A failing child becomes an `ItemResult` carrying its error, never an exception | A fan-out where 3 of 25 failed must *say so*; the rendered result states the tally first and tells the model not to present a partial result as complete |
+| Each child's answer is capped at `LOOM_AI_FANOUT_CHILD_MAX_CHARS` and says when it was cut | The reduce step has to fit the **parent's** window (§4.4) |
+| Every child and the reduce call claim from `RunBudget` | Fan-out multiplies LLM calls by item count; `LOOM_AI_MAX_TURNS` bounds parent turns and says nothing about children |
+| The item is delimited and declared to be data | A child summarizing an asset transcript reads user-supplied text whose answer flows straight back into the parent context — the SEC1 rule, same as the conversation summary |
+
+**`RunBudget`** (`loom/agent/chat/.../loop/RunBudget.java`) carries one ceiling today,
+`LOOM_AI_MAX_LLM_CALLS_PER_RUN`, claimed by parent turns and fan-out children alike. Claims
+are compare-and-set, not increment-then-check, so concurrent children cannot push the tally
+past the ceiling. Exhaustion is an error tool result telling the model to stop and answer with
+what it has — never an aborted run (the `AgentLoop.memoryWriteBudgetExhausted` pattern). A
+parent turn that cannot claim ends the run as `completed` with a non-terminal
+`error {code: LLM_BUDGET}`, exactly like `TURN_LIMIT`. The tallies land in
+`chat.meta.lastRun.llmCalls`; the gap between that and `turns` is the fan-out spend.
+
+> ⚠️ `RunBudget` is **not** all of LP5. Ceilings on tool calls, dispatched node tasks and wall
+> clock are still open — the node-task count lives behind the MCP boundary and needs plumbing
+> LP4 did not. The shape above is the one those should follow.
 
 🔴 **The MCP groups are filtered by the caller's permissions.** `buildTools()` reads
 `MCPToolRegistry.listDescriptorsFor(request.user())`, not `listDescriptors()`. A tool the
@@ -228,14 +282,16 @@ authoritative snapshot** (`message_end`); the client persists nothing itself.
 | event | data payload | notes |
 |---|---|---|
 | `agent_start` | `{"chatUuid","model","maxTurns"}` | always first |
-| `turn_start` / `turn_end` | `{"turn":1}` | |
+| `turn_start` | `{"turn":1}` | |
+| `context` | `{"turn","estimatedTokens","limit","reserve","systemTokens","toolTokens","historyTokens","calibration"}` | §4.4. **Estimates** — emitted before the request goes out. |
+| `turn_end` | `{"turn":1}` plus `{"promptTokens","completionTokens","totalTokens","reasoningTokens","cachedPromptTokens"}` when the server reported usage | the **measured** counterpart of `context` |
 | `reasoning_delta` | `{"turn","text"}` | distinct type → UI hides it by default |
 | `text_delta` | `{"turn","text"}` | answer markdown, incremental |
 | `tool_start` | `{"turn","toolCallId","name","args"}` | renders as an ActionRow (running) |
 | `tool_end` | `{"turn","toolCallId","name","isError","summary","references":[…],"visuals":[…]}` | chips and inline visuals appear live |
 | `message_end` | `{"message": <persisted assistant message, §4.3>}` | omitted on terminal error |
 | `title` | `{"title":"…"}` | first exchange only, when `LOOM_AI_TITLE_GENERATION` |
-| `error` | `{"code":"LLM_ERROR"\|"TURN_LIMIT"\|"NOT_FOUND","message","terminal":bool}` | `AGENT_BUSY` is an HTTP 409, not an SSE frame |
+| `error` | `{"code":"LLM_ERROR"\|"TURN_LIMIT"\|"LLM_BUDGET"\|"NOT_FOUND","message","terminal":bool}` | `AGENT_BUSY` is an HTTP 409, not an SSE frame |
 | `agent_end` | `{"chatUuid","status":"completed"\|"aborted"\|"error"}` | always last |
 
 ### 4.3 Persisted message schema
@@ -260,8 +316,91 @@ authoritative snapshot** (`message_end`); the client persists nothing itself.
   `assistantWithToolCalls` + `toolResult` pairs from `toolCalls[]` using that summary — an
   accepted context-fidelity trade-off (§8 R4).
 - `visuals` are persisted but **never replayed** into the LLM history.
-- `chat.meta` = `{"activeSkillUuids":[…], "model":"…", "lastError":"…"?}`; `lastError` is set
-  on a terminal error and removed on the next successful run.
+- `chat.meta`:
+
+```json
+{ "activeSkillUuids":["…"], "model":"…", "lastError":"…"?,
+  "summary":{"text":"…","throughMessageIndex":32,"tokens":180,"model":"…"},
+  "tokenCalibration":1.35,
+  "lastRun":{"turns":2,"toolCalls":1,"durationMs":4120,"estimatedPromptTokensPeak":5310,
+             "llmCalls":6,"maxLlmCalls":64,
+             "promptTokensPeak":6980,"promptTokens":12400,"completionTokens":310,
+             "totalTokens":12710,"cachedPromptTokens":4096} }
+```
+
+  `lastError` is set on a terminal error and removed on the next successful run. `lastRun`
+  is overwritten per run, never accumulated. `llmCalls` counts parent turns **and** `map_over`
+  children (§3.1), so it exceeds `turns` whenever a fan-out ran — that gap is the fan-out spend. The token fields of `lastRun` and
+  `tokenCalibration` appear only when the model server reported `usage`.
+
+  **`summary`, `tokenCalibration` and `lastRun` are server-owned** —
+  `POST /api/v1/chats/:uuid` strips them from the request body and carries the stored values
+  forward (`ChatMeta.SERVER_OWNED_KEYS` in `loom/db/api`, applied by `ChatEndpointService`).
+  They are stripped rather than rejected, so a UI that round-trips the whole `meta` object it
+  received from `GET` keeps working. This is the narrow half of SEC2 that §4.4 makes urgent —
+  `chat.messages` itself is still client-writable, which SEC2 tracks.
+
+### 4.4 Context budget, eviction and compaction
+
+The transcript is replayed from scratch on every message, so an unbounded replay eventually
+exceeds `LOOM_AI_CONTEXT_WINDOW`, the provider rejects the request, and — because `persist()`
+appends the user message before the error check — every retry leaves the transcript one
+message longer. Three pieces prevent that.
+
+**Estimating (`ContextBudget`).** A documented `chars/4` heuristic plus a per-message
+envelope allowance. It is not a tokenizer and does not claim to be: the eviction decision has
+to be made *before* the request is sent, and the only authoritative count — the `usage` object
+the server attaches to its response (`TokenUsage` in genai-utils) — only exists afterwards.
+`LOOM_AI_CONTEXT_RESERVE_TOKENS` is held back for the completion, so the prompt may use
+`window - reserve` and the reserve absorbs the estimator's error.
+
+**Measuring and calibrating.** `TurnResult.usage` carries the server-reported counts through
+both `TurnStreamer` implementations. They are emitted on `turn_end`, summed into
+`chat.meta.lastRun`, and turned into `chat.meta.tokenCalibration` — the ratio of measured to
+estimated prompt tokens, which scales every estimate of the *next* run. A chat therefore
+converges on its own model's tokenizer instead of trusting `chars/4` forever. The factor is
+clamped to `[0.5, 3.0]` so one odd measurement cannot wedge the budget, and it is derived
+against the raw heuristic rather than the already-corrected estimate so it cannot compound
+run over run. A server that reports no `usage` changes nothing and the loop runs on the raw
+heuristic.
+
+**Assembling (`ConversationHistory`, pure and side-effect free).**
+
+1. The system prompt and the incoming user message are charged to the budget but never
+   dropped; the advertised tool schemas are charged too, which is why `buildTools()` now runs
+   *before* `buildHistory()`.
+2. The transcript is walked **newest first** in whole *exchanges* — one persisted user message
+   plus every assistant message and reconstructed tool pair that followed it. Groups are
+   all-or-nothing: an `assistantWithToolCalls` is never separated from its `toolResult`
+   messages, because an orphaned `tool_call_id` is a `400` on most OpenAI-compatible servers.
+3. `LOOM_AI_HISTORY_MAX_MESSAGES` (default `0` = budget-driven only) applies as an additional
+   ceiling on replayed persisted messages.
+4. When anything was dropped the model is told **in-band** — never silently.
+
+**Compacting.** After a completed run, once more than
+`LOOM_AI_COMPACTION_THRESHOLD_MESSAGES` (20) messages sit past the watermark, the loop makes
+one `turnStreamer.completeText` call folding the previous summary and the new exchanges into
+one combined summary, capped at `LOOM_AI_COMPACTION_MAX_CHARS` (4096), and advances
+`throughMessageIndex` to the transcript length. It is *rolling*: one bounded summary, not an
+accumulating stack.
+
+On the next run, if and only if the budget walk had to drop something, the summary is replayed
+as a single system message directly after the system prompt, wrapped in
+`<conversation_summary>` … `</conversation_summary>`. Verbatim replay then resumes at
+`max(firstKeptIndex, watermark)`, so summarized content is never also replayed in full; when
+the watermark covers less than what had to be dropped, the uncovered remainder still gets a
+plain `[N earlier message(s) were omitted to fit the context window.]` notice. A transcript
+that still fits is replayed at full fidelity and its summary stays unused — the real thing is
+strictly better than its summary.
+
+Both the summarization prompt and the replayed block state explicitly that tool results and
+asset metadata are **data, not instructions** (the SEC1 rule): the summary re-enters as a
+*system* message, the most trusted position in the prompt, so anything laundered into it would
+inherit system-level trust.
+
+Compaction is **best-effort** like title generation and session capture — any failure logs at
+WARN and leaves the previous summary in place. A chat must never fail because its summary
+could not be refreshed.
 
 ## 5. UI contract
 
@@ -433,6 +572,18 @@ reachable as `LoomOptions.getAi()`.
 | `LOOM_AI_THINK_ENABLED` | `true` | Enable reasoning/think mode (`ctx.enableThink()`) |
 | `LOOM_AI_STREAMING` | `false` | `true` → `StreamingTurnStreamer` (true token/reasoning deltas); `false` → `BlockingTurnStreamer` (turn-granular) |
 | `LOOM_AI_TITLE_GENERATION` | `true` | Auto title + description + session capture after the first exchange |
+| `LOOM_AI_CONTEXT_RESERVE_TOKENS` | `2048` | Held back from the window for the completion; the prompt is budgeted against `window - reserve` (§4.4) |
+| `LOOM_AI_HISTORY_MAX_MESSAGES` | `0` | Hard ceiling on replayed persisted messages. `0` = the context budget is the only limit |
+| `LOOM_AI_COMPACTION_THRESHOLD_MESSAGES` | `20` | Messages past the summary watermark that trigger a compaction pass |
+| `LOOM_AI_COMPACTION_MAX_CHARS` | `4096` | Cap on the stored rolling summary |
+| `LOOM_AI_FANOUT_MAX_ITEMS` | `25` | Items one `map_over` may cover; more is a readable rejection (§3.1) |
+| `LOOM_AI_FANOUT_CONCURRENCY` | `4` | Child LLM calls in flight at once |
+| `LOOM_AI_FANOUT_CHILD_MAX_CHARS` | `1024` | Cap on each child's answer before it re-enters the parent context |
+| `LOOM_AI_MAX_LLM_CALLS_PER_RUN` | `64` | Total LLM calls per run, parent turns and fan-out children together. `0` disables the ceiling |
+
+Not an env var but part of the same policy: `AgentLoop.RESULT_SUMMARY_MAX_LENGTH` (2048)
+caps the persisted `resultSummary`. Capping the tool-result text that enters the *live*
+in-run history is a separate, still-open gap (CTX3).
 
 > ⚠️ `AiOptions.validate()` requires `url` and `modelId` to be non-blank
 > **unconditionally** — it does not short-circuit on `enabled == false`. Blanking any of them
@@ -447,7 +598,7 @@ incl. `_MAX_WRITES_PER_RUN` and `_PROMPT_MAX_ENTRIES`).
 
 | Level | Tests |
 |---|---|
-| Loop (no DB, no LLM) | `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest` — all in `loom/agent/chat/src/test` |
+| Loop (no DB, no LLM) | `AgentLoopTest`, `ContextBudgetTest`, `RunBudgetTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest` — all in `loom/agent/chat/src/test` |
 | Endpoint (pooled DB) | `ChatEndpointTest`, `ChatStreamEndpointTest`, `SkillEndpointTest`, `MemoryEndpointTest`, `MemoryDenyRuleEndpointTest` in `loom/core/src/test` |
 | GraphQL (pooled DB) | `SkillGraphQLTest`, `MemoryGraphQLTest` in `loom/core/src/test/.../graphql` |
 | DAO | `ChatSessionDaoTest`, `SkillDaoTest`, `SkillVersionDaoTest`, `MemoryEntryDaoTest`, `MemoryDenyRuleDaoTest` in `loom/db/jooq/src/test` |
@@ -495,6 +646,28 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
   the UI hides it, it is not redacted.
 - **`chat.messages` is rewritten wholesale per exchange** (jsonb). Fine at chat scale, flagged
   for normalization (R5).
+- **Part of `chat.meta` is server-owned.** `summary`, `tokenCalibration` and `lastRun` are
+  stripped from any client write (`ChatMeta.SERVER_OWNED_KEYS`). Anything new the loop stores
+  on `meta` and later feeds back into the prompt belongs in that set — the summary re-enters
+  as a *system* block, so a client-writable one is an injection surface, not a preference.
+- **Token counts come in two flavours and must not be confused.** `context` frames and
+  `estimatedPromptTokensPeak` are `chars/4` guesses made *before* the call; `turn_end` fields
+  and everything else under `lastRun` are what the server actually reported. Name new fields
+  so the difference is visible without reading the code (§4.4).
+- **Tools are built before the history.** Their schemas are charged to the same budget the
+  transcript competes for; reordering these two calls silently over-admits history.
+- **Exchanges are the unit of eviction, not messages.** Dropping half an exchange orphans a
+  `tool_call_id` (a provider `400`) or leaves an assistant reply with no question in front of
+  it, which reads as the agent talking to itself.
+- **Fan-out children never get tools.** `map_over`'s children are one-shot completions over a
+  single delimited item (§3.1). Giving them tools makes them agents, which needs a permission
+  story, a budget and an audit trail that do not exist — it is a design task, not a flag.
+- **A partial result must announce itself.** Both `map_over` (failed children) and the history
+  assembler (dropped exchanges) state what is missing *before* the content. The failure this
+  guards against is the model presenting a partial answer as a complete one.
+- **Agent-local tools are resolved in `AgentLoop`, not the MCP registry.** `load_skill` and
+  `map_over` spend this run's budget and drive this run's `TurnStreamer`; registering them
+  would expose them to external MCP clients that have neither.
 
 ## 12. Where do I find …?
 
@@ -502,6 +675,11 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 |---|---|
 | Agent entry point / busy guard / abort | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/AgentService.java` |
 | The turn loop | `.../agent/chat/loop/AgentLoop.java` |
+| Context budget / token estimate + calibration | `.../agent/chat/loop/ContextBudget.java` |
+| History assembly, eviction, summary replay | `.../agent/chat/loop/ConversationHistory.java` (pure — no DB, no LLM) |
+| Which `chat.meta` keys the server owns | `loom/db/api/src/main/java/io/metaloom/loom/db/model/chat/ChatMeta.java` |
+| Fan-out / map-reduce over items | `.../agent/chat/loop/FanOut.java`, dispatched as `map_over` in `AgentLoop.mapOver` |
+| Per-run spend ceiling | `.../agent/chat/loop/RunBudget.java` |
 | Turn abstraction | `.../agent/chat/loop/TurnStreamer.java` (`streamTurn`, `completeText`, `cancel`), `BlockingTurnStreamer`, `StreamingTurnStreamer`, `TurnListener`, `TurnResult` |
 | Event protocol | `.../agent/chat/event/AgentEvent*.java`, sink impl `.../rest/SseAgentEventSink.java` |
 | Stream routes | `.../agent/chat/rest/ChatStreamEndpoint.java` (+ `…Service`) |
@@ -531,7 +709,11 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R1 | `think` is plumbed nowhere: unset by the UI, dropped by the endpoint service (§4.1). | Add `think` to `AgentRequest` + a UI toggle so it overrides `AiOptions.isThinkEnabled()`, or delete it from `api/agent.ts` **and** `ChatStreamRequest`. |
 | R2 | Reverse proxies may buffer SSE. | `X-Accel-Buffering: no` + chunked responses; document `proxy_buffering off` for nginx. |
 | R3 | vLLM has no true streaming path; `LOOM_AI_STREAMING=true` silently behaves turn-granular there. | `TurnStreamer` seam already isolates it; extend `genai-utils` when vLLM streaming lands. |
-| R4 | Transcript replay uses ≤2 KB tool-result summaries → context fidelity loss on follow-ups. | Documented trade-off; revisit with a normalized `chat_message` table if it hurts. |
+| R4 | Transcript replay uses ≤2 KB tool-result summaries → context fidelity loss on follow-ups. | Documented trade-off; revisit with a normalized `chat_message` table if it hurts (CTX5). |
+| R11 | The rolling summary is a lossy, model-authored artefact the agent then treats as fact. A bad summarization silently distorts every later turn, and nothing surfaces it to the user. | Bounded and delimited (§4.4), never replayed while the real transcript fits, and one `completeText` call per ~20 messages. Surfacing it in the UI so a user can read or reset it is open. |
+| R12 | `chat.messages` is still client-writable through `POST /chats/:uuid`, so a caller can author a transcript the loop replays as genuine tool exchanges. | Only the server-owned `meta` keys are closed so far (§4.3); the transcript half is SEC2. |
+| R13 | `map_over` is bounded per call (25 items) but a model may call it repeatedly, and `RunBudget` is the only thing standing between that and a very expensive run. Tool calls, node tasks and wall clock are still unbounded. | `LOOM_AI_MAX_LLM_CALLS_PER_RUN` caps the multiplying dimension. The remaining ceilings are LP5. |
+| R14 | Fan-out children run on a dedicated pool per `map_over` call, so a chat with a slow provider holds `LOOM_AI_FANOUT_CONCURRENCY` threads for the duration. `AgentService` allows one run per chat, but not one run per deployment. | Threads are daemon and the pool is shut down in a `finally`. A global fan-out pool is the fix if concurrent chats become a real load. |
 | R5 | Whole `chat.messages` jsonb is rewritten per exchange. | Fine at chat scale; flagged for future normalization. |
 | R6 | `ChatSessionEndpoint` / `SessionFsEndpoint` have no endpoint tests — the session-fs routes serve files out of a container. | Add endpoint + permission tests per [CODING.md](../../guidelines/CODING.md). |
 | R7 | Small local models may ignore `load_skill` progressive disclosure. | Require action-complete descriptions; `meta.injectFull` escape hatch. |

@@ -360,7 +360,7 @@ Finally, print to the console: the report path, the totals by severity, and the 
 | Env vars / defaults (Loom, Cortex) | [../loom/CONFIGURATION.md](../loom/CONFIGURATION.md), [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 | REST routes and DTOs | [../loom/RESTAPI.md](../loom/RESTAPI.md), `loom/services/rest/.../endpoint/impl/`, `loom-shared/rest-model/` |
 | Permissions model | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
-| Node ports, content types, cardinality | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Node ports, content types, cardinality | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) |
 | Node descriptors (harvested) | `loom-shared/node-model/src/main/resources/node-descriptors.json` |
 | Node result / state enums | `cortex/api/.../node/NodeResult.java`, `.../node/ResultState.java` |
 | Metrics catalogue (incl. declared-but-unrecorded) | [../features/ops/METRICS.md](../features/ops/METRICS.md) |

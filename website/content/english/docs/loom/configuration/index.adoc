@@ -240,7 +240,43 @@ Settings for the built-in link:../chat/[Chat & AI Agent]. The agent is **enabled
 | `LOOM_AI_STREAMING` | `false` | Opt-in true token/reasoning streaming
 | `LOOM_AI_THINK_ENABLED` | _(model default)_ | Enable model "thinking" chunks
 | `LOOM_AI_TITLE_GENERATION` | _(on)_ | Auto-title a chat after the first exchange
+| `LOOM_AI_CONTEXT_RESERVE_TOKENS` | `2048` | Tokens held back from the window so the model always has room to answer
+| `LOOM_AI_HISTORY_MAX_MESSAGES` | `0` | Hard cap on replayed messages. `0` lets the context budget decide
+| `LOOM_AI_COMPACTION_THRESHOLD_MESSAGES` | `20` | New messages after which the conversation summary is refreshed
+| `LOOM_AI_COMPACTION_MAX_CHARS` | `4096` | Maximum length of that summary
+| `LOOM_AI_FANOUT_MAX_ITEMS` | `25` | Items the agent may process in one parallel batch
+| `LOOM_AI_FANOUT_CONCURRENCY` | `4` | How many of those run at the same time
+| `LOOM_AI_FANOUT_CHILD_MAX_CHARS` | `1024` | How much of each per-item answer is kept
+| `LOOM_AI_MAX_LLM_CALLS_PER_RUN` | `64` | Total model calls one message may cost
 |===
+
+[NOTE]
+====
+**Questions that span many items.** Asked to summarize fifty transcripts or find the themes across a
+quarter of uploads, the agent processes the items in parallel batches — each one read on its own, then
+the answers combined. This is what lets it answer over more material than fits in a single context.
+
+`LOOM_AI_FANOUT_CONCURRENCY` trades speed against load on your model server; raise it only if the
+server has headroom. `LOOM_AI_MAX_LLM_CALLS_PER_RUN` is the safety net on what a single message can
+cost — if you see the agent stopping early on large batches with a note about reaching its limit, that
+is the setting to raise.
+
+The agent always reports how many items succeeded and how many failed, so a partial answer is never
+presented as a complete one.
+====
+
+[NOTE]
+====
+**Long conversations look after themselves.** A chat is replayed to the model in full on every
+message, so a long one eventually outgrows `LOOM_AI_CONTEXT_WINDOW`. Rather than failing, Loom keeps
+the most recent exchanges verbatim and folds the older ones into a running summary it writes once
+and reuses. The agent is always told when this has happened, so it can ask you to repeat something
+instead of quietly forgetting it.
+
+If the agent seems to lose the thread of a long conversation, raise `LOOM_AI_CONTEXT_WINDOW` (if your
+model server supports a larger one) before touching the compaction settings — more room means fewer
+exchanges get summarized at all.
+====
 
 === Coding Sandbox
 

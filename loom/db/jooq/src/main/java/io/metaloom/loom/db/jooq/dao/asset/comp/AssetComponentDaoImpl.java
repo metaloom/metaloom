@@ -86,7 +86,7 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 	private static final Field<String> F_METHOD = DSL.field("method", String.class);
 	private static final Field<String> F_LANG = DSL.field("lang", String.class);
 	private static final Field<String> F_ALGORITHM = DSL.field("algorithm", String.class);
-	private static final Field<Integer> F_SECTOR_INDEX = DSL.field("sector_index", Integer.class);
+	private static final Field<Integer> F_WINDOW_INDEX = DSL.field("window_index", Integer.class);
 	private static final Field<String> F_SEGMENT_TYPE = DSL.field("segment_type", String.class);
 	private static final Field<Integer> F_SEQ = DSL.field("seq", Integer.class);
 	private static final Field<String> F_SCHEMA_TYPE = DSL.field("schema_type", String.class);
@@ -752,7 +752,7 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 	private Map<Field<?>, Object> fingerprintValues(AssetFingerprintComp comp) {
 		Map<Field<?>, Object> values = baseValues(comp);
 		values.put(F_ALGORITHM, comp.getAlgorithm());
-		values.put(F_SECTOR_INDEX, comp.getSectorIndex());
+		values.put(F_WINDOW_INDEX, comp.getWindowIndex());
 		values.put(F_TIME_FROM, comp.getTimeFrom());
 		values.put(F_TIME_TO, comp.getTimeTo());
 		values.put(F_FINGERPRINT, comp.getFingerprint());
@@ -766,7 +766,7 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 
 	@Override
 	public AssetFingerprintComp upsertFingerprintComp(AssetFingerprintComp comp) {
-		comp.setUuid(upsert(FINGERPRINT_TABLE, fingerprintValues(comp), F_ASSET_UUID, F_NODE_KIND, F_ALGORITHM, F_SECTOR_INDEX));
+		comp.setUuid(upsert(FINGERPRINT_TABLE, fingerprintValues(comp), F_ASSET_UUID, F_NODE_KIND, F_ALGORITHM, F_WINDOW_INDEX));
 		return comp;
 	}
 
@@ -781,10 +781,10 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 	}
 
 	@Override
-	public AssetFingerprintComp loadFingerprintComp(UUID assetUuid, String nodeKind, String algorithm, int sectorIndex) {
+	public AssetFingerprintComp loadFingerprintComp(UUID assetUuid, String nodeKind, String algorithm, int windowIndex) {
 		return doLoadOne(FINGERPRINT_TABLE, identity(assetUuid, nodeKind)
 			.and(F_ALGORITHM.eq(algorithm))
-			.and(F_SECTOR_INDEX.eq(sectorIndex)), this::mapFingerprintComp);
+			.and(F_WINDOW_INDEX.eq(windowIndex)), this::mapFingerprintComp);
 	}
 
 	@Override
@@ -870,7 +870,7 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 		AssetFingerprintCompImpl comp = new AssetFingerprintCompImpl();
 		readBase(r, comp);
 		comp.setAlgorithm(r.get(F_ALGORITHM));
-		comp.setSectorIndex(intOrZero(r.get(F_SECTOR_INDEX)));
+		comp.setWindowIndex(intOrZero(r.get(F_WINDOW_INDEX)));
 		comp.setTimeFrom(r.get(F_TIME_FROM));
 		comp.setTimeTo(r.get(F_TIME_TO));
 		comp.setFingerprint(r.get(F_FINGERPRINT));

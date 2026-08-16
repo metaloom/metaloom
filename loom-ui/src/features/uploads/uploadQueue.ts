@@ -21,6 +21,12 @@ import {
 export type UploadStatus =
   | "queued"
   | "uploading"
+  /**
+   * Held back by the user: it will not start until it is resumed. Only a waiting item can be
+   * paused — a transfer already in flight runs to completion, because the endpoint is single-shot
+   * and stopping it would throw away every byte sent so far (`pause` below).
+   */
+  | "paused"
   | "done"
   /** Uploaded fine, but the server already held these bytes (HTTP 200 rather than 201). */
   | "duplicate"
@@ -51,11 +57,12 @@ export interface UploadItem extends UploadTarget {
 /** Aggregate view of the queue, recomputed on every change. */
 export interface UploadSummary {
   items: UploadItem[];
-  /** Queued + uploading. */
+  /** Queued + uploading. Paused items are deliberately **not** active. */
   activeCount: number;
   doneCount: number;
   duplicateCount: number;
   errorCount: number;
+  pausedCount: number;
   /** 0..100 across the active batch, weighted by file size. */
   percent: number;
   isActive: boolean;
@@ -72,8 +79,31 @@ export interface BatchOutcome {
 type Listener = (summary: UploadSummary) => void;
 type BatchListener = (outcome: BatchOutcome) => void;
 
-/** How many transfers run at once. Enough to keep a link busy without starving the rest of the UI. */
-const MAX_CONCURRENT = 3;
+/** How many transfers run at once by default. Enough to keep a link busy without starving the UI. */
+export const DEFAULT_CONCURRENCY = 3;
+/** Below 1 nothing would ever start; above 8 the browser queues the sockets anyway. */
+export const MIN_CONCURRENCY = 1;
+export const MAX_CONCURRENCY = 8;
+
+/**
+ * Resolve `VITE_UPLOAD_CONCURRENCY` into a usable limit.
+ *
+ * Three parallel transfers suit a fast link; a saturated uplink or an S3-backed pool with
+ * per-request latency wants fewer. Anything unparseable or outside {@link MIN_CONCURRENCY}..
+ * {@link MAX_CONCURRENCY} falls back to the default rather than being clamped silently — a
+ * build-time typo should behave like the setting was never made, and `0` would wedge the queue with
+ * nothing ever starting.
+ */
+export function clampConcurrency(raw: unknown): number {
+  const parsed = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_CONCURRENCY;
+  const value = Math.trunc(parsed);
+  if (value < MIN_CONCURRENCY || value > MAX_CONCURRENCY) return DEFAULT_CONCURRENCY;
+  return value;
+}
+
+/** Build-time setting, so this is resolved once at module load. */
+const MAX_CONCURRENT = clampConcurrency(import.meta.env.VITE_UPLOAD_CONCURRENCY);
 
 const items: UploadItem[] = [];
 const handles = new Map<string, UploadHandle>();
@@ -103,6 +133,7 @@ export function summarize(list: UploadItem[]): UploadSummary {
     doneCount: list.filter((i) => i.status === "done").length,
     duplicateCount: list.filter((i) => i.status === "duplicate").length,
     errorCount: list.filter((i) => i.status === "error").length,
+    pausedCount: list.filter((i) => i.status === "paused").length,
     percent: totalBytes === 0 ? 0 : Math.min(100, Math.round((sentBytes / totalBytes) * 100)),
     isActive: active.length > 0,
   };
@@ -125,7 +156,12 @@ function pump(): void {
     start(item);
   }
 
-  const stillBusy = items.some((i) => i.status === "queued" || i.status === "uploading");
+  // A paused item counts as busy, so the batch stays open and no toast is raised while the user is
+  // holding part of it back. Resuming finishes the same batch and reports it once; cancelling the
+  // paused remainder closes it just as well.
+  const stillBusy = items.some(
+    (i) => i.status === "queued" || i.status === "uploading" || i.status === "paused"
+  );
   const sawAnything = batch.uploaded + batch.duplicates + batch.failed + batch.cancelled > 0;
   if (!stillBusy && sawAnything) {
     const outcome = batch;
@@ -244,7 +280,7 @@ export function cancel(id: string): void {
     handle.abort();
     return;
   }
-  if (item.status === "queued") {
+  if (item.status === "queued" || item.status === "paused") {
     item.status = "cancelled";
     batch.cancelled += 1;
     emit();
@@ -254,6 +290,48 @@ export function cancel(id: string): void {
 
 export function cancelAll(): void {
   items.filter((i) => !isTerminal(i.status)).forEach((i) => cancel(i.id));
+}
+
+/**
+ * Hold a waiting item back. `pump()` skips "paused", so the slot goes to the next queued file
+ * instead.
+ *
+ * **A transfer already in flight cannot be paused** and is left alone: `XMLHttpRequest.send()` hands
+ * the whole body to the browser, so the only way to stop it is `abort()`, which discards everything
+ * sent so far — that is `cancel`, under an honest name. Pausing therefore takes effect at the file
+ * boundary. Chunked upload would move that boundary to the chunk; see
+ * `spec/tasks/LOOM_UI_UPLOAD_TASKS.md` Task 5.
+ */
+export function pause(id: string): void {
+  const item = items.find((i) => i.id === id);
+  if (!item || item.status !== "queued") return;
+  item.status = "paused";
+  emit();
+}
+
+/** Put a paused item back in line. It keeps its place behind whatever is already queued. */
+export function resume(id: string): void {
+  const item = items.find((i) => i.id === id);
+  if (!item || item.status !== "paused") return;
+  item.status = "queued";
+  emit();
+  pump();
+}
+
+/** Hold the whole queue at the next file boundary; anything already transferring still finishes. */
+export function pauseAll(): void {
+  const held = items.filter((i) => i.status === "queued");
+  if (held.length === 0) return;
+  held.forEach((i) => { i.status = "paused"; });
+  emit();
+}
+
+export function resumeAll(): void {
+  const held = items.filter((i) => i.status === "paused");
+  if (held.length === 0) return;
+  held.forEach((i) => { i.status = "queued"; });
+  emit();
+  pump();
 }
 
 /** Put a failed or cancelled item back in the queue. */

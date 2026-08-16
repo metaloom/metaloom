@@ -38,7 +38,7 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Perceptual fingerprints of an asset, one row per sector. Indexed by
+ * Perceptual fingerprints of an asset, one row per timeline window. Indexed by
  * (algorithm, fingerprint) so dedup is an index scan rather than a table walk.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
@@ -106,22 +106,25 @@ public class JooqAssetFingerprintComp extends TableImpl<JooqAssetFingerprintComp
     public final TableField<JooqAssetFingerprintCompRecord, String> ALGORITHM = createField(DSL.name("algorithm"), SQLDataType.VARCHAR.nullable(false), this, "Fingerprint algorithm identifier, e.g. metaloom-multisector-v1");
 
     /**
-     * The column <code>public.asset_fingerprint_comp.sector_index</code>. Which
-     * sector of a multi-sector fingerprint; 0 for whole-asset fingerprints
+     * The column <code>public.asset_fingerprint_comp.window_index</code>.
+     * Timeline window index within the asset: 0 is the whole-asset fingerprint,
+     * 1..n are windows with time_from/time_to set. Unrelated to the internal
+     * sectors of the multi-sector fingerprint algorithm, which are folded into
+     * a single vector.
      */
-    public final TableField<JooqAssetFingerprintCompRecord, Integer> SECTOR_INDEX = createField(DSL.name("sector_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which sector of a multi-sector fingerprint; 0 for whole-asset fingerprints");
+    public final TableField<JooqAssetFingerprintCompRecord, Integer> WINDOW_INDEX = createField(DSL.name("window_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Timeline window index within the asset: 0 is the whole-asset fingerprint, 1..n are windows with time_from/time_to set. Unrelated to the internal sectors of the multi-sector fingerprint algorithm, which are folded into a single vector.");
 
     /**
      * The column <code>public.asset_fingerprint_comp.time_from</code>. Start of
-     * the window this sector covers, in milliseconds
+     * the window this row covers, in milliseconds. NULL on the whole-asset row.
      */
-    public final TableField<JooqAssetFingerprintCompRecord, Long> TIME_FROM = createField(DSL.name("time_from"), SQLDataType.BIGINT, this, "Start of the window this sector covers, in milliseconds");
+    public final TableField<JooqAssetFingerprintCompRecord, Long> TIME_FROM = createField(DSL.name("time_from"), SQLDataType.BIGINT, this, "Start of the window this row covers, in milliseconds. NULL on the whole-asset row.");
 
     /**
      * The column <code>public.asset_fingerprint_comp.time_to</code>. End of the
-     * window this sector covers, in milliseconds
+     * window this row covers, in milliseconds. NULL on the whole-asset row.
      */
-    public final TableField<JooqAssetFingerprintCompRecord, Long> TIME_TO = createField(DSL.name("time_to"), SQLDataType.BIGINT, this, "End of the window this sector covers, in milliseconds");
+    public final TableField<JooqAssetFingerprintCompRecord, Long> TIME_TO = createField(DSL.name("time_to"), SQLDataType.BIGINT, this, "End of the window this row covers, in milliseconds. NULL on the whole-asset row.");
 
     /**
      * The column <code>public.asset_fingerprint_comp.fingerprint</code>. The
@@ -161,7 +164,7 @@ public class JooqAssetFingerprintComp extends TableImpl<JooqAssetFingerprintComp
     }
 
     private JooqAssetFingerprintComp(Name alias, Table<JooqAssetFingerprintCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Perceptual fingerprints of an asset, one row per sector. Indexed by (algorithm, fingerprint) so dedup is an index scan rather than a table walk."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Perceptual fingerprints of an asset, one row per timeline window. Indexed by (algorithm, fingerprint) so dedup is an index scan rather than a table walk."), TableOptions.table());
     }
 
     /**

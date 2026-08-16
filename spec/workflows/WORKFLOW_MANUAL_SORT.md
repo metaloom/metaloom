@@ -447,7 +447,7 @@ programmatically built filter resolved no bucket ports at all. Half of task 14 i
 | Why `tagAsset` resolves rather than inserts | [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) §6 |
 | Reaction schema, and the rating's own type | `V2.17__add_social.sql`, `V2.78__rating_reaction_type.sql` |
 | The filter seam | `cortex/nodes/filter/core/src/main/java/io/metaloom/cortex/node/filter/` |
-| Bucket-port routing rules | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §8.6 |
+| Bucket-port routing rules | [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md) §8.6 |
 | A worked pipeline that routes on a decision | `DemoDatabaseInitializer.reviewTriageDefinition()` |
 | Shared workflow defects | [WORKFLOWS.md](WORKFLOWS.md) §4 |
 | Open tasks | [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) W8 (W1 and W2 are done) |
