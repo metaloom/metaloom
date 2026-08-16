@@ -232,6 +232,12 @@ spec/
 │   │                                  #   embedded derivatives, incl. marking AI-written values
 │   │                                  #   (IPTC DigitalSourceType, C2PA). The inverse of the built
 │   │                                  #   `metadata` node under features/nodes/metadata/
+│   ├── CORTEX_LOOM_1-TO-N.md          # 🔵 NEW 2026-08-16 — CONCEPT: can one Cortex worker attach
+│   │                                  #   to N Loom instances? The protocol and Loom's registry
+│   │                                  #   already allow it (dispatch is answered per socket); the
+│   │                                  #   blocker is the process-wide LoomClient every node writes
+│   │                                  #   results through. §5 = blockers CLN1-CLN12, §7 = why this
+│   │                                  #   is same-trust-domain only, never cross-tenant
 │                                      #   (the built `tag` node moved to
 │                                      #   features/nodes/tag/NODE_TAG.md on 2026-08-11)
 ├── plans/
@@ -596,6 +602,7 @@ spec/
 | S3 as a source or sink | [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md), [features/nodes/s3-sink/NODE_S3SINK.md](features/nodes/s3-sink/NODE_S3SINK.md) — the source spec is also the only home of the `cortex/s3-common` design |
 | Google Drive / OneDrive / SharePoint as a source | [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3. SharePoint is `onedrive-source` against a Graph drive id |
 | Running more than one Loom instance / per-process state | [CLUSTERING.md](concept/CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
+| Attaching **one Cortex worker to several Looms** (SaaS worker reuse) | [CORTEX_LOOM_1-TO-N.md](concept/CORTEX_LOOM_1-TO-N.md) — 🔵 **concept, nothing built.** The protocol already allows it; the blocker is the one process-wide `LoomClient`. ⚠️ same trust domain only — never across tenants |
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
 | Testing the Helm charts on a real cluster | [test/HELM_TEST.md](test/HELM_TEST.md) — `helm/test/run.sh` deploys both charts on throwaway k3d and runs a pipeline through them. ⚠️ Run it after **any** chart change; it found four chart defects that YAML rendering cannot catch |
 | Running / writing **integration** tests (per-node, pipeline, CLI) | [test/INTEGRATION_TESTS.md](test/INTEGRATION_TESTS.md) — `./it.sh`. The per-node contract, where the model/native line is drawn, and the uber-jar rebuild traps that make a green run a lie |
@@ -1017,8 +1024,10 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `19e9d75e`_
-_Last updated: 2026-08-16 (registered tasks/SEARCH_ELASTICSEARCH.md — the decision that Elasticsearch
+_Git HEAD revision: `5c5de81b`_
+_Last updated: 2026-08-16 (registered concept/CORTEX_LOOM_1-TO-N.md — whether one Cortex worker can
+attach to several Loom instances; tree entry under concept/ and a routing row next to CLUSTERING.md.
+Earlier the same day: registered tasks/SEARCH_ELASTICSEARCH.md — the decision that Elasticsearch
 stays deferred, plus the Tasks 11-15 + 23 moved out of SEARCH_TASKS.md; two routing rows added
 ("should we add Elasticsearch?" and non-English search) and the two search tree blocks corrected.
 Earlier the same day: registered tasks/LOOM_UI_UPLOAD_TASKS.md and marked
