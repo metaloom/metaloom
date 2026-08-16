@@ -120,7 +120,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-144 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+145 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -191,13 +191,20 @@ spec/
 │   │                                  #   3 (demo data) and 4 (shutdown close); Task 2 blocks Helm
 │   │                                  #   deployment; 5 windowed indexing (BLOCKED on
 │   │                                  #   NODE_FINGERPRINT_TASKS.md), 6 UI panel
-│   ├── SEARCH_TASKS.md                # NEW 2026-08-11 — 24 tasks for lexical/semantic/ES search,
+│   ├── SEARCH_TASKS.md                # NEW 2026-08-11 — lexical + semantic search tasks,
 │   │                                  #   replacing the retired concept/SEARCH_PLAN.md. Task 1 (MCP
 │   │                                  #   search tools onto the SearchProvider SPI) is DONE
 │   │                                  #   2026-08-16; Task 2 (DETECTION/SEGMENT can never hit) is
-│   │                                  #   the last defect; Task 11 (the ES
-│   │                                  #   client spike) gates all of Phase 2; Task 20 (CLIP node)
-│   │                                  #   is the only thing between here and text→image search
+│   │                                  #   the last defect; Task 25 (English-only stemming) is the
+│   │                                  #   last recall gap; Task 20 (CLIP node)
+│   │                                  #   is the only thing between here and text→image search.
+│   │                                  #   Tasks 11-15 + 23 moved out 2026-08-16 (see below)
+│   ├── SEARCH_ELASTICSEARCH.md        # NEW 2026-08-16 — 🔴 DECISION: Elasticsearch is assessed and
+│   │                                  #   DEFERRED. Postgres covers today's cases; semantic/hybrid
+│   │                                  #   already ships on it, replicaCount is 1, and row-level ACL
+│   │                                  #   gets WORSE on ES. Read §0 before proposing the work, §3
+│   │                                  #   for the measurement that would reverse it. Carries the
+│   │                                  #   moved Tasks 11-15 + 23 with their numbers intact
 │   ├── IMAGEGEN_NODE.md               # imagegen follow-ups
 │   ├── METALOOM_ARCHITECTURE_TASK.md  # THE Variant C architecture backlog. Tasks 1–12 are
 │   │                                  #   correctness/security/repo-truth; Tasks 13–18 are the
@@ -399,8 +406,9 @@ spec/
 │       ├── SEARCH.md                  # 🟢 Lexical search SHIPPED: V2.57–V2.59 search_document +
 │       │                              #   triggers, PostgresSearchProvider, SearchEndpoint, loom-ui
 │       │                              #   (/search view + sidebar field), 25 LOOM_SEARCH_* options.
-│       │                              #   Remaining gaps (GraphQL field, MCP tools still bypass the
-│       │                              #   SPI, Elasticsearch): tasks/SEARCH_TASKS.md — 24 tasks
+│       │                              #   Remaining gaps (GraphQL field, DETECTION/SEGMENT documents,
+│       │                              #   English-only stemming): tasks/SEARCH_TASKS.md.
+│       │                              #   Elasticsearch: tasks/SEARCH_ELASTICSEARCH.md — deferred
 │       ├── SEMANTIC_SEARCH.md         # 🟡 Text→text semantic + hybrid BUILT (off by default):
 │       │                              #   TextEmbedder + RankFusion RRF over the same search_document
 │       │                              #   corpus, via the VectorIndex SPI — NO pgvector, no migration.
@@ -575,6 +583,8 @@ spec/
 | Making a rating or a tag actually *do* something | [workflows/WORKFLOW_MANUAL_SORT.md](workflows/WORKFLOW_MANUAL_SORT.md) §5 — 🔴 `FilterBy` has no `TAG`/`RATING` strategy, which is why every manual decision is inert. Task W1 in [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md) |
 | **Segmentation** — masks rather than boxes, and video object tracking | [features/nodes/sam2/NODE_SAM2.md](features/nodes/sam2/NODE_SAM2.md) — the `sam2` node + its :9130 sidecar. 🔴 the only per-pixel geometry in the tree, and it is **ledger only**: masks are worker-local files, so there is no way to query them |
 | **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining work in [tasks/SEARCH_TASKS.md](tasks/SEARCH_TASKS.md) |
+| **"Should we add Elasticsearch?"** | [tasks/SEARCH_ELASTICSEARCH.md](tasks/SEARCH_ELASTICSEARCH.md) — 🔴 assessed 2026-08-16: **no, not yet**. §0 is the argument, §3 the measurement that would reverse it, and Tasks 11-15 + 23 the work if it is. Do not relitigate it without a number |
+| **Searching a non-English corpus** | 🔴 Only unstemmed matching today — `text_search_en` is a generated column fixed at `english` and `LOOM_SEARCH_TS_CONFIG` binds the *query* side only, so setting it makes recall worse. [tasks/SEARCH_TASKS.md](tasks/SEARCH_TASKS.md) Task 25 |
 | **Operating an index** — size, backlog, reindex, drop, orphan sweep, the two permissions | [features/search/SEARCH_INDEX_ADMIN.md](features/search/SEARCH_INDEX_ADMIN.md) — **shipped**. Read it before touching `VectorIndex.rebuild(...)`: it clears every space, and per-space work must use `drop(space)` |
 | **Showing something to somebody without an account** — share links, the customer viewer, guest comments/marks/reactions | [features/share/SHARE_SYSTEM.md](features/share/SHARE_SYSTEM.md) — 🟢 built. The only unauthenticated feature surface. ⚠️ Every guest route's first statement is a `ShareAccessService` call; there is no `checkPerm` to fall back on |
 | **What is still missing from sharing** — reading the feedback, managing the links, retention | [tasks/SHARE_TASKS.md](tasks/SHARE_TASKS.md) — 9 tasks. Tasks 1-3 block each other in order; the rest are independent |
@@ -1007,8 +1017,11 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `67000540`_
-_Last updated: 2026-08-16 (registered tasks/LOOM_UI_UPLOAD_TASKS.md and marked
+_Git HEAD revision: `19e9d75e`_
+_Last updated: 2026-08-16 (registered tasks/SEARCH_ELASTICSEARCH.md — the decision that Elasticsearch
+stays deferred, plus the Tasks 11-15 + 23 moved out of SEARCH_TASKS.md; two routing rows added
+("should we add Elasticsearch?" and non-English search) and the two search tree blocks corrected.
+Earlier the same day: registered tasks/LOOM_UI_UPLOAD_TASKS.md and marked
 loom/ui/LOOM_UI_UPLOAD.md as current-state-only in the tree and the routing table. Earlier:
 2026-08-15 — added the "no windows during a build" convention and the matching §0.2
 row: debug viewers are guarded by `HeadlessUtil`, surefire passes `-Dmetaloom.headless=true`.

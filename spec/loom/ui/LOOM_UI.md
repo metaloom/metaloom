@@ -90,7 +90,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 104 Playwright specs (§8.2)
+├── e2e/              # 105 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -762,7 +762,7 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-52 test files today:
+55 test files today:
 
 | Area | Files |
 |------|-------|
@@ -771,6 +771,7 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 | `src/help/` | `topics` — the coachmark registry, checked against the website's map and both locale files (§7.10). The one test in this tree that reads a file **outside `loom-ui/`**, which it can because the website is the same repository |
 | Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
 | `src/` (root) | `sourceHygiene` — scans every non-test source through `import.meta.glob(…, { query: "?raw" })` and fails on a `console.*` call whose arguments mention a credential, or on the return of `src/Login/` / `src/index.js` |
+| `src/features/` (root) | `pagedListCoverage` — the same raw-glob trick over `features/**`: every view calling `usePagedList` must render a `<ListPaging>` carrying a unique testid, so a new paged view cannot ship without a way to reach page two (§11.3) |
 
 > `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
 > near-identical files — the contract (`?limit=&from=` on the wire, `_metainfo` passed through) is
@@ -788,11 +789,11 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-104 specs in two flavours, distinguished by filename suffix:
+105 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (69) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (70) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -972,6 +973,23 @@ a **button** (never scroll-triggered — "there is more" must be stated, not dis
 not an offset**. Lists that are pickers rather than browsable screens simply pass
 `{ limit: PAGE_SIZE }` and do not page.
 
+**Pinned in two places, because one cannot cover the other.**
+
+| Guard | What it covers |
+|---|---|
+| `e2e/paging-mocked.spec.ts` | The mechanism, in depth on one view: `?limit=`, seeking from `lastUuid`, a repeated boundary row deduplicated, a missing cursor hiding the button, a missing total still offering one |
+| `e2e/list-paging-mocked.spec.ts` | The breadth: one case per paged screen — assets, the library panel, collections, tags, asset pools, tasks, chat sessions, both skills tabs, and the five paged admin tables. Each asserts the first request carries a page size, the footer counts the collection, and "load more" seeks from the cursor **and renders the rows** — plus that the footer disappears when everything fits |
+| `src/features/pagedListCoverage.test.ts` | That a *new* view cannot regress: every file calling `usePagedList` must render `<ListPaging>` with a testid, and the testids must be unique. A view added without a footer fails here before any spec exists to catch it |
+
+The split matters. An e2e spec can only exercise the screens someone remembered to add to its
+table; the source guard is what makes "every paged view" true going forward rather than as of the
+day it was written.
+
+> **Gotcha for the breadth spec:** address a row by testid where its text runs into the next field.
+> The roles rail renders the name and then the permission count, so "role 10" followed by
+> "0 permissions" reads as "role 100" to a substring locator — which makes the row that proves page
+> two arrived indistinguishable from one already on screen.
+
 ---
 
 ## 12. Where do I find ...?
@@ -1053,14 +1071,15 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [ ] Four of the six workflow modes still discard the reviewer's decisions entirely
       ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W5/W6 in
       [../../tasks/WORKFLOW_TASKS.md](../../tasks/WORKFLOW_TASKS.md))
-- [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
+- [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3), pinned
+      per view by `list-paging-mocked.spec.ts` and against regression by `pagedListCoverage.test.ts`
 - [x] Asset search runs against `/search/assets` rather than filtering the loaded page, on the asset
       browser and on the library panel alike (§7.5.1)
 
 ### 13.4 Testing
 
-- [x] vitest (node env) for API clients and extracted helpers — 54 files
-- [x] Playwright mocked specs as the component tier — 69 files
+- [x] vitest (node env) for API clients and extracted helpers — 55 files
+- [x] Playwright mocked specs as the component tier — 70 files
 - [x] Playwright backend specs against demo data — 32 files
 - [x] Detection review actions covered: bulk staging/save, confirm, redraw, object confirm/reject
       (`e2e/detection-review-mocked.spec.ts`) and the face panels (`e2e/face-panels-mocked.spec.ts`)

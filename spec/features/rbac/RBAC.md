@@ -125,8 +125,9 @@ those comments when you change a permission.
     deletion with `MANAGE_CORTEX_INSTANCE` and throws the 403 itself.
   - **`lrc.permissions()`** returns a non-throwing `Predicate<Permission>` after loading
     authorizations once, for endpoints that must *filter* rather than reject.
-    `SearchEndpointService` is the reference: `READ_SEARCH` is the wholesale gate, then a
-    `SearchEntityType → READ_*` map narrows the result set per entity type.
+    `SearchEndpointService` is the reference: `READ_SEARCH` is the wholesale gate, then the
+    `SearchEntityType → READ_*` map in `SearchTypePermissions` (`loom-db-api`) narrows the result set
+    per entity type. That map is shared rather than copied, because GraphQL narrows with it too (§3).
 
 ## 3. Enforcement — GraphQL
 
@@ -137,20 +138,31 @@ Field level, decoupled from the graphql module via an injected checker:
 - `AbstractDomainWiring.requirePermission(env, permission)` runs at the top of every data fetcher:
   no checker in context → `GraphqlErrorException` code **`UNAUTHENTICATED`**; permission absent →
   code **`FORBIDDEN`** plus a `permission` extension.
+- `AbstractDomainWiring.requireChecker(env)` hands the fetcher the checker itself, for a field that
+  must **filter** rather than reject. It is the GraphQL counterpart of `lrc.permissions()` (§2).
 - `GraphQLEndpoint` resolves `lrc.permissionChecker()` once (async) and puts it into
   `ExecutionInput.graphQLContext(...)`.
 
 The checker delegates to the same `PermissionBasedAuthorization…match(user)` call REST uses, so
 **both APIs share one decision function**. The GraphQL surface is read-only — every fetcher
 requires a `READ_*` permission (`AclWiring`, `AssetWiring`, `MemoryWiring`, `PipelineWiring`,
-`SkillWiring`).
+`SkillWiring`, `SearchWiring`).
+
+✅ **`Query.search` narrows exactly as REST does**, and is the only GraphQL field that filters instead
+of rejecting: `READ_SEARCH` gates the field, then the requested `SearchEntityType`s are filtered
+through the shared `SearchTypePermissions` map. Dropped types are named in the `warnings` field of
+the result; a caller who may read none of them gets `FORBIDDEN` with a `missingPermissions`
+extension, never an empty `hits` list. Narrowing is possible here and impossible over MCP for one
+structural reason: `GraphQLPermissionChecker` is a **non-throwing** `hasPermission(Permission)`
+available to the fetcher, which is precisely what `MCPTool.execute(JsonObject)` lacks (§4).
+Row-level ACL remains absent on every transport ([../search/SEARCH.md](../search/SEARCH.md) §6.1).
 
 ## 4. Coverage by transport
 
 | Transport | Authenticates | Authorizes | Notes |
 |---|---|---|---|
 | REST | yes | yes | `checkPerm` / `requirePerm`; 403 `MISSING_PERM` |
-| GraphQL | yes | yes | field level, `FORBIDDEN` / `UNAUTHENTICATED` |
+| GraphQL | yes | yes | field level, `FORBIDDEN` / `UNAUTHENTICATED`; `search` additionally narrows per entity type (§3) |
 | MCP | optional | **partial** | `MCPToolRegistry.dispatch` gates on `user != null && !requiredPermissions.isEmpty()` — a **null user skips the check and dispatches the tool**. `MCPAuthenticationHandler` yields null when `LOOM_MCP_AUTH_ENABLED=false` (default) or in lenient mode. `checkPermissions` itself fails closed (`.recover(err -> false)`), and required permissions are free-form `String`s, so typos are unsatisfiable but silent. |
 | gRPC | yes | **no** | `GrpcAuthenticator` calls `authHandler.authenticateToken` only; no `Permission` is referenced anywhere in `loom/services/grpc`. |
 | WebSocket | yes (post-upgrade) | **no** | `WebSocketAuthenticator`; lenient by default, `LOOM_WS_STRICT_AUTH=true` / `-Dloom.ws.strictAuth` requires a token. |
@@ -161,7 +173,8 @@ Anything reachable **only** over gRPC or WebSocket is effectively unauthorized.
 arguments and nothing else — no `User`, no `LoomRoutingContext` — so a tool cannot narrow what it
 returns to what the caller may see. The visible case is search: `SearchEndpointService` filters the
 requested `SearchEntityType`s against the caller's read permissions and 403s when none survive
-([../search/SEARCH.md](../search/SEARCH.md) §6), and `search_assets` / `search_transcript` **cannot
+([../search/SEARCH.md](../search/SEARCH.md) §6) — as does GraphQL's `Query.search` (§3) — and
+`search_assets` / `search_transcript` **cannot
 do the same** even though they now query the identical `SearchProvider`. `descriptor().permissions()`
 is an all-or-nothing gate on the call, not a filter on the answer. This is the existing model, not a
 regression — every MCP tool calls DAOs directly — but it means an MCP caller with `READ_ASSET` reads
@@ -219,8 +232,11 @@ AssetPool, Attachment, Chat, Cluster, Detection, Embedding, Group, Library, Pers
 Space, Tag, Task, User); **10** more assert a 403 bespoke (AssetBinaryData, DedupGroup, Memory,
 MemoryDenyRule, PipelineRunCancel/Item/Pause/Stats, Search, SimilarAssets). The remaining ~21 —
 including Blacklist/Collection/Comment/Reaction/Token/Transcript/NodeResult/AssetComponent flows —
-assert **no** permission behaviour. All **7** domain GraphQL tests (Asset, Group, Memory, Pipeline,
-Role, Skill, User) implement the security contract.
+assert **no** permission behaviour. All **8** domain GraphQL tests (Asset, Group, Memory, Pipeline,
+Role, Search, Skill, User) implement the security contract. `SearchGraphQLTest` additionally asserts
+the two cases only a *narrowing* field has: a partial grant returns the readable types plus a
+`warnings` entry naming what was withheld, and a grant of `READ_SEARCH` alone is `FORBIDDEN` rather
+than an empty result.
 
 > `MemoryDenyRuleEndpointTest.testMemoryPermissionsDoNotGrantDenylistAccess` is weaker than its
 > name: it builds a `*_MEMORY`-only role but then asserts on an **unauthenticated** request
@@ -271,6 +287,8 @@ Role, Skill, User) implement the security contract.
 | `AbstractEndpointService` | `…rest.service` | `checkPerm(...)`; throws 403 `MISSING_PERM` |
 | `AbstractCRUDEndpointService` | `…rest.service` | Generic guarded create/load/list/update/delete |
 | `SearchEndpointService` | `…rest.service.impl` | Predicate-based partial filtering (`READ_SEARCH` + per-type `READ_*`) |
+| `SearchTypePermissions` | `io.metaloom.loom.db.model.perm` (loom/db/api) | The one `SearchEntityType → READ_*` map, read by REST **and** GraphQL so the two cannot drift |
+| `SearchWiring` | `io.metaloom.loom.graphql` (loom/services/graphql) | The same narrowing on the GraphQL side, over `GraphQLPermissionChecker` |
 | `SearchIndexEndpointService` | `…rest.service.impl` | Read/act split (`READ_SEARCH_INDEX` vs `MANAGE_SEARCH_INDEX`), plus a capability check the permission cannot express: an action outside the index's `supportedActions` is a 400 even for a holder of `MANAGE_SEARCH_INDEX` |
 | `GraphQLPermissionChecker` | `io.metaloom.loom.graphql` (loom/services/graphql) | Injected field-level checker |
 | `AbstractDomainWiring` | `io.metaloom.loom.graphql` | `requirePermission(env, perm)`; `UNAUTHENTICATED`/`FORBIDDEN` |
@@ -328,7 +346,8 @@ Permission enforcement itself has no configuration switches.
 - [x] REST enforcement: `checkPerm` / `requirePerm`, 403 `MISSING_PERM`
 - [x] Predicate-based partial filtering (`lrc.permissions()`, `SearchEndpointService`)
 - [x] Bespoke `requirePerm` guards (`ProcessorEndpoint` / `MANAGE_CORTEX_INSTANCE`)
-- [x] GraphQL field-level enforcement (`UNAUTHENTICATED` / `FORBIDDEN`)
+- [x] GraphQL field-level enforcement (`UNAUTHENTICATED` / `FORBIDDEN`), incl. per-type narrowing on
+      `Query.search` over the same map REST uses
 - [x] Bootstrap admin user/group/role with all grants; demo editor/viewer roles
 - [x] Compile-time permission-test contracts for CRUD REST and GraphQL
 - [x] `RESTAPI.md` now links a real authorization spec (the old dangling `PERMISSION.md` link is gone)
@@ -350,8 +369,8 @@ Permission enforcement itself has no configuration switches.
 - [ ] MCP dispatches tools with **no** permission check when the user is null (default config)
 - [ ] MCP required permissions are free-form strings, not the `Permission` enum
 - [ ] MCP tools cannot narrow their *results* — `execute(JsonObject)` carries no caller, so the
-      per-type narrowing `SearchEndpointService` applies over REST is unavailable to `search_assets`
-      and `search_transcript` (§4)
+      per-type narrowing `SearchEndpointService` applies over REST (and `SearchWiring` over GraphQL)
+      is unavailable to `search_assets` and `search_transcript` (§4)
 - [ ] `NodeDescriptorEndpoint` (incl. `/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` are not `secure(...)`d
 - [ ] Permission cache has no TTL; invalidation exists but is only wired to role-permission writes
 - [ ] 403 conflates "lacks permission" with "lookup failed"; the throw-from-callback breaks if persistence goes async
@@ -391,5 +410,10 @@ Permission enforcement itself has no configuration switches.
       claims the pipeline-run endpoints are unguarded — both are stale). **Recommendation: merge
       them into `spec/features/permissions/PERMISSIONS.md` and leave RBAC.md as a stub redirect.**
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-09 (`READ_DB_INTEGRITY` added by `V2.87` - a read-only operator permission over the database integrity report, deliberately not folded into `READ_METRIC` because the report names individual rows. Earlier the same day: `READ_SEARCH_INDEX` / `MANAGE_SEARCH_INDEX` added by `V2.85`, granted to the existing admin role by `V2.86` — the read/act split over the search indices, replacing the `UPDATE_ASSET` gate the maintenance routes carried. Earlier the same day: `READ_METRIC` added by `V2.84`; the "six unused constants" note corrected to five — `READ_CORTEX_INSTANCE` is checked by `NodeDescriptorEndpoint`). Earlier: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_
+_Git HEAD revision: `5354b65d`_
+_Last updated: 2026-08-16 (GraphQL gained its first **narrowing** field: `Query.search` gates on
+`READ_SEARCH` and then filters the requested entity types exactly as REST does, over
+`AbstractDomainWiring.requireChecker()` — the non-throwing counterpart of `lrc.permissions()`. The
+`SearchEntityType → READ_*` map moved out of `SearchEndpointService` into `SearchTypePermissions`
+(`loom-db-api`) so a new type cannot be gated on one transport and ungated on the other. §2, §3, §4,
+§5, §7, §9.1 and §9.3 updated; 8 domain GraphQL tests now, not 7. Earlier: 2026-08-09 (`READ_DB_INTEGRITY` added by `V2.87` - a read-only operator permission over the database integrity report, deliberately not folded into `READ_METRIC` because the report names individual rows. Earlier the same day: `READ_SEARCH_INDEX` / `MANAGE_SEARCH_INDEX` added by `V2.85`, granted to the existing admin role by `V2.86` — the read/act split over the search indices, replacing the `UPDATE_ASSET` gate the maintenance routes carried. Earlier the same day: `READ_METRIC` added by `V2.84`; the "six unused constants" note corrected to five — `READ_CORTEX_INSTANCE` is checked by `NodeDescriptorEndpoint`). Earlier: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API))_

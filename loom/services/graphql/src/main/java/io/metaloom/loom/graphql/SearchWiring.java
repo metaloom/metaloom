@@ -42,6 +42,12 @@ public class SearchWiring extends AbstractDomainWiring {
 	 */
 	private static final String HIGHLIGHTS_SELECTION = "hits/highlights";
 
+	/**
+	 * Fallback page size, used only when a client passes an explicit {@code null}. Must match the SDL default, which in turn matches the REST
+	 * {@code ?limit=} default. The provider clamps the result against {@code LOOM_SEARCH_MAX_LIMIT} either way.
+	 */
+	private static final int DEFAULT_LIMIT = 25;
+
 	private final SearchProvider provider;
 
 	public SearchWiring(SearchProvider provider) {
@@ -55,11 +61,14 @@ public class SearchWiring extends AbstractDomainWiring {
 			requirePermission(env, Permission.READ_SEARCH);
 
 			List<String> warnings = new ArrayList<>();
+			// userUuid is deliberately left null: the execution context carries the resolved permission checker
+			// but not the caller's uuid, and nothing reads the field while row-level ACL is absent on every
+			// transport. When it lands, the uuid has to join the checker in the GraphQLContext.
 			SearchRequest request = new SearchRequest()
 				.setQuery(env.getArgument("q"))
 				.setTypes(narrowTypes(typesArg(env), requireChecker(env), warnings))
 				.setMode(modeArg(env))
-				.setLimit(intArg(env, "limit", 25))
+				.setLimit(intArg(env, "limit", DEFAULT_LIMIT))
 				.setOffset(intArg(env, "offset", 0))
 				.setHighlight(env.getSelectionSet().contains(HIGHLIGHTS_SELECTION));
 

@@ -15,7 +15,8 @@ page_js:
 
 Loom exposes a GraphQL API for flexible, nested queries over the asset data model — fetch an asset
 together with its components and locations in a single request, selecting exactly the fields you
-need.
+need. The same API also answers cross-entity search queries, so a client never has to list and
+filter on its own.
 
 == Endpoint
 
@@ -40,6 +41,7 @@ Authorization is enforced per field. Each resolver checks the caller's permissio
 | `Query.asset`, `Query.assets` | `READ_ASSET`
 | `Asset.imageComponents` / `videoComponents` / `audioComponents` | `READ_ASSET`
 | `Asset.locations` | `READ_ASSET_LOCATION`
+| `Query.search` | `READ_SEARCH`, plus the read permission of each entity type searched
 |===
 
 A denied field surfaces a GraphQL error with a `code` extension (`UNAUTHENTICATED` when no
@@ -92,6 +94,41 @@ query ListAssets {
   }
 }
 ----
+
+Search across everything at once — assets, transcripts, tags, people, collections and more — and
+select only the fields you want to render:
+
+[source,graphql]
+----
+query Search($q: String!) {
+  search(q: $q, types: [ASSET, TRANSCRIPT], limit: 10) {
+    totalHits
+    warnings
+    hits {
+      entityType
+      entityUuid
+      assetUuid
+      title
+      subtitle
+      score
+      highlights
+    }
+  }
+}
+----
+
+A few things worth knowing about `search`:
+
+* Entity types you are not allowed to read are dropped from the query rather than failing it. Every
+  dropped type is named in `warnings`, so an incomplete answer is never mistaken for an empty one.
+  If you may read none of the types you asked for, the query is rejected instead.
+* `highlights` is only computed when you select it — the highlighter re-reads the matched documents,
+  so you do not pay for snippets you did not ask for.
+* WARNING: `highlights` fragments are *not* safe HTML. Matches are wrapped in `<b>` markers and the
+  surrounding text comes through verbatim from user-supplied filenames, tags and transcripts. Parse
+  the fragments and re-render the matches yourself; never insert them into a page as markup.
+* Asking for a mode the server cannot serve returns an error naming the reason, rather than quietly
+  answering with a different one.
 
 == See Also
 

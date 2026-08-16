@@ -17,7 +17,7 @@
 
 `loom-service-graphql` provides a **read-only** GraphQL layer over the core data model: assets and
 their components/locations, the access-control graph (users, groups, roles), pipelines
-(versions/runs), skills (versions) and the agent memory bank.
+(versions/runs), skills (versions), the agent memory bank, and cross-entity **search**.
 
 The schema declares **no mutations** — every write still goes through the REST API. Each GraphQL
 field is guarded by the *same* permission as its REST counterpart ([§5.3](#53-authentication--authorization)).
@@ -27,7 +27,7 @@ field is guarded by the *same* permission as its REST counterpart ([§5.3](#53-a
 | Property | Value |
 |----------|-------|
 | Module / artifact | `loom/services/graphql` — `io.metaloom.loom.service:loom-service-graphql` |
-| Dependencies | `graphql-java` 25.0, `loom-db-api`, `mockito-core` 4.11.0 (test). **No auth/vertx dependency.** |
+| Dependencies | `graphql-java` 25.0, `loom-db-api` (which brings `loom-api` transitively — `MemoryScope`, the `io.metaloom.loom.api.search` SPI), `mockito-core` 4.11.0 (test). **No auth/vertx dependency.** |
 | Schema loading | SDL at `src/main/resources/loom.graphqls`, parsed from the classpath as `/loom.graphqls` |
 | Endpoint | `POST /api/v1/graphql` — `GraphQLEndpoint` in `loom-service-rest` |
 | Registration | `EndpointModule.endpoints(...)` → `@RESTEndpoints Set<RESTEndpoint>` → `RESTService.setupRouter()` |
@@ -43,7 +43,7 @@ field is guarded by the *same* permission as its REST counterpart ([§5.3](#53-a
 | [REST](RESTAPI.md) | Primary external API, full CRUD, OpenAPI | Production |
 | [WebSocket](WEBSOCKET.md) | Real-time pipeline events, processor communication | Production |
 | [MCP](MCP.md) | AI agent tool integration | Active development |
-| **GraphQL** | Flexible read queries + nested fetching across assets, ACL, pipelines, skills, memory | **Live, read-only** |
+| **GraphQL** | Flexible read queries + nested fetching across assets, ACL, pipelines, skills, memory; cross-entity search | **Live, read-only** |
 | [gRPC](GRPC.md) | High-performance internal communication | Planned |
 
 ---
@@ -59,9 +59,11 @@ graph TD
     EP -->|lrc.permissionChecker| PC[GraphQLPermissionChecker<br/>into GraphQLContext]
     EP --> Provider[LoomGraphQLProvider @Singleton]
     Provider --> Schema[loom.graphqls SDL]
-    Provider --> Wiring[RuntimeWiring:<br/>Asset / Acl / Pipeline / Skill / Memory Wiring<br/>+ LoomScalars]
+    Provider --> Wiring[RuntimeWiring:<br/>Asset / Acl / Pipeline / Skill / Memory / Search Wiring<br/>+ LoomScalars]
     Wiring --> Daos[DaoCollection]
+    Wiring --> SP[SearchProvider SPI]
     Daos --> DB[(PostgreSQL)]
+    SP --> DB
     EP -->|EndpointModule| Router[RESTService.setupRouter]
 
     style Provider fill:#f9f,stroke:#333
@@ -85,13 +87,15 @@ graph TD
 
 | Class | Package / module | Purpose |
 |-------|------------------|---------|
-| `LoomGraphQLProvider` | `io.metaloom.loom.graphql` (graphql) | `@Singleton`; loads the SDL, registers scalars, merges the five domain wirings, eagerly builds one `GraphQL` engine in the constructor |
-| `AbstractDomainWiring` | `io.metaloom.loom.graphql` (graphql) | Base for domain wirings; `requirePermission()`, `uuidArg()` (`BAD_USER_INPUT` on malformed UUID), `orEmpty()` |
+| `LoomGraphQLProvider` | `io.metaloom.loom.graphql` (graphql) | `@Singleton`; loads the SDL, registers scalars, merges the six domain wirings, eagerly builds one `GraphQL` engine in the constructor. Injected with `DaoCollection` **and** `SearchProvider` |
+| `AbstractDomainWiring` | `io.metaloom.loom.graphql` (graphql) | Base for domain wirings; `requirePermission()`, `requireChecker()` (the non-throwing check, for fields that narrow rather than reject), `uuidArg()` (`BAD_USER_INPUT` on malformed UUID), `orEmpty()` |
 | `AssetWiring` | `io.metaloom.loom.graphql` (graphql) | Fetchers for `Asset`, `AssetLocation`, `Image/Video/AudioComponent` |
 | `AclWiring` | `io.metaloom.loom.graphql` (graphql) | Fetchers for `User`, `Group`, `Role` and their relations |
 | `PipelineWiring` | `io.metaloom.loom.graphql` (graphql) | Fetchers for `Pipeline`, `PipelineVersion`, `PipelineRun` |
 | `SkillWiring` | `io.metaloom.loom.graphql` (graphql) | Fetchers for `Skill`, `SkillVersion` |
 | `MemoryWiring` | `io.metaloom.loom.graphql` (graphql) | Fetchers for `MemoryEntry`, `MemoryScopeStats`, `MemoryDenyRule`; `scopeArg()` |
+| `SearchWiring` | `io.metaloom.loom.graphql` (graphql) | The `search` fetcher. **The only wiring with no DAO** — it calls the `SearchProvider` SPI, and the only one whose permission check narrows the answer instead of rejecting the request |
+| `SearchTypePermissions` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The shared `SearchEntityType → READ_*` map; `SearchEndpointService` (REST) reads the same one |
 | `LoomScalars` | `io.metaloom.loom.graphql` (graphql) | Custom scalars `Long`, `DateTime`, `Json` |
 | `GraphQLPermissionChecker` | `io.metaloom.loom.graphql` (graphql) | `@FunctionalInterface` callback + `CONTEXT_KEY = "loom.permissionChecker"`; keeps the module auth-free |
 | `GraphQLEndpoint` | `io.metaloom.loom.rest.endpoint.impl` (rest) | HTTP transport: `secure()`, body parsing, execution, JSON response |
@@ -111,7 +115,7 @@ two places: the SDL and the wiring of the owning domain.**
 
 ## 3. Schema
 
-The SDL (414 lines) at `loom/services/graphql/src/main/resources/loom.graphqls` is the **source of
+The SDL (516 lines) at `loom/services/graphql/src/main/resources/loom.graphqls` is the **source of
 truth**. A byte-identical copy is staged for the offline docs explorer at
 `website/static/docs/examples/schema.graphql` — **keep the two in sync** (see [../website/WEBSITE.md](../website/WEBSITE.md)).
 
@@ -134,9 +138,15 @@ lookups return `null` when the element does not exist.
 | Skill | `skillVersion(uuid)`, `skillVersions(skillUuid)`, `skillVersionByNumber(skillUuid, versionNumber)`, `latestSkillVersion(skillUuid)` | `READ_SKILL_VERSION` |
 | Memory | `memoryEntry(uuid)`, `memoryEntryByPath(scope, scopeUuid, memoryId)`, `memoryEntries(scope, scopeUuid, prefix?, limit=50)`, `memoryStats(scope, scopeUuid)` | `READ_MEMORY` |
 | Memory | `memoryDenyRule(uuid)`, `memoryDenyRuleByName(name)`, `memoryDenyRules(enabledOnly=false)` | `READ_MEMORY_DENY_RULE` |
+| Search | `search(q, types?, mode=LEXICAL, limit=25, offset=0)` | `READ_SEARCH` **+ per-type narrowing** ([§3.5](#35-search)) |
 
-`memoryStats` is the only non-null query result (`MemoryScopeStats!`). `MemoryScope` is an enum
-(`USER`, `GROUP`, `SPACE`).
+`memoryStats` and `search` are the only non-null query results (`MemoryScopeStats!` /
+`SearchResult!`). `MemoryScope` is an enum (`USER`, `GROUP`, `SPACE`); so are `SearchEntityType`
+(11 members) and `SearchMode` (`LEXICAL`, `SEMANTIC`, `HYBRID`).
+
+⚠️ **The ~20 list fields take no filter arguments and are not going to.** Search is a *separate*
+surface, deliberately: retrofitting filters onto every list field is a different and much larger
+change, and a ranked cross-entity result is not the same shape as a filtered list of one type.
 
 ### 3.2 Relation Fields
 
@@ -181,6 +191,60 @@ differ from the parent's:
 Scalars are registered in `LoomGraphQLProvider.buildWiring()`; a scalar declared in the SDL but not
 registered fails schema generation at construction time (i.e. at Dagger boot).
 
+### 3.5 Search
+
+```graphql
+search(q: String!, types: [SearchEntityType!], mode: SearchMode = LEXICAL,
+       limit: Int = 25, offset: Int = 0): SearchResult!
+
+type SearchResult { totalHits: Long!, totalExact: Boolean!, hits: [SearchHit!]!, warnings: [String!]! }
+type SearchHit { entityType: SearchEntityType!, entityUuid: ID!, assetUuid: ID,
+                 title: String, subtitle: String, score: Float!, highlights: [String!]! }
+```
+
+`SearchWiring` maps the arguments onto a `SearchRequest` and hands it to the one `SearchProvider`
+([../features/search/SEARCH.md](../features/search/SEARCH.md) §2). Everything about parsing, ranking,
+paging and highlighting is therefore identical to `GET /api/v1/search/results` — with a smaller
+surface: **no filters, facets, sort, cursor, library/space/collection/tag/date narrowing or `lang`**.
+Add one only when a consumer needs it, and add it to the SDL *and* `SearchWiring`.
+
+Five things about this field are not obvious:
+
+- 🔴 **`highlights` is not sanitised HTML** and is not markup you may inject. `ts_headline` wraps
+  matches in `<b>`/`</b>` and returns the source document otherwise **verbatim**, and that document is
+  built from user-supplied filenames, tag names, annotation bodies and transcripts
+  ([SEARCH.md](../features/search/SEARCH.md) §5). Clients parse the fragments and re-render matches
+  themselves — `loom-ui/src/features/search/highlight.ts` is the reference. The SDL field description
+  says so, so it reaches anyone reading the schema in GraphiQL.
+- **Highlighting follows the selection set, not an argument.** REST spells it `?highlight=true`; here
+  `request.setHighlight(env.getSelectionSet().contains("hits/highlights"))`. The highlighter re-parses
+  the whole source document per returned hit and cannot use an index, so it is not paid for unless the
+  snippets were asked for. This is why there is no `highlight:` argument to forget.
+- **`READ_SEARCH` gates, then the types narrow.** Types the caller may not read are dropped and named
+  in `warnings`; a caller who may read *none* of the requested types gets `FORBIDDEN` with a
+  `missingPermissions` extension rather than an empty list, because an empty list reads as "nothing
+  matched". Same rule, same map (`SearchTypePermissions`) as REST — see
+  [../features/rbac/RBAC.md](../features/rbac/RBAC.md) §4.
+- **Provider failures are errors, not empty results.** `LoomRestException` from the provider becomes a
+  `GraphqlErrorException` carrying the provider's own message plus `{code, status}` — 503 →
+  `SEARCH_UNAVAILABLE`, 400 → `BAD_USER_INPUT` (unsupported mode, blank or oversized term, paging past
+  the cap), 403 → `FORBIDDEN`.
+- ⚠️ **Only `httpCode()` and `getMessage()` may be called on a caught `LoomRestException`.**
+  `loom-common` ships a *second* class with that exact binary name, whose accessor is `getErrorCode()`
+  rather than `errorCode()`; inside `loom/core` that is the copy the JVM loads. Calling `errorCode()`
+  compiles against `loom-api` and throws `NoSuchMethodError` at runtime. That is why the error carries
+  a numeric `status` and not the precise `LoomRestErrorCode`.
+
+`q` is *not* validated here — presence, length, mode support and offset caps are all enforced by the
+provider, so REST, MCP and GraphQL enforce the same rules in the same place.
+
+⚠️ **`SearchRequest.userUuid` is left null on this path.** The execution context carries the resolved
+`GraphQLPermissionChecker` but not the caller's uuid, and `GraphQLEndpoint` does not put one there.
+Nothing reads the field today — row-level ACL is absent on every transport
+([../features/search/SEARCH.md](../features/search/SEARCH.md) §6.1) — but when it lands, populating it
+means adding the uuid to the `GraphQLContext` alongside the checker, and that is the only change this
+field needs. Recorded here rather than left to be discovered by whoever implements the ACL.
+
 ---
 
 ## 4. Data Fetchers
@@ -205,6 +269,7 @@ DAO. Because the permission check precedes DAO access, permission tests need no 
 | `memoryEntry*` | `MemoryEntryDao.load` / `loadByPath(scope, uuid, memoryId)` / `listByScope(scope, uuid, prefix, limit)` |
 | `memoryStats` | `MemoryEntryDao.stats(scope, uuid)`, falling back to `MemoryScopeStats.EMPTY` |
 | `memoryDenyRules` | `MemoryDenyRuleDao.loadEnabled()` when `enabledOnly`, else `findAll()` |
+| `search` | **no DAO** — `SearchProvider.search(SearchRequest)` ([§3.5](#35-search)) |
 
 ---
 
@@ -251,6 +316,9 @@ are listed in [§3.1](#31-query-root) / [§3.2](#32-relation-fields).
 | Authenticated but missing the permission | `{ "code": "FORBIDDEN", "permission": "READ_ASSET" }` |
 | Malformed UUID argument | `{ "code": "BAD_USER_INPUT", "argument": "uuid" }` |
 | Unparseable `scope` argument | `{ "code": "BAD_USER_INPUT", "argument": "scope" }` |
+| `search`: may search, may read none of the requested types | `{ "code": "FORBIDDEN", "missingPermissions": ["READ_ASSET", …] }` |
+| `search`: provider rejected the request (mode, term, offset cap) | `{ "code": "BAD_USER_INPUT", "status": 400 }` |
+| `search`: provider unavailable | `{ "code": "SEARCH_UNAVAILABLE", "status": 503 }` |
 
 Because list fields are non-null (`[AssetLocation!]!`), a denial null-propagates up to the nearest
 nullable parent per the GraphQL spec, while the error still pinpoints the denied field.
@@ -315,6 +383,15 @@ query ListMemory($scope: MemoryScope!, $scopeUuid: ID!) {
   }
   memoryStats(scope: $scope, scopeUuid: $scopeUuid) { count bytes }
 }
+
+# Cross-entity search. Selecting `highlights` is what turns the highlighter on; the fragments are
+# NOT safe markup (§3.5). `warnings` names the types that were withheld from this caller.
+query Search($q: String!) {
+  search(q: $q, types: [ASSET, TRANSCRIPT], limit: 10) {
+    totalHits totalExact warnings
+    hits { entityType entityUuid assetUuid title subtitle score highlights }
+  }
+}
 ```
 
 ---
@@ -323,10 +400,14 @@ query ListMemory($scope: MemoryScope!, $scopeUuid: ID!) {
 
 ### 7.1 Unit Tests (mocked DAOs)
 
-`LoomGraphQLProviderTest` (`loom/services/graphql/src/test/java/...`, 8 tests) mocks `DaoCollection`
-with Mockito and executes real queries against the provider: asset by uuid, not-found → `null`,
-nested components, locations, list query, unauthenticated denial, missing-permission denial, and
-field-level permission null-propagation.
+`LoomGraphQLProviderTest` (`loom/services/graphql/src/test/java/...`, 13 tests) mocks `DaoCollection`
+and `SearchProvider` with Mockito and executes real queries against the provider: asset by uuid,
+not-found → `null`, nested components, locations, list query, unauthenticated denial,
+missing-permission denial, and field-level permission null-propagation — plus five search cases that
+need a *mocked* provider because a live one hides them: hit field mapping, `highlight` following the
+selection set, the narrowed `SearchRequest` that actually reaches the SPI (captured with
+`ArgumentCaptor`), the no-readable-type `FORBIDDEN`, and a 503 surfacing as an error rather than zero
+hits.
 
 ```bash
 mvn -pl loom/services/graphql test
@@ -348,6 +429,7 @@ element, all extending `AbstractGraphQLTest extends AbstractEndpointTest impleme
 | `PipelineGraphQLTest` | 9 | `latestVersion`, list, versions, version by number, runs, runs by status, `latestPipelineRun` |
 | `SkillGraphQLTest` | 8 | `activeVersion`/`latestVersion`, versions, version by number, `latestSkillVersion`, list |
 | `MemoryGraphQLTest` | 8 | entry by uuid / path, `memoryEntries` + prefix, `memoryStats`, deny rules (`enabledOnly`), invalid scope |
+| `SearchGraphQLTest` | 11 | finds a seeded asset, highlights only when selected, `types:` restricts, **per-type narrowing + `warnings`**, only-`READ_SEARCH` ⇒ `FORBIDDEN`, blank / oversized `q` and `mode: SEMANTIC` ⇒ `BAD_USER_INPUT` naming the reason, unknown enum member rejected by schema validation |
 
 `GraphQLEndpointTest` (`…/endpoint/test/`, extends `AbstractGraphQLEndpointTest`, implements
 `GraphQLEndpointTestcases`, 4 tests) covers raw endpoint mechanics: basic query, variables, nested
@@ -358,7 +440,9 @@ leaves both `@Test` methods abstract, so the compiler forces every domain test t
 `testIndividualRetrievalRequiresPermission()` and `testListRetrievalRequiresPermission()`. Each logs
 in via `loginPermissionlessClient()` (a freshly provisioned user with **no** permissions) and asserts
 every retrieval query of the domain is rejected with `FORBIDDEN` naming the exact read permission.
-A random UUID argument suffices — the check runs before DAO access.
+A random UUID argument suffices — the check runs before DAO access. `SearchGraphQLTest` satisfies the
+contract with the one `search` field on both halves: there is no by-uuid variant, and the interface is
+what forces every domain to state both cases rather than quietly omit one.
 
 The fixture provisions assets and the ACL graph (`admin` with every permission, `joedoe` with only
 `READ_USER`, plus `test-group`/`test-role`); pipeline, skill and memory tests seed via `daos()`.
@@ -419,7 +503,19 @@ is always registered at the fixed path and there is no depth/complexity limiting
   and the transport-supplied `GraphQLPermissionChecker`. Do not add a dependency on the auth or
   vertx-web layers.
 - **Endpoint constructor changes need a clean rebuild** of `loom/core` (Dagger factories), or
-  `setup-pool.sh` and the tests fail with `NoSuchMethodError`.
+  `setup-pool.sh` and the tests fail with `NoSuchMethodError`. The same applies to
+  `LoomGraphQLProvider`'s own `@Inject` constructor — it gained a `SearchProvider` parameter, and
+  every module downstream of the generated factory has to be rebuilt.
+- **`LoomRestException` is a split package class.** `loom-common` and `loom-shared/api` both define
+  `io.metaloom.loom.api.error.LoomRestException`, and they disagree: `errorCode()` vs
+  `getErrorCode()`, and one has an extra constructor. Which one loads depends on classpath order —
+  in `loom/core` it is the `loom-common` copy. Catching one and calling an accessor only the other has
+  compiles cleanly and throws `NoSuchMethodError` at runtime. Stick to `httpCode()` / `getMessage()`.
+- **A field that narrows needs `requireChecker()`, not `requirePermission()`.** The latter throws;
+  narrowing needs the non-throwing `hasPermission`. `search` is the only field doing this today.
+- **`highlights` and any other expensive projection follow the selection set.** `search` reads
+  `env.getSelectionSet().contains("hits/highlights")` rather than taking an argument — the field being
+  asked for *is* the request for it.
 
 ---
 
@@ -428,7 +524,8 @@ is always registered at the fixed path and there is no depth/complexity limiting
 | Concept | Path |
 |---------|------|
 | GraphQL engine provider | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/LoomGraphQLProvider.java` |
-| Domain wirings | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/{Asset,Acl,Pipeline,Skill,Memory}Wiring.java` |
+| Domain wirings | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/{Asset,Acl,Pipeline,Skill,Memory,Search}Wiring.java` |
+| Search type→permission map | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/SearchTypePermissions.java` |
 | Wiring base (permission/arg helpers) | `…/io/metaloom/loom/graphql/AbstractDomainWiring.java` |
 | Permission checker interface | `…/io/metaloom/loom/graphql/GraphQLPermissionChecker.java` |
 | Custom scalars | `…/io/metaloom/loom/graphql/LoomScalars.java` |
@@ -442,6 +539,7 @@ is always registered at the fixed path and there is no depth/complexity limiting
 | Client method | `loom-client/common/src/main/java/io/metaloom/loom/client/common/method/GraphQLMethods.java` |
 | Provider unit tests | `loom/services/graphql/src/test/java/io/metaloom/loom/graphql/LoomGraphQLProviderTest.java` |
 | Per-domain integration tests | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/` |
+| Search SPI consumed by the wiring | `loom-shared/api/src/main/java/io/metaloom/loom/api/search/` — [../features/search/SEARCH.md](../features/search/SEARCH.md) |
 | Endpoint mechanics test | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/GraphQLEndpointTest.java` |
 | Staged docs SDL + docs page | `website/static/docs/examples/schema.graphql`, `website/content/english/docs/loom/graphql-api/index.adoc` |
 | Maven module | `loom/services/graphql/pom.xml` (declared in `loom/services/pom.xml`) |
@@ -455,6 +553,8 @@ is always registered at the fixed path and there is no depth/complexity limiting
 - [PERSISTENCE.md](PERSISTENCE.md) — DAO layer consumed by the wirings
 - [CONFIGURATION.md](CONFIGURATION.md) — configuration system
 - [SERVER.md](SERVER.md) — server startup and service registration
+- [../features/search/SEARCH.md](../features/search/SEARCH.md) — the `SearchProvider` SPI behind `search`
+- [../features/rbac/RBAC.md](../features/rbac/RBAC.md) — enforcement model, incl. the narrowing case
 - [../website/WEBSITE.md](../website/WEBSITE.md) — customer docs page and staged SDL
 - [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change
 
@@ -465,10 +565,13 @@ is always registered at the fixed path and there is no depth/complexity limiting
 ### 12.1 Completed ✅
 
 - [x] SDL schema (`loom.graphqls`) + `LoomGraphQLProvider` building an executable schema
-- [x] Five domain wirings merged into one `RuntimeWiring`
+- [x] Six domain wirings merged into one `RuntimeWiring`
 - [x] Custom scalars `Long`, `DateTime`, `Json`
 - [x] Query root over assets (+ locations/components), ACL, pipelines (+ versions/runs), skills
       (+ versions), memory (entries, stats, deny rules) — retrieval only
+- [x] Cross-entity `search` on the `SearchProvider` SPI ([§3.5](#35-search)) — `READ_SEARCH` plus the
+      same per-type narrowing REST applies, provider failures as GraphQL errors, highlights driven by
+      the selection set
 - [x] Relation and back-reference resolvers across all domains
 - [x] Field-level permission checks; `BAD_USER_INPUT` on malformed UUID / scope
 - [x] **HTTP endpoint `POST /api/v1/graphql` registered** via `EndpointModule` → `RESTService`
@@ -476,7 +579,8 @@ is always registered at the fixed path and there is no depth/complexity limiting
 - [x] Wire models (`GraphQLRequest`/`GraphQLResponse`) and client method (`executeGraphQL`)
 - [x] CORS — covered by the global `CorsHandler` in `RESTService.setupRouter()`
 - [x] GraphiQL IDE: live at `GET /graphiql`, static explorer on the website
-- [x] Unit tests with mocked DAOs (8) + per-domain integration tests (57 across 7 classes)
+- [x] Unit tests with mocked DAOs and a mocked `SearchProvider` (13) + per-domain integration tests
+      (68 across 8 classes)
 - [x] Compiler-enforced permission-check contract (`GraphQLSecurityTestcases`)
 - [x] Endpoint listed in the generated OpenAPI docs (`LoomOpenAPI`)
 
@@ -487,6 +591,12 @@ is always registered at the fixed path and there is no depth/complexity limiting
 ### 12.3 Planned / TODO 📋
 
 - [ ] Mutations (writes still go through REST)
+- [ ] `search` exposes a subset of the REST query surface — no filters, facets, sort, cursor,
+      library/space/collection/tag/date narrowing or `lang`, and no `suggest`/`status` equivalent.
+      Deliberate: added on demand, not up front
+- [ ] `search` errors carry a numeric `status` instead of the precise `LoomRestErrorCode`, because
+      `LoomRestException` is duplicated between `loom-common` and `loom-shared/api` ([§9](#9-conventions-and-gotchas)).
+      Removing the duplicate is the real fix and is wider than this API
 - [ ] Pagination for list queries (currently unbounded `findAll()`)
 - [ ] DataLoader / batch loading to fix the N+1 fan-out
 - [ ] Query depth / complexity limiting (DoS protection)
@@ -509,6 +619,9 @@ is always registered at the fixed path and there is no depth/complexity limiting
 | `GET /api/v1/pipelines/:uuid` (+ versions, runs) | `pipeline(uuid:) { latestVersion { … } versions { … } runs { … } }` |
 | `GET /api/v1/skills/:uuid` (+ versions) | `skill(uuid:) { activeVersion { … } versions { … } }` |
 | `GET /api/v1/memory/...` | `memoryEntries(scope: USER, scopeUuid:) { … }` |
+| `GET /api/v1/search/results?q=` | `search(q:) { totalHits warnings hits { … } }` |
+| `GET /api/v1/search/assets?q=` | `search(q:, types: [ASSET]) { … }` |
+| `GET /api/v1/search/{suggestions,status}` | **No equivalent — use REST** |
 | **Any write** | **No equivalent — use REST** |
 
 Trade-offs: one round trip for nested data and no over-fetching, at the cost of no HTTP caching,
@@ -516,6 +629,12 @@ N+1 without DataLoader, and field-level rather than endpoint-level authorization
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-09 (`AssetLocationDao` was deleted; the location fetchers now call
-`AssetBinaryDao.loadAllByAssetUuid`. The `AssetLocation` GraphQL type name is unchanged. Earlier: Verified against the code: the GraphQL service is registered and reachable at `POST /api/v1/graphql`; corrected the CORS, DAO-mapping, config and test claims.)_
+_Git HEAD revision: `5354b65d`_
+_Last updated: 2026-08-16 (cross-entity `search` added — the sixth domain wiring, and the first field
+backed by an SPI rather than a DAO. New §3.5; §1, §2, §3.1, §4, §5.3, §6, §7, §9, §10, §12 and §13
+updated. Three things worth knowing beyond the field itself: `AbstractDomainWiring.requireChecker()`
+now exposes the non-throwing permission check that narrowing needs, the `SearchEntityType → READ_*`
+map moved into `SearchTypePermissions` in `loom-db-api` so REST and GraphQL cannot drift, and
+`LoomRestException` turned out to be a split package class whose two copies disagree on the accessor
+name — §9. Earlier: 2026-08-09 (`AssetLocationDao` was deleted; the location fetchers now call
+`AssetBinaryDao.loadAllByAssetUuid`. The `AssetLocation` GraphQL type name is unchanged. Earlier: Verified against the code: the GraphQL service is registered and reachable at `POST /api/v1/graphql`; corrected the CORS, DAO-mapping, config and test claims.))_

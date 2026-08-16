@@ -1,13 +1,19 @@
 # Search — Task List
 
-> Open work items for lexical, semantic and Elasticsearch-backed search, derived from a code audit on
+> Open work items for lexical and semantic search, derived from a code audit on
 > 2026-08-11 against `loom-shared/api`, `loom/db/jooq`, `loom/services/{rest,mcp,graphql,elasticsearch}`,
 > `loom/core`, `cortex/nodes` and `loom-ui/src`. Format follows [TASKS.template.md](TASKS.template.md).
+>
+> 🔴 **Elasticsearch (Phase 2) is no longer tracked here.** Tasks 11-15 and 23 moved to
+> [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) on 2026-08-16, keeping their numbers, together with
+> the assessment that concluded Postgres covers today's cases and Phase 2 should **not** start. Read its
+> §0 before proposing any Elasticsearch work. Task numbers 11-15 and 23 are **not reused** here.
 >
 > **Context:** [../features/search/SEARCH.md](../features/search/SEARCH.md) (lexical technical spec, and
 > the authority on what is built) · [../features/search/SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md)
 > (vectors, embedding, hybrid ranking) · [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md)
-> (the `/search-indices` admin surface) · [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) (the
+> (the `/search-indices` admin surface) · [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) (Phase 2,
+> deferred) · [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) (the
 > *other* index — perceptual fingerprint k-NN, tracked in [SEARCH_LUCENE_TASKS.md](SEARCH_LUCENE_TASKS.md))
 >
 > This file replaces the former `spec/concept/SEARCH_PLAN.md`. Everything that file recorded as built is
@@ -22,7 +28,10 @@
 > the boot-safe `SearchModule` binding, the four `/api/v1/search/*` routes with the `READ_SEARCH` gate and
 > per-type narrowing, the REST models and both clients, the whole loom-ui consumer (`api/search.ts`,
 > `SearchContext`, `GlobalSearchField`, `/search` view, server-side asset browsing in both the asset
-> browser and the library panel), the demo corpus the
+> browser and the library panel), the GraphQL `Query.search` field with the same `READ_SEARCH` gate and
+> per-type narrowing (Task 7 — `SearchWiring`, the SDL types and enums, and the shared
+> `SearchTypePermissions` map that keeps REST and GraphQL from drifting; the ~20 existing list fields
+> deliberately did **not** gain filter arguments), the demo corpus the
 > backend e2e asserts against, the customer-facing website docs, the reindex admin surface (which
 > superseded `/search/reindexes`), and the entire text half of semantic + hybrid search
 > (`TextEmbedder`, `OpenAiTextEmbedder`, `RankFusion`, `SearchEmbeddingService`, `SearchEmbeddingDrainer`,
@@ -31,24 +40,24 @@
 > **Ordering / blocking:**
 > * **Task 2 is the remaining correctness defect** — two API-accepted entity types that can never
 >   produce a hit. Do it first. (Task 1, the MCP tools that ignored their query argument, is ✅ done.)
-> * **Task 11 (the Elasticsearch client spike) gates Tasks 12–16 and Task 23.** Do not write Elasticsearch
->   code before it resolves.
-> * Task 12 gates 13–15; Task 14 gates 15 and 17.
+> * **Task 25 is the remaining recall gap** — a non-English corpus is only matched unstemmed. Second.
 > * Task 18 gates Task 19.
 > * **Task 20 (the CLIP image node) is the single thing between here and text-to-image search** — the
 >   ranker, the fusion and the UI mode toggle would all consume its output unchanged.
-> * Tasks 3–10, 16, 21, 22 and 24 are independent of everything else.
+> * Tasks 3–10, 16, 17, 21, 22, 24 and 25 are independent of everything else. ⚠️ Earlier revisions
+>   claimed the Elasticsearch spike gated Tasks 16 and 17; it does not — neither has any Elasticsearch
+>   content. See [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) §2.
 
 ## Progress Assessment
 
-- [ ] **Defects:** ~~Task 1 (MCP `search_assets` ignores `query`)~~ ✅ done, Task 2 (`DETECTION` / `SEGMENT` produce no documents)
+- [ ] **Defects:** ~~Task 1 (MCP `search_assets` ignores `query`)~~ ✅ done, Task 2 (`DETECTION` / `SEGMENT` produce no documents), Task 25 (English-only stemming)
 - [ ] **Dead or half-wired code:** Task 3 (row-level ACL clause), Task 9 (orphaned loom-ui trees)
-- [ ] **Consumers not yet on the SPI:** ~~Task 4 (`LibraryView`)~~ ✅ done, Task 7 (GraphQL)
+- [x] **Consumers not yet on the SPI:** ~~Task 4 (`LibraryView`)~~ ✅ done, ~~Task 7 (GraphQL)~~ ✅ done — every consumer is on the SPI
 - [ ] **Test and regression guards:** Task 5 (codegen guard), Task 6 (document-source coverage), Task 24 (retrieval quality)
 - [ ] **Ergonomics:** Task 8 (transcript timecode deep link), Task 10 (`searchParams()`), Task 16 (`POST /search/results`), Task 17 (`/search/facets`)
-- [ ] **Phase 2 — Elasticsearch:** Tasks 11–15, gated on the Task 11 spike; the outbox they drain already exists and is maintained
+- [x] **Phase 2 — Elasticsearch:** assessed and **deferred**; Tasks 11–15 and 23 now live in [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) with the reasoning and the revisit trigger
 - [ ] **List-route narrowing (a different feature from `/search/*`):** Tasks 18, 19
-- [ ] **Phase 3 — the image half:** Tasks 20–23
+- [ ] **Phase 3 — the image half:** Tasks 20–22 (Task 23 moved with Phase 2)
 
 ---
 
@@ -308,183 +317,13 @@ a refactor with no behaviour change. `mvn -o -pl loom/core test -Dtest=SearchEnd
 
 ---
 
-## Task 11: SPIKE — verify the Elasticsearch client API (was P2-1) — BLOCKS Tasks 12–16, 23
+## Tasks 11-15: Elasticsearch Phase 2 — MOVED
 
-**Argumentation Summary:** `loom/services/elasticsearch` is `pom.xml` + `README.md` with **no `src/`**.
-Its pom depends on the internal `io.metaloom.elasticsearch:elasticsearch-client` `1.2.0-SNAPSHOT`, whose
-API has never been verified against what Phase 2 needs. Every subsequent Elasticsearch task assumes bulk
-indexing, `search_after`, aliases, index templates and — for Phase 3 — `knn`. If that client cannot do
-them, the mapping, the indexer and the provider are all built on a wrong assumption and get rewritten.
-
-**Improvement Summary:** Prove or disprove the five capabilities against a real Elasticsearch container,
-then pick the client. Write no production Elasticsearch code until this closes.
-
-```
-1. Stand up a current Elasticsearch (or OpenSearch) container and, in a throwaway module or test,
-   exercise with io.metaloom.elasticsearch:elasticsearch-client 1.2.0-SNAPSHOT:
-     a) bulk index of N documents, with per-document error reporting
-     b) search_after paging
-     c) alias create / swap
-     d) index template / explicit mapping application
-     e) a knn query against a dense_vector field
-2. Record which of the five work, which do not, and at what version.
-3. If any fail, choose a fallback in this preference order and record WHY:
-     - co.elastic.clients:elasticsearch-java (official, heavier)
-     - plain HTTP through the Vert.x WebClient (dependency-free, and covers OpenSearch identically —
-       which matters because the spec promises OpenSearch parity)
-4. Also resolve the second open question here: org.testcontainers:elasticsearch is managed at 1.17.6,
-   which is old. Confirm it can pull a current image without conflicting with the Testcontainers version
-   resolved elsewhere in the reactor, or bump it.
-5. Write the outcome into spec/features/search/SEARCH.md §3 (the comparison table) and open the
-   follow-up tasks with the chosen client named. Do NOT leave the answer only in a commit message.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §0, §3 · `loom/services/elasticsearch/README.md`
-**Test Requirements:** The spike's own throwaway harness, plus the recorded answer. Nothing merges to
-`main` from the spike except the decision and, if it is the chosen route, a dependency change.
-
----
-
-## Task 12: Elasticsearch mapping and `ensureSchema()` (was P2-2)
-
-**Argumentation Summary:** An Elasticsearch index whose mapping is inferred rather than declared cannot
-be changed without a reindex, and the fields search needs — analysed `title` sub-fields, `body` with
-offsets, the ACL keyword arrays, and a `dense_vector` for Phase 3 — are exactly the ones dynamic mapping
-gets wrong. Declaring all of them up front, including the ones not yet populated, is what lets Phase 3
-land without reindexing the corpus.
-
-**Improvement Summary:** A checked-in mapping JSON, a `LoomSearchMapping` class that applies it, and an
-`ensureSchema()` that is safe to run on every boot.
-
-```
-1. loom/services/elasticsearch/src/main/resources/loom-search-mapping.json — one index per
-   SearchEntityType behind a SINGLE read alias, so a cross-type query is one request.
-2. Mirror search_document field for field (SEARCH.md §4), plus:
-     - title with keyword and analysed sub-fields (sorting and matching both needed)
-     - body with index_options: offsets — this is the proper fix for the ts_headline cost, and
-       highlighting is why it must be in the mapping from the start
-     - library_uuids / space_uuids / collection_uuids as keyword arrays FROM THE FIRST MAPPING, even
-       though nothing populates the ACL request fields yet (Task 3) — adding them later is a reindex
-     - a declared but unpopulated dense_vector so Task 23 needs no reindex
-3. LoomSearchMapping + ensureSchema() in io.metaloom.loom.elasticsearch — idempotent, safe on every
-   boot, and it must NOT fail server boot if Elasticsearch is unreachable (SearchModule's contract).
-4. Add the LOOM_SEARCH_ES_* options to SearchOptions with validation, and regenerate
-   loom/doc/src/main/generated/loom-config.yaml by running
-   `mvn -o exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator` FROM INSIDE loom/doc. That
-   run also rewrites the OpenAPI files, which churn on random example UUIDs — revert that noise rather
-   than committing it.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §3, §4, §5, §7 · Task 11 (the client decision)
-**Test Requirements:** A Testcontainers test asserting `ensureSchema()` is idempotent (twice in a row is
-clean), that the mapping applies, and that an unreachable Elasticsearch leaves the server booting.
-
----
-
-## Task 13: `ElasticsearchSearchIndexer` and the outbox drain (was P2-3, P2-4)
-
-**Argumentation Summary:** `search_document.dirty` / `synced_at` / `es_synced_at` and the
-`search_document_deleted` tombstone table are already written and maintained by triggers, and **nothing
-in Java reads them** — no code outside the generated jOOQ classes touches them. They are a live, correct,
-unconsumed feed. That is the load-bearing property of the whole design: Phase 2 starts from a populated
-outbox rather than a backfill project.
-
-**Improvement Summary:** A bulk indexer plus a periodic drain that claims work with `FOR UPDATE SKIP
-LOCKED`, so it is safe on every replica with no coordination.
-
-```
-1. ElasticsearchSearchIndexer implementing SearchIndexer: bulk index, retry with backoff, per-document
-   error capture into search_document.error, dead-letter after N attempts. Do not let one poison
-   document stall the drain.
-2. ElasticsearchIndexSyncService — a Vert.x periodic verticle. The claim query is
-     SELECT … FROM search_document WHERE dirty ORDER BY synced_at LIMIT :bulk FOR UPDATE SKIP LOCKED
-   SKIP LOCKED is not an optimisation: it is what makes the drain correct when several replicas run it
-   concurrently with no leader election.
-3. Drain search_document_deleted in the same pass and issue the deletes. Tombstones are REQUIRED because
-   the asset FK cascade removes search_document rows before any external indexer could observe the
-   delete. Prune tombstones after 7 days.
-4. Backfill is NOT a separate code path: search_document_rebuild() marks everything dirty and the normal
-   drain handles it. Do not write a second bulk-load path.
-5. Wire the drain's backlog into the /search-indices admin surface — the lexical index reports
-   dirtyCount = 0 by construction today (SEARCH_INDEX_ADMIN.md); an Elasticsearch index must report the
-   real backlog.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §4.3 (the unread outbox), §5 ·
-[../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md) ·
-`V2.58`, `V2.59`
-**Test Requirements:** Testcontainers tests: a dirty row reaches Elasticsearch and is marked synced; a
-delete leaves a tombstone that becomes a delete in the index; two concurrent drains never double-index
-the same document; a poison document is dead-lettered without stalling the rest. Use `refresh=wait_for`
-in assertions.
-
----
-
-## Task 14: `ElasticsearchSearchProvider` and its health check (was P2-5, P2-6)
-
-**Argumentation Summary:** `LOOM_SEARCH_PROVIDER=elasticsearch` currently resolves to
-`NoopSearchProvider` with a "not implemented yet" reason — an honest degradation, but it means the option
-exists and does nothing. The read side is also where the capability story pays off: Elasticsearch can
-advertise `DEEP_PAGING`, which Postgres never does, and the `nextCursor` field is already in the response
-envelope and always null under Postgres precisely so this swap needs no API change.
-
-**Improvement Summary:** The read-side provider plus a health component, wired through the existing
-`SearchModule` fallback.
-
-```
-1. ElasticsearchSearchProvider implementing SearchProvider: query, highlight (using the offsets from the
-   Task 12 mapping), facets, and search_after populating SearchResult.nextCursor.
-2. Advertise DEEP_PAGING, FACETS and HIGHLIGHT. Keep capabilities() computed PER CALL, never cached — the
-   UI renders its mode toggle from it and a backend that dies must retract its capabilities (SEARCH.md
-   §2).
-3. Bind it in loom/core/.../dagger/SearchModule.java under provider=elasticsearch, keeping the existing
-   contract absolutely: any construction exception is logged and falls back to NoopSearchProvider.
-   Search must never fail server boot.
-4. ElasticsearchHealthCheck plus a `search` component on HealthEndpoint / HealthCheckResponse.
-   WARNING: HealthEndpoint is registered WITHOUT secure(...). Do not leak the Elasticsearch URL,
-   credentials or cluster name through it.
-5. Clients must prefer nextCursor when present and fall back to offset — that contract is already
-   documented (SEARCH.md §5); verify loom-ui honours it before this ships, or deep paging silently keeps
-   using offsets.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §2, §2.1, §5 · Task 12
-**Test Requirements:** Testcontainers coverage of query, highlight, facets and `search_after` paging;
-plus an endpoint test that `/search/status` reports `provider: elasticsearch` and that an unreachable
-cluster still answers 200 with `available:false`.
-
----
-
-## Task 15: Provider-parity tests and Phase 2 operability (was P2-8, P2-9)
-
-**Argumentation Summary:** Two providers behind one SPI is only useful if they answer the same question
-the same way. Without a parity test, "swap the binding" becomes "swap the binding and discover six months
-later that phrase queries rank differently". Separately, Elasticsearch is a new service to operate: it
-needs a compose entry that does not slow the default dev loop, and a Helm story that respects the chart's
-"official images, no third-party subcharts, works offline" policy.
-
-**Improvement Summary:** A fixture-corpus parity test across both backends, plus the compose and Helm
-plumbing.
-
-```
-1. Provider-parity test: the same fixture corpus indexed in both backends returns the same TOP-5 SET
-   (not the same order — rankers legitimately differ) for a fixed list of queries covering phrase,
-   negation, stemming, typo tolerance and type filtering.
-2. Use refresh=wait_for so the test is not racing the index.
-3. Keep every test class at 15 methods or fewer — the test-DB pool provisions in tens (max 60).
-4. Ops: an `elasticsearch` service in docker compose behind a PROFILE, so the default dev loop stays
-   fast and nobody pays for a search backend they are not testing.
-5. helm/loom/values.yaml — a `search:` block, plus an optional bundled single-node StatefulSet following
-   the chart's existing policy: official images, no third-party subcharts, works offline.
-6. Document the operational failure modes in the website docs, including the managed-Postgres one from
-   Phase 1 that is still undocumented: pg_trgm is NOT a trusted extension and needs superuser or
-   rds_superuser, with "ask your DBA to pre-create the extension" as the remedy.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §3, §8, §10 · `helm/loom/values.yaml` ·
-[WEBSITE_DOC_TASKS.md](WEBSITE_DOC_TASKS.md)
-**Test Requirements:** The parity test itself, green against both providers; a `helm template` render of
-the new block; and a compose-profile smoke run.
+🔴 **Moved to [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) on 2026-08-16**, numbers unchanged:
+Task 11 (client spike), Task 12 (mapping + `ensureSchema()`), Task 13 (indexer + outbox drain),
+Task 14 (provider + health check), Task 15 (parity tests + compose/Helm). Its §0 records why the
+whole phase is deferred and §3 the trigger that would reverse that. **These numbers are not reused
+here.**
 
 ---
 
@@ -702,28 +541,11 @@ cluster's own members ahead of unrelated assets, plus its permission cases.
 
 ---
 
-## Task 23: Elasticsearch `dense_vector` and native `knn` / `rrf` (was P3-15)
+## Task 23: Elasticsearch `dense_vector` and native `knn` / `rrf` — MOVED
 
-**Argumentation Summary:** Java-side RRF fusion over a separate vector index is the right answer while
-Postgres is the only backend. Once Elasticsearch exists, it can do k-NN and reciprocal-rank fusion
-natively in one query, which removes a round trip and the Java fusion step from the hot path.
-
-**Improvement Summary:** Populate the `dense_vector` declared in Task 12's mapping and use native `knn`
-plus `rrf` in `ElasticsearchSearchProvider`.
-
-```
-1. Requires Tasks 11-14 AND the vectors from Task 20 (or the existing text embeddings).
-2. Populate the dense_vector field in the Task 13 drain. Because Task 12 declared the field in the
-   original mapping, this needs NO reindex — that was the point of declaring it unpopulated.
-3. Implement SEMANTIC and HYBRID in ElasticsearchSearchProvider using native knn and rrf.
-4. Keep the results commensurable with the Postgres path: the parity test from Task 15 must cover
-   semantic mode too, or the two backends quietly rank differently in the one mode users notice most.
-```
-
-**References:** [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §5.2 ·
-[SEARCH.md](../features/search/SEARCH.md) §10 ("two search paths, one provider") · Tasks 11-14, 20
-**Test Requirements:** Extend the Task 15 parity test with semantic and hybrid queries across both
-backends.
+🔴 **Moved to [SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) on 2026-08-16**, number unchanged.
+It optimises a path that already works on Postgres (`RankFusion` over the `VectorIndex` SPI), so it
+adds no capability and is deferred with the rest of Phase 2. **This number is not reused here.**
 
 ---
 
@@ -761,10 +583,88 @@ is present.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (created from `spec/concept/SEARCH_PLAN.md`, which was retired. Shipped work
+## Task 25: Stem non-English documents — `LOOM_SEARCH_TS_CONFIG` only half-closes the loop
+
+**Argumentation Summary:** `search_document.text_search_en` is a **generated, stored** column whose
+config is hardcoded to `english` (`V2.58__add_search_document.sql:58` — a data-dependent
+`to_tsvector(lang::regconfig, …)` is not `IMMUTABLE` and so cannot be a generated column). The *query*
+side, however, **is** configurable: `PostgresSearchProvider.SCORE_EXPRESSION` and `appendMatch()` both
+bind `options.getTsConfig()` as `?::regconfig`. The two halves therefore disagree the moment
+`LOOM_SEARCH_TS_CONFIG` is set to anything but `english` — a German query is stemmed with German rules
+against an English-stemmed index, which retrieves *less* than leaving the option alone. Today a German
+transcript is reachable only through the unstemmed `simple` vector plus trigram similarity, so "Aufnahmen"
+never matches a search for "Aufnahme". Whisper transcripts are a first-class corpus source and
+`search_document.lang` is already populated per document, so the data needed to fix this is present and
+unused. This is the largest remaining **recall** defect in lexical search, and the reason it is not an
+argument for Elasticsearch is that the fix lives entirely inside the current architecture
+([SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) §0.2).
+
+**Improvement Summary:** Replace the generated `text_search_en` column with a trigger-maintained
+`tsvector` computed from a `lang → regconfig` map, so each document is stemmed in its own language.
+
+```
+1. Decide the scope first and write it down: per-document stemming (use search_document.lang) or one
+   configured language per deployment. Per-document is the better answer — the corpus IS mixed, because
+   transcripts carry their own lang — and it costs the same migration.
+2. New Flyway migration. Check the highest existing version numerically FIRST
+   (`ls … | sort -t. -k2 -n | tail`) — a lexical sort puts V2.9 after V2.99, and another branch may be
+   taking the next number.
+     - Add search_lang_regconfig(p_lang varchar) RETURNS regconfig: an IMMUTABLE whitelist mapping
+       'de'/'deu'/'ger' -> german, 'en' -> english, … and DEFAULT to 'simple' for anything unknown.
+       Whitelist, never a cast: to_regconfig on arbitrary input is how you get a runtime error inside a
+       trigger, and a NULL regconfig silently nulls the whole tsvector.
+     - Drop the GENERATED clause from text_search_en and make it a plain tsvector column written by the
+       refresh functions, using the same weights (title A, subtitle B, body C, keywords D) — copy them
+       from V2.58 rather than re-deriving, or ranking shifts for every existing document.
+     - Set it inside search_document_refresh_*(), NOT in a second trigger. Per-entity refresh recomputing
+       the whole document family is what makes rebuild-equals-incremental hold by construction
+       (SEARCH.md §4.2); a separate tsvector trigger breaks that identity.
+     - End the migration with SELECT search_document_rebuild(); to restem the existing corpus.
+3. Leave text_search ('simple') exactly as it is. It is what makes filenames, ids and codes survive, and
+   the greatest() blend depends on both halves.
+4. jOOQ: text_search_en stays excluded by the .*\.text_search.*|.*\.trgm_text pattern in
+   loom/db/jooq/pom.xml — it is now writable-by-trigger rather than generated, but jOOQ still has no
+   tsvector binding and it must never reach an INSERT. Do NOT narrow the pattern. If Task 5 has landed,
+   its codegen guard already asserts this.
+5. Provider: keep binding options.getTsConfig() only where a per-document config is NOT available (the
+   query-side tsquery still needs one config). Where the map applies, the query must use the SAME
+   function: websearch_to_tsquery(search_lang_regconfig(?), ?) or an explicit per-language branch.
+   Query config and index config disagreeing is the entire bug being fixed here — do not reintroduce it
+   on the other side.
+6. Redocument LOOM_SEARCH_TS_CONFIG in SEARCH.md §7 and SearchOptions' @EnvironmentVariable description:
+   after this task it is the fallback for documents with no usable lang, not "the stemmed query side".
+7. ./setup-pool.sh after the migration. loom/db/jooq/generate.sh is NOT needed — no new table and no new
+   column reaches the generated code.
+```
+
+**References:** [SEARCH.md](../features/search/SEARCH.md) §4 (the generated columns and the immutability
+constraint), §7 (`LOOM_SEARCH_TS_CONFIG`), §4.2 (per-entity refresh) ·
+[SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) §0.2 · `V2.58__add_search_document.sql:58` ·
+`PostgresSearchProvider.SCORE_EXPRESSION` / `appendMatch()`
+**Test Requirements:** New methods in a `Search*` class in `loom/db/jooq/src/test/…/search/` (keep every
+class at 15 methods or fewer — the test-DB pool provisions in tens): a German document is found by a
+stemmed German query; an English document keeps being found by its existing stemmed query (regression);
+a document with an unknown or empty `lang` still matches through the `simple` vector; and the
+rebuild-equals-incremental case in `SearchDocumentLifecycleTest` stays green **unchanged** — that is the
+assertion that proves the tsvector is written on the shared refresh path.
+`./setup-pool.sh && mvn -o -pl loom/db/jooq test -Dtest='Search*'`
+
+---
+
+_Git HEAD revision: `5354b65d`_
+_Last updated: 2026-08-16 (Task 7 ✅ done — the GraphQL `search` field shipped; its text moved into the
+"removed as implemented" list and every SPI consumer is now on the provider. Two departures from the
+task as written, both because the code disagreed: `SearchGraphQLTest` extends `AbstractGraphQLTest` in
+`endpoint/graphql/` (the domain-test base that enforces `GraphQLSecurityTestcases`) rather than
+`AbstractGraphQLEndpointTest`, which is the endpoint-mechanics base; and the `SearchEntityType` enum has
+eleven members, not ten — `REMIX` was missing from the task's list. Earlier the same day: Elasticsearch Phase 2 — Tasks 11-15 and 23 — moved to
+[SEARCH_ELASTICSEARCH.md](SEARCH_ELASTICSEARCH.md) together with the assessment that deferred it; their
+numbers are retired here rather than reused. Added Task 25, the English-only stemming gap that assessment
+surfaced. Corrected the ordering notes: the Elasticsearch spike never gated Task 16 or Task 17, which the
+header and the Progress Assessment previously contradicted each other about.)_
+Earlier: 2026-08-11 (created from `spec/concept/SEARCH_PLAN.md`, which was retired. Shipped work
 moved into SEARCH.md §0/§12; the remaining work re-verified against the tree and rewritten as 24 tasks.
 Corrections found during the audit: the `integration-test` build failure the plan warned about
 (`DedupNodeOptions.setDupFolder`) no longer exists; the migration high-water mark is `V2.99`, not
 `V2.84`; the P1-24 spec sync into RBAC / PERMISSIONS / RESTAPI is done, leaving only MCP.md, which is
-folded into Task 1; the search test count is 55 DB-side plus 16 endpoint plus 13 fusion, not 49)_
+folded into Task 1; the search test count is 55 DB-side plus 16 endpoint plus 13 fusion, not 49))_

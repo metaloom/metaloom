@@ -5,6 +5,7 @@
 >
 > **Scope split.** Vectors / embeddings / hybrid ranking → [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
 > Remaining work items and task IDs → [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md).
+> Elasticsearch (Phase 2) — the deferral decision and its tasks → [../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md).
 > Administering the indices (`/search-indices`, reindex jobs) → [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md).
 > Perceptual fingerprint k-NN (a *different* index, on Lucene) → [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md).
 > Table/column reference → [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
@@ -31,8 +32,8 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 | Index administration (`/search-indices`, reindex jobs) | ✅ built | `SearchIndexEndpoint` — [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | **loom-ui** | ✅ built — client, `/search` view, global sidebar field, capability gating | `src/api/search.ts`, `features/search/`, `SearchContext` |
 | **MCP `search_assets` / `search_transcript`** | ✅ built — both query the SPI; no per-type narrowing (§2.2) | `loom/services/mcp`, [../../loom/MCP.md](../../loom/MCP.md) §5.1 |
-| **GraphQL `search` field** | 🔴 absent | `loom.graphqls` |
-| **Elasticsearch provider** | 🔴 `loom/services/elasticsearch` has **no `src/`** — `pom.xml` + README only | — |
+| **GraphQL `search` field** | ✅ built — one `Query.search` field on the SPI, **with** per-type narrowing (§2.2) | `loom.graphqls`, `SearchWiring` |
+| **Elasticsearch provider** | 🔴 `loom/services/elasticsearch` has **no `src/`** — `pom.xml` + README only. **Assessed 2026-08-16 and deliberately deferred** | [../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md) §0 |
 | **Qdrant** | 🔴 `loom/services/qdrant` has **no `src/`** | — |
 | **Semantic / hybrid (text)** | ✅ built, **off by default** — `LOOM_SEARCH_SEMANTIC_ENABLED`. RRF over the lexical ranker plus embeddings of the same documents | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
 | **Semantic (text→image, CLIP)** | 🔴 nothing | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4 |
@@ -155,15 +156,15 @@ call, so a host that dies later still retracts the capability.
 
 ### 2.2 Who consumes the SPI
 
-One provider, three callers. Anything that searches must go through `SearchProvider` — a second query
+One provider, four callers. Anything that searches must go through `SearchProvider` — a second query
 path is a second ranking, and the two drift.
 
 | Caller | Entry point | Auth | Notes |
 |---|---|---|---|
-| REST / loom-ui | `SearchEndpoint` → `SearchEndpointService` | `READ_SEARCH` gate **+ per-type narrowing** (§6) | The only caller that narrows |
+| REST / loom-ui | `SearchEndpoint` → `SearchEndpointService` | `READ_SEARCH` gate **+ per-type narrowing** (§6) | Every query parameter of §5 |
 | MCP `search_assets` | `SearchAssetsTool` | `READ_ASSET` on the *call* only | `types=[ASSET]`; params `query` (required), `mimeType` (prefix), `library`, `tag`, `limit`, `offset` |
 | MCP `search_transcript` | `SearchTranscriptTool` | `READ_ASSET` on the *call* only | `types=[TRANSCRIPT]`, `highlight=true`; returns snippet + `assetUuid` + `timeFromMs`, so a hit deep-links to the moment it was said |
-| GraphQL | ⬜ absent | — | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 7 |
+| GraphQL `Query.search` | `SearchWiring` (`loom/services/graphql`) | `READ_SEARCH` gate **+ per-type narrowing** (§6) | `q`, `types`, `mode`, `limit`, `offset` only — no filters, facets, sort or cursor. See [../../loom/GRAPHQL.md](../../loom/GRAPHQL.md) §3.5 |
 
 🔴 **The MCP tools cannot narrow their results.** `MCPTool.execute(JsonObject)` receives arguments and
 no caller, so the per-type filtering `SearchEndpointService` applies is structurally unavailable there;
@@ -172,13 +173,33 @@ existing MCP model — every tool calls DAOs directly — but it means an MCP ca
 index holds. Written down in [../rbac/RBAC.md](../rbac/RBAC.md) §4 and
 [../../loom/MCP.md](../../loom/MCP.md) §5.1 rather than left to be discovered.
 
+✅ **GraphQL narrows, MCP cannot, for one reason:** the transport hands the fetchers a
+`GraphQLPermissionChecker` — a *non-throwing* `hasPermission(Permission)` — in the execution context,
+which is exactly the shape narrowing needs and exactly what `MCPTool.execute` lacks. The map itself is
+shared rather than copied: `SearchTypePermissions` (`loom-db-api`, package
+`io.metaloom.loom.db.model.perm`) is read by both `SearchEndpointService` and `SearchWiring`, so a new
+`SearchEntityType` cannot end up gated on one surface and ungated on the other.
+
 ⚠️ **Degrading is the caller's job, and it differs per caller.** `NoopSearchProvider.search()` throws
 503, so REST returns it and the UI hides its search box; the MCP tools check `isAvailable()` first and
 answer with the reason from `info()` in words — a model shown an empty result set would report
-"nothing found" with confidence. Any future caller has to make the same choice explicitly.
+"nothing found" with confidence; GraphQL turns the exception into a GraphQL error carrying the
+provider's reason and a `status` extension, never an empty `hits` list. Any future caller has to make
+the same choice explicitly.
 
 ⚠️ **Highlights are not sanitised** (§5). loom-ui parses them into text segments; the MCP tools strip
-the `<b>` markers before the snippet reaches a chat answer. A new caller must do one or the other.
+the `<b>` markers before the snippet reaches a chat answer; the GraphQL `SearchHit.highlights` field
+carries the warning in its SDL description and hands the fragments through unchanged. A new caller
+must do one or the other.
+
+⚠️ **`LoomRestException` is a split package class.** `loom-common` ships a second
+`io.metaloom.loom.api.error.LoomRestException` alongside the one in `loom-shared/api`, and the two
+disagree: the shared copy exposes `errorCode()`, the `loom-common` copy `getErrorCode()`, and the
+latter also has a two-argument constructor the former lacks. Which one the JVM loads depends on
+classpath order — inside `loom/core` it is the `loom-common` copy, so calling `errorCode()` on a caught
+`LoomRestException` compiles against one and dies with `NoSuchMethodError` against the other at
+runtime. Only `httpCode()` and `getMessage()` are safe on a caught instance until the duplicate is
+removed.
 
 ---
 
@@ -331,6 +352,11 @@ preserve this shape.
 
 ## 5. REST surface
 
+The REST routes are the **full** surface; the GraphQL `Query.search` field ([../../loom/GRAPHQL.md](../../loom/GRAPHQL.md) §3.5)
+is a deliberately smaller one (`q`, `types`, `mode`, `limit`, `offset` — no filters, facets, sort or
+cursor) and everything below about parsing, ranking, paging and highlighting applies to it unchanged,
+because it calls the same provider.
+
 | Path | Method | State | Notes |
 |---|---|---|---|
 | `/api/v1/search/results` | GET | ✅ | Cross-entity ranked search, facets, highlights |
@@ -417,7 +443,10 @@ result — silently returning fewer types is indistinguishable from an empty ind
 additionally requires `READ_ASSET` outright.
 
 Narrowing needs a **non-throwing** check, which `checkPerm` (throw-only) cannot give: `LoomRoutingContext.permissions()`
-returns `Future<Predicate<Permission>>`, request-scoped. ✅ built.
+returns `Future<Predicate<Permission>>`, request-scoped. ✅ built. GraphQL gets the same shape from
+`GraphQLPermissionChecker` (`AbstractDomainWiring.requireChecker`) and applies the identical narrowing;
+the table above is code, not prose — `SearchTypePermissions` in `loom-db-api` — so the two surfaces
+cannot disagree.
 
 ### 6.1 Row-level ACL — still absent, by design
 
@@ -457,7 +486,7 @@ elsewhere is still **speculative and unimplemented**.
 | `LOOM_SEARCH_TRIGRAM_THRESHOLD` | `0.3` | `pg_trgm.similarity_threshold`; must be in `[0,1]` |
 | `LOOM_SEARCH_TRIGRAM_WEIGHT` | `0.35` | Contribution of `similarity()` to the blended score |
 | `LOOM_SEARCH_BODY_MAX_BYTES` | `524288` | ⚠️ Java-side mirror only — the trigger cap is hardcoded in `search_body_cap()` |
-| `LOOM_SEARCH_TS_CONFIG` | `english` | regconfig for the stemmed query side |
+| `LOOM_SEARCH_TS_CONFIG` | `english` | regconfig for the stemmed **query** side only. 🔴 **Do not change it.** The index side (`text_search_en`) is a generated column hardcoded to `english`, so any other value stems the query and the index differently and retrieves *less* than the default — [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 25 |
 
 ---
 
@@ -479,8 +508,10 @@ interpolated SQL comes from enums it owns (`orderBy`, facet column whitelist, th
 loom/db/jooq/generate.sh                     # after any codegen-exclusion change (§10)
 mvn -o -pl loom-shared/api test -Dtest='RankFusionTest,LoomOptionsValidationTest'
 mvn -o -pl loom/db/jooq    test -Dtest='Search*'      # 55
-mvn -o -pl loom/core       test -Dtest=SearchEndpointTest   # 16
+mvn -o -pl loom/core       test -Dtest=SearchEndpointTest   # 19
+mvn -o -pl loom/core       test -Dtest=SearchGraphQLTest    # 11 (GraphQL field, live server)
 mvn -o -pl loom/services/mcp test -Dtest=SearchToolTest     # 15 (MCP tools, mocked provider)
+mvn -o -pl loom/services/graphql test                       # 13, 5 of them search (mocked provider)
 ```
 
 ℹ️ The semantic work added **no migration**, so neither `setup-pool.sh` nor `generate.sh` is needed to
@@ -490,7 +521,7 @@ run or extend it.
 doclint errors in `PipelineRunEngine`, `ProcessorEndpoint`, `WebSocketAuthenticator` and `MCPService`.
 Unrelated to search, but it will stop your build.
 
-### 8.1 What exists — 99 tests, all green
+### 8.1 What exists — 118 tests, all green
 
 | Class | Path | Tests | Covers |
 |---|---|---|---|
@@ -500,7 +531,9 @@ Unrelated to search, but it will stop your build.
 | `SearchSemanticQueryTest` | same | 20 | the fused path — `SEMANTIC`/`HYBRID` dispatch, capability gating, RRF ordering, embedding-host failure retracting the capability. Uses `FakeTextEmbedder` + `InMemoryVectorIndex` in the same package ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §10) |
 | `RankFusionTest` | `loom-shared/api/src/test/…/search/` | 13 | RRF arithmetic in isolation, no DB |
 | `SearchToolTest` | `loom/services/mcp/src/test/java/io/metaloom/loom/mcp/tool/impl/` | 15 | the two MCP tools against a mocked `SearchProvider`: every declared filter reaches the `SearchRequest`, `video/*` normalised to a prefix, zero hits read as zero hits, a transcript hit carries snippet + `assetUuid` + `timeFromMs` with the `<b>` markers stripped, an unavailable provider is named rather than answered as empty, a provider rejection comes back as text |
-| `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 16 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |
+| `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 19 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, remix hits + remix narrowing + `types=remix`, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |
+| `SearchGraphQLTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/` | 11 | extends `AbstractGraphQLTest`, so `GraphQLSecurityTestcases` forces both permission cases; finds a seeded asset, highlights only when selected, `types:` argument restricts, **type narrowing + warnings**, only-`READ_SEARCH` ⇒ `FORBIDDEN`, blank/oversized `q` and `mode: SEMANTIC` ⇒ `BAD_USER_INPUT` with the provider's reason, unknown enum member rejected by schema validation |
+| `LoomGraphQLProviderTest` | `loom/services/graphql/src/test/java/io/metaloom/loom/graphql/` | 5 of 13 | the search wiring against a **mocked** `SearchProvider`, which is the only way to assert the things a live provider hides: hit field mapping, `highlight` following the selection set, the narrowed `SearchRequest` that actually reaches the SPI, and a 503 surfacing as an error rather than zero hits |
 
 **loom-ui:** 25 client + 32 helper vitest cases; Playwright `search-mocked` (27),
 `asset-search-mocked` (9), `library-search-mocked` (11), `list-search-mocked` (7),
@@ -535,6 +568,8 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | `SearchModule` | `io.metaloom.loom.core.dagger` (`loom/core`) | ✅ in `LoomCoreComponent:53` |
 | `SearchEndpoint` | `io.metaloom.loom.rest.endpoint.impl` (`loom/services/rest`) | ✅ 4 GET routes |
 | `SearchEndpointService` | `io.metaloom.loom.rest.service.impl` (`loom/services/rest`) | ✅ gate + narrowing |
+| `SearchTypePermissions` | `io.metaloom.loom.db.model.perm` (`loom/db/api`) | ✅ the one `SearchEntityType → READ_*` map, read by REST **and** GraphQL |
+| `SearchWiring` | `io.metaloom.loom.graphql` (`loom/services/graphql`) | ✅ `Query.search`, gate + narrowing, provider errors as GraphQL errors |
 | `SearchQueryParameterKey` | `io.metaloom.loom.rest.parameter` (`loom-shared/rest-model`) | ✅ 18 keys |
 | `SearchParameters` | `io.metaloom.loom.rest.parameter` (**`loom/services/rest`**) | ✅ ⚠️ same package, other module |
 | `SearchResultResponse`, `SearchHitResponse`, `SearchMetaInfo`, `SearchSuggestion(List)Response`, `SearchStatusResponse`, `SearchFacetResponse`, `SearchExamples` | `io.metaloom.loom.rest.model.search` (`loom-shared/rest-model`) | ✅ |
@@ -557,6 +592,8 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | **`SET LOCAL` needs a transaction** | 🔴 `pg_trgm.similarity_threshold` is a session GUC; `SET LOCAL` outside a transaction is discarded. `runSearch()` wraps both in one `transactionResult`, which also pins the connection and leaves the pool unmutated. |
 | **Bind order is textual** | ⚠️ With `ctx.fetch(sql, binds)` binds are positional in the order `?` appears **in the SQL string** — the score expression in the SELECT list precedes every WHERE bind. |
 | **Query parsing** | 🔴 `websearch_to_tsquery` only. `to_tsquery` 500s on a stray `&`. |
+| **`LOOM_SEARCH_TS_CONFIG` desynchronises** | 🔴 The option binds only the **query** side (`SCORE_EXPRESSION`, `appendMatch()` pass `?::regconfig`); `text_search_en` is a *generated* column fixed at `english` because a data-dependent config is not `IMMUTABLE` (§4). Setting it to `german` stems a German query against an English-stemmed index — strictly worse than the default. Non-English stemming needs the trigger-maintained tsvector in [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) **Task 25**, not this env var. |
+| **"We need Elasticsearch for this"** | ⚠️ Usually not. Semantic/hybrid already runs on Postgres, multilingual stemming is Task 25 and the body cap is Task 2 — all Postgres-side. Only deep paging and facet/highlight cost at scale are genuinely Elasticsearch-only. The assessment and its revisit trigger are in [../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md) §0 and §3; do not relitigate it without a measurement. |
 | **`ts_headline`** | 🔴 O(document size), unindexable. Only ever for the returned page. |
 | **Body cap** | 🔴 512 KB, and it is **hardcoded in `search_body_cap()`** — `LOOM_SEARCH_BODY_MAX_BYTES` does not drive the trigger (§7). |
 | **Path tokenization** | 🔴 Postgres classifies `/archive/expedition7/clip.mp4` as one `file` token, so no segment is searchable alone. `search_tokenize_path()` translates `/\_-.` to spaces into `keywords`; the raw path stays in `subtitle` for exact match. |
@@ -579,6 +616,8 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | Need | Look here |
 |---|---|
 | Remaining work items and task IDs | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) |
+| Whether to add Elasticsearch at all, and the tasks if you do | [../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md) — read §0 before proposing the work |
+| Why a non-English corpus is only matched unstemmed | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 25 — `text_search_en` is generated and hardcoded to `english`, while `LOOM_SEARCH_TS_CONFIG` binds the query side only |
 | Vector / embedding / hybrid search | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
 | Administering the indices — reindex, delta sync, drop, backlog | [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | Fingerprint similarity (the *other* index, on Lucene) | [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) |
@@ -614,7 +653,7 @@ Every unchecked box below has a numbered work item in
 - [x] `SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED` added to **both** copies of `LoomRestErrorCode`
 - [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); the search UI landed alongside them rather than replacing them — **Task 9**
 
-**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP ✅ wired, GraphQL ⬜
+**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP ✅ wired, GraphQL ✅ wired
 - [x] `io.metaloom.loom.api.search` SPI + value types
 - [x] `SearchOptions` (10 env vars) + `LoomOptions` wiring + validation
 - [x] `V2.57` `READ_SEARCH` · `V2.58` `pg_trgm` + tables + 12 functions · `V2.59` 17 triggers + backfill
@@ -634,19 +673,23 @@ Every unchecked box below has a numbered work item in
 - [x] Customer-facing docs — the "Search" section of `website/content/english/docs/ui/index.adoc`
 - [x] Spec sync into [../rbac/RBAC.md](../rbac/RBAC.md), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) and [../../loom/RESTAPI.md](../../loom/RESTAPI.md)
 - [x] MCP `SearchAssetsTool` and `SearchTranscriptTool` on the SPI (Task 1): real terms, filters and paging, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; 15 tests in `SearchToolTest`. Result-level narrowing remains impossible there (§2.2)
-- [ ] GraphQL `search` field not added — **Task 7**
+- [x] GraphQL `Query.search` on the SPI (Task 7): `SearchWiring` + `SearchResult`/`SearchHit` types + `SearchEntityType`/`SearchMode` enums in the SDL, `READ_SEARCH` gate **plus** the same per-type narrowing REST applies (shared `SearchTypePermissions`), provider 503/400 as GraphQL errors, highlights driven by the selection set. No filters, facets, sort or cursor — deliberately a smaller surface than REST
+- [ ] The ~20 existing GraphQL list fields still take no filter arguments; `search` is a separate surface, not a retrofit of those
 - [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
 - [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `library-search-mocked` (11), `list-search-mocked` (7), `search-backend` (14)
 - [x] `LibraryView.tsx` routes to `/search/assets?library=<uuid>` (Task 4). Every asset surface is now server-backed; the panel keeps the term in `?q=`, pages the hits by `data.length` up to the offset cap, and degrades to filtering the loaded page — saying so — when search is unavailable
 - [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only — **Task 8**
 - [ ] `asset_doc_comp` remains deliberately unread (§4.3)
 
-**Phase 2 — Elasticsearch / OpenSearch** — not started
-- [x] The outbox already exists and is maintained: `dirty` / `synced_at` / `es_synced_at` + `search_document_deleted`
-- [ ] Nothing consumes it — `loom/services/elasticsearch` has **no `src/`**; `LOOM_SEARCH_PROVIDER=elasticsearch` binds `NoopSearchProvider`
+**Phase 2 — Elasticsearch / OpenSearch** — 🔴 **assessed 2026-08-16 and deferred**, tracked in
+[../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md) (Tasks 11-15, 23)
+- [x] The outbox already exists and is maintained: `dirty` / `synced_at` / `es_synced_at` + `search_document_deleted`. **Keep it** — it is why Phase 2 stays a binding change
+- [x] Decision recorded: Postgres covers today's cases. The three things Elasticsearch would be reached for are either already shipped on Postgres (semantic/hybrid), not being cashed (`replicaCount: 1`), or made *worse* by the move (row-level ACL becomes eventually consistent). The revisit trigger is written down rather than left to instinct — [SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md) §0, §3
+- [ ] Nothing consumes the outbox — `loom/services/elasticsearch` has **no `src/`**; `LOOM_SEARCH_PROVIDER=elasticsearch` binds `NoopSearchProvider`
 - [ ] No `LOOM_SEARCH_ES_*` options exist yet
-- [ ] 🔴 Gated on the client spike — the module's `io.metaloom.elasticsearch:elasticsearch-client` `1.2.0-SNAPSHOT` dependency is unverified against bulk / `search_after` / aliases / templates / `knn`. **Task 11 blocks Tasks 12–16 and 23**
+- [ ] 🔴 Gated on the client spike — the module's `io.metaloom.elasticsearch:elasticsearch-client` `1.2.0-SNAPSHOT` dependency is unverified against bulk / `search_after` / aliases / templates / `knn`. **Task 11 blocks Tasks 12–15 and 23** (it never gated Tasks 16 or 17, which have no Elasticsearch content)
 - [ ] ⚠️ Correction to older plans: **do not delete `loom/services/lucene`** — it now serves fingerprint k-NN
+- [ ] The two genuinely Elasticsearch-only gaps, for when the decision is revisited: deep paging past `LOOM_SEARCH_MAX_OFFSET`, and facet/highlight cost at corpus scale. Multilingual stemming (Task 25) and the 512 KB body cap (Task 2) look like Elasticsearch arguments and are not — both are fixable on Postgres
 
 **Phase 3 — Semantic / hybrid** — text ✅ shipped (off by default), image ⬜
 - [x] `TextEmbedder` SPI + `OpenAiTextEmbedder` (llama.cpp `--embeddings`) + `NoopTextEmbedder`
@@ -677,8 +720,19 @@ Every unchecked box below has a numbered work item in
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `01802c07`_
-_Last updated: 2026-08-16 (Task 1: the two MCP search tools moved onto the SPI. New §2.2 records who
+_Git HEAD revision: `5354b65d`_
+_Last updated: 2026-08-16 (GraphQL `Query.search` shipped — Task 7. §0, §2.2, §5, §6, §8, §9 and §12
+Phase 1 updated: a fourth SPI caller that **does** narrow per type, because `GraphQLPermissionChecker`
+is the non-throwing check narrowing needs; the map moved into `SearchTypePermissions` (`loom-db-api`)
+so REST and GraphQL cannot drift. Two things found while wiring it and recorded in §2.2: highlights are
+driven by the GraphQL selection set rather than an argument, and `LoomRestException` is a split package
+class whose two copies disagree on the accessor name. Test count 99 → 118, and `SearchEndpointTest` is
+19 rather than 16 since the remix cases landed. Earlier the same day: Elasticsearch assessed and deferred — §0, §7, §10, §11 and §12 Phase 2 now
+point at the new [../../tasks/SEARCH_ELASTICSEARCH.md](../../tasks/SEARCH_ELASTICSEARCH.md), which holds
+the decision and Tasks 11-15 + 23. Two gotchas added to §10: `LOOM_SEARCH_TS_CONFIG` binds the query side
+only and must not be changed (the index column is generated and fixed at `english`), and most
+"we need Elasticsearch" cases are Postgres-side tasks. §7 corrected accordingly.)
+Earlier: 2026-08-16 (Task 1: the two MCP search tools moved onto the SPI. New §2.2 records who
 consumes `SearchProvider`, what each caller may narrow, and how each one degrades; §0, §8.1, §10 and
 §12 corrected accordingly; the authorization limitation mirrored into RBAC.md §4 and MCP.md §5.1.
 Test count 84 → 99.) Earlier: 2026-08-11 (`spec/concept/SEARCH_PLAN.md` retired — its shipped work folded into §0/§8/§12,
