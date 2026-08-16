@@ -67,7 +67,7 @@ function Filter1Button() {
   const [selectedIndex, setSelectedIndex] = React.useState(1);
 
   const handleClick = () => {
-    console.info(`You clicked ${options[selectedIndex]}`);
+    // No-op: template leftover, never wired to a backend action.
   };
 
   const handleMenuItemClick = (

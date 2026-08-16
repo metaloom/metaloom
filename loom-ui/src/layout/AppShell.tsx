@@ -13,7 +13,6 @@ import MonitoringArea from "../features/monitoring/MonitoringArea";
 import CollectionsView from "../features/collections/CollectionsView";
 import TasksView from "../features/tasks/TasksView";
 import LibraryView from "../features/library/LibraryView";
-import FaceDetectionManagement from "../features/faceDetection/FaceDetectionManagement";
 import DetectionManagement from "../features/detection/DetectionManagement";
 import PersonDetail from "../features/persons/PersonDetail";
 import ProfileView from "../features/profile/ProfileView";

@@ -120,6 +120,7 @@ export default function LLMDetectionManagement() {
           onChange={e => setQuery(e.target.value)}
           placeholder={t("llmDetection.search.placeholder")}
           size="small"
+          data-testid="llmdetection-search"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
             startAdornment: (

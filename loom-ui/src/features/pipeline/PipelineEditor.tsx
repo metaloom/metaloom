@@ -2711,6 +2711,7 @@ function CommandPaletteContent({
           size="small"
           fullWidth
           autoFocus
+          inputProps={{ "data-testid": "pipeline-palette-search" }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -4339,6 +4340,7 @@ export default function PipelineEditor() {
                     inputRef={addNodeInputRef}
                     size="small"
                     placeholder={t("pipeline.editor.addNode")}
+                    inputProps={{ "data-testid": "pipeline-add-node-search" }}
                     value={nodeFilter}
                     onChange={(e) => { setNodeFilter(e.target.value); setAddNodeIdx(0); }}
                     onFocus={() => setAddNodeOpen(true)}

@@ -96,10 +96,12 @@ loom-ui/
 └── package.json
 ```
 
-> **Dead code:** `src/Admin/`, `src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/Login/`,
-> `src/Pipeline/`, `src/User/`, `src/Welcome/` are the pre-`features/` generation and are
+> **Dead code:** `src/Admin/`, `src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/Pipeline/`,
+> `src/User/`, `src/Welcome/` and `src/Theme.tsx` are the pre-`features/` generation and are
 > **not reachable from `main.tsx`**. Nothing imports them. Do not extend them; when touching
-> a screen, work under `src/features/`.
+> a screen, work under `src/features/`. `src/Login/` and the legacy entry point `src/index.js`
+> were part of this set and have been **deleted** — `Login.tsx` logged the submitted password to
+> the console. The rest goes with [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md) Task 5.
 
 > **There is no `src/theme/tokens.ts`.** Both token sets and `buildTheme`/`setActiveTokens`
 > live in `src/theme/index.ts`; consumers do `import { tokens } from "../../theme"`.
@@ -475,19 +477,42 @@ nested `empty.noSearch` would collide with it in i18next; those use `emptyState.
 
 ### 7.5.1 Search field
 
-**Every list view carries one.** `TextField size="small"` with a `SearchOutlined` `startAdornment`,
-a `useState` term and the testid `<feature>-search` — [CollectionsView.tsx:206](../../../loom-ui/src/features/collections/CollectionsView.tsx)
-is the reference. Live in: `AssetBrowser`, `LibraryView`, `CollectionsView`, `TagsView`,
-`AssetPoolsView`, `CortexView`, both detection screens, `FaceDetectionManagement`, `TasksView`,
-`SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, and the admin tables
-including `AccessControlAdmin`.
+**Every list view carries one, and it must have a testid.** `TextField size="small"` with a
+`SearchOutlined` `startAdornment`, a `useState` term and the testid `<feature>-search` —
+[CollectionsView.tsx](../../../loom-ui/src/features/collections/CollectionsView.tsx) is the
+reference.
 
-Only `AssetBrowser` is server-backed: a non-empty term goes to `searchAssets()` debounced 250 ms,
-and the type filter travels as `?mime=` rather than being re-applied locally. Everywhere else the
-field filters the rows already loaded — which is why those views also page (§11.3).
+The testid is part of the rule, not decoration. `LLMDetectionManagement`, `ApiKeysAdmin` and
+`MemoryDenylistAdmin` all shipped a working search box with no testid, which made them
+unreachable from a spec — the field existed, and nothing could prove it filtered.
+
+**29 search fields**, all of them exercised by a spec that types into them
+(`search-coverage-mocked.spec.ts`):
+
+| Kind | Where |
+|------|-------|
+| Server-backed | `AssetBrowser` (a term goes to `searchAssets()` debounced 250 ms; the type filter travels as `?mime=`) and the `/search` screen itself |
+| Local over the loaded rows | `LibraryView`, `CollectionsView`, `TagsView`, `AssetPoolsView`, `TasksView`, `SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, `CortexView`, all three detection screens, and every admin table — spaces, users, groups, roles, blacklist, API keys, memory denylist, **db integrity, search indices, storage** |
+| Queue filter | `UploadView` — a folder drop queues hundreds of rows and the one you want is the one that failed |
+| Rail filter | `ChatWorkspace` — the session rail on `/`, which grows without bound and was scroll-only |
+| Node pickers | `PipelineEditor` — the add-node bar and the `N` command palette, both filtering the descriptor registry |
+| Find-in-place | `TranscriptPanel` — see below |
 
 A term that matches nothing shows the inline hint, never the `EmptyState` — see the rule above.
 Where a view shows both, the testid distinguishes them (`memory-empty` vs `memory-no-match`).
+
+**Find-in-transcript is the one search that is not a list filter.** It marks the matching words and
+dims the sections that have none, rather than removing them: the timeline bar above the sections
+has to stay proportional to the whole recording, and the boundary arrows on each block move a
+section relative to the one beside it — with misses removed they would be adjusting a pair that is
+no longer adjacent. `data-matched` on each section and `transcript-match` on each hit word are what
+a spec asserts on.
+
+**Views that deliberately have none.** `WorkflowView` is a stepper — you work through a review
+queue one item at a time, so there is no list to narrow. `MonitoringArea` renders charts,
+`MaintenanceView` a set of operator actions, and `ProfileView` a single form. `PersonDetail` and
+`ChatSessionDetail` are detail screens for one entity. Adding a box to any of these would be
+box-ticking.
 
 ### 7.5.2 Sorting and filtering a list
 
@@ -725,6 +750,7 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 | `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have; `useUnsavedChanges` — likewise the listener wiring and guard dispatch, not the hooks around them |
 | `src/help/` | `topics` — the coachmark registry, checked against the website's map and both locale files (§7.10). The one test in this tree that reads a file **outside `loom-ui/`**, which it can because the website is the same repository |
 | Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
+| `src/` (root) | `sourceHygiene` — scans every non-test source through `import.meta.glob(…, { query: "?raw" })` and fails on a `console.*` call whose arguments mention a credential, or on the return of `src/Login/` / `src/index.js` |
 
 > `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
 > near-identical files — the contract (`?limit=&from=` on the wire, `_metainfo` passed through) is
@@ -742,11 +768,11 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-102 specs in two flavours, distinguished by filename suffix:
+103 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (67) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (68) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -761,6 +787,11 @@ Playwright invocation, so no explicit env block is needed.
 Typical mocked-spec shape: `mock…(page)` route handlers → `login(page)` (fill
 `Username`/`Password` placeholders, click *Sign in*, assert the username field is hidden) →
 assertions on `data-testid` locators.
+
+> A search field asserted with `toBeVisible` and never typed into is not covered. A field that
+> renders, accepts input and narrows nothing looks identical to a working one in such a spec —
+> which is how thirteen of them stayed unverified. `search-coverage-mocked.spec.ts` types a
+> matching term, a non-matching one, and then clears, for every field in the product.
 
 > A mock that returns a **fixed** payload cannot test a server-side control. `list-sort-filter-mocked.spec.ts`
 > therefore implements `?sort=`/`?dir=`/`?filter=` in the route handler and asserts on the rendered
@@ -879,7 +910,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `API_BASE_URL` default is absolute | Falls back to `http://localhost:8092/api/v1`; cookie-authenticated previews and same-origin assumptions need `VITE_API_BASE_URL=/api/v1` (§5) |
 | `VITE_WS_URL` / `VITE_MCP_URL` don't exist | Setting them has no effect; the WS URL derives from `VITE_API_BASE_URL` |
 | No `src/theme/tokens.ts` | Import `tokens` from `src/theme` (`index.ts`) |
-| Dead capitalised directories | `src/Admin`, `src/Asset`, … are unreferenced legacy; editing them changes nothing |
+| Dead capitalised directories | `src/Admin`, `src/Asset`, … are unreferenced legacy; editing them changes nothing. `src/Login` and `src/index.js` are already gone; drop this row once the rest follows (TASK_UI_PIPELINE.md Task 5) |
+| No `console.log` of credentials | `src/sourceHygiene.test.ts` scans every non-test source for a `console.*` call mentioning password/secret/credential/api-key and fails the vitest run. It exists because the deleted `Login.tsx` did exactly that |
 | Auth is in-memory | Every reload lands on the login form — on the *same* URL, so signing in resolves to the requested route |
 | No global 401 handling | Each call handles its own failure; there is no interceptor |
 | Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
@@ -1019,8 +1051,11 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `836d2509`_
-_Last updated: 2026-08-13 (documentation coachmarks — §7.10: `src/help/topics.ts`, `HelpHint`, and
+_Git HEAD revision: `10f5df46`_
+_Last updated: 2026-08-16 (`src/Login/` and the legacy entry point `src/index.js` deleted —
+`Login.tsx` logged the submitted password to the console; §3's dead-code callout and §11.2 updated,
+and §8.1 gained `src/sourceHygiene.test.ts`, the guard that keeps a credential out of a `console.*`
+call. Earlier: 2026-08-13 (documentation coachmarks — §7.10: `src/help/topics.ts`, `HelpHint`, and
 the `?` on eight screens, two of which follow the review mode or tab rather than the route. A hint
 carries a stable topic id and a fallback query, never a documentation URL, because a shipped
 installation outlives the site it links to; `website/data/en/help.json` owns the destinations and
@@ -1040,4 +1075,4 @@ failed — each check carries a human-readable name beside its stable code. The 
 owned by [../../features/db/DB_INTEGRITY.md](../../features/db/DB_INTEGRITY.md). Earlier the same
 day: search index admin screen — `/admin/indices`, `api/searchIndices.ts`,
 the extracted `StatusChip`, and the note that a new admin screen gets its own file rather than
-growing `AdminArea.tsx`; §3, §5, §8.2 and §10 updated, counts recounted against the tree)_
+growing `AdminArea.tsx`; §3, §5, §8.2 and §10 updated, counts recounted against the tree))_

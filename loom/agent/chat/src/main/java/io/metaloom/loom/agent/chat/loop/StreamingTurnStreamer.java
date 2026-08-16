@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.LLMProvider;
 import io.metaloom.ai.genai.llm.StreamEvent;
+import io.metaloom.ai.genai.llm.TokenUsage;
 import io.metaloom.ai.genai.llm.ToolCall;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.subscribers.DisposableSubscriber;
@@ -49,6 +50,8 @@ public class StreamingTurnStreamer implements TurnStreamer {
 		StringBuilder reasoning = new StringBuilder();
 		List<ToolCall> toolCalls = new ArrayList<>();
 		AtomicReference<String> fullText = new AtomicReference<>();
+		// Carried by the terminal Completed event; stays NONE when the server reports no accounting.
+		AtomicReference<TokenUsage> usage = new AtomicReference<>(TokenUsage.NONE);
 
 		// An abort that arrived at a turn boundary must not open another upstream stream.
 		if (cancelled.get()) {
@@ -73,7 +76,10 @@ public class StreamingTurnStreamer implements TurnStreamer {
 					listener.onReasoningDelta(delta.text());
 				}
 				case StreamEvent.ToolCallsComplete calls -> toolCalls.addAll(calls.toolCalls());
-				case StreamEvent.Completed completed -> fullText.set(completed.fullText());
+				case StreamEvent.Completed completed -> {
+					fullText.set(completed.fullText());
+					usage.set(completed.usage());
+				}
 				}
 			}
 
@@ -107,7 +113,7 @@ public class StreamingTurnStreamer implements TurnStreamer {
 		}
 
 		String finalText = fullText.get() != null ? fullText.get() : text.toString();
-		return new TurnResult(finalText, reasoning.isEmpty() ? null : reasoning.toString(), toolCalls);
+		return new TurnResult(finalText, reasoning.isEmpty() ? null : reasoning.toString(), toolCalls, usage.get());
 	}
 
 	@Override

@@ -231,7 +231,9 @@
     },
     "queue": {
       "active": "Wird hochgeladen — {{done}} von {{total}} fertig ({{percent}}%)",
-      "idle": "{{count}} Datei(en) in dieser Sitzung"
+      "idle": "{{count}} Datei(en) in dieser Sitzung",
+      "search": "Warteschlange filtern",
+      "noMatch": "Keine Datei in der Warteschlange passt zu diesem Namen."
     },
     "totals": "{{uploaded}} hochgeladen · {{duplicates}} bereits bekannt · {{failed}} fehlgeschlagen · {{bytes}} gesamt",
     "empty": {
@@ -599,7 +601,9 @@
       "newChat": "Neuer Chat",
       "empty": "Noch keine Unterhaltungen",
       "untitled": "Unbenannt",
-      "toggle": "Unterhaltungsliste umschalten"
+      "toggle": "Unterhaltungsliste umschalten",
+      "search": "Chats durchsuchen",
+      "noMatch": "Kein Chat gefunden."
     },
     "panel": {
       "recentAssets": "Neueste Assets",
@@ -1037,7 +1041,8 @@
       "emptyTitle": "Keine Suchindizes",
       "emptyDescription": "Auf dieser Instanz ist kein Index-Backend konfiguriert.",
       "forbiddenTitle": "Nicht berechtigt",
-      "forbiddenDescription": "Zum Lesen der Suchindizes wird die Berechtigung READ_SEARCH_INDEX benötigt."
+      "forbiddenDescription": "Zum Lesen der Suchindizes wird die Berechtigung READ_SEARCH_INDEX benötigt.",
+      "search": "Indizes durchsuchen"
     },
     "dbIntegrity": {
       "title": "Datenbank-Integrität",
@@ -1083,7 +1088,8 @@
         "MANDATORY_FIELD": "Pflichtnamen, die leer geblieben sind, sowie personenbezogene Daten, die eine Löschung hätte entfernen sollen.",
         "VOCABULARY": "Textspalten mit einem Wert außerhalb der Menge, die die Software kennt.",
         "CARDINALITY": "Duplikate und Feldkombinationen, die ein Constraint hätte ausschließen sollen."
-      }
+      },
+      "search": "Prüfungen durchsuchen"
     },
     "storage": {
       "title": "Speichernutzung",
@@ -1128,7 +1134,8 @@
         "PERSON_IMAGE": "Personenbilder",
         "PERSON_AVATAR": "Personen-Avatare",
         "USER_AVATAR": "Kontobilder"
-      }
+      },
+      "search": "Pools durchsuchen"
     },
     "filter": {
       "allCreators": "Alle Ersteller"
@@ -2022,7 +2029,11 @@
       "delete": "Transkript löschen",
       "createError": "Transkript konnte nicht hinzugefügt werden",
       "updateError": "Transkript konnte nicht gespeichert werden",
-      "deleteError": "Transkript konnte nicht gelöscht werden"
+      "deleteError": "Transkript konnte nicht gelöscht werden",
+      "searchPlaceholder": "Im Transkript suchen",
+      "matchCount_one": "{{count}} Abschnitt",
+      "matchCount_other": "{{count}} Abschnitte",
+      "noMatch": "Kein Treffer"
     },
     "transcriptCreate": {
       "title": "Transkript hinzufügen",

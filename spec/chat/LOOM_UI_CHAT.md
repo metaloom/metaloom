@@ -13,7 +13,7 @@
 >
 > | Subsystem | Spec |
 > |---|---|
-> | Agent memory bank (`get/put/list/delete_memory`, scopes, denylist, materialization) | [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+> | Agent memory bank (`get/put/list/delete_memory`, scopes, denylist, materialization) | [CHAT_MEMORY.md](CHAT_MEMORY.md) |
 > | Chat sessions (capture, publish, context composition, session filesystem) | [CHAT_SESSIONS_CONCEPT.md](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
 > | Chat UI implementation tasks / coverage matrix | [TASK_UI_CHAT.md](TASK_UI_CHAT.md) |
 > | Backend implementation tasks | [CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md) |
@@ -44,7 +44,7 @@
 - [x] Tool advertisement filtered by the caller's permissions (`listDescriptorsFor`)
 - [x] References (chips) and `visuals` (inline pipeline graph) envelopes
 - [x] Auto title generation + auto session capture after the first exchange
-- [x] Agent memory bank wired into the system prompt and the tool set (see [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md))
+- [x] Agent memory bank wired into the system prompt and the tool set (see [CHAT_MEMORY.md](CHAT_MEMORY.md))
 - [x] Sandbox coding tools (`run_shell`, `read_file`, `write_file`, `list_files`) gated by `LOOM_AGENT_SANDBOX_ENABLED`
 - [x] Chat sessions REST (`/api/v1/chat-sessions`) + session filesystem (`/api/v1/sessions/:uuid/files|download|preview`)
 - [x] UI: streaming transcript, markdown, hidden reasoning, action rows, chips, skills panel, greeting, split workspace
@@ -88,7 +88,7 @@ Module layout — `loom/agent/` holds four modules; **only `chat` is specified h
 | Module | Contents |
 |---|---|
 | `loom/agent/chat` | the loop, the event protocol, `ChatStreamEndpoint`, `ChatSessionEndpoint`, `SessionFsEndpoint`, prompt/skill/ref builders. Promotes `genai-utils` to compile scope. |
-| `loom/agent/memory` | memory bank — see [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| `loom/agent/memory` | memory bank — see [CHAT_MEMORY.md](CHAT_MEMORY.md) |
 | `loom/agent/sandbox` | Session Runner orchestration + `CodingTools` |
 | `loom/agent/session-runner`, `loom/agent/deploy` | the container image and its deployment |
 
@@ -171,7 +171,7 @@ The model is offered, in this order (`AgentLoop.buildTools()`):
 |---|---|---|
 | Domain (MCP) | `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`, `list_pipelines`, `get_pipeline` | `loom/services/mcp/.../tool/impl` via `MCPToolModule` |
 | Pipeline authoring (MCP) | `list_node_descriptors`, `get_node_descriptor`, `pipeline_authoring_guide`, `validate_pipeline`, `create_pipeline`, `update_pipeline` | same module — see [../MCP.md §5.2a](../MCP.md). The two write tools need `CREATE/UPDATE_MCP_PIPELINE` on top of the base pipeline permission |
-| Memory (MCP) | `get_memory`, `put_memory`, `list_memory`, `delete_memory` | `loom/agent/memory/.../tool` via `MemoryToolModule` — details in [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| Memory (MCP) | `get_memory`, `put_memory`, `list_memory`, `delete_memory` | `loom/agent/memory/.../tool` via `MemoryToolModule` — details in [CHAT_MEMORY.md](CHAT_MEMORY.md) |
 | Coding | `run_shell`, `read_file`, `write_file`, `list_files` | `CodingTools` — advertised **only** when `LOOM_AGENT_SANDBOX_ENABLED=true`; executed in a per-chat Session Runner via `SandboxOrchestrator.dispatchCodingTool(chatUuid, …)`, *not* through the MCP registry |
 | Agent-local | `load_skill` | added whenever anything is disclosed — the built-in skills (§7) mean that is every run |
 
@@ -409,8 +409,8 @@ Listed here only so an agent knows they exist and where they live.
 |---|---|---|
 | Chat sessions | `GET|POST /api/v1/chat-sessions`, `GET|POST|DELETE /:uuid`, `POST /:uuid/publish|unpublish`, `GET|PUT /:uuid/context` — permissions `CREATE/READ/UPDATE/DELETE_CHAT_SESSION` | [CHAT_SESSIONS_CONCEPT.md](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
 | Session filesystem | `GET /api/v1/sessions/:uuid/files\|download\|preview?path=` (keyed by the **chat** uuid = sandbox session key, `READ_CHAT`; preview sets `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms` so agent-generated pages cannot act as a confused deputy). Depth comes from the `path` query param, not wildcard routing. | [CHAT_SESSIONS_CONCEPT.md §6](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
-| Memory bank | `/api/v1/memory*`, `/api/v1/memory-deny-rules*` | [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
-| Session Runner / sandbox | no public REST; `LOOM_AGENT_SANDBOX_*` | [CHAT_MEMORY_PLAN.md §4](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| Memory bank | `/api/v1/memory*`, `/api/v1/memory-deny-rules*` | [CHAT_MEMORY.md](CHAT_MEMORY.md) |
+| Session Runner / sandbox | no public REST; `LOOM_AGENT_SANDBOX_*` | [CHAT_MEMORY.md §4](CHAT_MEMORY.md) |
 
 `AgentLoop` touches two of them directly: after the first completed exchange it generates a
 title **and** a one-sentence description, then captures the chat as a `chat_session` with the

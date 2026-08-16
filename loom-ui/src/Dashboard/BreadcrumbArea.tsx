@@ -25,7 +25,6 @@ export default function BreadcrumbArea({
     [setBreadcrumb]
   );
 
-  console.log("Re-render");
   var entries = [];
   if (breadcrumb.length > 0) {
     if (breadcrumb.length >= 1) {

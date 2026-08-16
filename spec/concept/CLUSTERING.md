@@ -153,7 +153,7 @@ So a future clustering effort does not "fix" it twice:
 | **Run/task durability** | `DaoRunStateStore` persists items and settled tasks to `pipeline_run_item` / `pipeline_node_task`; recovery replays them. *Ownership* is the missing piece, not durability. |
 | **Cortex worker identity** | `cortex_instance` (V2.33) persists node id, restrictions and last-seen; leases live in `pipeline_node_task.leased_by`. |
 | **S3 asset pools** | `S3BinaryStorage` + `asset_pool` / `library.pool_uuid` (V2.63) — genuinely shared binaries for libraries that opt in. |
-| **Agent memory** | Postgres-backed on purpose; `LOOM_AGENT_MEMORY_MOUNT_PATH` is a path *inside the Session Runner container*, not server-local disk. [features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| **Agent memory** | Postgres-backed on purpose; `LOOM_AGENT_MEMORY_MOUNT_PATH` is a path *inside the Session Runner container*, not server-local disk. [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) |
 | **Lexical search** | Postgres `tsvector` maintained by DB triggers; no per-instance index by deliberate choice. [features/search/SEARCH.md](../features/search/SEARCH.md) §2 |
 | **OAuth2 / PKCE** | `OAuth2EndpointService` keeps the PKCE verifier and OAuth state in `__Host-` cookies, not a server-side map — no affinity needed. |
 | **Everything in Postgres** | assets, components, pipelines, RBAC, the dedup review model. [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
@@ -296,7 +296,7 @@ directory or a live run it does not own. The current silence is the real hazard.
 | S3 pools / the shared-binary story | [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md); `loom/services/s3`, migration `V2.63__library_storage_pool.sql` |
 | Clustered-EventBus TODOs | [loom/EVENTBUS.md](../loom/EVENTBUS.md); `loom/services/eventbus/README.md` |
 | MCP's local-only dispatch | [loom/MCP.md](../loom/MCP.md) |
-| The one subsystem designed replica-safe | [features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| The one subsystem designed replica-safe | [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) |
 | Run/task lease mechanics | [features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md); `PipelineNodeTaskDao` |
 | Every env var and its default | [loom/CONFIGURATION.md](../loom/CONFIGURATION.md) |
 | Cortex worker scaling (supported) | [features/helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md) |

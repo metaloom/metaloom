@@ -12,7 +12,7 @@ Covers the **Loom server** configuration system: `loom.yml`, the `Option` tree i
 | Binary storage backends, pools, S3 semantics | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5, §11 |
 | Search behaviour behind `search.*` | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
 | Similarity index behind `similarity.*` | [SEARCH_LUCENE.md](SEARCH_LUCENE.md) |
-| Chat agent / memory bank behaviour behind `ai.*`, `memory.*` | [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| Chat agent / memory bank behaviour behind `ai.*`, `memory.*` | [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) |
 | MCP auth behaviour behind `auth.mcpAuth*` | [MCP.md](MCP.md) |
 
 ---
@@ -616,7 +616,7 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) — chart values → env mapping
 - [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — `storage.*` and `s3.*` in context
 - [../features/search/SEARCH.md](../features/search/SEARCH.md), [SEARCH_LUCENE.md](SEARCH_LUCENE.md) — `search.*`, `similarity.*`
-- [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) — `ai.*`, `memory.*`, `sandbox.*`
+- [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) — `ai.*`, `memory.*`, `sandbox.*`
 - [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) — the separate Cortex configuration system
 - [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change
 

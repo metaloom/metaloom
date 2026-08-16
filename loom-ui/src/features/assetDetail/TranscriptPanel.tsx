@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Chip, IconButton, InputBase, Tooltip, Typography } from "@mui/material";
-import { ArrowUpwardOutlined, ArrowDownwardOutlined } from "@mui/icons-material";
+import { ArrowUpwardOutlined, ArrowDownwardOutlined, SearchOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { TranscriptSection } from "../../types";
 import { formatDuration } from "./helpers";
@@ -22,6 +22,31 @@ export function TranscriptPanel({
 
   // Local draft for the section title being edited; commits to onSectionsChange on blur.
   const [editingTitle, setEditingTitle] = useState<{ id: string; value: string } | null>(null);
+
+  /**
+   * Find-in-transcript.
+   *
+   * A transcript is the one place in the UI where "search" means jumping to a moment rather than
+   * narrowing a list, so this keeps every section on screen and marks the hits instead of hiding
+   * the misses — the timeline bar above has to stay proportional, and a filtered transcript would
+   * make the boundary arrows move things they no longer sit between.
+   */
+  const [query, setQuery] = useState("");
+  const term = query.trim().toLowerCase();
+  const matchedSections = useMemo(() => {
+    if (!term) return null;
+    const hit = new Set<string>();
+    for (const section of sections) {
+      if (section.title?.toLowerCase().includes(term)
+        || section.words.some(w => w.word.toLowerCase().includes(term))) {
+        hit.add(section.id);
+      }
+    }
+    return hit;
+  }, [sections, term]);
+
+  const matchCount = matchedSections?.size ?? 0;
+  const isMatch = (word: string) => Boolean(term) && word.toLowerCase().includes(term);
 
   const commitTitle = (idx: number, value: string) => {
     setEditingTitle(null);
@@ -46,6 +71,30 @@ export function TranscriptPanel({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0, overflow: "auto" }}>
+      {sections.length > 0 && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, px: 0.5 }}>
+          <InputBase
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={tAD("transcript.searchPlaceholder")}
+            inputProps={{ "data-testid": "transcript-search" }}
+            startAdornment={<SearchOutlined sx={{ fontSize: 15, color: tokens.text.tertiary, mr: 0.75 }} />}
+            sx={{
+              flex: 1, fontSize: "0.75rem", px: 1, py: 0.25,
+              bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm,
+            }}
+          />
+          {term && (
+            <Typography variant="caption" data-testid="transcript-search-count"
+              sx={{ fontSize: "0.68rem", color: matchCount ? tokens.text.secondary : tokens.accent.amber, whiteSpace: "nowrap" }}>
+              {matchCount
+                ? tAD("transcript.matchCount", { count: matchCount })
+                : tAD("transcript.noMatch")}
+            </Typography>
+          )}
+        </Box>
+      )}
+
       {/* Section timeline bar */}
       {sections.length > 0 && (() => {
         const total = sections[sections.length - 1].endTime;
@@ -103,11 +152,17 @@ export function TranscriptPanel({
 
             {/* Section block */}
             <Box
+              data-testid="transcript-section"
+              data-matched={matchedSections ? String(matchedSections.has(section.id)) : undefined}
               sx={{
                 p: 1.5, borderRadius: tokens.radius.md,
                 borderLeft: `3px solid ${color}`,
                 bgcolor: active ? `${color}11` : "transparent",
-                transition: "background-color 160ms ease",
+                // Dimmed rather than hidden: the boundary arrows above each block move a section
+                // relative to its neighbour, so removing one from the flow would have them
+                // adjusting a pair that is no longer adjacent.
+                opacity: matchedSections && !matchedSections.has(section.id) ? 0.35 : 1,
+                transition: "background-color 160ms ease, opacity 160ms ease",
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
@@ -134,17 +189,23 @@ export function TranscriptPanel({
               <Typography variant="body2" sx={{ fontSize: "0.8rem", color: tokens.text.secondary, lineHeight: 1.8 }}>
                 {section.words.map((w, wi) => {
                   const wordActive = currentTime >= w.startTime && currentTime <= w.endTime;
+                  const hit = isMatch(w.word);
                   return (
                     <Box
                       key={wi}
                       component="span"
+                      data-testid={hit ? "transcript-match" : undefined}
                       onClick={() => onSeek(w.startTime)}
                       sx={{
                         cursor: "pointer",
-                        bgcolor: wordActive ? `${tokens.primary.main}33` : "transparent",
-                        borderRadius: wordActive ? "2px" : 0,
-                        px: wordActive ? 0.25 : 0,
-                        fontWeight: wordActive ? 600 : 400,
+                        // Playhead wins over a search hit: which word is being spoken is the more
+                        // urgent of the two signals when both apply.
+                        bgcolor: wordActive
+                          ? `${tokens.primary.main}33`
+                          : hit ? `${tokens.accent.amber}44` : "transparent",
+                        borderRadius: wordActive || hit ? "2px" : 0,
+                        px: wordActive || hit ? 0.25 : 0,
+                        fontWeight: wordActive || hit ? 600 : 400,
                         color: wordActive ? tokens.primary.light : tokens.text.secondary,
                         transition: "all 80ms ease",
                         "&:hover": { bgcolor: `${tokens.primary.main}22`, borderRadius: "2px" },

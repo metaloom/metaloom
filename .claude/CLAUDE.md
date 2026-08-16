@@ -36,3 +36,13 @@ If you skip this:
 - After a Flyway change, the pooled databases will be stale/outdated relative to the new schema.
 
 Re-run `./setup-pool.sh` whenever schema/migrations change.
+
+# Ping
+
+* When you are completely finished with a task: play ping.mp3
+* Before you are about to ask a question (AskUserQuestion): play ping.mp3
+* The you printed the final summary for the implementation:  play ping.mp3
+
+```bash
+mpv /home/defaultuser/workspaces/metaloom/metaloom/.claude/ping.mp3
+```

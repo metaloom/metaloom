@@ -10,7 +10,7 @@
 > model) · [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md) (ad-hoc node runs) ·
 > [CHAT_USER_REQUESTS.md](../chat/CHAT_USER_REQUESTS.md) (88 worked prompts) ·
 > [CHAT_SESSIONS_CONCEPT.md](../chat/CHAT_SESSIONS_CONCEPT.md) (publishable sessions) ·
-> [CHAT_MEMORY_PLAN.md](../chat/CHAT_MEMORY_PLAN.md) (memory bank) ·
+> [CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) (memory bank) ·
 > [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) (UI counterpart)
 >
 > **Removed as implemented** (this file no longer carries their task text; the numbers stay retired
@@ -28,14 +28,17 @@
 
 ## Progress Assessment
 
-- [ ] **Defects:** CTX2, CTX3, SEC2, RD1, RD3 — see the table below
+- [ ] **Defects:** CTX2, CTX3, SEC2, RD1, RD3, MEM2 — see the table below
 - [ ] Context handling CTX1, CTX4–CTX8 — none started
 - [ ] Node execution follow-ups EXE4, EXE6, EXE7, EXE8 — none started
 - [ ] Retrieval and comprehension RD2, RD4, RD5, RD6 — none started
 - [ ] Loop primitives LP1–LP5 — none started
 - [ ] Acting on the catalog SEC1, ACT1, ACT2 — none started
 - [ ] Hygiene QW1–QW7 — none started
-- [ ] Sessions / skills / memory F4, F5, SES1, MEM1 — none started
+- [ ] Sessions / skills / memory F4, F5, SES1, MEM1–MEM3 — none started. MEM2 and MEM3 were added on
+      2026-08-16 by the implementation audit recorded in [CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) §8;
+      that audit confirmed the rest of the memory bank (schema, DAOs, the four MCP tools, prompt
+      block, REST + GraphQL, sandbox mount, denylist, UI, demo data, tests) is built and green.
 
 ## Open Defects
 
@@ -48,6 +51,7 @@ wrong result, not because they are improvements.
 | **CTX3** | `AgentLoop.executeToolCall` returns the untruncated tool result into the live history (only the persisted `resultSummary` is capped at 2048) | One large `search_assets`, `run_shell` or `load_skill` result overflows the window mid-run and fails the turn. Needs no history at all — it can happen on the first message of a new chat. `RunNodeProbeTool` and `GetJobTool` already carry `// TODO(CTX3)` markers and cap independently against `LOOM_AGENT_EXEC_RESULT_MAX_CHARS`. | High |
 | **RD1** | `SearchAssetsTool` declares `query` and `mimeType` and reads neither — it calls `assetDao.loadPage(null, limit, null, null, null)`. `SearchTranscriptTool` returns a hard-coded stub whose text tells the model it "will query the asset_doc_comp table" | Any search returns the first N assets in DAO order while the descriptor promises "Search for assets by filename, MIME type, tags, or any metadata". The model reports the wrong assets confidently and has no way to detect it. Neither tool has a unit test. | High |
 | **RD3** | `AssetStatisticsTool` loads 10 000 assets into memory, aggregates in Java, silently truncates at that cap and ignores its `collection` parameter | On a library larger than 10 000 assets every reported count is wrong with no truncation notice, and a scoped question is answered library-wide. | Medium |
+| **MEM2** | No migration and no demo role grants any `*_MEMORY` permission, and `PERMISSION_GROUPS` in `AdminArea.tsx` has no Memory group | With `LOOM_AGENT_MEMORY_ENABLED=true` the `/memory` view and all four MCP tools 403 for every user, and the admin area offers no way to fix it — the permission can only be granted through the REST role API. The demo seeds three memory notes and grants the Editor role (which the demo assistant runs as) nothing that can read them. The `admin.roles.permission.*_MEMORY` locale labels already exist and are dead. | Medium |
 | **SEC2** | `chat.messages` and `chat.meta` are client-writable through `POST /api/v1/chats/:uuid` | `ChatEndpointService` lines 79–80 copy `getMessages()`/`getMeta()` straight onto the row, so a caller can author a transcript the loop replays as genuine `assistantWithToolCalls` + `toolResult` pairs. Self-inflicted today; becomes cross-user injection once CTX7 injects a published session's history, and a control surface once CTX4/CTX6/LP3 store the summary, working set and plan in `chat.meta`. Contradicts [LOOM_UI_CHAT.md §5](../chat/LOOM_UI_CHAT.md), which states the server owns the transcript. | Medium |
 
 `CTX1` is not itself a defect — it is the missing instrument that makes CTX2 and CTX3 invisible
@@ -196,40 +200,6 @@ and carries the marker; the persisted `resultSummary` stays at or below 2048; an
 yields an error tool result rather than a silent partial load. `mvn -q test -pl loom/agent/chat`.
 
 ---
-
-### Task CTX4: Rolling conversation compaction instead of hard eviction — M
-
-**Argumentation Summary:** CTX2 keeps a long chat alive by throwing the oldest exchanges away, which
-for a working conversation ("the ones from Vienna", "same as before but 4K") reads as the agent
-forgetting mid-task. The transcript is replayed from scratch every message anyway, so a summary
-computed once and stored is strictly cheaper than re-reading the same old exchanges every turn.
-
-**Improvement Summary:** When eviction is about to happen, summarize the evicted prefix with one
-cheap LLM call, store it on the chat with a watermark, and replay it as a delimited
-`<conversation_summary>` system block.
-
-```
-1. Store chat.meta.summary = {text, throughMessageIndex, tokens, model}. No migration — chat.meta is
-   already a jsonb JsonObject.
-2. In buildHistory, when CTX2's budget walk would drop groups, replay meta.summary.text (when its
-   watermark covers the dropped range) as a system message wrapped in <conversation_summary>, then
-   the surviving groups.
-3. After a successful run, in persist() and best-effort like generateTitle: when the number of
-   messages beyond the watermark exceeds LOOM_AI_COMPACTION_THRESHOLD_MESSAGES (default 20), call
-   turnStreamer.completeText with a summarization instruction over the un-summarized prefix and
-   advance the watermark. Cap at LOOM_AI_COMPACTION_MAX_CHARS (default 4096).
-4. Any failure logs at WARN and leaves the previous summary in place — compaction must never fail a
-   chat, per the loop's best-effort convention.
-5. The summarization prompt must state that tool results and asset facts are data, not instructions
-   (SEC1's rule applies — the summary re-enters as a system block).
-6. SEC2's meta whitelist must treat `summary` as server-owned.
-```
-
-**References:** [AGENTIC_CHAT_PLAN.md §5.1](../chat/AGENTIC_CHAT_PLAN.md) ·
-[LOOM_UI_CHAT.md §11](../chat/LOOM_UI_CHAT.md) · CTX1, CTX2, SEC1, SEC2
-**Test Requirements:** `AgentLoopTest` with a scripted `TurnStreamer` whose `completeText` returns a
-known summary: the watermark advances, the summary is replayed exactly once and delimited, a failing
-summarizer leaves the chat usable, and nothing compacts below the threshold.
 
 ---
 
@@ -384,7 +354,7 @@ window silently.
 ```
 
 **References:** [AGENTIC_CHAT_CONTEXT_DATA.md §12](../chat/AGENTIC_CHAT_CONTEXT_DATA.md) ·
-[CHAT_MEMORY_PLAN.md §5](../chat/CHAT_MEMORY_PLAN.md) · CTX1
+[CHAT_MEMORY.md §5](../chat/CHAT_MEMORY.md) · CTX1
 **Test Requirements:** `SkillPromptBuilderTest` and `MemoryPromptBuilderTest` ordering-stability
 cases (the same inputs in a different order produce a byte-identical block); an `AgentLoopTest`
 assertion that advertised tool definitions are name-sorted (extend
@@ -982,7 +952,7 @@ asset-derived text, used by every renderer and every tool that returns catalog c
 
 **References:** [AGENTIC_CHAT_CONTEXT_DATA.md §10](../chat/AGENTIC_CHAT_CONTEXT_DATA.md) ·
 [AGENTIC_CHAT_PLAN.md §8, §12](../chat/AGENTIC_CHAT_PLAN.md) ·
-[CHAT_MEMORY_PLAN.md §6](../chat/CHAT_MEMORY_PLAN.md) (the precedent) · RD2, RD5, CTX4, CTX7
+[CHAT_MEMORY.md §6](../chat/CHAT_MEMORY.md) (the precedent) · RD2, RD5, CTX4, CTX7
 **Test Requirements:** Unit tests for wrapping, stripping and capping (mirror `MemoryHeaderTest`). An
 `AgentLoopTest` case flowing the hostile fixture through `describe_asset` and asserting it does not
 change tool selection.
@@ -1240,7 +1210,7 @@ and add the missing reference types on the backend side.
 
 **References:** [LOOM_UI_CHAT.md §6, §6.1](../chat/LOOM_UI_CHAT.md) ·
 [AGENTIC_CHAT_PLAN.md §5.2](../chat/AGENTIC_CHAT_PLAN.md) ·
-[CHAT_MEMORY_PLAN.md §8](../chat/CHAT_MEMORY_PLAN.md) ·
+[CHAT_MEMORY.md §8](../chat/CHAT_MEMORY.md) ·
 [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) · EXE7, RD1, RD2
 **Test Requirements:** `VisualExtractorTest` cases for the new type incl. the byte cap;
 `ReferenceExtractorTest` for the new reference types; a tool test asserting the text result is
@@ -1263,8 +1233,12 @@ contradictions.
 
 ```
 1. Sweep spec/ for ../features/chat/ and loom/ui/CHAT.md and repoint them at spec/chat/. Verify with
-   a link checker over the whole spec/ tree, not by eye.
-2. Rename CHAT_MEMORY_PLAN.md -> CHAT_MEMORY.md (the feature shipped) and update every referrer.
+   a link checker over the whole spec/ tree, not by eye. PARTLY DONE 2026-08-16: every referrer of
+   the memory doc was repointed, and METALOOM_CONTEXT.md's stale features/chat/ tree block was
+   folded into chat/ + tasks/. The loom/ui/CHAT.md half and the rest of the tree are untouched.
+2. DONE 2026-08-16 — CHAT_MEMORY_PLAN.md is now spec/chat/CHAT_MEMORY.md, and its own outbound
+   links (which all assumed spec/features/chat/, i.e. one directory level too deep) were repaired
+   in the same pass.
 3. Settle LOOM_UI_CHAT.md's own R10: it is ~80% server-side and already lives in spec/chat/, so R10's
    "move it to spec/features/chat/CHAT.md" is stale. Either rename it to spec/chat/CHAT.md or delete
    R10 — do not leave the contradiction. Same for the METALOOM_CONTEXT.md restructuring checklist
@@ -1280,7 +1254,7 @@ contradictions.
 
 **References:** [SPEC_RULES.md](../guidelines/SPEC_RULES.md) ·
 [METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md) · [LOOM_UI_CHAT.md R10](../chat/LOOM_UI_CHAT.md) ·
-[CHAT_MEMORY_PLAN.md §8](../chat/CHAT_MEMORY_PLAN.md)
+[CHAT_MEMORY.md §8](../chat/CHAT_MEMORY.md)
 **Test Requirements:** None automated today. If a spec link checker exists in CI it must pass; if not,
 adding one is the better version of this task.
 
@@ -1426,7 +1400,7 @@ asset-pool storage for the tarball, and a snapshot trigger on publish and on rea
 ```
 
 **References:** [CHAT_SESSIONS_CONCEPT.md §6, §8, §9](../chat/CHAT_SESSIONS_CONCEPT.md) ·
-[CHAT_MEMORY_PLAN.md §4](../chat/CHAT_MEMORY_PLAN.md) (the runner) · CTX7, QW3
+[CHAT_MEMORY.md §4](../chat/CHAT_MEMORY.md) (the runner) · CTX7, QW3
 **Test Requirements:** A guard case per failure mode (traversal, absolute path, over-size, too many
 entries) added to the existing `loom/agent/session-runner/test_runnerd.py` — a restore that escapes
 the workspace must fail loudly. A `ChatSessionDaoTest` case for the
@@ -1459,15 +1433,108 @@ and make deletion a tombstone — shared scopes first.
    loom-ui/src/features/skills/SkillManagementView.tsx (see loom-ui/e2e/skills-version-mocked.spec.ts
    for the e2e pattern).
 5. The remaining memory follow-ups (sha256 delta sync, denylist rule caching, per-scope ACLs,
-   group-scope identity, the sandbox integration test) stay listed in CHAT_MEMORY_PLAN.md §8 — do
-   not duplicate them here.
+   group-scope identity, memory metrics, the sandbox integration test) stay listed in
+   CHAT_MEMORY.md §8 — do not duplicate them here. MEM2 and MEM3 are carved out because they are
+   not follow-ups: MEM2 is a live defect and MEM3 is a CODING.md obligation.
 ```
 
-**References:** [CHAT_MEMORY_PLAN.md §8](../chat/CHAT_MEMORY_PLAN.md) ·
-`V2.37__add_skill_version.sql` · F4 (the same versioning shape)
+**References:** [CHAT_MEMORY.md §8](../chat/CHAT_MEMORY.md) ·
+`V2.37__add_skill_version.sql` · F4 (the same versioning shape) · MEM2 (grant the permissions this
+task's new routes will also need)
 **Test Requirements:** `MemoryEntryDaoTest` version-append, ordering and delete-cascade cases;
 `MemoryServiceTest` for tombstone semantics; `MemoryEndpointTest` for the version routes using the
 group + role permission pattern. `./setup-pool.sh` after the migration.
+
+---
+
+### Task MEM2: Nobody can be granted `*_MEMORY` — S — DEFECT
+
+**Argumentation Summary:** The memory bank ships behind `LOOM_AGENT_MEMORY_ENABLED`, but even with
+the switch on nobody can use it. `V2.53__add_agent_memory.sql` and `V2.54__add_memory_deny_rule.sql`
+add the eight enum values and stop there — no migration grants them to a role, and
+`DemoDatabaseInitializer` grants neither the Editor nor the Viewer role any `*_MEMORY` permission,
+though it *does* seed three admin-scope demo notes (`house-style.md`, `conventions/tagging.md`,
+`projects/q3-campaign.md`) that no demo role can read. `PERMISSION_GROUPS` in
+`loom-ui/src/features/admin/AdminArea.tsx` has no Memory group either, so the admin area cannot hand
+the permission out — the `admin.roles.permission.{CREATE,READ,UPDATE,DELETE}_MEMORY` and
+`*_MEMORY_DENY_RULE` labels already exist in `en.json`/`de.json` and are dead strings. Net effect on
+a fresh instance: `/memory` and all four MCP tools 403 for every user except one seeded by hand
+through the REST role API, and the demo assistant — which runs as the Editor role — cannot use the
+memory tools it advertises. `Permission.java` marks all eight `ui:no`, which is why this passed
+review: `ui:no` is meant for machine-only permissions like `*_ASSET_BINARY`, not for a user-facing
+screen. The likely cause is the "never reference a `loom_permission` value in the migration that adds
+it" rule (CHAT_MEMORY.md §9) — the follow-up migration that was supposed to do the seeding never
+landed.
+
+**Improvement Summary:** Make the memory permissions grantable from the admin area and seeded where a
+chat user already exists.
+
+```
+1. loom-ui: add to PERMISSION_GROUPS in loom-ui/src/features/admin/AdminArea.tsx —
+   Memory: ["CREATE_MEMORY", "READ_MEMORY", "DELETE_MEMORY", "UPDATE_MEMORY"] and
+   "Memory Denylist": ["CREATE_MEMORY_DENY_RULE", "READ_MEMORY_DENY_RULE",
+   "DELETE_MEMORY_DENY_RULE", "UPDATE_MEMORY_DENY_RULE"]. The locale labels already exist; check
+   both en.json and de.json for the group headings themselves.
+2. Flip the eight ui:no markers to ui:yes in
+   loom/db/api/.../db/model/perm/Permission.java — the marker is documentation of the same fact.
+3. DemoDatabaseInitializer: grant CREATE/READ/UPDATE/DELETE_MEMORY to the Editor role (it is the
+   role the demo assistant runs as, and the demo already seeds notes it must be able to read) and
+   READ_MEMORY to the Viewer role. Leave *_MEMORY_DENY_RULE admin-only — it is instance policy.
+4. Decide whether existing installs get a seed migration: a new migration that grants the four
+   *_MEMORY values to every role that already holds READ_CHAT is the smallest correct rule. It must
+   NOT be folded into V2.53/V2.54 — those add the enum values, and PostgreSQL forbids using a value
+   added by ALTER TYPE ... ADD VALUE in the same transaction. Then ./setup-pool.sh and
+   loom/db/jooq/generate.sh.
+5. Re-check the assumption in CHAT_MEMORY.md §4 ("*_MEMORY is held by every chat user") — it becomes
+   true only after this task; update the ⚠️ note there when it lands.
+```
+
+**References:** [CHAT_MEMORY.md §4, §8, §9](../chat/CHAT_MEMORY.md) ·
+[PERMISSIONS.md](../features/permissions/PERMISSIONS.md) · `V2.53__add_agent_memory.sql` ·
+`V2.54__add_memory_deny_rule.sql` · MEM1 (its version routes need the same grants)
+**Test Requirements:** A `PermissionDaoTest`/`DemoDatabaseInitializer` assertion that the demo Editor
+role holds the four `*_MEMORY` values, so the demo's own memory notes are reachable by the role the
+assistant runs as. A mocked Playwright case in `loom-ui/e2e/` asserting the Memory group renders in
+the role editor's permission matrix. `loom-ui/e2e/memory-backend.spec.ts` should then pass as a
+non-admin user, which is the real proof.
+
+---
+
+### Task MEM3: The memory REST surface has no client — S
+
+**Argumentation Summary:** [CODING.md](../guidelines/CODING.md) asks every REST route to reach both
+clients. The five memory routes (`/api/v1/memory`, `/memory/scopes`, `/memory/entry`,
+`/memory-deny-rules`, `/memory-deny-rules/:uuid`) are in the generated
+`loom/doc/src/main/generated/openapi.{json,yaml}`, but `loom-client` has no memory methods at all,
+and `clients/python` carries only four deny-rule models (`loom_client/models/memory.py`) with no
+entry models and no `methods/` module — `clients/python/tests/test_parity.py` names memory in its
+explicit exclusion list, so the parity guard cannot see the gap. Practical cost: nothing outside the
+browser can seed or audit a memory bank, which is exactly what a migration or a bulk import of an
+existing note collection needs, and MEM1's version/restore routes would inherit the same hole.
+
+**Improvement Summary:** Add memory methods to the Java client, mirror them in the Python client, and
+delete memory from the parity exclusion list.
+
+```
+1. loom-client: add a MemoryMethods interface (list scopes, list entries, load/create/update/delete
+   entry — the note id travels as the `id` query parameter, never in the path) and a
+   MemoryDenyRuleMethods interface, following the shape of the existing SkillMethods /
+   DbIntegrityMethods. Note that update on memory-deny-rules is POST, not PUT.
+2. Mirror both in clients/python/loom_client/methods/, and add the memory entry models to
+   loom_client/models/memory.py alongside the four deny-rule models already there.
+3. Remove "memory" from the exclusion comment and list in clients/python/tests/test_parity.py so the
+   parity guard covers it from then on.
+4. Regenerate the OpenAPI from inside loom/doc (the route set does not change; the regen is the
+   check that it did not).
+```
+
+**References:** [CHAT_MEMORY.md §8](../chat/CHAT_MEMORY.md) ·
+[CODING.md](../guidelines/CODING.md) · `clients/python/tests/test_parity.py` · MEM1 (its version
+routes must be added to the same clients) · QW7 (the loom-ui client modules, a different gap in the
+same surface)
+**Test Requirements:** `clients/python/tests/test_parity.py` green with memory no longer excluded; a
+Java client test exercising the memory routes against the endpoint test harness, following the
+existing client tests' pattern.
 
 ---
 
@@ -1569,9 +1636,10 @@ via `npx`, which hangs in this repo.
 | Ad-hoc node execution | [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md), `loom/services/rest/.../service/impl/NodeRunService.java` |
 | Chat UI, chips, visuals | `loom-ui/src/features/chat/`, `loom-ui/src/api/agent.ts`, `loom-ui/src/types/index.ts` |
 | Chat session capture / publishing / context refs | [CHAT_SESSIONS_CONCEPT.md](../chat/CHAT_SESSIONS_CONCEPT.md), `loom-ui/src/features/chatSessions/` |
-| Agent memory bank | [CHAT_MEMORY_PLAN.md](../chat/CHAT_MEMORY_PLAN.md), `loom/agent/memory/` |
+| Agent memory bank | [CHAT_MEMORY.md](../chat/CHAT_MEMORY.md), `loom/agent/memory/` |
 | What users will actually ask | [CHAT_USER_REQUESTS.md](../chat/CHAT_USER_REQUESTS.md) |
 | UI-side task list | [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) |
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `10f5df46`_
+_Last updated: 2026-08-16 (memory-bank implementation audit: added MEM2 and MEM3, marked QW6 step 2
+done, repointed the CHAT_MEMORY.md references)_

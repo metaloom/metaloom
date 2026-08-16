@@ -23,7 +23,7 @@ public class BlockingTurnStreamer implements TurnStreamer {
 		if (text != null && !text.isBlank()) {
 			listener.onTextDelta(text);
 		}
-		return new TurnResult(text, null, response.toolCalls());
+		return new TurnResult(text, null, response.toolCalls(), response.usage());
 	}
 
 	@Override

@@ -1170,6 +1170,7 @@ function ApiKeysAdmin() {
         onChange={e => setQuery(e.target.value)}
         placeholder={t("admin.apiKeys.search")}
         size="small"
+        data-testid="admin-api-keys-search"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
         InputProps={{
@@ -1524,6 +1525,7 @@ function MemoryDenylistAdmin() {
         onChange={e => setQuery(e.target.value)}
         placeholder={t("admin.memoryDenylist.search", "Search rules")}
         size="small"
+        data-testid="admin-memory-denylist-search"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
         InputProps={{

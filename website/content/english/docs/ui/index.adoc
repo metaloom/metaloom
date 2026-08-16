@@ -267,6 +267,14 @@ The same toolbar appears on collections, tags, libraries, asset pools, tasks, sk
 and the administration tables, with the filters each screen can usefully offer — tasks add *Status*
 and *Priority*, users add *Enabled*, skills add *Enabled* and, in the shared library, *Created by*.
 
+Every screen that lists things has a search box, including the ones you might not think to look on:
+the chat rail on the home screen, the upload queue, the node pickers in the pipeline editor, and the
+storage, index and integrity pages under *Administration*.
+
+TIP: A video or audio transcript has its own *Find in transcript* box. It highlights every match and
+dims the sections without one, rather than hiding them — the section timeline stays intact so you
+can still see where in the recording you are.
+
 [TIP]
 ====
 Typing in the search box switches the asset browser over to full-text search, which ranks results by

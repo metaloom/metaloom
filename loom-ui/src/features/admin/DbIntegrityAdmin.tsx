@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert, Box, Button, Collapse, IconButton, LinearProgress, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  InputAdornment,
 } from "@mui/material";
 import {
-  ExpandLessOutlined, ExpandMoreOutlined, LockOutlined, RefreshOutlined,
+  ExpandLessOutlined, ExpandMoreOutlined, LockOutlined, RefreshOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import StatusChip, { type Tone } from "../../components/StatusChip";
@@ -65,6 +66,7 @@ export default function DbIntegrityAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -99,9 +101,16 @@ export default function DbIntegrityAdmin() {
 
   const visible = useMemo(() => {
     if (!report) return [];
-    if (filter === "all") return report.results;
-    return report.results.filter(r => checkStatus(r) !== "PASSED");
-  }, [report, filter]);
+    const byFilter = filter === "all" ? report.results : report.results.filter(r => checkStatus(r) !== "PASSED");
+    // Fourteen checks across five categories, and the one you are chasing is named in a ticket.
+    // Matches the code as well as the name, because a ticket usually carries the code.
+    const q = query.trim().toLowerCase();
+    if (!q) return byFilter;
+    return byFilter.filter(r =>
+      (r.check.name ?? "").toLowerCase().includes(q)
+      || (r.check.code ?? "").toLowerCase().includes(q)
+      || (r.check.description ?? "").toLowerCase().includes(q));
+  }, [report, filter, query]);
 
   const grouped = useMemo(() => groupByCategory(visible), [visible]);
 
@@ -195,6 +204,21 @@ export default function DbIntegrityAdmin() {
               })}
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
+            <TextField
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={t("admin.dbIntegrity.search")}
+              size="small"
+              data-testid="db-integrity-search"
+              sx={{ maxWidth: 240 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
             <ToggleButtonGroup
               size="small"
               exclusive

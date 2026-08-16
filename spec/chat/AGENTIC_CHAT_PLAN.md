@@ -10,7 +10,7 @@
 > | Subsystem | Spec |
 > |---|---|
 > | Agentic loop, SSE protocol, skills, chat UI contract | [LOOM_UI_CHAT.md](LOOM_UI_CHAT.md) |
-> | Agent memory bank | [CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+> | Agent memory bank | [CHAT_MEMORY.md](CHAT_MEMORY.md) |
 > | Chat sessions, context composition, session filesystem | [CHAT_SESSIONS_CONCEPT.md](../features/chat/CHAT_SESSIONS_CONCEPT.md) |
 > | MCP tool surface and result envelopes | [MCP.md](../loom/MCP.md) |
 > | Worked user prompts and per-prompt gap assessment | [CHAT_USER_REQUESTS.md](CHAT_USER_REQUESTS.md) |
@@ -230,7 +230,7 @@ Closing this is a prerequisite for every "make me a…" prompt. The design alrea
 |---|---|
 | **No asset visual** | `visuals` supports exactly one type, `pipeline-graph`. Adding `asset-grid` / `asset-card` / `image` is explicitly a no-protocol-change extension ([LOOM_UI_CHAT.md §6](LOOM_UI_CHAT.md)) — do this early, it changes how the feature *feels* more than anything else on this page |
 | **Chips are thumbnail-less** | `RefChip` renders `asset · collection · task · pipeline · annotation` as an icon + label. An asset chip should carry its thumbnail |
-| **`memory` chips are inert** | The memory tools emit `type: "memory"` references; `RefType` has no such member, so they render unstyled and do nothing ([CHAT_MEMORY_PLAN.md §8](../features/chat/CHAT_MEMORY_PLAN.md)) |
+| **`memory` chips are inert** | The memory tools emit `type: "memory"` references; `RefType` has no such member, so they render unstyled and do nothing ([CHAT_MEMORY.md §8](CHAT_MEMORY.md)) |
 | **`comment` chips are documented but absent** | Spec lists `comment` in the chip set; the code's `RefType` union does not have it |
 | **No progress surface for long work** | An `ActionRow` is running-or-done. A pipeline run needs percent, item counts and a cancel button — §7 |
 | **No confirm/approve control** | The counterpart to the loop gap above |
@@ -437,7 +437,7 @@ Two injection surfaces are new and worth stating plainly:
    comments are attacker-controllable in any real deployment. The moment the agent reads them, an
    asset can carry instructions. Every rendered dossier section must be delimited and labelled as
    data — the same rule shared memory already follows
-   ([CHAT_MEMORY_PLAN.md §6](../features/chat/CHAT_MEMORY_PLAN.md)), applied to a much larger corpus.
+   ([CHAT_MEMORY.md §6](CHAT_MEMORY.md)), applied to a much larger corpus.
 2. **Produced assets re-enter the catalog.** An agent-generated image that gets ingested is
    processed, described, indexed and can be retrieved by the next agent run. Provenance columns are
    what keeps that from becoming a laundering loop; see

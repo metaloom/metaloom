@@ -5,16 +5,18 @@
 > the agent harness next to **context**, **sessions** and **skills**.
 >
 > **Status: shipped.** Phases 0–4 are implemented and tested; what remains is listed in §8. This file
-> is kept as the feature reference — the historical phase-by-phase plan has been collapsed into the
-> "Already implemented" table in §2. Legend: ✅ implemented · 🟡 partial · ⬜ open.
+> is the feature reference — the historical phase-by-phase plan has been collapsed into the
+> "Already implemented" table in §2. It was renamed from `CHAT_MEMORY_PLAN.md` on 2026-08-16 when the
+> plan/reference split stopped making sense.
 >
 > Related documents:
-> - [CHAT.md](../../loom/ui/CHAT.md) — chat / agentic loop (context, skills, streaming).
+> - [LOOM_UI_CHAT.md](LOOM_UI_CHAT.md) — chat / agentic loop (context, skills, streaming).
 > - [CHAT_SESSIONS_CONCEPT.md](CHAT_SESSIONS_CONCEPT.md) — sessions, publishing, context composition.
-> - [CHAT_TASKS.md](CHAT_TASKS.md) — backend implementation tasks for the chat feature.
-> - [MCP.md](../../loom/MCP.md) — the MCP tool surface and transports this feature extends.
-> - [PERMISSIONS.md](../permissions/PERMISSIONS.md) · [DOMAIN.md](../../loom/DOMAIN.md) ·
->   [PERSISTENCE.md](../../loom/PERSISTENCE.md) · [SPEC_RULES.md](../../guidelines/SPEC_RULES.md).
+> - [CHAT_TASKS.md](../tasks/CHAT_TASKS.md) — backend implementation tasks for the chat feature
+>   (MEM1–MEM3 are the memory ones).
+> - [MCP.md](../loom/MCP.md) — the MCP tool surface and transports this feature extends.
+> - [PERMISSIONS.md](../features/permissions/PERMISSIONS.md) · [DOMAIN.md](../loom/DOMAIN.md) ·
+>   [PERSISTENCE.md](../loom/PERSISTENCE.md) · [SPEC_RULES.md](../guidelines/SPEC_RULES.md).
 
 ---
 
@@ -74,7 +76,8 @@ graph TB
 
 ## 2. Already implemented
 
-Everything below is in the tree at this revision. Use it as the map from concept → code.
+Everything below was re-verified against the tree at `10f5df46` (2026-08-16). Use it as the map from
+concept → code.
 
 | Item | Where it lives |
 |---|---|
@@ -82,7 +85,7 @@ Everything below is in the tree at this revision. Use it as the map from concept
 | `GroupDao.loadGroupsForUser(UUID)` | `loom/db/api/.../db/model/group/GroupDao.java` + jOOQ impl |
 | Schema: `memory_scope` **enum type**, `memory_entry` table, `chat.space_uuid`, `*_MEMORY` permissions | `loom/db/flyway/src/main/resources/db/migration/V2.53__add_agent_memory.sql` |
 | Schema: `memory_deny_rule` table + `*_MEMORY_DENY_RULE` permissions | `.../db/migration/V2.54__add_memory_deny_rule.sql` |
-| DAO layer | `loom/db/api/.../db/model/memory/{MemoryEntry,MemoryEntryDao,MemoryScope,MemoryDenyRule,MemoryDenyRuleDao}.java`; jOOQ impls in `loom/db/jooq/.../dao/memory/`; `DaoProvider.memoryEntryDao()` / `memoryDenyRuleDao()` |
+| DAO layer | `loom/db/api/.../db/model/memory/{MemoryEntry,MemoryEntryDao,MemoryDenyRule,MemoryDenyRuleDao}.java` (the `MemoryScope` enum lives in `loom-shared/api`, see §11); jOOQ impls in `loom/db/jooq/.../dao/memory/`; `DaoProvider.memoryEntryDao()` / `memoryDenyRuleDao()` |
 | Module + Dagger wiring | `loom/agent/memory/` (artifact `loom-agent-memory`), `dagger/MemoryModule.java` (endpoints + provision listeners), `dagger/MemoryToolModule.java` (MCP tools) |
 | Id validation / normalization | `MemoryId.java` — lowercase+NFC, `≤200` chars, per-segment `^[a-z0-9][a-z0-9._-]{0,63}$`, no `..`/`//`/backslash/control/non-ASCII, `.md` suffix, depth ≤ `MAX_DEPTH` |
 | Rendered frontmatter (never stored, always derived from columns) | `MemoryHeader.java` — hand-rolled, **no YAML dependency**; `stripFrontmatter` discards model-supplied `---` blocks |
@@ -92,13 +95,15 @@ Everything below is in the tree at this revision. Use it as the map from concept
 | System-prompt `<memory>` block (index only, `memory.md` inlined for user scope only) | `prompt/MemoryPromptBuilder.java`, composed by `loom/agent/chat/.../prompt/SystemPromptBuilder.java`, called from `AgentLoop.buildHistory()` |
 | Per-run write budget | `AgentLoop.memoryWriteBudgetExhausted(...)` |
 | Read-only `/memory` folder | `SandboxSpec.java` (`MEMORY_STAGE_PATH = /var/lib/loom-memory`), `PodmanBackend` (named volume, `:rw,Z` + `:ro,Z`), `KubernetesBackend` (one `emptyDir`, two volumeMounts, `/memory` `readOnly: true`), `runnerd.py` `POST /memory_sync` + `_safe_memory_path`, `SandboxClient.memorySync`, `SandboxOrchestrator.refreshMemory`, `sandbox/MemoryMaterializer.java` |
-| Shared scopes (`group`, `space`) incl. `<memory_content>` delimiting and the two shared-scope switches | `MemoryScopeResolver`, `GetMemoryTool`, `MemoryOptions` |
+| Shared scopes (`group`, `space`) incl. `<memory_content>` delimiting and the two shared-scope switches | `MemoryScopeResolver`, `GetMemoryTool`, `MemoryService.renderForModel`, `MemoryOptions` |
 | Denylist enforcement | `MemoryDenylist.java` (called from `MemoryService.put()` after stripping/sanitizing) |
 | REST: `/api/v1/memory` (`/scopes`, `/entry`) | `rest/MemoryEndpoint.java`, `rest/MemoryEndpointService.java` |
 | REST: `/api/v1/memory-deny-rules` (+ `/:uuid`) | `rest/MemoryDenyRuleEndpoint.java`, `rest/MemoryDenyRuleEndpointService.java` |
+| OpenAPI | all five routes are in the generated `loom/doc/src/main/generated/openapi.{json,yaml}` |
 | GraphQL surface | `loom/services/graphql/.../MemoryWiring.java` (registered in `LoomGraphQLProvider`) |
-| UI | `loom-ui/src/api/memory.ts`, `loom-ui/src/api/memoryDenylist.ts`, `loom-ui/src/features/memory/MemoryView.tsx`, `MemoryDenylistAdmin` inside `loom-ui/src/features/admin/AdminArea.tsx`, nav entries in `loom-ui/src/layout/Sidebar.tsx` |
-| Demo data | `DemoDatabaseInitializer.createMemoryDenyRule(...)` seeds two rules (project codenames, `AKIA[0-9A-Z]{16}`) |
+| DB integrity checks | `DanglingMemoryEntryScopeCheck` (`DANGLING_MEMORY_ENTRY_SCOPE`) and the `memory_entry.scope` vocabulary check (`VOCABULARY_MEMORY_ENTRY_SCOPE`) in `loom/db/jooq/.../integrity/` — the compensation for the FK-less `scope_uuid` (§9) |
+| UI | `loom-ui/src/api/memory.ts`, `loom-ui/src/api/memoryDenylist.ts`, `loom-ui/src/features/memory/MemoryView.tsx`, `MemoryDenylistAdmin` inside `loom-ui/src/features/admin/AdminArea.tsx`, nav entries in `loom-ui/src/layout/Sidebar.tsx`, `memory.*` / `admin.memoryDenylist.*` keys in both locales |
+| Demo data | `DemoDatabaseInitializer` seeds two deny rules (project codenames, `AKIA[0-9A-Z]{16}`) **and** three user-scope notes for the admin (`house-style.md`, `conventions/tagging.md`, `projects/q3-campaign.md`) |
 | Customer-facing docs | `website/content/english/docs/loom/chat/index.adoc` (memory section + `memory-keeper` example skill) |
 
 ### 2.1 Deviations from the original plan
@@ -114,6 +119,11 @@ Everything below is in the tree at this revision. Use it as the map from concept
 - **The denylist shipped as an admin-managed table**, not a hard-coded regex list (§4) — rules are
   editable without a deploy and each carries its own rejection message.
 - **A GraphQL surface was added** on top of the planned REST surface (`MemoryWiring`).
+- **The shared scopes are addressed by one `ref` argument**, not by separate `group` / `space`
+  arguments (§3.1). One parameter that means "which group or space, by name" keeps the descriptor
+  small and makes `scope` the only thing that decides *which* namespace is written.
+- **`MemoryScope` lives in `loom-shared/api`** (`io.metaloom.loom.api.memory`), not in the DB model
+  package — the REST/GraphQL layers and the tools need it without depending on `loom/db/api`.
 
 ---
 
@@ -126,10 +136,14 @@ them and they are only reachable through the 4-arg `dispatch`.
 
 | Tool | Parameters | Permission |
 |---|---|---|
-| `list_memory` | `scope` (`user\|group\|space\|all`, default `all`), `prefix`, `limit` (50) | `READ_MEMORY` |
-| `get_memory` | `id`\*, `scope` (default `user`), `group`/`space`, `includeHeader` | `READ_MEMORY` |
-| `put_memory` | `id`\*, `content`\* (body only), `scope`, `group`/`space`, `title` | `UPDATE_MEMORY` |
-| `delete_memory` | `id`\*, `scope`, `group`/`space` | `DELETE_MEMORY` |
+| `list_memory` | `scope` (`user\|group\|space\|all`, default `all`), `ref`, `prefix`, `limit` (50) | `READ_MEMORY` |
+| `get_memory` | `id`\*, `scope` (default `user`), `ref`, `includeHeader` | `READ_MEMORY` |
+| `put_memory` | `id`\*, `content`\* (body only), `scope`, `ref`, `title` | `UPDATE_MEMORY` |
+| `delete_memory` | `id`\*, `scope`, `ref` | `DELETE_MEMORY` |
+
+`ref` names the group or space **by label** and is only consulted when the caller has more than one
+of them; it is ignored for the `user` scope. It is a filter over the server-resolved set, never an
+identifier the model can invent (§6.3). Only `list_memory` accepts `scope=all`.
 
 Create and update collapse onto `UPDATE_MEMORY` because `MCPToolRegistry` checks permissions at the
 **descriptor** level and cannot vary them per call; `CREATE_MEMORY` gates only the REST create route.
@@ -139,6 +153,9 @@ Create and update collapse onto `UPDATE_MEMORY` because `MCPToolRegistry` checks
 body bytes ≤ `maxEntryBytes` · entries per scope ≤ `maxEntriesPerScope` (`stats().count()`) · total
 bytes per scope ≤ `maxScopeBytes` (`stats().bytes()`, an overwrite credits back the old `size`) · id
 depth ≤ `maxDepth` (`MemoryId`) · writes per agent run ≤ `maxWritesPerRun` (`AgentLoop`).
+
+`AgentLoop.loadMemory()` treats memory as an enhancement, never a precondition: any failure resolving
+scopes or loading the index logs a WARN and the run continues with no memory context at all.
 
 ### 3.3 Session name (denormalized on the row, resolved fresh on every put)
 
@@ -180,8 +197,13 @@ cache. That is one extra query per `put_memory`, acceptable at current write vol
 first thing to look at if memory writes get hot. `loadEnabled()` orders by name so that when several
 rules match, the rejection is deterministic.
 
-Permissions are deliberately separate from note permissions: `*_MEMORY` is held by every chat user,
-while `*_MEMORY_DENY_RULE` is instance policy and belongs in the admin area.
+Permissions are deliberately separate from note permissions: `*_MEMORY` is meant to be held by every
+chat user, while `*_MEMORY_DENY_RULE` is instance policy and belongs in the admin area.
+
+⚠️ **The intent is not the shipped default.** No migration or demo role grants `*_MEMORY` to anybody,
+and `PERMISSION_GROUPS` in `AdminArea.tsx` carries no Memory group, so on a fresh instance nobody has
+the permission and there is no screen to hand it out. Tracked as **MEM2** in
+[CHAT_TASKS.md](../tasks/CHAT_TASKS.md).
 
 ---
 
@@ -205,6 +227,9 @@ All under `MemoryOptions` (`loom-shared/api/.../api/options/MemoryOptions.java`)
 | `LOOM_AGENT_MEMORY_SHARED_SCOPES_ENABLED` | `true` | Allow `group` / `space` scopes at all |
 | `LOOM_AGENT_MEMORY_SHARED_WRITE_ENABLED` | `true` | Allow the *agent* to write shared scopes (off ⇒ shared memory is agent-read-only, human-curated via REST/UI) |
 
+`MemoryOptions.validate()` rejects a non-positive `maxScopeBytes` and a non-absolute `mountPath` at
+boot rather than at first write.
+
 Container-side: `RUNNER_MEMORY_STAGE` is set by the backend **only** when memory is enabled; without
 it `runnerd` answers `404` on `/memory_sync`. It is deliberately **not** baked into the Containerfile.
 
@@ -224,8 +249,8 @@ it `runnerd` answers `404` on `/memory_sync`. It is deliberately **not** baked i
    deliberately **not** extended, so `write_file`/`read_file`/`list_files` stay workspace-only.
 3. **Spoofing** — the only channel the model controls is `arguments`, and nothing there participates
    in authorization: `userUuid` comes from the request, `groupUuids` from `GroupDao`, `spaceUuid`
-   from the `chat` row. `scope`/`group`/`space` are filters over the server-resolved set; an
-   unmatched value returns one identical message, so it is not an existence oracle.
+   from the `chat` row. `scope` and `ref` are filters over the server-resolved set; an unmatched
+   value returns one identical message, so it is not an existence oracle.
 4. **Cross-tenant leakage** — every DAO query is keyed by `(scope, scope_uuid)`; REST returns **404**
    (not 403) for invisible scopes, mirroring `loadOwnedChat`.
 5. **Read-only enforcement** is kernel-level via the double-mounted volume; `runnerd` is unprivileged
@@ -238,52 +263,64 @@ it `runnerd` answers `404` on `/memory_sync`. It is deliberately **not** baked i
 
 ## 7. Test setup
 
-**Prerequisite** (per [.claude/CLAUDE.md](../../../.claude/CLAUDE.md)): `./setup-pool.sh`, then
+**Prerequisite** (per [.claude/CLAUDE.md](../../.claude/CLAUDE.md)): `./setup-pool.sh`, then
 `loom/db/jooq/generate.sh`, after any Flyway change — otherwise the pooled test databases are stale
 and the suite fails confusingly.
 
 | Layer | Test |
 |---|---|
 | DAO | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/MemoryEntryDaoTest.java`, `MemoryDenyRuleDaoTest.java` |
-| Unit | `loom/agent/memory/src/test/java/…` — `MemoryIdTest`, `MemoryHeaderTest`, `MemoryServiceTest`, `MemoryDenylistTest`, `MemoryScopeResolverTest`, `prompt/MemoryPromptBuilderTest`, `sandbox/MemoryMaterializerTest` (+ `TestMemoryEntry` fixture) |
+| Unit | `loom/agent/memory/src/test/java/…` — `MemoryIdTest`, `MemoryHeaderTest`, `MemoryServiceTest`, `MemoryDenylistTest`, `MemoryScopeResolverTest`, `prompt/MemoryPromptBuilderTest`, `sandbox/MemoryMaterializerTest` (+ `TestMemoryEntry` fixture). Verified green on 2026-08-16 (`mvn -pl loom/agent/memory test`, no DB needed) |
 | MCP identity | `loom/services/mcp/src/test/java/io/metaloom/loom/mcp/tool/MCPToolIdentityTest.java` |
 | Loop | `AgentLoopTest` — `<memory>` block presence, `MCPCallerContext` capture, write-budget exhaustion |
 | Endpoint | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/MemoryEndpointTest.java`, `MemoryDenyRuleEndpointTest.java` |
 | GraphQL | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/MemoryGraphQLTest.java` |
-| Runner daemon | `loom/agent/session-runner/test_runnerd.py` — `/memory_sync` write, prune and path-escape cases |
+| Runner daemon | `loom/agent/session-runner/test_runnerd.py` — `/memory_sync` write, prune, path-escape, the workspace-guard-cannot-reach-the-stage case and the "no stage env ⇒ off" case |
 | UI (mocked) | `loom-ui/e2e/memory-mocked.spec.ts` — scope tabs, empty vs no-match, read-only scope, create/edit/**rename**/delete verbs and query params, the 409 path, and the 404 state when the feature is off · `loom-ui/e2e/memory-denylist-mocked.spec.ts` — rule CRUD over `memory-deny-rules`, POST-not-PUT updates, the enable toggle, and the inline invalid-regex error |
 | UI (backend) | `loom-ui/e2e/memory-backend.spec.ts` — note lifecycle against a real server, and the one test that proves the denylist is load-bearing: a rule is created, a matching write is refused **400** with the rule's own message (which does not echo the match), the title is checked as well as the body, nothing is left behind, and disabling the rule lets the same write through. Needs `LOOM_AGENT_MEMORY_ENABLED=true` — the demo container image sets it. |
 
 ⚠️ Endpoint tests must grant `*_MEMORY` via the **group + role** pattern used by `SkillEndpointTest`;
 direct user grants are limited to one permission per user.
 
-**Not covered** (see §8): a podman sandbox integration test asserting `EROFS` on `/memory`, and a
-Java e2e (`e2e-test/`) spec for cross-chat recall — one chat stores a fact, a second recalls it.
-The memory screens themselves are covered by the Playwright specs above.
+**Not covered** (see §8): a podman sandbox integration test asserting `EROFS` on `/memory`, a Java
+e2e (`e2e-test/`) spec for cross-chat recall, and the `loom-ui/src/api/memory*.ts` client modules
+have no vitest suites (CHAT_TASKS QW7). The memory screens themselves are covered by the Playwright
+specs above.
 
 ---
 
 ## 8. Progress Assessment
 
 Phases 0–4 (identity plumbing · schema/DAO/tools · read-only folder · shared scopes · REST+UI) are
-complete — see §2 for the code map. Open work:
+complete — see §2 for the code map, re-verified at `10f5df46`. Open work, in the order it hurts:
 
 - [ ] **`memory_entry_version` for shared scopes.** The sharpest remaining gap: an agent that
       "tidies up" a `group`/`space` note destroys another person's work with no history. Keep it
       additive exactly as `skill_version` was bolted onto `skill` in
-      [V2.37](../../../loom/db/flyway/src/main/resources/db/migration/V2.37__add_skill_version.sql) —
+      [V2.37](../../loom/db/flyway/src/main/resources/db/migration/V2.37__add_skill_version.sql) —
       `memory_entry.version` already increments per write, and `body` is a `text` column, so
       `memory_entry_version(memory_uuid, version_number, title, body, meta, created, creator_uuid)`
       is a straight copy of the `skill_version` shape. `delete_memory` then becomes a tombstone.
       `user` scope can wait; do `group`/`space` first, where writer ≠ owner.
-- [ ] **`sha256`-based delta sync.** `memory_entry.sha256` is computed and stored
-      (`MemoryService.sha256(MemoryHeader.renderFile(...))`) but never read: `MemoryMaterializer`
-      still posts the whole tree on every write. Pure optimization, bounded today by the per-scope
-      quotas.
+      → CHAT_TASKS **MEM1**.
+- [ ] **Nobody can be granted `*_MEMORY`.** No migration or demo role grants any of the four
+      `*_MEMORY` permissions, and `PERMISSION_GROUPS` in `loom-ui/src/features/admin/AdminArea.tsx`
+      has no Memory group — even though the `admin.roles.permission.*_MEMORY` labels already exist in
+      both locales. On a fresh instance the `/memory` view and all four tools 403 for every non-seeded
+      role, including the demo Editor the demo assistant runs as. → CHAT_TASKS **MEM2**.
 - [ ] **Memory chips in the chat timeline.** The tools already emit `references` of type `memory`,
       but `RefChip` in `loom-ui/src/features/chat/ChatWorkspace.tsx` has no `memory` entry in its
       `RefType` union, `iconMap`, `colorMap` or `handleClick`, so the chips render unstyled and are
       inert. Needs a branch that navigates to `/memory` (or previews the note).
+      → TASK_UI_CHAT Task 1 / CHAT_TASKS QW5.
+- [ ] **No client coverage for the memory REST surface.** `loom-client` has no memory methods at all,
+      and `clients/python` carries only the four deny-rule models — no entry models and no methods —
+      with `test_parity.py` explicitly excluding memory. The five routes are in the generated OpenAPI,
+      so only the clients are behind. → CHAT_TASKS **MEM3**.
+- [ ] **`sha256`-based delta sync.** `memory_entry.sha256` is computed and stored
+      (`MemoryService.sha256(MemoryHeader.renderFile(...))`) but never read: `MemoryMaterializer`
+      still posts the whole tree on every write. Pure optimization, bounded today by the per-scope
+      quotas.
 - [ ] **Sandbox integration test** — provision a runner with memory enabled, assert
       `cat /memory/user/x.md` shows rendered frontmatter, `echo > /memory/…` returns
       `Read-only file system`, put→cat reflects the change and delete→cat prunes it.
@@ -291,16 +328,15 @@ complete — see §2 for the code map. Open work:
       (the `/memory` view listing and editing a note) is done: `loom-ui/e2e/memory-mocked.spec.ts`
       and `memory-backend.spec.ts` (§7); what is still missing is the cross-chat recall path.
 - [ ] **Denylist rule caching** — `MemoryDenylist.check()` re-reads `loadEnabled()` per call (§4).
+- [ ] **No memory metrics.** [METRICS.md](../features/ops/METRICS.md) has no `loom_memory_*` family,
+      so writes, denials and quota rejections are invisible to monitoring. Low priority, but it is the
+      only way an operator would notice the denylist firing.
 - [ ] **Per-scope ACLs.** One flat permission set cannot express "read shared, don't write shared":
       `UPDATE_MEMORY` grants write to every visible scope and `SHARED_WRITE_ENABLED` is a
       deployment-wide sledgehammer. Needs a join table; revisit once shared scopes see real use.
 - [ ] **Group scope has no natural identity.** A user in five groups gets a five-way
       `/memory/group/*` tree and a noisy `list_memory`. Consider a single primary group, or making
       it opt-in per chat (`chat.memory_group_uuid` alongside `space_uuid`).
-
-**Rename note:** the feature has shipped, so the `_PLAN` suffix is now misleading. Rename this file
-to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
-[CHAT.md](../../loom/ui/CHAT.md) and [CHAT_TASKS.md](CHAT_TASKS.md) in the same change.
 
 ---
 
@@ -310,12 +346,13 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
   `memory_deny_rule` are tables.
 - **`memory_entry.scope_uuid` has no foreign key** — it points at `user`, `group` or `project`
   depending on `scope`. Integrity is service-layer; orphans (deleted group/space) are simply never
-  resolvable by `MemoryScopeResolver` rather than dangling. Only `creator_uuid`, `editor_uuid` and
-  `chat_uuid` are FK'd.
+  resolvable by `MemoryScopeResolver` rather than dangling, and `DanglingMemoryEntryScopeCheck`
+  reports them in the DB integrity run. Only `creator_uuid`, `editor_uuid` and `chat_uuid` are FK'd.
 - **`MemoryDenylist.check()` hits the DB on every call** — no cache (§4).
 - **Never reference a `loom_permission` value in the migration that adds it** — PostgreSQL forbids
   using a value added by `ALTER TYPE … ADD VALUE` in the same transaction. V2.53/V2.54 both carry the
-  reminder comment.
+  reminder comment. This is *why* neither migration seeds a grant — the follow-up migration that was
+  supposed to do it never landed (§8, MEM2).
 - **Always `./setup-pool.sh` after a Flyway change**, then `loom/db/jooq/generate.sh`.
 - **Keep the jsonb column named `meta`.** The jOOQ `forcedTypes` include-expression in
   `loom/db/jooq/pom.xml` is `.*\.meta.*`, so `memory_entry.meta` gets `JsonObjectConverter` for free.
@@ -333,13 +370,17 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 - **`MCPToolDescriptor.toJson()` must stay byte-identical** now that `requiresIdentity` exists;
   external MCP clients parse it.
 - **Foreign resources return 404, not 403.** Apply it to invisible memory scopes.
-- **A memory seed failure must never fail sandbox provisioning** — log WARN and continue.
+- **A memory seed failure must never fail sandbox provisioning** — log WARN and continue. Same rule
+  inside the loop: `AgentLoop.loadMemory()` degrades to "no memory" rather than failing the run.
 - **`SandboxOrchestrator` must not depend on the memory module** — the `SandboxProvisionListener`
   interface with a no-op Dagger default keeps the direction right.
 - **Nested memory ids go in a query parameter**, not the route path (the `SessionFsEndpoint ?path=`
   precedent) — arbitrary depth without wildcard routing.
 - **`memory.md`, not `MEMORY.md`.** `MemoryId` lowercases and rejects uppercase, so the inlined note
   id is lowercase.
+- **Adding a permission is four edits, not one** — the enum, the migration, the hand-written
+  `JooqLoomPermission`, and `PERMISSION_GROUPS` + the locale labels if it is meant to be grantable
+  from the admin area. The memory permissions stopped after the first three (§8, MEM2).
 
 ---
 
@@ -347,24 +388,25 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 
 | Concept | Path |
 |---|---|
-| Memory module root | [loom/agent/memory/](../../../loom/agent/memory/) |
-| Service, quotas, denylist call, refresh | [MemoryService.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryService.java) |
-| Id validation (the traversal gate) | [MemoryId.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryId.java) |
-| Frontmatter render/strip | [MemoryHeader.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryHeader.java) |
-| Denylist matching + bounded regex | [MemoryDenylist.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryDenylist.java) |
-| The four MCP tools | [tool/](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/) |
-| Tool registration (returns `Set.of()` when disabled) | [MemoryToolModule.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/dagger/MemoryToolModule.java) |
-| `<memory>` prompt block | [MemoryPromptBuilder.java](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/prompt/MemoryPromptBuilder.java), [SystemPromptBuilder.java](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/prompt/SystemPromptBuilder.java) |
-| REST endpoints | [rest/](../../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/rest/) |
-| GraphQL wiring | [MemoryWiring.java](../../../loom/services/graphql/src/main/java/io/metaloom/loom/graphql/MemoryWiring.java) |
-| Migrations | [V2.53__add_agent_memory.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.53__add_agent_memory.sql), [V2.54__add_memory_deny_rule.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.54__add_memory_deny_rule.sql) |
-| Container mounts | [PodmanBackend.java](../../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/PodmanBackend.java), [KubernetesBackend.java](../../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/KubernetesBackend.java), [SandboxSpec.java](../../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/SandboxSpec.java) |
-| Runner daemon `/memory_sync` | [runnerd.py](../../../loom/agent/session-runner/runnerd.py) |
-| Options / env vars | [MemoryOptions.java](../../../loom-shared/api/src/main/java/io/metaloom/loom/api/options/MemoryOptions.java) |
-| MCP identity plumbing | [MCPToolRegistry.java](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java), [MCPTool.java](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPTool.java) |
-| UI | [MemoryView.tsx](../../../loom-ui/src/features/memory/MemoryView.tsx), [memory.ts](../../../loom-ui/src/api/memory.ts), [memoryDenylist.ts](../../../loom-ui/src/api/memoryDenylist.ts), `MemoryDenylistAdmin` in [AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) |
-| Demo deny rules | [DemoDatabaseInitializer.java](../../../loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java) |
-| Customer-facing docs | [website/…/docs/loom/chat/index.adoc](../../../website/content/english/docs/loom/chat/index.adoc) |
+| Memory module root | [loom/agent/memory/](../../loom/agent/memory/) |
+| Service, quotas, denylist call, refresh | [MemoryService.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryService.java) |
+| Id validation (the traversal gate) | [MemoryId.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryId.java) |
+| Frontmatter render/strip | [MemoryHeader.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryHeader.java) |
+| Denylist matching + bounded regex | [MemoryDenylist.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryDenylist.java) |
+| The four MCP tools | [tool/](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/) |
+| Tool registration (returns `Set.of()` when disabled) | [MemoryToolModule.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/dagger/MemoryToolModule.java) |
+| `<memory>` prompt block | [MemoryPromptBuilder.java](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/prompt/MemoryPromptBuilder.java), [SystemPromptBuilder.java](../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/prompt/SystemPromptBuilder.java) |
+| REST endpoints | [rest/](../../loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/rest/) |
+| GraphQL wiring | [MemoryWiring.java](../../loom/services/graphql/src/main/java/io/metaloom/loom/graphql/MemoryWiring.java) |
+| Migrations | [V2.53__add_agent_memory.sql](../../loom/db/flyway/src/main/resources/db/migration/V2.53__add_agent_memory.sql), [V2.54__add_memory_deny_rule.sql](../../loom/db/flyway/src/main/resources/db/migration/V2.54__add_memory_deny_rule.sql) |
+| DB integrity check | [DanglingMemoryEntryScopeCheck.java](../../loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/integrity/check/DanglingMemoryEntryScopeCheck.java) |
+| Container mounts | [PodmanBackend.java](../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/PodmanBackend.java), [KubernetesBackend.java](../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/KubernetesBackend.java), [SandboxSpec.java](../../loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/SandboxSpec.java) |
+| Runner daemon `/memory_sync` | [runnerd.py](../../loom/agent/session-runner/runnerd.py) |
+| Options / env vars | [MemoryOptions.java](../../loom-shared/api/src/main/java/io/metaloom/loom/api/options/MemoryOptions.java) |
+| MCP identity plumbing | [MCPToolRegistry.java](../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java), [MCPTool.java](../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPTool.java) |
+| UI | [MemoryView.tsx](../../loom-ui/src/features/memory/MemoryView.tsx), [memory.ts](../../loom-ui/src/api/memory.ts), [memoryDenylist.ts](../../loom-ui/src/api/memoryDenylist.ts), `MemoryDenylistAdmin` in [AdminArea.tsx](../../loom-ui/src/features/admin/AdminArea.tsx) |
+| Demo deny rules + demo notes | [DemoDatabaseInitializer.java](../../loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java) |
+| Customer-facing docs | [website/…/docs/loom/chat/index.adoc](../../website/content/english/docs/loom/chat/index.adoc) |
 
 ---
 
@@ -372,7 +414,8 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 
 | Class | Package | Purpose |
 |---|---|---|
-| `MemoryEntry` / `MemoryEntryDao` / `MemoryScope` | `io.metaloom.loom.db.model.memory` | Model + DAO for `memory_entry` |
+| `MemoryScope` | `io.metaloom.loom.api.memory` (`loom-shared/api`) | The `user`/`group`/`space` enum — shared by DB, REST and the tools |
+| `MemoryEntry` / `MemoryEntryDao` | `io.metaloom.loom.db.model.memory` | Model + DAO for `memory_entry` |
 | `MemoryDenyRule` / `MemoryDenyRuleDao` | `io.metaloom.loom.db.model.memory` | Model + DAO for `memory_deny_rule` (`loadEnabled()` ordered by name) |
 | `MemoryEntryImpl` / `MemoryEntryDaoImpl` | `io.metaloom.loom.db.jooq.dao.memory` | jOOQ implementations |
 | `MemoryId` | `io.metaloom.loom.agent.memory` | Parse/validate/normalize a memory id — the traversal gate |
@@ -391,6 +434,7 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 | `MemoryModule` / `MemoryToolModule` | `io.metaloom.loom.agent.memory.dagger` | Endpoint + provision-listener bindings; MCP tool contribution |
 | `MemoryOptions` | `io.metaloom.loom.api.options` | `LOOM_AGENT_MEMORY_*` configuration |
 | `MemoryWiring` | `io.metaloom.loom.graphql` | GraphQL surface |
+| `DanglingMemoryEntryScopeCheck` | `io.metaloom.loom.db.jooq.integrity.check` | Reports `scope_uuid` values that resolve to nothing |
 | `MCPCallerContext` | `io.metaloom.loom.mcp.model` | Server-resolved caller identity for identity tools |
 | `SandboxSpec` / `SandboxProvisionListener` | `io.metaloom.loom.agent.sandbox.backend` / `…sandbox` | Mount spec; the hook keeping the orchestrator memory-agnostic |
 | `MCPToolRegistry` *(existing)* | `io.metaloom.loom.mcp.tool` | 4-arg dispatch + local invocation path for identity tools |
@@ -398,5 +442,6 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 | `AgentLoop` *(existing)* | `io.metaloom.loom.agent.chat.loop` | Builds the caller context, injects the index, enforces the write budget |
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `10f5df46`_
+_Last updated: 2026-08-16 (implementation audit; renamed from `CHAT_MEMORY_PLAN.md`; §2/§3.1/§11
+corrected against the code; relative links repaired; MEM2 and MEM3 added to §8)_

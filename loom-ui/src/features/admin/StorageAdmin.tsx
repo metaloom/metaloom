@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert, Box, Button, LinearProgress, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Tooltip, Typography,
+  Alert, Box, Button, InputAdornment, LinearProgress, Paper, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
 } from "@mui/material";
-import { LockOutlined, RefreshOutlined } from "@mui/icons-material";
+import { LockOutlined, RefreshOutlined, SearchOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import StatusChip from "../../components/StatusChip";
 import EmptyState from "../../components/EmptyState";
@@ -67,6 +67,7 @@ export default function StorageAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -95,6 +96,12 @@ export default function StorageAdmin() {
   }, [load]);
 
   const backends = useMemo(() => (report ? sortBackends(report.backends) : []), [report]);
+  const visibleBackends = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return backends;
+    return backends.filter(b =>
+      (b.poolName ?? "").toLowerCase().includes(q) || (b.kind ?? "").toLowerCase().includes(q));
+  }, [backends, query]);
   const categories = useMemo(() => (report ? sortCategories(report.categories) : []), [report]);
   // Not the sum of the per-category savings: sharing between categories is invisible to those, and
   // an install whose duplicates are all cross-category would report "0 B saved" beside two byte
@@ -184,11 +191,31 @@ export default function StorageAdmin() {
           </Paper>
 
           <Paper elevation={0} sx={cardSx} data-testid="storage-backends">
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-              {t("admin.storage.backendsTitle")}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5, flexWrap: "wrap" }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                {t("admin.storage.backendsTitle")}
+              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              {/* One card per configured pool. A single-pool deployment does not need this, but a
+                  fleet with a pool per site does, and the rule is uniform (LOOM_UI.md §7.5.1). */}
+              <TextField
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder={t("admin.storage.search")}
+                size="small"
+                data-testid="storage-search"
+                sx={{ maxWidth: 220 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.5 }}>
-              {backends.map(backend => (
+              {visibleBackends.map(backend => (
                 <Box
                   key={backend.poolUuid ?? "default"}
                   data-testid={`storage-backend-${backend.poolUuid ?? "default"}`}

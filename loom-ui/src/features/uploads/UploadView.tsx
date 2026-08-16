@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, Typography, Paper, Button, IconButton, Tooltip, Chip, LinearProgress,
-  MenuItem, Select, FormControl, InputLabel, TextField, Divider,
+  MenuItem, Select, FormControl, InputLabel, TextField, Divider, InputAdornment,
 } from "@mui/material";
 import {
   CloudUploadOutlined, CloseOutlined, ReplayOutlined, CheckCircleOutlined,
   ErrorOutlineOutlined, ContentCopyOutlined, BlockOutlined, FolderOutlined,
-  CloudOutlined, DeleteSweepOutlined,
+  CloudOutlined, DeleteSweepOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
@@ -196,6 +196,16 @@ export default function UploadView() {
   };
 
   const hasItems = summary.items.length > 0;
+  const [queueQuery, setQueueQuery] = useState("");
+
+  // A drag-and-drop of a folder can queue hundreds of files, and the row you care about is the one
+  // that failed. The queue is held whole in memory by the upload context, so filtering it here is
+  // filtering all of it — there is no page this can be wrong about.
+  const visibleItems = useMemo(() => {
+    const q = queueQuery.trim().toLowerCase();
+    if (!q) return summary.items;
+    return summary.items.filter(item => item.fileName.toLowerCase().includes(q));
+  }, [summary.items, queueQuery]);
   const canUpload = Boolean(libraryUuid);
 
   return (
@@ -327,6 +337,22 @@ export default function UploadView() {
                 : t("uploads.queue.idle", { count: summary.items.length })}
             </Typography>
 
+            <TextField
+              value={queueQuery}
+              onChange={e => setQueueQuery(e.target.value)}
+              placeholder={t("uploads.queue.search")}
+              size="small"
+              data-testid="uploads-search"
+              sx={{ maxWidth: 240 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
             {summary.errorCount > 0 && (
               <Button size="small" startIcon={<ReplayOutlined sx={{ fontSize: 15 }} />} onClick={retryFailed} data-testid="upload-retry-failed"
                 sx={{ textTransform: "none", fontSize: "0.76rem" }}>
@@ -354,7 +380,16 @@ export default function UploadView() {
           )}
           <Divider />
 
-          {summary.items.map((item) => <UploadRow key={item.id} item={item} />)}
+          {visibleItems.map((item) => <UploadRow key={item.id} item={item} />)}
+
+          {/* The queue is not empty, this filter just matched nothing — an inline hint, never the
+              EmptyState (LOOM_UI.md §7.5). */}
+          {visibleItems.length === 0 && (
+            <Typography data-testid="uploads-no-match"
+              sx={{ px: 2, py: 3, textAlign: "center", fontSize: "0.78rem", color: tokens.text.tertiary }}>
+              {t("uploads.queue.noMatch")}
+            </Typography>
+          )}
 
           <Box sx={{ display: "flex", gap: 2, px: 2, py: 1.25, borderTop: `1px solid ${tokens.border.subtle}` }}>
             <Typography sx={{ fontSize: "0.72rem", color: tokens.text.tertiary }} data-testid="upload-totals">

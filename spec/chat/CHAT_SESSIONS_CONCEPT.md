@@ -7,7 +7,7 @@
 > code that ships.
 >
 > **Context:** [CHAT.md](../../loom/ui/CHAT.md) (agentic loop, streaming, skills) ·
-> [CHAT_MEMORY_PLAN.md](CHAT_MEMORY_PLAN.md) (agent memory bank) ·
+> [CHAT_MEMORY.md](CHAT_MEMORY.md) (agent memory bank) ·
 > [CHAT_TASKS.md](CHAT_TASKS.md) (backend task record) ·
 > [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md) (UI task record)
 

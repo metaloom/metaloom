@@ -110,25 +110,29 @@ the editor's run detail.
 ## Task 5: Delete the unreachable legacy `src/` trees
 
 **Argumentation Summary:** `loom-ui/index.html` mounts `src/main.tsx`, and `main.tsx` →
-`AppShell.tsx` routes only `src/features/*`. The pre-feature tree is still on disk and reachable
-only from the dead entry point `src/index.js`: `src/Pipeline/` (`PipelineArea.tsx` +
-`flow-style.css`, with its own duplicate `subscribePipelineEvents` usage), plus `src/Admin/`,
-`src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/User/`, `src/Welcome/`, `src/Login/`. It is
-dead code that looks maintained: it drifts from the shipped editor and misleads contributors and
-agents searching for the pipeline canvas.
+`AppShell.tsx` routes only `src/features/*`. The pre-feature tree is still on disk: `src/Pipeline/`
+(`PipelineArea.tsx` + `flow-style.css`, with its own duplicate `subscribePipelineEvents` usage),
+plus `src/Admin/`, `src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/User/`, `src/Welcome/` and
+`src/Theme.tsx`. It is dead code that looks maintained: it drifts from the shipped editor and
+misleads contributors and agents searching for the pipeline canvas.
 
-**Improvement Summary:** Confirm unreachability and delete the legacy trees together with
-`src/index.js`.
+`src/Login/` and the dead entry point `src/index.js` that routed to it are **already deleted** —
+`Login.tsx` was an MUI template whose submit handler did nothing but
+`console.log({ email, password })`, so it was pulled out ahead of this task
+([LOOM_UI_TASKS.md](../../tasks/LOOM_UI_TASKS.md) Task 15). Nothing references the remaining
+directories at all now.
+
+**Improvement Summary:** Confirm unreachability and delete the remaining legacy trees.
 
 ```
-- Verify with `rg -n "Pipeline/PipelineArea|src/index.js" loom-ui/src loom-ui/index.html
-  loom-ui/vite.config.*` that nothing but src/index.js references them.
+- Verify with `rg -n "Pipeline/PipelineArea|Dashboard/Dashboard|Welcome/WelcomePage" loom-ui/src
+  loom-ui/index.html loom-ui/vite.config.*` that nothing references them.
 - Diff PipelineArea.tsx against features/pipeline/PipelineEditor.tsx for unique behaviour
   (PIPELINE_EDITOR.md §2/§3 is the reference); port anything real first — expect nothing.
-- Delete src/index.js, src/Pipeline/, src/Admin/, src/Asset/, src/Content/, src/Dashboard/,
-  src/User/, src/Welcome/, src/Login/ and any helper left with no importer.
-- Keep src/mock/ for now: MonitoringArea and WorkflowView still import from it
-  (TASK_UI_SYSTEM.md Task 2, TASK_UI_AI_ML.md).
+- Delete src/Pipeline/, src/Admin/, src/Asset/, src/Content/, src/Dashboard/, src/User/,
+  src/Welcome/, src/Theme.tsx and any helper left with no importer.
+- Drop the "Dead capitalised directories" row from LOOM_UI.md §11.2 and the dead-code callout
+  under §3 in the same change, rather than leaving them describing files that no longer exist.
 ```
 
 **References:** [main.tsx](../../../loom-ui/src/main.tsx) · [AppShell.tsx](../../../loom-ui/src/layout/AppShell.tsx) ·
@@ -159,5 +163,7 @@ agents searching for the pipeline canvas.
 | Live run/node state on the canvas | `subscribePipelineEvents` → active-node + last-result painting; `e2e/pipeline-events-mocked.spec.ts` |
 | Cortex instance list, restrictions and forget | [CortexView.tsx](../../../loom-ui/src/features/cortex/CortexView.tsx); `e2e/cortex-mocked.spec.ts` |
 | Pipeline-run KPI + chart from the stats endpoint | `loadPipelineRunStats` + [runMetrics.ts](../../../loom-ui/src/features/monitoring/runMetrics.ts) (`runMetrics.test.ts`) |
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `10f5df46`_
+_Last updated: 2026-08-16 (Task 5 narrowed: `src/Login/` and `src/index.js` are already deleted,
+and the stale "Keep `src/mock/` for now" step is gone — `src/mock/` no longer exists. Earlier:
+2026-08-06 (reference sweep — no content changes))_

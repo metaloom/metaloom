@@ -231,7 +231,9 @@
     },
     "queue": {
       "active": "Uploading — {{done}} of {{total}} done ({{percent}}%)",
-      "idle": "{{count}} file(s) in this session"
+      "idle": "{{count}} file(s) in this session",
+      "search": "Filter queued files",
+      "noMatch": "No queued file matches that name."
     },
     "totals": "{{uploaded}} uploaded · {{duplicates}} already known · {{failed}} failed · {{bytes}} total",
     "empty": {
@@ -608,7 +610,9 @@
       "newChat": "New chat",
       "empty": "No conversations yet",
       "untitled": "Untitled",
-      "toggle": "Toggle conversation list"
+      "toggle": "Toggle conversation list",
+      "search": "Search chats",
+      "noMatch": "No chat matches."
     },
     "panel": {
       "recentAssets": "Recent Assets",
@@ -1046,7 +1050,8 @@
       "emptyTitle": "No search indices",
       "emptyDescription": "No index backend is configured on this instance.",
       "forbiddenTitle": "Not permitted",
-      "forbiddenDescription": "Reading the search indices needs the READ_SEARCH_INDEX permission."
+      "forbiddenDescription": "Reading the search indices needs the READ_SEARCH_INDEX permission.",
+      "search": "Search indices"
     },
     "dbIntegrity": {
       "title": "Database integrity",
@@ -1092,7 +1097,8 @@
         "MANDATORY_FIELD": "Required names left blank, and personal data a deletion should have cleared.",
         "VOCABULARY": "Text columns holding a value outside the set the software recognises.",
         "CARDINALITY": "Duplicates, and combinations of fields a constraint should have ruled out."
-      }
+      },
+      "search": "Search checks"
     },
     "storage": {
       "title": "Storage usage",
@@ -1137,7 +1143,8 @@
         "PERSON_IMAGE": "Person pictures",
         "PERSON_AVATAR": "Person avatars",
         "USER_AVATAR": "Account pictures"
-      }
+      },
+      "search": "Search pools"
     },
     "filter": {
       "allCreators": "All creators"
@@ -2031,7 +2038,11 @@
       "delete": "Delete transcript",
       "createError": "Failed to add transcript",
       "updateError": "Failed to save transcript",
-      "deleteError": "Failed to delete transcript"
+      "deleteError": "Failed to delete transcript",
+      "searchPlaceholder": "Find in transcript",
+      "matchCount_one": "{{count}} section",
+      "matchCount_other": "{{count}} sections",
+      "noMatch": "No match"
     },
     "transcriptCreate": {
       "title": "Add Transcript",

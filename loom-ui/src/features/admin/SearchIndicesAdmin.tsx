@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
   LinearProgress, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Tooltip, Typography,
+  TextField, Tooltip, Typography, InputAdornment,
 } from "@mui/material";
 import {
-  AutorenewOutlined, DeleteSweepOutlined, LockOutlined, StorageOutlined, SyncOutlined,
+  AutorenewOutlined, DeleteSweepOutlined, LockOutlined, StorageOutlined, SyncOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import StatusChip from "../../components/StatusChip";
@@ -247,6 +247,21 @@ function BackendSection({
   onDrop: (index: SearchIndexResponse) => void;
 }) {
   const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+
+  // One row per indexed entity type, so this table is short — but the rule in LOOM_UI.md §7.5.1 is
+  // that every list view carries a search field, and with a vector backend the rows multiply by
+  // embedding type and model, which is when it stops being short.
+  const visibleIndices = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return indices;
+    return indices.filter(index =>
+      index.id.toLowerCase().includes(q)
+      || (index.label ?? "").toLowerCase().includes(q)
+      || (index.type ?? "").toLowerCase().includes(q)
+      || describeSource(index).toLowerCase().includes(q));
+  }, [indices, query]);
+
   if (indices.length === 0) return null;
 
   return (
@@ -281,6 +296,22 @@ function BackendSection({
         />
       </Box>
 
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={t("admin.searchIndices.search")}
+        size="small"
+        data-testid="search-indices-search"
+        sx={{ mb: 1.5, maxWidth: 280 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
+
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -295,7 +326,7 @@ function BackendSection({
             </TableRow>
           </TableHead>
           <TableBody>
-            {indices.map(index => (
+            {visibleIndices.map(index => (
               <IndexRow
                 key={index.id}
                 index={index}

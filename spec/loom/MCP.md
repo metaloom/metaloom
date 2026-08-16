@@ -7,7 +7,7 @@
 > **Scope split:** this file owns the MCP *server, protocol and tool contract*.
 > The chat agent that consumes the registry in-process is [ui/CHAT.md](ui/CHAT.md);
 > the memory bank behind the four memory tools is
-> [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md);
+> [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md);
 > ports/options live in [SERVER.md](SERVER.md) and [CONFIGURATION.md](CONFIGURATION.md);
 > permission names in [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md).
 
@@ -380,7 +380,7 @@ it looked up.
 
 Four identity-scoped tools over the agent memory bank; the bank itself (scopes,
 frontmatter header, denylist, materialized `/memory` folder) is specified in
-[../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md).
+[../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md).
 
 | Tool | Parameters | Notes |
 |------|------------|-------|

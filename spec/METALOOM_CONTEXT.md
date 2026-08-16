@@ -130,6 +130,8 @@ spec/
 ├── tasks/                             # Actionable work items + scratch. Format: TASKS.template.md
 │   ├── TASKS.template.md              # Required format for every *_TASKS.md file
 │   ├── METALOOM_NOTES.md              # Scratch backlog: raw ideas without a spec file yet
+│   ├── CHAT_TASKS.md                  # Chat agent / skills / memory backlog. CTX/RD/SEC/LP/QW plus
+│   │                                  #   MEM1–MEM3 (the memory follow-ups from chat/CHAT_MEMORY.md §8)
 │   ├── WORKFLOW_TASKS.md              # NEW 2026-08-07 — W1–W15 for the workflows/ family.
 │   │                                  #   W1 (FilterBy.TAG/RATING) is the keystone: without it no
 │   │                                  #   pipeline can act on a human decision
@@ -230,19 +232,19 @@ spec/
 │   │                                  #   24 extracted open spots (N1–N24) and a ranking of what blocks
 │   │                                  #   the most. The top two blockers are reading data Loom already
 │   │                                  #   computed
-│   └── AGENTIC_CHAT_CONTEXT_DATA.md   # 🔵 NEW 2026-08-08 — how extracted metadata reaches the model.
-│                                      #   Three layers: index (search_document, built) / dossier
-│                                      #   (rendered ON READ, not materialized) / raw drill-down.
-│                                      #   Rejects a per-asset markdown RAG corpus and a GraphQL agent
-│                                      #   surface; recommends a bounded filter DSL. §7 flags the
-│                                      #   two-whitelists hazard with search_extract_json_text
+│   ├── AGENTIC_CHAT_CONTEXT_DATA.md   # 🔵 NEW 2026-08-08 — how extracted metadata reaches the model.
+│   │                                  #   Three layers: index (search_document, built) / dossier
+│   │                                  #   (rendered ON READ, not materialized) / raw drill-down.
+│   │                                  #   Rejects a per-asset markdown RAG corpus and a GraphQL agent
+│   │                                  #   surface; recommends a bounded filter DSL. §7 flags the
+│   │                                  #   two-whitelists hazard with search_extract_json_text
+│   ├── CHAT_MEMORY.md                 # 🟢 Agent memory bank (scoped markdown notes). Renamed from
+│   │                                  #   CHAT_MEMORY_PLAN.md on 2026-08-16 after an implementation
+│   │                                  #   audit: phases 0–4 ship; §8 carries the open work, of which
+│   │                                  #   MEM2 (nobody can be granted *_MEMORY) is a live defect
+│   └── CHAT_SESSIONS_CONCEPT.md       # 🟡 Sessions shipped (V2.52 + DAO + endpoints + UI);
+│                                      #   filesystem snapshot & run-time context assembly are not built
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
-│   ├── chat/
-│   │   ├── CHAT_MEMORY_PLAN.md        # 🟢 Agent memory bank (scoped markdown notes)
-│   │   ├── CHAT_SESSIONS_CONCEPT.md   # 🟡 Sessions shipped (V2.52 + DAO + endpoints + UI);
-│   │   │                              #   filesystem snapshot & run-time context assembly are not built
-│   │   └── CHAT_TASKS.md              # 🟡 B1–B9 + F2 (mid-turn abort) done; F1 (vLLM tool
-│   │                                  #   streaming throws) is an open defect
 │   ├── cli/
 │   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
@@ -524,7 +526,7 @@ spec/
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | **"Did that operation corrupt anything?"** — dangling rows, contradictory timestamps, blank required names, values outside their enum | [features/db/DB_INTEGRITY.md](features/db/DB_INTEGRITY.md) — 🟢 built. `assertIntegrity()` in any DAO or endpoint test, `GET /api/v1/db-integrity` for an operator. ⚠️ not to be confused with the Cortex `consistency` node, which checks media files |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
-| Chat / AI agent / skills / memory | [chat/LOOM_UI_CHAT.md](chat/LOOM_UI_CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [tasks/CHAT_TASKS.md](tasks/CHAT_TASKS.md) |
+| Chat / AI agent / skills / memory | [chat/LOOM_UI_CHAT.md](chat/LOOM_UI_CHAT.md), [chat/CHAT_MEMORY.md](chat/CHAT_MEMORY.md), open defects in [tasks/CHAT_TASKS.md](tasks/CHAT_TASKS.md) |
 | **What the chat agent should become** — capability tiers, the gap map, the roadmap | [chat/AGENTIC_CHAT_PLAN.md](chat/AGENTIC_CHAT_PLAN.md). §6's keystone gap is closed; the subsystem is owned by [chat/AGENTIC_NODE_EXECUTION.md](chat/AGENTIC_NODE_EXECUTION.md) |
 | **Running a node on chosen assets without a stored pipeline** | [chat/AGENTIC_NODE_EXECUTION.md](chat/AGENTIC_NODE_EXECUTION.md) — `POST /api/v1/node-runs`, `run_node_probe`/`run_node_graph`/`get_job`/`cancel_job`, and why a probe writes nothing by default |
 | **What users will ask the chat, and whether Loom can answer** | [chat/CHAT_USER_REQUESTS.md](chat/CHAT_USER_REQUESTS.md) — 88 prompts, 24 open spots, ranked by what blocks the most |
@@ -917,8 +919,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
       `WorkflowView.tsx` renders live `/dedup-groups` data with optimistic write + rollback, 35 tests
       ([features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md))
 - [ ] Chat defect F1 (vLLM tool streaming throws) is open — F2 (turn-granular abort) is fixed
-      ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
-      context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
+      ([CHAT_TASKS.md](tasks/CHAT_TASKS.md)); the session filesystem snapshot and run-time
+      context assembly in [CHAT_SESSIONS_CONCEPT.md](chat/CHAT_SESSIONS_CONCEPT.md) are vapour
 - [x] ~~`objectdetect` is faces-only~~ — **wrong, corrected 2026-08-07.** `YoloObjectDetector` loads
       an arbitrary ONNX model + labels file and reports `YoloLib.labels().size()` classes at init;
       `ObjectDetectNode` writes `detection.label` per box.
@@ -957,8 +959,9 @@ and subcomponents for request scope (`RestComponent` per REST request).
       redirect — one subsystem, two drifting files
 - [ ] Move `loom/ui/CHAT.md` → `features/chat/CHAT.md`; it is ~80% server-side. `TASK_UI_CHAT.md`
       stays as the UI document
-- [ ] Rename now-shipped plans: `CHAT_MEMORY_PLAN.md` → `CHAT_MEMORY.md`, `CLI_PLAN.md` → `CLI.md`
-      (the node plans were migrated to `features/nodes/<kind>/NODE_*.md` on 2026-08-11)
+- [ ] Rename the remaining shipped plan: `CLI_PLAN.md` → `CLI.md`. (`CHAT_MEMORY_PLAN.md` →
+      `chat/CHAT_MEMORY.md` was done on 2026-08-16; the node plans were migrated to
+      `features/nodes/<kind>/NODE_*.md` on 2026-08-11)
 - [ ] `cortex/llm-common` and `cortex/node-runtime` have **no spec owner** — `llm-common` is covered
       only by the `NODES.md` reference tables. Both are candidates for their own file. (`cortex/s3-common`
       is now owned by [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md))

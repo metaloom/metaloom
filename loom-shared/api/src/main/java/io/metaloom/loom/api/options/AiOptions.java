@@ -16,6 +16,18 @@ public class AiOptions implements Option {
 
 	public static final int DEFAULT_TOOL_TIMEOUT_MS = 30_000;
 
+	/** Tokens held back from {@link #contextWindow} so the model always has room to answer. */
+	public static final int DEFAULT_CONTEXT_RESERVE_TOKENS = 2048;
+
+	/** {@code 0} = the replayed transcript is bounded by the context budget alone. */
+	public static final int DEFAULT_HISTORY_MAX_MESSAGES = 0;
+
+	/** Messages past the summary watermark that trigger a compaction pass. */
+	public static final int DEFAULT_COMPACTION_THRESHOLD_MESSAGES = 20;
+
+	/** Upper bound on the stored conversation summary. */
+	public static final int DEFAULT_COMPACTION_MAX_CHARS = 4096;
+
 	@EnvironmentVariable(name = "LOOM_AI_ENABLED", description = "Override the flag which enables the chat agent.")
 	private boolean enabled = true;
 
@@ -42,6 +54,18 @@ public class AiOptions implements Option {
 
 	@EnvironmentVariable(name = "LOOM_AI_TITLE_GENERATION", description = "Override the flag which enables automatic chat title generation.")
 	private boolean titleGeneration = true;
+
+	@EnvironmentVariable(name = "LOOM_AI_CONTEXT_RESERVE_TOKENS", description = "Override the amount of context window tokens reserved for the model's completion. The transcript is budgeted against the window minus this reserve.")
+	private int contextReserveTokens = DEFAULT_CONTEXT_RESERVE_TOKENS;
+
+	@EnvironmentVariable(name = "LOOM_AI_HISTORY_MAX_MESSAGES", description = "Override the hard ceiling on the number of persisted messages replayed into the LLM history. 0 means the context budget is the only limit.")
+	private int historyMaxMessages = DEFAULT_HISTORY_MAX_MESSAGES;
+
+	@EnvironmentVariable(name = "LOOM_AI_COMPACTION_THRESHOLD_MESSAGES", description = "Override how many messages past the stored summary watermark trigger a rolling conversation compaction.")
+	private int compactionThresholdMessages = DEFAULT_COMPACTION_THRESHOLD_MESSAGES;
+
+	@EnvironmentVariable(name = "LOOM_AI_COMPACTION_MAX_CHARS", description = "Override the maximum length of the rolling conversation summary stored on the chat.")
+	private int compactionMaxChars = DEFAULT_COMPACTION_MAX_CHARS;
 
 	public boolean isEnabled() {
 		return enabled;
@@ -124,6 +148,42 @@ public class AiOptions implements Option {
 		return this;
 	}
 
+	public int getContextReserveTokens() {
+		return contextReserveTokens;
+	}
+
+	public AiOptions setContextReserveTokens(int contextReserveTokens) {
+		this.contextReserveTokens = contextReserveTokens;
+		return this;
+	}
+
+	public int getHistoryMaxMessages() {
+		return historyMaxMessages;
+	}
+
+	public AiOptions setHistoryMaxMessages(int historyMaxMessages) {
+		this.historyMaxMessages = historyMaxMessages;
+		return this;
+	}
+
+	public int getCompactionThresholdMessages() {
+		return compactionThresholdMessages;
+	}
+
+	public AiOptions setCompactionThresholdMessages(int compactionThresholdMessages) {
+		this.compactionThresholdMessages = compactionThresholdMessages;
+		return this;
+	}
+
+	public int getCompactionMaxChars() {
+		return compactionMaxChars;
+	}
+
+	public AiOptions setCompactionMaxChars(int compactionMaxChars) {
+		this.compactionMaxChars = compactionMaxChars;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.notBlank("url", url);
@@ -141,5 +201,9 @@ public class AiOptions implements Option {
 		OptionUtils.applyEnvBoolean("LOOM_AI_THINK_ENABLED", this::setThinkEnabled);
 		OptionUtils.applyEnvBoolean("LOOM_AI_STREAMING", this::setStreaming);
 		OptionUtils.applyEnvBoolean("LOOM_AI_TITLE_GENERATION", this::setTitleGeneration);
+		OptionUtils.applyEnvInt("LOOM_AI_CONTEXT_RESERVE_TOKENS", this::setContextReserveTokens);
+		OptionUtils.applyEnvInt("LOOM_AI_HISTORY_MAX_MESSAGES", this::setHistoryMaxMessages);
+		OptionUtils.applyEnvInt("LOOM_AI_COMPACTION_THRESHOLD_MESSAGES", this::setCompactionThresholdMessages);
+		OptionUtils.applyEnvInt("LOOM_AI_COMPACTION_MAX_CHARS", this::setCompactionMaxChars);
 	}
 }

@@ -18,12 +18,14 @@
 > the mock-backed LLM detection tab (`features/detection/LLMDetectionManagement.tsx`, still
 > entirely `MOCK_PROMPTS`/`MOCK_RESULTS` with a `handleCreatePrompt` that issues no request) is
 > [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 2, and the unreachable legacy `src/` trees are
-> [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5 — see Task 15 below for the one part
-> of that deletion which is a security issue rather than tidiness.
+> [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5. The one part of that deletion which
+> was a security issue rather than tidiness — `src/Login/Login.tsx`, an MUI template whose submit
+> handler did nothing but `console.log({ email, password })` — was pulled out ahead of it together
+> with its only importer, the dead entry point `src/index.js` (Task 15, closed 2026-08-16). The
+> guard that stops it returning is `loom-ui/src/sourceHygiene.test.ts`.
 >
 > **Ordering / blocking.** Ordered by severity, not by number (numbers are stable so other files can
 > cite them; the gaps are earlier tasks that are now closed and were removed).
-> **Task 15 is blocking** — it is a credential leak in shipped code and is a one-line fix.
 > **Task 14 blocks Task 16 and Task 17**: the a11y sweep and the new admin specs both assert on
 > feedback that does not exist until the silent catches are fixed.
 > **Task 11 should land before Task 13**, because `React.lazy` without an error boundary turns a
@@ -44,55 +46,6 @@
 >
 > **Audit gotcha.** `loom-ui/src/features/pipeline/PipelineEditor.tsx` (4910 lines, 234 KB) is
 > classified as binary by GNU grep; searching it needs `grep -a`.
-
----
-
-## Task 15: `src/Login/Login.tsx` logs the submitted password to the console
-
-**Argumentation Summary:** [Login.tsx:31-40](../../loom-ui/src/Login/Login.tsx) is an MUI template
-leftover whose submit handler does nothing but
-`console.log({ email: data.get('email'), password: data.get('password') })`, with an
-`// eslint-disable-next-line no-console` above it so the intent is unambiguous. It is currently
-unreachable — `loom-ui/index.html` mounts only `/src/main.tsx`, and the legacy entry point
-`src/index.js` that routes to it is orphaned — but it ships in the repository, and the file is one
-accidental import away from being live. The owning cleanup task,
-[TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5, treats the whole legacy tree as tidiness
-and does not mention the credential log; it also still instructs "Keep `src/mock/` for now", which is
-stale — `src/mock/` was deleted when the monitoring dashboard was de-mocked.
-
-**Improvement Summary:** Delete the credential-logging handler now, independently of the larger
-legacy-tree deletion, and correct the stale instruction in the owning task.
-
-```
-1. loom-ui/src/Login/Login.tsx: delete the handleSubmit body (lines 31-40) or delete the file
-   outright. Deleting the file is preferred; verify nothing but src/index.js imports it:
-     cd loom-ui && grep -rn "Login/Login" src/ index.html vite.config.ts
-2. While there, remove the other console leftovers in the dead tree if the whole tree is not being
-   deleted in the same change:
-     src/Dashboard/BreadcrumbArea.tsx:28  console.log("Re-render")
-     src/User/UserArea.tsx:70             console.info(`You clicked ...`)
-     src/User/UserListItem.tsx:39         console.info(`You clicked ...`)
-3. If the full legacy deletion is executed in the same change, do it per TASK_UI_PIPELINE.md Task 5
-   -- but IGNORE its "Keep src/mock/ for now" step: src/mock/ no longer exists.
-   The complete dead set is src/index.js, src/Login/, src/Dashboard/, src/User/, src/Content/,
-   src/Asset/, src/Pipeline/, src/Admin/, src/Welcome/, src/Theme.tsx (~2100 LOC).
-4. Also drop the now-unused import at loom-ui/src/layout/AppShell.tsx:16
-   (`FaceDetectionManagement`) -- the route was replaced by `/detection` and the symbol is dead.
-5. Note in ../loom/ui/LOOM_UI.md §11.2 that the "dead capitalised directories" row is closed once
-   the tree is gone; drop the row rather than leaving it describing files that no longer exist.
-```
-
-**Backend dependency:** none.
-
-**References:** [Login.tsx](../../loom-ui/src/Login/Login.tsx) ·
-[AppShell.tsx](../../loom-ui/src/layout/AppShell.tsx) ·
-[TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5 ·
-[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §3, §11.2
-
-**Test Requirements:** No new test — this is a deletion. Prove nothing regressed:
-`cd loom-ui && npm run build` (the `tsc && vite build` gate catches a dangling import) and the
-mocked suite `cd loom-ui && ./node_modules/.bin/playwright test e2e/routing-mocked.spec.ts e2e/login.spec.ts`.
-Add a grep guard to the a11y/ratchet vitest in Task 9 so no `console.log` of a password can return.
 
 ---
 
@@ -546,8 +499,9 @@ agent will read it.
        allowlist.
      - Baseline: 99 unreferenced of 492 total. Anything that reduces it should reduce the
        constant in the same commit.
-2. Extend the same file with the `console.log`-of-a-password grep guard from Task 15 rather than
-   adding a second scanning test.
+2. The `console.log`-of-a-password grep guard already exists as its own scanning test,
+   `loom-ui/src/sourceHygiene.test.ts` (landed with Task 15, before this ratchet did). Fold it into
+   this file when you write it and delete it there, rather than leaving two source scanners.
 3. Update ../loom/ui/LOOM_UI.md §8.2 (the spec count -- recount, do not trust it; it reads
    "98 specs / 63 mocked / 32 backend" as of 2026-08-12) and §11.1 (the testid ratio) in the same
    change; Task 10 owns the wider refresh of that file.
@@ -556,7 +510,8 @@ agent will read it.
 **Backend dependency:** none.
 
 **References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.1, §8.2, §11.1 · Task 4 (the 17
-memory ids) · Task 15 (the password grep) · Task 17 (the 5 admin-count ids) · Tasks 21–31 (the 92)
+memory ids) · [sourceHygiene.test.ts](../../loom-ui/src/sourceHygiene.test.ts) (the password grep,
+already landed) · Task 17 (the 5 admin-count ids) · Tasks 21–31 (the 92)
 
 **Test Requirements:** `loom-ui/src/testidCoverage.test.ts`, green at the recorded baseline, and
 demonstrably red when the baseline is lowered by one.
@@ -960,7 +915,11 @@ per [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.3.
 
 ---
 
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (testid coverage re-measured against the working tree: 116 of 491
+_Git HEAD revision: `10f5df46`_
+_Last updated: 2026-08-16 (Task 15 closed and removed — `src/Login/Login.tsx` and its only importer
+`src/index.js` deleted, the three remaining `console.*` leftovers in the legacy tree cleared, the
+dead `FaceDetectionManagement` import dropped from `AppShell.tsx`, and `src/sourceHygiene.test.ts`
+added as the guard; the Task 9 step that was to host that guard now points at it. Earlier:
+2026-08-12 (testid coverage re-measured against the working tree: 116 of 491
 unreferenced. Workflow cluster closed; the rest split into Tasks 21–31 at eight cases each, plus
-Task 32 for the missing Workflow screenshots.)_
+Task 32 for the missing Workflow screenshots.))_

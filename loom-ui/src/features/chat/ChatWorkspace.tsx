@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, TextField, IconButton, Chip, Avatar, Tooltip,
@@ -11,6 +11,7 @@ import {
   ArrowForwardIos, DragIndicator, StopCircleOutlined,
   Add, ChatBubbleOutline, DeleteOutline, ViewSidebarOutlined,
   SpaceDashboardOutlined, KeyboardDoubleArrowRight,
+  SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import HelpHint from "../../components/HelpHint";
@@ -465,6 +466,14 @@ export default function ChatWorkspace() {
   const [panelOpen, setPanelOpen] = useState(readStoredPanelOpen);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatResponse[]>([]);
+  const [railQuery, setRailQuery] = useState("");
+
+  /** The rail, narrowed by the box above it. Titles only — the rail shows nothing else. */
+  const visibleSessions = useMemo(() => {
+    const q = railQuery.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter(s => (s.title ?? "").toLowerCase().includes(q));
+  }, [sessions, railQuery]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [railOpen, setRailOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -778,14 +787,41 @@ export default function ChatWorkspace() {
                 {t("chat.sessions.newChat")}
               </Typography>
             </Box>
+
+            {/* The rail is how you get back to a past conversation, and it grows without bound.
+                Scrolling it was the only way to find one. Filters the rail only — the sessions
+                screen at /chat/sessions is the one with sorting and server-side filters. */}
+            {sessions.length > 0 && (
+              <TextField
+                value={railQuery}
+                onChange={e => setRailQuery(e.target.value)}
+                placeholder={t("chat.sessions.search")}
+                size="small"
+                data-testid="chat-rail-search"
+                fullWidth
+                sx={{ mt: 1, "& .MuiInputBase-root": { fontSize: "0.75rem" } }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            )}
           </Box>
           <Box sx={{ flex: 1, overflow: "auto", py: 0.5 }}>
             {sessions.length === 0 ? (
               <Typography variant="caption" sx={{ px: 2, py: 1.5, display: "block", color: tokens.text.tertiary, fontSize: "0.72rem" }}>
                 {t("chat.sessions.empty")}
               </Typography>
+            ) : visibleSessions.length === 0 ? (
+              <Typography variant="caption" data-testid="chat-rail-no-match"
+                sx={{ px: 2, py: 1.5, display: "block", color: tokens.text.tertiary, fontSize: "0.72rem" }}>
+                {t("chat.sessions.noMatch")}
+              </Typography>
             ) : (
-              sessions.map((s) => (
+              visibleSessions.map((s) => (
                 <Box
                   key={s.uuid}
                   onClick={() => loadSession(s.uuid)}

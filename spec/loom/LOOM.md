@@ -16,7 +16,7 @@ split. Everything else is delegated — do not duplicate it here.
 | MCP server (JSON-RPC over HTTP+SSE/WS) | [MCP.md](MCP.md) |
 | gRPC / GraphQL surfaces | [GRPC.md](GRPC.md) · [GRAPHQL.md](GRAPHQL.md) |
 | Build pipeline | [BUILD.md](BUILD.md) |
-| Chat agent, memory, coding sandbox | [ui/CHAT.md](ui/CHAT.md) · [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| Chat agent, memory, coding sandbox | [ui/CHAT.md](ui/CHAT.md) · [../chat/CHAT_MEMORY.md](../chat/CHAT_MEMORY.md) |
 | Pipeline execution engine + Loom↔Cortex protocol | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Permissions / RBAC | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) · [../features/rbac/RBAC.md](../features/rbac/RBAC.md) |
 | Search & similarity | [../features/search/SEARCH.md](../features/search/SEARCH.md) · [SEARCH_LUCENE.md](SEARCH_LUCENE.md) |
