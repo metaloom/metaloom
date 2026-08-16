@@ -1,7 +1,6 @@
 package io.metaloom.loom.rest.service.impl;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,6 +27,7 @@ import io.metaloom.loom.api.search.SearchResult;
 import io.metaloom.loom.api.search.SearchSuggestion;
 import io.metaloom.loom.db.jooq.search.SearchEmbeddingService;
 import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.perm.SearchTypePermissions;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.search.SearchFacetResponse;
@@ -49,7 +49,7 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
  * On top of that the requested entity types are narrowed against the existing {@code READ_*} permissions, because search is cross-entity by
  * construction: without narrowing, a role that may read tags but not assets would either see assets it must not, or see nothing at all. Types the
  * caller cannot read are dropped and named in {@code _metainfo.warnings} - returning fewer types silently would be indistinguishable from an empty
- * index.
+ * index. The type to permission map itself lives in {@link SearchTypePermissions} because the GraphQL {@code search} field applies the same narrowing.
  * </p>
  *
  * <p>
@@ -61,29 +61,6 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
 public class SearchEndpointService extends AbstractEndpointService {
 
 	private static final Logger log = LoggerFactory.getLogger(SearchEndpointService.class);
-
-	/**
-	 * Which read permission each searchable entity type requires.
-	 *
-	 * <p>
-	 * Transcripts are covered by {@code READ_ASSET}: a transcript is a component of an asset and has no permission of its own.
-	 * </p>
-	 */
-	private static final Map<SearchEntityType, Permission> TYPE_PERMISSIONS = new EnumMap<>(SearchEntityType.class);
-
-	static {
-		TYPE_PERMISSIONS.put(SearchEntityType.ASSET, Permission.READ_ASSET);
-		TYPE_PERMISSIONS.put(SearchEntityType.TRANSCRIPT, Permission.READ_ASSET);
-		TYPE_PERMISSIONS.put(SearchEntityType.SEGMENT, Permission.READ_ASSET);
-		TYPE_PERMISSIONS.put(SearchEntityType.TAG, Permission.READ_TAG);
-		TYPE_PERMISSIONS.put(SearchEntityType.ANNOTATION, Permission.READ_ANNOTATION);
-		TYPE_PERMISSIONS.put(SearchEntityType.PERSON, Permission.READ_PERSON);
-		TYPE_PERMISSIONS.put(SearchEntityType.COLLECTION, Permission.READ_COLLECTION);
-		TYPE_PERMISSIONS.put(SearchEntityType.REMIX, Permission.READ_REMIX);
-		TYPE_PERMISSIONS.put(SearchEntityType.LIBRARY, Permission.READ_LIBRARY);
-		TYPE_PERMISSIONS.put(SearchEntityType.DETECTION, Permission.READ_DETECTION);
-		TYPE_PERMISSIONS.put(SearchEntityType.CLUSTER, Permission.READ_CLUSTER);
-	}
 
 	private final SearchProvider provider;
 
@@ -214,7 +191,7 @@ public class SearchEndpointService extends AbstractEndpointService {
 			if (!candidates.contains(type)) {
 				continue;
 			}
-			Permission required = TYPE_PERMISSIONS.get(type);
+			Permission required = SearchTypePermissions.required(type);
 			if (required == null || permissions.test(required)) {
 				allowed.add(type);
 			} else {
@@ -223,7 +200,7 @@ public class SearchEndpointService extends AbstractEndpointService {
 		}
 
 		for (Permission permission : missing) {
-			warnings.add("Some entity types were excluded from this search: missing permission " + permission.name() + ".");
+			warnings.add(SearchTypePermissions.warning(permission));
 		}
 
 		if (allowed.isEmpty()) {

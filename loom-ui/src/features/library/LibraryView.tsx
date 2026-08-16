@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box, Typography, Paper, List, ListItemButton, ListItemText,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
@@ -11,32 +11,76 @@ import AssetThumbnail from "../../components/AssetThumbnail";
 import EmptyState from "../../components/EmptyState";
 import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
 import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
+import { SearchApiError, searchAssets, type SearchHitResponse } from "../../api/search";
 import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
 import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from "../../components/ListControls";
 import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
+import { assetTypeFromMime } from "../assets/assetMapping";
+import { clampOffset, hasNextPage } from "../search/searchHits";
 import { useSpace } from "../../context/SpaceContext";
+import { useSearch } from "../../context/SearchContext";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import { AssetType } from "../../types";
+import { AssetType, SEARCH_PAGE_SIZE } from "../../types";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
-/** Media class of an asset, used to pick the placeholder icon when there is no preview. */
-function assetType(asset: AssetResponse): AssetType {
-  const mime = asset.file?.mimeType ?? "";
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
-  if (mime.startsWith("application/") || mime.startsWith("text/")) return "document";
-  return "unknown";
+/**
+ * What the grid renders.
+ *
+ * The two sources disagree about what an asset is: `/assets` returns the record, `/search/assets`
+ * returns a ranked hit that carries only what it took to label it. Both are reduced to this before
+ * they reach the grid, so the tiles do not have to know which mode they are in — and so the fields
+ * a hit does not carry (tags, dimensions, library membership) are absent rather than invented.
+ */
+interface LibraryCard {
+  id: string;
+  name: string;
+  mimeType: string;
+  type: AssetType;
+  /** Empty for anything an `<img>` cannot decode; the tile then keeps the type placeholder. */
+  previewUrl: string;
+  size: number;
 }
 
-/** Only images can be rendered by an `<img>`; everything else keeps the type placeholder. */
-function previewUrl(asset: AssetResponse): string {
-  return assetType(asset) === "image" ? assetBinaryUrl(asset.uuid) : "";
+/**
+ * Only images get a preview here.
+ *
+ * `AssetThumbnail` can also seek a frame out of a video, but doing that in the library grid would
+ * pull a whole video binary per tile for a panel that is mostly scrolled past — see
+ * `library-thumbnails-mocked.spec.ts`, which pins that a video fetches no binary.
+ */
+function previewFor(type: AssetType, uuid: string): string {
+  return type === "image" ? assetBinaryUrl(uuid) : "";
+}
+
+function cardFromAsset(asset: AssetResponse): LibraryCard {
+  const mimeType = asset.file?.mimeType ?? "";
+  const type = assetTypeFromMime(mimeType);
+  return {
+    id: asset.uuid,
+    name: asset.file?.filename ?? "",
+    mimeType,
+    type,
+    previewUrl: previewFor(type, asset.uuid),
+    size: asset.file?.size ?? 0,
+  };
+}
+
+function cardFromHit(hit: SearchHitResponse): LibraryCard {
+  const mimeType = hit.mimeType ?? "";
+  const type = assetTypeFromMime(mimeType);
+  return {
+    id: hit.uuid,
+    name: hit.title,
+    mimeType,
+    type,
+    previewUrl: previewFor(type, hit.uuid),
+    size: hit.size ?? 0,
+  };
 }
 
 function formatBytes(bytes: number): string {
@@ -84,7 +128,35 @@ export default function LibraryView() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [updating, setUpdating] = useState(false);
-  const [query, setQuery] = useState("");
+
+  // ── Search ──
+  // The committed term lives in the URL, so a filtered library is shareable and the back button
+  // re-runs it. `input` is only the uncommitted text in the field.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") ?? "";
+  const term = query.trim();
+  const [input, setInput] = useState(query);
+  /** The term this component last wrote into the URL, so its own write is not read back as a navigation. */
+  const committedRef = useRef(query);
+
+  const search = useSearch();
+  // Pulled out because the context value is a fresh object on every provider render — depending on
+  // `search` itself would re-fire the query effect. `markUnavailable` is a stable useCallback.
+  const { markUnavailable } = search;
+  /** Whether the grid is showing search results rather than the assets loaded for this library. */
+  const searchMode = term.length > 0 && search.available;
+  const [searchHits, setSearchHits] = useState<LibraryCard[] | null>(null);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searching, setSearching] = useState(false);
+  /** True when the provider answered 403 — a narrowed permission, not an empty index. */
+  const [searchDenied, setSearchDenied] = useState(false);
+  // Paging is stored with the scope it belongs to rather than reset by an effect: a term or library
+  // change then reads as offset 0 on the same render, instead of firing one request at the old
+  // offset and a second one after the reset lands.
+  const libraryUuid = selectedLib?.id ?? "";
+  const searchScope = `${term}|${libraryUuid}`;
+  const [searchPage, setSearchPage] = useState({ scope: searchScope, offset: 0 });
+  const searchOffset = searchPage.scope === searchScope ? searchPage.offset : 0;
 
   useEffect(() => {
     if (!token) return;
@@ -103,6 +175,88 @@ export default function LibraryView() {
       setSelectedLib(null);
     });
   }, [token]);
+
+  // A navigation — the back button, or a link into a filtered library — puts a term in the URL that
+  // this component did not type. Adopt it. Our own writes are skipped: they land while the user may
+  // already have typed further, and echoing the committed value back would eat those keystrokes.
+  useEffect(() => {
+    if (query === committedRef.current) return;
+    committedRef.current = query;
+    setInput(query);
+  }, [query]);
+
+  // Commit the field into the URL once typing settles. Refining an existing term replaces the entry
+  // rather than pushing one, so leaving the search takes one press of Back rather than one per
+  // keystroke; entering or leaving search mode is a push, because those are the states worth
+  // returning to.
+  useEffect(() => {
+    if (input === committedRef.current) return;
+    const timer = setTimeout(() => {
+      const next = input.trim();
+      const refining = committedRef.current.trim() !== "" && next !== "";
+      committedRef.current = next;
+      setSearchParams(previous => {
+        const params = new URLSearchParams(previous);
+        if (next) params.set("q", next); else params.delete("q");
+        return params;
+      }, { replace: refining });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [input, setSearchParams]);
+
+  // Server-side search, scoped to the selected library. A local filter would only ever narrow the
+  // pages already loaded, which for a library larger than one page silently disagrees with what the
+  // global search field answers for the same term.
+  useEffect(() => {
+    if (!token || !searchMode) {
+      setSearchHits(null);
+      setSearchTotal(0);
+      setSearching(false);
+      setSearchDenied(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSearching(true);
+    searchAssets(
+      token,
+      {
+        q: term,
+        // Absent while no library is selected — the panel shows nothing then anyway, and an empty
+        // `library=` would be dropped by the query builder rather than scoping anything.
+        library: libraryUuid || undefined,
+        limit: SEARCH_PAGE_SIZE,
+        // Past LOOM_SEARCH_MAX_OFFSET the provider answers 400 rather than an empty page.
+        offset: clampOffset(searchOffset),
+      },
+      { signal: controller.signal },
+    )
+      .then(response => {
+        const page = (response.data ?? []).map(cardFromHit);
+        // Offset 0 is a new query; anything else is the pager appending to what is on screen.
+        setSearchHits(previous => (searchOffset === 0 || previous === null ? page : [...previous, ...page]));
+        setSearchTotal(response._metainfo?.totalHits ?? page.length);
+        setSearchDenied(false);
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        if (e instanceof SearchApiError && e.status === 503) {
+          // Search went down mid-session. Retract the box app-wide rather than answering 503 on
+          // every further keystroke; the panel falls back to the assets already loaded.
+          markUnavailable(e.body);
+          setSearchHits(null);
+        } else if (e instanceof SearchApiError && e.status === 403) {
+          setSearchDenied(true);
+          setSearchHits([]);
+        } else {
+          setSearchHits([]);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSearching(false);
+      });
+
+    return () => controller.abort();
+  }, [token, term, searchMode, libraryUuid, searchOffset, markUnavailable]);
 
   const handleCreate = async () => {
     if (!token || !newName.trim()) return;
@@ -176,22 +330,29 @@ export default function LibraryView() {
     return counts;
   }, [assets, libraries]);
 
-  const filteredAssets = useMemo(() => {
+  // Search is unavailable but the user typed anyway: narrow the assets already loaded, and say so
+  // below rather than pretending this covered the library.
+  const locallyFiltered = useMemo(() => {
+    if (!term) return libraryAssets;
+    const q = term.toLowerCase();
     return libraryAssets.filter(a => {
       const filename = a.file?.filename ?? "";
       const mimeType = a.file?.mimeType ?? "";
       const tags = (a.tags ?? []).map(tag => `${tag.collection}:${tag.name}`);
-      if (!query.trim()) return true;
-      const q = query.toLowerCase();
       return filename.toLowerCase().includes(q)
         || mimeType.toLowerCase().includes(q)
         || tags.some(tag => tag.toLowerCase().includes(q));
     });
-  }, [libraryAssets, query]);
+  }, [libraryAssets, term]);
 
-  const videoCount = filteredAssets.filter(a => (a.file?.mimeType ?? "").startsWith("video/")).length;
-  const imageCount = filteredAssets.filter(a => (a.file?.mimeType ?? "").startsWith("image/")).length;
-  const totalSize = filteredAssets.reduce((s, a) => s + (a.file?.size ?? 0), 0);
+  const cards = useMemo(
+    () => (searchMode ? (searchHits ?? []) : locallyFiltered.map(cardFromAsset)),
+    [searchMode, searchHits, locallyFiltered],
+  );
+
+  const videoCount = cards.filter(c => c.type === "video").length;
+  const imageCount = cards.filter(c => c.type === "image").length;
+  const totalSize = cards.reduce((s, c) => s + c.size, 0);
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
@@ -283,12 +444,19 @@ export default function LibraryView() {
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <Typography variant="caption" color="text.secondary">{formatBytes(totalSize)} {t("library.stats.total")}</Typography>
                   </Box>
+                  {searchMode && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary" data-testid="library-search-hits">
+                        {t("library.search.hits", { count: searchTotal })}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
               </Box>
               <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                 <TextField
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
                   placeholder={t("library.search.placeholder")}
                   size="small"
                   data-testid="library-search"
@@ -302,7 +470,10 @@ export default function LibraryView() {
                   }}
                 />
 
-                {creators.length > 0 && (
+                {/* Both controls narrow and order the *listing*. `/search/assets` ranks by relevance
+                    and takes no creator, so leaving them on screen while a search is active would
+                    offer controls that quietly stop applying. */}
+                {!searchMode && creators.length > 0 && (
                   <ListFilterSelect
                     value={creator}
                     onChange={setCreator}
@@ -313,11 +484,28 @@ export default function LibraryView() {
                   />
                 )}
 
-                <ListSortControl value={sortState} onChange={setSortState} testId="library-sort" />
+                {!searchMode && (
+                  <ListSortControl value={sortState} onChange={setSortState} testId="library-sort" />
+                )}
               </Box>
+
+              {/* Searching without a search backend still filters, but only over what has been
+                  fetched. Say so — a quietly partial result is the defect this screen was fixed for. */}
+              {term && !search.available && !search.loading && (
+                <Typography
+                  variant="caption"
+                  data-testid="library-search-degraded"
+                  sx={{ color: tokens.accent.amber, fontSize: "0.7rem" }}
+                >
+                  {t("library.search.unavailable", { count: libraryAssets.length })}
+                </Typography>
+              )}
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-              {libraryAssets.length === 0 ? (
+              {/* The empty state belongs to an empty library, never to a search that matched
+                  nothing — otherwise a library full of assets offers to upload the first one
+                  (LOOM_UI.md §7.5). While a term is active the inline hint below covers it. */}
+              {!term && libraryAssets.length === 0 ? (
                 // Library exists but holds nothing — send the user to the uploader.
                 <EmptyState
                   icon={PhotoLibraryOutlined}
@@ -328,18 +516,20 @@ export default function LibraryView() {
                   onAction={() => navigate("/assets")}
                   testId="library-assets-empty-state"
                 />
-              ) : filteredAssets.length === 0 ? (
-                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+              ) : cards.length === 0 ? (
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }} data-testid="library-no-match">
                   <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                  <Typography variant="body2" color="text.secondary">{t("library.empty.noSearch")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {searchDenied ? t("library.search.denied") : t("library.empty.noSearch")}
+                  </Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
-                  {filteredAssets.map(a => (
+                  {cards.map(a => (
                     <Paper
-                      key={a.uuid}
+                      key={a.id}
                       elevation={0}
-                      onClick={() => navigate(`/assets/${a.uuid}`)}
+                      onClick={() => navigate(`/assets/${a.id}`)}
                       sx={{
                         cursor: "pointer",
                         bgcolor: tokens.bg.elevated,
@@ -352,32 +542,49 @@ export default function LibraryView() {
                     >
                       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
                         <AssetThumbnail
-                          type={assetType(a)}
-                          src={previewUrl(a)}
+                          type={a.type}
+                          src={a.previewUrl}
                           iconSize={28}
-                          alt={a.file?.filename ?? ""}
+                          alt={a.name}
                         />
                       </Box>
                       <Box sx={{ px: 1.25, py: 1 }}>
-                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.file?.filename ?? "Untitled"}</Typography>
-                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{a.file?.mimeType ?? "unknown"}</Typography>
+                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.name || "Untitled"}</Typography>
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{a.mimeType || "unknown"}</Typography>
                       </Box>
                     </Paper>
                   ))}
                 </Box>
               )}
 
-              {/* The library filter runs client-side over the loaded assets, so "load more" is
-                  the only way to widen it. */}
-              {!query.trim() && !assetPage.loading && (
-                <ListPaging
-                  loaded={assets.length}
-                  total={assetPage.totalCount}
-                  hasMore={assetPage.hasMore}
-                  loadingMore={assetPage.loadingMore}
-                  onLoadMore={assetPage.loadMore}
-                  testId="library-assets-paging"
-                />
+              {/* Two pagers, because the two modes page different things. Browsing pages the asset
+                  listing; searching pages the hits, and stops at the deep-paging cap rather than
+                  offering a button the provider would answer 400 to. `data.length` drives both —
+                  `_metainfo.perPage` echoes the requested limit, not the effective one. */}
+              {searchMode ? (
+                !searching && (
+                  <ListPaging
+                    loaded={cards.length}
+                    total={searchTotal}
+                    hasMore={hasNextPage(searchOffset, cards.length - searchOffset, searchTotal)}
+                    loadingMore={searching}
+                    onLoadMore={() => setSearchPage({ scope: searchScope, offset: clampOffset(searchOffset + SEARCH_PAGE_SIZE) })}
+                    testId="library-search-paging"
+                  />
+                )
+              ) : (
+                // The degraded local filter runs over the loaded assets, so "load more" is the only
+                // way to widen it — which is why the footer stays put while a term is typed.
+                !assetPage.loading && (
+                  <ListPaging
+                    loaded={assets.length}
+                    total={assetPage.totalCount}
+                    hasMore={assetPage.hasMore}
+                    loadingMore={assetPage.loadingMore}
+                    onLoadMore={assetPage.loadMore}
+                    testId="library-assets-paging"
+                  />
+                )
               )}
             </Box>
           </>

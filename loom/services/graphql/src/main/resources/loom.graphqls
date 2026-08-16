@@ -130,6 +130,32 @@ type Query {
 
     """List the memory deny rules. Pass enabledOnly to skip the disabled ones."""
     memoryDenyRules(enabledOnly: Boolean = false): [MemoryDenyRule!]!
+
+    # ------------------------------------------------------------------
+    # Search
+    # ------------------------------------------------------------------
+
+    """
+    Cross-entity ranked search, backed by the same SearchProvider as GET /api/v1/search/results.
+
+    Requires READ_SEARCH. On top of that gate the requested types are narrowed against the caller's
+    read permissions; every type that was dropped is named in warnings, because returning fewer
+    types silently is indistinguishable from an empty index. A caller that may search but may read
+    none of the requested types is rejected with FORBIDDEN rather than handed an empty result.
+
+    Highlights are only computed when the query selects hits { highlights } - ts_headline re-parses
+    the whole document and is run per returned hit, so it is not paid for unless it is asked for.
+    """
+    search(
+        """The search term. Required and non-blank, at most 512 characters."""
+        q: String!
+        """Restrict the search to these entity types. Omit for everything the caller may read."""
+        types: [SearchEntityType!]
+        """How the query is matched and ranked. A mode the provider does not support is an error, never a silent downgrade."""
+        mode: SearchMode = LEXICAL
+        limit: Int = 25
+        offset: Int = 0
+    ): SearchResult!
 }
 
 # ----------------------------------------------------------------------
@@ -398,6 +424,82 @@ type MemoryDenyRule {
     edited: DateTime
     creatorUuid: ID
     editorUuid: ID
+}
+
+# ----------------------------------------------------------------------
+# Search
+# ----------------------------------------------------------------------
+
+"""
+The kind of thing a search hit points at.
+
+DETECTION and SEGMENT are accepted but currently produce no documents of their own - detection
+labels and segment titles are folded into the keywords of the owning asset, so they are searchable
+but never surface as hits.
+"""
+enum SearchEntityType {
+    ASSET
+    """A transcript span."""
+    TRANSCRIPT
+    TAG
+    ANNOTATION
+    PERSON
+    COLLECTION
+    """A named group of assets that are versions of one another."""
+    REMIX
+    LIBRARY
+    DETECTION
+    """A scene / chapter / silence range of an asset."""
+    SEGMENT
+    CLUSTER
+}
+
+"""How a query is matched and ranked."""
+enum SearchMode {
+    """Full text and trigram. The default, and the only mode a stock deployment serves."""
+    LEXICAL
+    """Vector similarity only. Requires the SEMANTIC capability."""
+    SEMANTIC
+    """Lexical and vector rankings fused. Requires the HYBRID capability."""
+    HYBRID
+}
+
+"""The answer to a search query."""
+type SearchResult {
+    """Matches across all pages."""
+    totalHits: Long!
+    """Whether totalHits is exact rather than capped or estimated."""
+    totalExact: Boolean!
+    hits: [SearchHit!]!
+    """
+    Non-fatal notes about how the request was answered - most importantly the entity types that
+    were dropped because the caller lacks the matching read permission.
+    """
+    warnings: [String!]!
+}
+
+"""One search result."""
+type SearchHit {
+    entityType: SearchEntityType!
+    """UUID of the entity itself (the transcript component, the tag, ...)."""
+    entityUuid: ID!
+    """The asset this hit belongs to, when there is one. Equals entityUuid for an ASSET hit."""
+    assetUuid: ID
+    title: String
+    subtitle: String
+    score: Float!
+    """
+    Matching snippets.
+
+    These are NOT sanitised HTML. Postgres wraps matches in <b>/</b> and returns the source
+    document otherwise verbatim, and that document is built from user supplied filenames, tag
+    names, annotation bodies and transcripts. A client must parse the fragments into text segments
+    and re-render the matches itself - see the loom-ui reference implementation in
+    features/search/highlight.ts. Never inject a fragment as markup.
+
+    Empty unless this field is selected: the highlighter re-parses the whole document per hit.
+    """
+    highlights: [String!]!
 }
 
 # ----------------------------------------------------------------------

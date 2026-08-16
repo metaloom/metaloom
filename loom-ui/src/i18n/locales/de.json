@@ -267,7 +267,10 @@
       "assetsPartial": "{{count}} der {{loaded}} geladenen Assets"
     },
     "search": {
-      "placeholder": "Assets suchen…"
+      "placeholder": "Assets suchen…",
+      "hits": "{{count}} Ergebnisse",
+      "unavailable": "Die Suche ist auf dieser Installation nicht verfügbar — es werden die {{count}} bereits geladenen Assets gefiltert.",
+      "denied": "Sie haben keine Berechtigung, Assets zu durchsuchen."
     },
     "stats": {
       "videos": "Videos",

@@ -15,6 +15,7 @@ import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
 import graphql.schema.idl.TypeDefinitionRegistry;
+import io.metaloom.loom.api.search.SearchProvider;
 import io.metaloom.loom.db.dagger.DaoCollection;
 
 /**
@@ -29,13 +30,13 @@ public class LoomGraphQLProvider {
 	private final GraphQL graphQL;
 
 	@Inject
-	public LoomGraphQLProvider(DaoCollection daos) {
-		this.graphQL = buildGraphQL(daos);
+	public LoomGraphQLProvider(DaoCollection daos, SearchProvider search) {
+		this.graphQL = buildGraphQL(daos, search);
 	}
 
-	private GraphQL buildGraphQL(DaoCollection daos) {
+	private GraphQL buildGraphQL(DaoCollection daos, SearchProvider search) {
 		TypeDefinitionRegistry typeRegistry = loadSchema();
-		RuntimeWiring wiring = buildWiring(daos);
+		RuntimeWiring wiring = buildWiring(daos, search);
 		GraphQLSchema schema = new SchemaGenerator().makeExecutableSchema(typeRegistry, wiring);
 		return GraphQL.newGraphQL(schema).build();
 	}
@@ -50,26 +51,27 @@ public class LoomGraphQLProvider {
 		}
 	}
 
-	private RuntimeWiring buildWiring(DaoCollection daos) {
+	private RuntimeWiring buildWiring(DaoCollection daos, SearchProvider search) {
 		RuntimeWiring.Builder builder = RuntimeWiring.newRuntimeWiring()
 			.scalar(LoomScalars.LONG)
 			.scalar(LoomScalars.DATE_TIME)
 			.scalar(LoomScalars.JSON);
 
 		// Repeated type("Query") registrations are merged by the builder, so every domain can extend the query root.
-		for (AbstractDomainWiring domain : domains(daos)) {
+		for (AbstractDomainWiring domain : domains(daos, search)) {
 			domain.wire(builder);
 		}
 		return builder.build();
 	}
 
-	private List<AbstractDomainWiring> domains(DaoCollection daos) {
+	private List<AbstractDomainWiring> domains(DaoCollection daos, SearchProvider search) {
 		return List.of(
 			new AssetWiring(daos),
 			new AclWiring(daos),
 			new PipelineWiring(daos),
 			new SkillWiring(daos),
-			new MemoryWiring(daos));
+			new MemoryWiring(daos),
+			new SearchWiring(search));
 	}
 
 	/**

@@ -8,19 +8,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
+import io.metaloom.loom.api.search.SearchEntityType;
+import io.metaloom.loom.api.search.SearchHit;
+import io.metaloom.loom.api.search.SearchProvider;
+import io.metaloom.loom.api.search.SearchRequest;
+import io.metaloom.loom.api.search.SearchResult;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
@@ -44,6 +55,7 @@ public class LoomGraphQLProviderTest {
 	private AssetDao assetDao;
 	private AssetBinaryDao locationDao;
 	private AssetComponentDao componentDao;
+	private SearchProvider searchProvider;
 	private LoomGraphQLProvider provider;
 
 	@BeforeEach
@@ -52,6 +64,7 @@ public class LoomGraphQLProviderTest {
 		assetDao = mock(AssetDao.class);
 		locationDao = mock(AssetBinaryDao.class);
 		componentDao = mock(AssetComponentDao.class);
+		searchProvider = mock(SearchProvider.class);
 
 		when(daos.assetDao()).thenReturn(assetDao);
 		when(daos.assetBinaryDao()).thenReturn(locationDao);
@@ -66,7 +79,7 @@ public class LoomGraphQLProviderTest {
 		when(componentDao.loadVideoComps(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadAudioComps(any())).thenReturn(Collections.emptyList());
 
-		provider = new LoomGraphQLProvider(daos);
+		provider = new LoomGraphQLProvider(daos, searchProvider);
 	}
 
 	@Test
@@ -238,7 +251,108 @@ public class LoomGraphQLProviderTest {
 		assertNull(data.get("asset"), "Denied non-null field propagates null to the parent asset");
 	}
 
+	// --- Search ---
+
+	@Test
+	void testSearchMapsHitsOntoTheSchema() {
+		UUID hitUuid = UUID.randomUUID();
+		SearchResult result = new SearchResult()
+			.setTotalHits(1)
+			.addHit(new SearchHit()
+				.setType(SearchEntityType.TRANSCRIPT)
+				.setUuid(hitUuid)
+				.setAssetUuid(ASSET_UUID)
+				.setScore(0.75)
+				.setTitle("kittiwake colony")
+				.setHighlights(List.of("a <b>kittiwake</b> colony")));
+		when(searchProvider.search(any())).thenReturn(result);
+
+		ExecutionResult executed = execute("{ search(q: \"kittiwake\") { totalHits totalExact hits "
+			+ "{ entityType entityUuid assetUuid score title highlights } } }");
+
+		assertTrue(executed.getErrors().isEmpty(), "Expected no errors but got: " + executed.getErrors());
+		Map<String, Object> data = executed.getData();
+		Map<String, Object> search = (Map<String, Object>) data.get("search");
+		assertEquals(1L, search.get("totalHits"));
+		assertEquals(true, search.get("totalExact"));
+		Map<String, Object> hit = ((List<Map<String, Object>>) search.get("hits")).get(0);
+		assertEquals("TRANSCRIPT", hit.get("entityType"));
+		assertEquals(hitUuid.toString(), hit.get("entityUuid"));
+		assertEquals(ASSET_UUID.toString(), hit.get("assetUuid"));
+		assertEquals(0.75, hit.get("score"));
+		assertEquals(List.of("a <b>kittiwake</b> colony"), hit.get("highlights"));
+	}
+
+	/**
+	 * ts_headline re-parses the whole document per hit, so the cost is only paid when the client selects the field.
+	 */
+	@Test
+	void testHighlightingFollowsTheSelectionSet() {
+		when(searchProvider.search(any())).thenReturn(new SearchResult());
+
+		assertFalse(capturedRequest("{ search(q: \"x\") { totalHits hits { title } } }").isHighlight(),
+			"A query that does not select highlights must not pay for the highlighter");
+		assertTrue(capturedRequest("{ search(q: \"x\") { hits { title highlights } } }").isHighlight(),
+			"Selecting highlights is what asks for them - there is no separate argument");
+	}
+
+	@Test
+	void testSearchNarrowsTypesToWhatTheCallerMayRead() {
+		when(searchProvider.search(any())).thenReturn(new SearchResult());
+
+		// READ_SEARCH plus READ_TAG only: every other type is dropped, and the drop is reported.
+		GraphQLPermissionChecker checker = perm -> perm == Permission.READ_SEARCH || perm == Permission.READ_TAG;
+		ExecutionResult executed = execute("{ search(q: \"x\") { warnings hits { entityUuid } } }", checker);
+
+		assertTrue(executed.getErrors().isEmpty(), "Expected no errors but got: " + executed.getErrors());
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(searchProvider).search(captor.capture());
+		assertEquals(Set.of(SearchEntityType.TAG), captor.getValue().getTypes());
+
+		Map<String, Object> search = (Map<String, Object>) ((Map<String, Object>) executed.getData()).get("search");
+		assertFalse(((List<String>) search.get("warnings")).isEmpty(),
+			"Withholding a type must be reported rather than silently reducing the result set");
+	}
+
+	@Test
+	void testSearchWithoutAReadableTypeIsForbidden() {
+		// May search, may read nothing. An empty result would be indistinguishable from an empty index.
+		ExecutionResult executed = execute("{ search(q: \"x\") { totalHits } }", perm -> perm == Permission.READ_SEARCH);
+
+		assertFalse(executed.getErrors().isEmpty(), "Expected a permission error");
+		assertEquals("FORBIDDEN", executed.getErrors().get(0).getExtensions().get("code"));
+	}
+
+	@Test
+	void testProviderFailuresBecomeErrorsNotEmptyResults() {
+		when(searchProvider.search(any()))
+			.thenThrow(new LoomRestException(503, LoomRestErrorCode.SEARCH_UNAVAILABLE, "Search is disabled on this deployment."));
+
+		ExecutionResult executed = execute("{ search(q: \"x\") { totalHits } }");
+
+		assertFalse(executed.getErrors().isEmpty(), "An unavailable provider must not look like zero matches");
+		Map<String, Object> extensions = executed.getErrors().get(0).getExtensions();
+		assertEquals("SEARCH_UNAVAILABLE", extensions.get("code"));
+		assertEquals(503, extensions.get("status"));
+		assertNull(extensions.get("loomCode"), "LoomRestException is a split package class; only members both copies share are read");
+		assertTrue(executed.getErrors().get(0).getMessage().contains("Search is disabled"),
+			"The provider's reason is the whole point of surfacing the failure");
+	}
+
 	// --- Helpers ---
+
+	/**
+	 * Execute the query as a fully authorized user and hand back the request the wiring built.
+	 */
+	private SearchRequest capturedRequest(String query) {
+		reset(searchProvider);
+		when(searchProvider.search(any())).thenReturn(new SearchResult());
+		assertTrue(execute(query).getErrors().isEmpty());
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(searchProvider).search(captor.capture());
+		return captor.getValue();
+	}
+
 
 	/**
 	 * Execute a query as a fully authorized user (all permissions granted).

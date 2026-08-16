@@ -90,7 +90,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 100 Playwright specs (§8.2)
+├── e2e/              # 104 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -491,8 +491,8 @@ unreachable from a spec — the field existed, and nothing could prove it filter
 
 | Kind | Where |
 |------|-------|
-| Server-backed | `AssetBrowser` (a term goes to `searchAssets()` debounced 250 ms; the type filter travels as `?mime=`) and the `/search` screen itself |
-| Local over the loaded rows | `LibraryView`, `CollectionsView`, `TagsView`, `AssetPoolsView`, `TasksView`, `SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, `CortexView`, all three detection screens, and every admin table — spaces, users, groups, roles, blacklist, API keys, memory denylist, **db integrity, search indices, storage** |
+| Server-backed | `AssetBrowser` (a term goes to `searchAssets()` debounced 250 ms; the type filter travels as `?mime=`), `LibraryView` (the same call scoped by `?library=<uuid>`, with the term in the URL — see below) and the `/search` screen itself |
+| Local over the loaded rows | `CollectionsView`, `TagsView`, `AssetPoolsView`, `TasksView`, `SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, `CortexView`, all three detection screens, and every admin table — spaces, users, groups, roles, blacklist, API keys, memory denylist, **db integrity, search indices, storage** |
 | Queue filter | `UploadView` — a folder drop queues hundreds of rows and the one you want is the one that failed |
 | Rail filter | `ChatWorkspace` — the session rail on `/`, which grows without bound and was scroll-only |
 | Node pickers | `PipelineEditor` — the add-node bar and the `N` command palette, both filtering the descriptor registry |
@@ -500,6 +500,25 @@ unreachable from a spec — the field existed, and nothing could prove it filter
 
 A term that matches nothing shows the inline hint, never the `EmptyState` — see the rule above.
 Where a view shows both, the testid distinguishes them (`memory-empty` vs `memory-no-match`).
+
+**The two asset surfaces share one shape**, because a library filtered locally answered a different
+set than the global field did for the same term:
+
+| | `AssetBrowser` | `LibraryView` |
+|---|---|---|
+| Route | `/search/assets` | `/search/assets` + `library=<uuid>` |
+| Where the term lives | component state | `?q=` in the URL — a filtered library is shareable, and Back re-runs it |
+| Debounce | 250 ms before the request | 250 ms before the **URL commit**; the request follows the committed term |
+| Paging | none — deep paging is the `/search` screen's job | `library-search-paging`, stepping `SEARCH_PAGE_SIZE` by `data.length` and stopping at `clampOffset`'s cap |
+| Search off / 503 | filters the loaded rows, `assets-search-degraded` says so | filters the loaded rows, `library-search-degraded` says so |
+| 403 | `assets-no-match` reads "denied" | `library-no-match` reads "denied" |
+
+Two traps the second implementation had to avoid. Syncing the field from the URL unconditionally
+eats keystrokes — the component's own debounced write arrives while the user is still typing, so it
+compares against the term it last committed and adopts only *foreign* changes (Back, a deep link).
+And a paging offset held in plain state fires one request at the stale offset before the reset
+lands, so it is stored **with the scope it belongs to** (`` `${term}|${libraryUuid}` ``) and reads
+as 0 the moment either changes.
 
 **Find-in-transcript is the one search that is not a list filter.** It marks the matching words and
 dims the sections that have none, rather than removing them: the timeline bar above the sections
@@ -549,9 +568,10 @@ Three deliberate asymmetries:
 
 - `AssetBrowser`'s **type** filter stays local. `/assets` has no mime parameter to delegate it to,
   which is why it is the one control that goes wrong on a partly loaded catalog.
-- Sort and the creator filter **hide** while an asset search term is active. `/search/assets` ranks
-  by relevance and takes no creator, so leaving them on screen would show controls that quietly
-  stop applying. The collection filter stays — that route does take `?collection=`.
+- Sort and the creator filter **hide** while an asset search term is active, on both `AssetBrowser`
+  and `LibraryView`. `/search/assets` ranks by relevance and takes no creator, so leaving them on
+  screen would show controls that quietly stop applying. The collection filter stays on the browser
+  — that route does take `?collection=`.
 - On `SkillManagementView` the creator filter belongs to the **library** tab alone; every skill on
   "mine" has the same creator.
 
@@ -768,11 +788,11 @@ Feature detail, the `/help/` page and why its semantic pass ranks rather than re
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-103 specs in two flavours, distinguished by filename suffix:
+104 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (68) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (69) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data — the end-to-end tier, driven from `e2e-test/`; see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -1034,13 +1054,14 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
       ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W5/W6 in
       [../../tasks/WORKFLOW_TASKS.md](../../tasks/WORKFLOW_TASKS.md))
 - [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
-- [x] Asset search runs against `/search/assets` rather than filtering the loaded page (§7.5.1)
+- [x] Asset search runs against `/search/assets` rather than filtering the loaded page, on the asset
+      browser and on the library panel alike (§7.5.1)
 
 ### 13.4 Testing
 
-- [x] vitest (node env) for API clients and extracted helpers — 42 files
-- [x] Playwright mocked specs as the component tier — 52 files
-- [x] Playwright backend specs against demo data — 31 files
+- [x] vitest (node env) for API clients and extracted helpers — 54 files
+- [x] Playwright mocked specs as the component tier — 69 files
+- [x] Playwright backend specs against demo data — 32 files
 - [x] Detection review actions covered: bulk staging/save, confirm, redraw, object confirm/reject
       (`e2e/detection-review-mocked.spec.ts`) and the face panels (`e2e/face-panels-mocked.spec.ts`)
 - [x] Profile covered: avatar-menu entry point, field population, partial-field save, a

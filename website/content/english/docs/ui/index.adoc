@@ -148,6 +148,11 @@ filter boxes inside individual screens — which narrow the list you are already
 queries the whole installation: asset filenames and metadata, transcript text, tag and collection
 names, annotations, people and libraries, all in a single pass.
 
+The two boxes that search media — the one above the asset browser and the one above a library — are
+the same search, simply narrowed: they look through everything in the catalogue, or everything in
+that library, rather than through the assets that happen to be on screen. So a term finds the same
+material wherever you type it.
+
 Start typing and suggestions appear after the second character. Press *Enter* to open the full results
 page, where each hit shows what kind of thing it is and a short excerpt with your search terms
 highlighted. Transcript hits carry the timecode where the phrase was spoken. Selecting a result takes
@@ -352,6 +357,13 @@ the page until they have been sent — so the application warns you before that 
 Assets can be organised into libraries. The library view provides a per-library selector and an asset
 grid that previews the stored image binaries; formats a browser cannot decode — video, audio,
 documents — keep their type icon.
+
+The box above the grid searches the whole of the selected library, not only the assets already
+loaded into the page, and it counts the matches for you. The term you typed is part of the address,
+so a filtered library can be sent to a colleague as a link and the browser's Back button returns you
+to the unfiltered view. Switching library re-runs the same term against the one you switched to. If
+your installation has search turned off, the box still narrows what is on screen and says that it is
+only doing that.
 
 image::library.png[Library management,role=img-fluid]
 

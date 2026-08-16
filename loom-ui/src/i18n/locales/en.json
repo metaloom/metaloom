@@ -267,7 +267,10 @@
       "assetsPartial": "{{count}} of the {{loaded}} assets loaded"
     },
     "search": {
-      "placeholder": "Search assets…"
+      "placeholder": "Search assets…",
+      "hits": "{{count}} results",
+      "unavailable": "Search is unavailable on this deployment — filtering the {{count}} assets loaded so far.",
+      "denied": "You do not have permission to search assets."
     },
     "stats": {
       "videos": "videos",

@@ -503,8 +503,8 @@ Unrelated to search, but it will stop your build.
 | `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 16 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |
 
 **loom-ui:** 25 client + 32 helper vitest cases; Playwright `search-mocked` (27),
-`asset-search-mocked` (9), `list-search-mocked` (7), `search-indices-mocked`, and `search-backend` (14)
-against a live server. ⚠️ Run Playwright and vitest through `./node_modules/.bin/…` — `npx` hangs here.
+`asset-search-mocked` (9), `library-search-mocked` (11), `list-search-mocked` (7),
+`search-indices-mocked`, and `search-backend` (14) against a live server. ⚠️ Run Playwright and vitest through `./node_modules/.bin/…` — `npx` hangs here.
 
 ⚠️ Grant test permissions via **role → group → user**, never a direct `user_permission` row — its PK is
 `user_uuid`, so a user can hold exactly one.
@@ -595,7 +595,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | Semantic/hybrid ranking, the embedder and its host | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5, §9; `sidecars/llamacpp-embeddings/README.md` |
 | The semantic/hybrid query path | `PostgresSearchProvider.fusedSearch`; `RankFusion` in `loom-shared/api` |
 | How documents become vectors | `loom/db/jooq/…/search/SearchEmbeddingService.java`; `loom/services/rest/…/search/SearchEmbeddingDrainer.java` |
-| The loom-ui search code | `loom-ui/src/api/search.ts`, `src/features/search/`, `src/context/SearchContext.tsx`, `src/layout/GlobalSearchField.tsx` |
+| The loom-ui search code | `loom-ui/src/api/search.ts`, `src/features/search/`, `src/context/SearchContext.tsx`, `src/layout/GlobalSearchField.tsx`; the two in-page consumers are `features/assets/AssetBrowser.tsx` and `features/library/LibraryView.tsx` |
 | The MCP search tools | `loom/services/mcp/.../tool/impl/Search{Assets,Transcript}Tool.java` + `SearchToolSupport`; contract in [../../loom/MCP.md](../../loom/MCP.md) §5.1 |
 | What users are told about search | `website/content/english/docs/ui/index.adoc` |
 | Highest migration | `V2.99__add_share_feedback.sql` at the time of writing — **always re-check**, sorted numerically, before claiming a version |
@@ -636,8 +636,8 @@ Every unchecked box below has a numbered work item in
 - [x] MCP `SearchAssetsTool` and `SearchTranscriptTool` on the SPI (Task 1): real terms, filters and paging, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; 15 tests in `SearchToolTest`. Result-level narrowing remains impossible there (§2.2)
 - [ ] GraphQL `search` field not added — **Task 7**
 - [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
-- [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `list-search-mocked` (7), `search-backend` (14)
-- [ ] `LibraryView.tsx` still filters client-side over a loaded page; every other asset surface routes to `/search/assets` — **Task 4**
+- [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `library-search-mocked` (11), `list-search-mocked` (7), `search-backend` (14)
+- [x] `LibraryView.tsx` routes to `/search/assets?library=<uuid>` (Task 4). Every asset surface is now server-backed; the panel keeps the term in `?q=`, pages the hits by `data.length` up to the offset cap, and degrades to filtering the loaded page — saying so — when search is unavailable
 - [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only — **Task 8**
 - [ ] `asset_doc_comp` remains deliberately unread (§4.3)
 

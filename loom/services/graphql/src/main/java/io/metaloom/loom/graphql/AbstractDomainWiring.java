@@ -49,13 +49,7 @@ public abstract class AbstractDomainWiring {
 	 *             {@code FORBIDDEN} respectively.
 	 */
 	protected static void requirePermission(DataFetchingEnvironment env, Permission permission) {
-		GraphQLPermissionChecker checker = env.getGraphQlContext().get(GraphQLPermissionChecker.CONTEXT_KEY);
-		if (checker == null) {
-			throw GraphqlErrorException.newErrorException()
-				.message("Not authenticated")
-				.extensions(Map.of("code", "UNAUTHENTICATED"))
-				.build();
-		}
+		GraphQLPermissionChecker checker = requireChecker(env);
 		if (!checker.hasPermission(permission)) {
 			if (log.isDebugEnabled()) {
 				log.debug("Request is lacking permission {}", permission);
@@ -65,6 +59,27 @@ public abstract class AbstractDomainWiring {
 				.extensions(Map.of("code", "FORBIDDEN", "permission", permission.name()))
 				.build();
 		}
+	}
+
+	/**
+	 * Return the caller's permission checker.
+	 *
+	 * <p>Most fields only need {@link #requirePermission(DataFetchingEnvironment, Permission)}, which throws on a denial. A field that has to <em>narrow</em>
+	 * what it returns rather than reject the whole request - {@code search} filters the requested entity types against the caller's read permissions -
+	 * needs the non-throwing check instead. This is the GraphQL counterpart of {@code LoomRoutingContext.permissions()} on the REST side.</p>
+	 *
+	 * @throws GraphqlErrorException
+	 *             with a {@code UNAUTHENTICATED} code when no checker was supplied by the transport layer.
+	 */
+	protected static GraphQLPermissionChecker requireChecker(DataFetchingEnvironment env) {
+		GraphQLPermissionChecker checker = env.getGraphQlContext().get(GraphQLPermissionChecker.CONTEXT_KEY);
+		if (checker == null) {
+			throw GraphqlErrorException.newErrorException()
+				.message("Not authenticated")
+				.extensions(Map.of("code", "UNAUTHENTICATED"))
+				.build();
+		}
+		return checker;
 	}
 
 	/**

@@ -21,7 +21,8 @@
 > exclusion, `PostgresSearchProvider` with ranking / facets / highlighting / suggest, `NoopSearchProvider`,
 > the boot-safe `SearchModule` binding, the four `/api/v1/search/*` routes with the `READ_SEARCH` gate and
 > per-type narrowing, the REST models and both clients, the whole loom-ui consumer (`api/search.ts`,
-> `SearchContext`, `GlobalSearchField`, `/search` view, server-side asset browsing), the demo corpus the
+> `SearchContext`, `GlobalSearchField`, `/search` view, server-side asset browsing in both the asset
+> browser and the library panel), the demo corpus the
 > backend e2e asserts against, the customer-facing website docs, the reindex admin surface (which
 > superseded `/search/reindexes`), and the entire text half of semantic + hybrid search
 > (`TextEmbedder`, `OpenAiTextEmbedder`, `RankFusion`, `SearchEmbeddingService`, `SearchEmbeddingDrainer`,
@@ -42,35 +43,12 @@
 
 - [ ] **Defects:** ~~Task 1 (MCP `search_assets` ignores `query`)~~ ✅ done, Task 2 (`DETECTION` / `SEGMENT` produce no documents)
 - [ ] **Dead or half-wired code:** Task 3 (row-level ACL clause), Task 9 (orphaned loom-ui trees)
-- [ ] **Consumers not yet on the SPI:** Task 4 (`LibraryView`), Task 7 (GraphQL)
+- [ ] **Consumers not yet on the SPI:** ~~Task 4 (`LibraryView`)~~ ✅ done, Task 7 (GraphQL)
 - [ ] **Test and regression guards:** Task 5 (codegen guard), Task 6 (document-source coverage), Task 24 (retrieval quality)
 - [ ] **Ergonomics:** Task 8 (transcript timecode deep link), Task 10 (`searchParams()`), Task 16 (`POST /search/results`), Task 17 (`/search/facets`)
 - [ ] **Phase 2 — Elasticsearch:** Tasks 11–15, gated on the Task 11 spike; the outbox they drain already exists and is maintained
 - [ ] **List-route narrowing (a different feature from `/search/*`):** Tasks 18, 19
 - [ ] **Phase 3 — the image half:** Tasks 20–23
-
----
-
-## Task 1: Move the MCP search tools onto the `SearchProvider` SPI (was P1-22) — ✅ DONE (2026-08-16)
-
-**Outcome:** `SearchAssetsTool` and `SearchTranscriptTool` inject `SearchProvider` instead of
-`DaoCollection` and issue real `SearchRequest`s. `search_assets` takes `query` (now **required** — the
-SPI rejects a blank term), `mimeType` (prefix; a trailing `*` is stripped, because `video/*` would
-otherwise match nothing), `library`, `tag`, `limit` and `offset`, and returns ranked hits with one
-`asset` reference each. `search_transcript` issues `types=[TRANSCRIPT]` with `highlight=true` and
-returns snippet + `assetUuid` + `timeFromMs` per hit, with the `<b>` markers stripped — `ts_headline`
-output is unsanitised source text. Both check `isAvailable()` first and answer with the reason from
-`info()`, so "search is off" never reads as "nothing found"; a provider rejection (oversized term,
-offset past the cap) comes back as text the model can correct.
-
-**Not fixed, and now written down:** MCP cannot narrow *results* — `MCPTool.execute(JsonObject)`
-carries no caller, so `SearchEndpointService`'s per-type narrowing is structurally unavailable.
-Recorded in [../features/search/SEARCH.md](../features/search/SEARCH.md) §2.2,
-[../features/rbac/RBAC.md](../features/rbac/RBAC.md) §4 and [../loom/MCP.md](../loom/MCP.md) §5.1.
-
-**Tests:** `SearchToolTest` (15, `loom/services/mcp`, mocked provider). `MCPToolReferencesTest`,
-`MCPAuthTestSupport` and `ChatStreamEndpointTest` now pass a query — the first of those is also the
-end-to-end proof that the tool reaches the real Postgres backend.
 
 ---
 
@@ -171,42 +149,6 @@ effect without a reindex. For (B): compilation plus the existing `Search*` suite
 
 ---
 
-## Task 4: Route `LibraryView` through server-side search (was P1-19)
-
-**Argumentation Summary:** [LibraryView.tsx:58](../../loom-ui/src/features/library/LibraryView.tsx#L58)
-still calls `listAssets(token, paging)` and filters client-side. The same pattern was removed from
-`AssetBrowser.tsx`, which now routes a non-empty query to `/search/assets`. A library with more assets
-than one page holds therefore filters only what happens to be loaded, and the result silently disagrees
-with what the global search field returns for the identical term.
-
-**Improvement Summary:** Reuse the `AssetBrowser` pattern: a non-empty query goes to `/search/assets`
-scoped by `library=<uuid>`; an empty query keeps the paged listing.
-
-```
-1. loom-ui/src/features/library/LibraryView.tsx — import searchAssets from ../../api/search alongside
-   listAssets.
-2. Keep query state in the URL via useSearchParams (matching SearchView), not component state, so a
-   filtered library view is shareable and the back button re-runs it.
-3. When the query is non-empty, call searchAssets with { q, library: libraryUuid, limit, offset } and
-   map SearchHit -> the card shape LibraryView already renders. When it is empty, keep
-   listAssets(token, paging) unchanged — a blank q is a 400, not an empty result (SEARCH.md §5.1).
-4. Clamp offset to LOOM_SEARCH_MAX_OFFSET before sending; past the cap is a 400, not an empty page.
-5. Read data.length for the page size — _metainfo.perPage echoes the REQUESTED limit, not the effective
-   one.
-6. Gate the search affordance on SearchContext availability, not on provider != "none", and fall back to
-   the plain listing when search is unavailable rather than showing an error.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §5.1 (client-side contract notes) ·
-`loom-ui/src/features/assets/AssetBrowser.tsx` (the reference implementation) ·
-[LOOM_UI_TASKS.md](LOOM_UI_TASKS.md)
-**Test Requirements:** A mocked Playwright spec under `loom-ui/e2e/` in the shape of
-`asset-search-mocked.spec.ts`: typing a term issues `/search/assets?…&library=<uuid>`, results render,
-clearing the term restores the listing, and an unavailable-search response degrades to the plain listing.
-Run with `./node_modules/.bin/playwright test` — `npx` hangs in this repo.
-
----
-
 ## Task 5: Add `SearchDocumentCodegenTest` (was P1-6b)
 
 **Argumentation Summary:** `search_document` carries three generated, stored columns — `text_search`,
@@ -274,49 +216,6 @@ inserts each entity and asserts its document is findable by its own text.
 DB is not empty") · `V2.59__add_search_triggers.sql`
 **Test Requirements:** The new class, seven or more methods, all green.
 `./setup-pool.sh && mvn -o -pl loom/db/jooq test -Dtest='Search*'`
-
----
-
-## Task 7: Add the GraphQL `search` field (was P1-23)
-
-**Argumentation Summary:** `loom/services/graphql/src/main/resources/loom.graphqls` contains no `search`
-field — grep finds zero occurrences. The GraphQL API therefore cannot answer any question the REST search
-answers, and a GraphQL consumer must fall back to listing and filtering client-side, which is the exact
-pattern the search feature exists to remove.
-
-**Improvement Summary:** One new top-level query field plus the two result types and two enums. Do **not**
-add filter arguments to the roughly twenty existing list fields — that is a different, much larger change
-and search is deliberately a separate surface.
-
-```
-1. loom.graphqls — add:
-      type Query { search(q: String!, types: [SearchEntityType!], mode: SearchMode,
-                          limit: Int, offset: Int): SearchResult! }
-      type SearchResult { totalHits: Int!, totalExact: Boolean!, hits: [SearchHit!]! }
-      type SearchHit { entityType: SearchEntityType!, entityUuid: ID!, assetUuid: ID,
-                       title: String, subtitle: String, score: Float!, highlights: [String!]! }
-      enum SearchEntityType { ASSET TRANSCRIPT TAG ANNOTATION PERSON COLLECTION LIBRARY
-                              DETECTION SEGMENT CLUSTER }
-      enum SearchMode { LEXICAL SEMANTIC HYBRID }
-2. New SearchWiring in io.metaloom.loom.graphql alongside AssetWiring, following AbstractDomainWiring.
-   Inject SearchProvider, map the GraphQL arguments onto SearchRequest, map SearchResult/SearchHit back.
-3. Guard with READ_SEARCH via GraphQLPermissionChecker, matching how the other wirings gate. Apply the
-   same per-type narrowing SearchEndpointService applies IF user context is available in the GraphQL
-   execution context; if it is not, gate globally on READ_SEARCH and record that limitation in
-   spec/features/rbac/RBAC.md rather than leaving it implicit.
-4. Never expose highlights as markup: ts_headline output is NOT sanitised HTML (SEARCH.md §5). Document
-   on the field that clients must parse and re-render, exactly as loom-ui's highlight.ts does.
-5. Return the 503 / 400 conditions as GraphQL errors carrying the provider reason, not as empty results.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §2, §5, §6 ·
-`loom/services/graphql/src/main/java/io/metaloom/loom/graphql/` ·
-[../loom/RESTAPI.md](../loom/RESTAPI.md)
-**Test Requirements:** New cases in a `SearchGraphQLTest` extending `AbstractGraphQLEndpointTest`
-(`loom/core/src/test/java/io/metaloom/loom/core/endpoint/`): a query finds a seeded asset; a caller
-without `READ_SEARCH` is rejected; an unsupported `mode` errors rather than silently downgrading.
-Clean-rebuild `loom/core` before `./setup-pool.sh` if any endpoint constructor changed, or Dagger
-factories throw `NoSuchMethodError`.
 
 ---
 
