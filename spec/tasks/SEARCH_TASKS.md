@@ -28,8 +28,8 @@
 > dynamic capabilities, `sidecars/llamacpp-embeddings`).
 >
 > **Ordering / blocking:**
-> * **Task 1 and Task 2 are the only correctness defects** — an MCP tool that ignores its query argument,
->   and two API-accepted entity types that can never produce a hit. Do these first.
+> * **Task 2 is the remaining correctness defect** — two API-accepted entity types that can never
+>   produce a hit. Do it first. (Task 1, the MCP tools that ignored their query argument, is ✅ done.)
 > * **Task 11 (the Elasticsearch client spike) gates Tasks 12–16 and Task 23.** Do not write Elasticsearch
 >   code before it resolves.
 > * Task 12 gates 13–15; Task 14 gates 15 and 17.
@@ -40,7 +40,7 @@
 
 ## Progress Assessment
 
-- [ ] **Defects:** Task 1 (MCP `search_assets` ignores `query`), Task 2 (`DETECTION` / `SEGMENT` produce no documents)
+- [ ] **Defects:** ~~Task 1 (MCP `search_assets` ignores `query`)~~ ✅ done, Task 2 (`DETECTION` / `SEGMENT` produce no documents)
 - [ ] **Dead or half-wired code:** Task 3 (row-level ACL clause), Task 9 (orphaned loom-ui trees)
 - [ ] **Consumers not yet on the SPI:** Task 4 (`LibraryView`), Task 7 (GraphQL)
 - [ ] **Test and regression guards:** Task 5 (codegen guard), Task 6 (document-source coverage), Task 24 (retrieval quality)
@@ -51,63 +51,26 @@
 
 ---
 
-## Task 1: Move the MCP search tools onto the `SearchProvider` SPI (was P1-22)
+## Task 1: Move the MCP search tools onto the `SearchProvider` SPI (was P1-22) — ✅ DONE (2026-08-16)
 
-**Argumentation Summary:** Both MCP search tools are stubs that mislead their caller.
-`SearchAssetsTool.execute` ([SearchAssetsTool.java:58](../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/SearchAssetsTool.java#L58))
-declares `query`, `mimeType` and `limit` in its descriptor, then calls
-`assetDao.loadPage(null, limit, null, null, null)` and returns the **first page of the whole catalog**,
-discarding `query` and `mimeType` entirely — an LLM asking for "sunset photos" gets an arbitrary page and
-no signal that its filter was dropped. `SearchTranscriptTool.execute` returns a hardcoded string saying
-full-text search "requires Elasticsearch/Lucene integration", and its comment points at
-`asset_doc_comp.doc_plain_text` — a table with an FTS index, zero rows and no producer that search
-deliberately does not read ([SEARCH.md](../features/search/SEARCH.md) §4.3). The backend those comments
-wait for has existed since `V2.58`.
+**Outcome:** `SearchAssetsTool` and `SearchTranscriptTool` inject `SearchProvider` instead of
+`DaoCollection` and issue real `SearchRequest`s. `search_assets` takes `query` (now **required** — the
+SPI rejects a blank term), `mimeType` (prefix; a trailing `*` is stripped, because `video/*` would
+otherwise match nothing), `library`, `tag`, `limit` and `offset`, and returns ranked hits with one
+`asset` reference each. `search_transcript` issues `types=[TRANSCRIPT]` with `highlight=true` and
+returns snippet + `assetUuid` + `timeFromMs` per hit, with the `<b>` markers stripped — `ts_headline`
+output is unsanitised source text. Both check `isAvailable()` first and answer with the reason from
+`info()`, so "search is off" never reads as "nothing found"; a provider rejection (oversized term,
+offset past the cap) comes back as text the model can correct.
 
-**Improvement Summary:** Inject `SearchProvider` into both tools, issue real `SearchRequest`s, and return
-hits with their references. `search_transcript` narrows to `types=[TRANSCRIPT]` with `highlight=true` so a
-snippet plus `assetUuid` plus `timeFromMs` comes back. Neither tool needs new registration.
+**Not fixed, and now written down:** MCP cannot narrow *results* — `MCPTool.execute(JsonObject)`
+carries no caller, so `SearchEndpointService`'s per-type narrowing is structurally unavailable.
+Recorded in [../features/search/SEARCH.md](../features/search/SEARCH.md) §2.2,
+[../features/rbac/RBAC.md](../features/rbac/RBAC.md) §4 and [../loom/MCP.md](../loom/MCP.md) §5.1.
 
-```
-1. loom/services/mcp/.../tool/impl/SearchAssetsTool.java — add SearchProvider to the @Inject
-   constructor alongside DaoCollection (Dagger already has the binding from SearchModule; verify
-   loom/services/mcp declares the loom-shared/api dependency, and add it if not).
-2. Replace the loadPage call with:
-      SearchRequest req = new SearchRequest()
-          .setQuery(query)
-          .setTypes(Set.of(SearchEntityType.ASSET))
-          .setMimeType(mimeType)
-          .setLimit(limit)
-          .setOffset(offset);
-      SearchResult res = provider.search(req);
-   Add `offset` (integer, default 0), `library` (uuid) and `tag` (string) to the descriptor's
-   MCPToolParam list, and map them onto the matching SearchRequest setters.
-3. Keep the JsonArray item/reference shape, but source each item from SearchHit: uuid, title,
-   mimeType, score, and MCPToolResults.reference("asset", hit.assetUuid(), hit.title()).
-4. Guard the unavailable case: if !provider.isAvailable(), return a failed Future (or an
-   mcpTextResult naming the reason from provider.info()) rather than silently returning nothing —
-   NoopSearchProvider.search() throws LoomRestException(503) and an MCP caller must not see a stack
-   trace as its answer.
-5. SearchTranscriptTool.java — same injection. Issue types=[TRANSCRIPT], highlight=true, and return
-   per hit: the highlight snippet, assetUuid, and timeFromMs so the caller can deep-link.
-   DELETE the "requires Elasticsearch/Lucene" comment and the asset_doc_comp reference in the class
-   javadoc — both are wrong.
-6. Record the authorization limitation in spec/features/rbac/RBAC.md and spec/loom/MCP.md:
-   MCPTool.execute(JsonObject) carries no user context, so the per-type narrowing that
-   SearchEndpointService applies CANNOT apply here. That matches today's model (the MCP server bypasses
-   REST auth and calls DAOs directly, and descriptor().permissions() is advisory) but it must be
-   written down, not discovered.
-7. Update spec/loom/MCP.md:279 — the search_transcript row still describes the stub and says the search
-   backend is needed.
-```
-
-**References:** [SEARCH.md](../features/search/SEARCH.md) §2 (the SPI), §4.3 (`asset_doc_comp` is not a
-search source), §10 ("MCP has no auth") · [../loom/MCP.md](../loom/MCP.md) §tools ·
-[../features/rbac/RBAC.md](../features/rbac/RBAC.md)
-**Test Requirements:** Extend the MCP tool tests under `loom/services/mcp/src/test` with: a query that
-matches a seeded asset returns only that asset; a query matching nothing returns zero items, not a page;
-a transcript query returns a snippet carrying `assetUuid` and `timeFromMs`; and an unavailable provider
-produces the honest error rather than an empty success. `mvn -o -pl loom/services/mcp test`.
+**Tests:** `SearchToolTest` (15, `loom/services/mcp`, mocked provider). `MCPToolReferencesTest`,
+`MCPAuthTestSupport` and `ChatStreamEndpointTest` now pass a query — the first of those is also the
+end-to-end proof that the tool reaches the real Postgres backend.
 
 ---
 

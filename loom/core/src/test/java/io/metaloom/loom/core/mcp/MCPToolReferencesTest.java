@@ -59,9 +59,13 @@ public class MCPToolReferencesTest implements TestValues {
 		}
 	}
 
+	/**
+	 * Also the only end-to-end check that {@code search_assets} reaches the real search backend: the term matches the fixture asset through its
+	 * trigger-maintained {@code search_document}, so a reference here means the SPI answered, not that a page of the catalogue was listed.
+	 */
 	@Test
 	public void testSearchAssetsReferences() throws Exception {
-		JsonObject result = callTool("search_assets", new JsonObject().put("limit", 5));
+		JsonObject result = callTool("search_assets", new JsonObject().put("query", "bigbuckbunny").put("limit", 5));
 		assertReferences(result, "asset");
 	}
 

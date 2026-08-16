@@ -32,9 +32,10 @@ The harness is built. The catalog access is not.
 - [x] Skills (progressive disclosure) and the scoped memory bank
 - [x] Coding sandbox tools (`run_shell`, `read_file`, `write_file`, `list_files`)
 - [x] Pipeline *authoring* tools — the agent can design and store a pipeline
-- [ ] **Retrieval that works.** `search_assets` accepts `query` and `mimeType` and **ignores both**;
-      `search_transcript` is a stub; there is no sort, no date filter, no geo filter, no tag/label
-      filter, and none of the MCP tools go through the built `SearchProvider` SPI (§4.1)
+- [ ] **Retrieval that works.** `search_assets` and `search_transcript` went onto the
+      `SearchProvider` SPI on 2026-08-16 (term, MIME/library/tag filters, paging, transcript
+      timecodes). Still missing: sort, date range, geo and label filters, and the bounded filter
+      object of §4.1 — see `CHAT_TASKS.md` RD1
 - [ ] **Any read access to node results.** No tool reads `asset_json_comp`, `detection`,
       `asset_geo_comp`, `asset_transcript_comp`, `asset_segment_comp` or `asset_node_result`.
       Everything Cortex computes is invisible to the agent (§4.2, [AGENTIC_CHAT_CONTEXT_DATA.md](AGENTIC_CHAT_CONTEXT_DATA.md))
@@ -105,7 +106,7 @@ graph TB
     AL --> REG["MCPToolRegistry"]
 
     REG --> T1["search_assets · get_asset<br/>list_collections · asset_statistics"]
-    REG --> T2["search_transcript (stub)"]
+    REG --> T2["search_transcript"]
     REG --> T3["pipeline tools<br/>list · get · descriptors · validate · create · update"]
     REG --> T4["memory tools"]
     AL --> SB["sandbox coding tools"]
@@ -452,7 +453,7 @@ Ordered by (unblocks the most) / (costs the least). Each phase is independently 
 
 | Phase | Contents | Unblocks |
 |---|---|---|
-| **P1 — See what exists** | `search_assets` onto `SearchProvider` (sort, filters, facets); `get_asset` returns real fields; `describe_asset` dossier ([AGENTIC_CHAT_CONTEXT_DATA.md](AGENTIC_CHAT_CONTEXT_DATA.md)); `asset_statistics` in SQL | Tiers 1–2. Most of [CHAT_USER_REQUESTS.md](CHAT_USER_REQUESTS.md) becomes answerable |
+| **P1 — See what exists** | ~~`search_assets` onto `SearchProvider`~~ ✅ 2026-08-16 — sort, date range and facets still open; `get_asset` returns real fields; `describe_asset` dossier ([AGENTIC_CHAT_CONTEXT_DATA.md](AGENTIC_CHAT_CONTEXT_DATA.md)); `asset_statistics` in SQL | Tiers 1–2. Most of [CHAT_USER_REQUESTS.md](CHAT_USER_REQUESTS.md) becomes answerable |
 | **P2 — Show it** | `asset-grid` / `asset-card` visuals; thumbnails on chips; selection → chat handoff; working set (§7.3) | The feature stops feeling like a text terminal |
 | **P3 — Two resolvers** | Place-name gazetteer; label hypernym expansion (§4.4) | Geo and category questions |
 | **P4 — Act** | Write tools: tag, collect, comment, task, rate — with provenance and a confirmation primitive | Tier 3 |

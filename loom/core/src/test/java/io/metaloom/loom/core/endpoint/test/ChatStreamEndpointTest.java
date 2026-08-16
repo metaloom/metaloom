@@ -130,7 +130,7 @@ public class ChatStreamEndpointTest extends AbstractEndpointTest {
 
 			loom.internal().agentService().setTurnStreamerFactory(() -> scripted(List.of(
 				new TurnResult(null, "Looking for assets.",
-					List.of(new ToolCall("c1", "search_assets", new JsonObject().put("limit", 3)))),
+					List.of(new ToolCall("c1", "search_assets", new JsonObject().put("query", "bigbuckbunny").put("limit", 3)))),
 				new TurnResult("Here is what I **found**.", null, List.of()))));
 
 			HttpResult result = stream(token, chatUuid, "What assets do we have?").get(30, TimeUnit.SECONDS);

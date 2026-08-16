@@ -192,9 +192,10 @@ spec/
 │   │                                  #   deployment; 5 windowed indexing (BLOCKED on
 │   │                                  #   NODE_FINGERPRINT_TASKS.md), 6 UI panel
 │   ├── SEARCH_TASKS.md                # NEW 2026-08-11 — 24 tasks for lexical/semantic/ES search,
-│   │                                  #   replacing the retired concept/SEARCH_PLAN.md. Tasks 1–2
-│   │                                  #   are the only defects (MCP search_assets ignores its
-│   │                                  #   query; DETECTION/SEGMENT can never hit); Task 11 (the ES
+│   │                                  #   replacing the retired concept/SEARCH_PLAN.md. Task 1 (MCP
+│   │                                  #   search tools onto the SearchProvider SPI) is DONE
+│   │                                  #   2026-08-16; Task 2 (DETECTION/SEGMENT can never hit) is
+│   │                                  #   the last defect; Task 11 (the ES
 │   │                                  #   client spike) gates all of Phase 2; Task 20 (CLIP node)
 │   │                                  #   is the only thing between here and text→image search
 │   ├── IMAGEGEN_NODE.md               # imagegen follow-ups

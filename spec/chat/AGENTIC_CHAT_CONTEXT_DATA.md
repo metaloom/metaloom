@@ -242,8 +242,8 @@ is expressive within one domain and cannot express anything outside it:
 ```
 
 Properties that make this work: every key maps to an indexed predicate; unknown keys are a
-**validation error the model can read and fix**, not a silent no-op (the current
-`search_assets`, which ignores `query` and `mimeType`, is the anti-pattern); the server reports back
+**validation error the model can read and fix**, not a silent no-op (`search_assets` before
+2026-08-16, which declared `query` and `mimeType` and read neither, is the anti-pattern); the server reports back
 what it actually did ("expanded `animals` to 12 labels; ignored nothing"); and `limit` is clamped
 server-side. Loom already has the vocabulary for this in `LoomFilterKey` / `FilterParameters` /
 `SearchRequest` — this is an extension, not a new subsystem.
@@ -485,7 +485,7 @@ mvn -q test -pl loom/db/jooq -Dtest='*CompDaoTest'
 | Conformance | Every `schema_type` in the demo corpus is either rendered by a registered renderer or provably hits the generic fallback; and the Java registry's `schema_type` set matches `search_extract_json_text`'s branches modulo an explicit allow-list (§7) |
 | Cardinality | A video fixture with thousands of detections renders within `LOOM_AGENT_DOSSIER_SECTION_MAX_CHARS` and says how many it summarized |
 | Absence | An asset with `whisper` = SKIPPED renders "no transcript (skipped: …)", not silence |
-| Filter DSL | An unknown key is a **400 with a readable message**, never a silent no-op — this is a regression test against the current `search_assets` behaviour |
+| Filter DSL | An unknown key is a **400 with a readable message**, never a silent no-op — this is a regression test against the pre-2026-08-16 `search_assets` behaviour |
 | Tool permission | Caller without `READ_ASSET` is neither told nor allowed (`listDescriptorsFor` + `dispatch`) |
 | Injection | The hostile-OCR fixture flows through `describe_asset` into an `AgentLoopTest` and does not change tool selection |
 
@@ -516,8 +516,8 @@ detections + geo + transcript), one asset with a FAILED node result, and the hos
 - **`SearchEntityType.DETECTION` and `SEGMENT` have no documents** — they are folded into the owning
   asset's keywords. Do not expect them as hits.
 - **Never inline asset-derived text into the system prompt.** Tool results only, delimited (§10).
-- **Ignoring an unrecognized filter is a bug, not leniency.** The current `search_assets` accepts and
-  discards `query` and `mimeType`, which produces confidently wrong answers.
+- **Ignoring an unrecognized filter is a bug, not leniency.** `search_assets` used to accept and
+  discard `query` and `mimeType`, which produced confidently wrong answers; it now applies them.
 - **Cap everything, and say when you capped.** A truncated dossier that does not announce itself
   makes the model assert absence.
 

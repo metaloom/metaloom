@@ -48,9 +48,17 @@ public final class MCPAuthTestSupport {
 		return value;
 	}
 
-	/** Build a {@code tools/call} request for the READ_ASSET-guarded search tool. */
+	/**
+	 * Build a {@code tools/call} request for the READ_ASSET-guarded search tool.
+	 *
+	 * <p>
+	 * The term matches the fixture asset, but nothing here asserts on the hits — these tests are about who gets past the permission gate. It is carried
+	 * because {@code search_assets} demands a query since it moved onto the {@code SearchProvider} SPI, so an argument-less call would fail for a
+	 * reason that has nothing to do with authentication.
+	 * </p>
+	 */
 	public static JsonObject searchAssetsCall(int id) {
-		return MCPTestClient.jsonRpc("tools/call", id, MCPTestClient.toolCall(READ_ASSET_TOOL, new JsonObject()));
+		return MCPTestClient.jsonRpc("tools/call", id, MCPTestClient.toolCall(READ_ASSET_TOOL, new JsonObject().put("query", "bigbuckbunny")));
 	}
 
 	/** Build a {@code tools/list} request. */

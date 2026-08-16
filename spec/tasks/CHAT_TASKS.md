@@ -486,15 +486,24 @@ many of the 88 catalogued requests they gate (roughly 45 and 35). All of it is r
 already computed — no new nodes, no models, no GPU. Nothing under `loom/services/mcp/src/main` imports
 `SearchProvider` or `SearchRequest`, and `AssetNodeResultDao` has zero MCP consumers.*
 
-### Task RD1: Rewrite `search_assets` onto `SearchProvider` as `find_assets` — M — DEFECT
+### Task RD1: Rewrite `search_assets` onto `SearchProvider` as `find_assets` — M — DEFECT (half done)
 
-**Argumentation Summary:** `SearchAssetsTool` declares `query` and `mimeType` and reads neither —
-`assetDao.loadPage(null, limit, null, null, null)`, with a code comment admitting it ("In a full
-implementation this would apply the query/mimeType filters"). `SearchTranscriptTool` returns a
-hard-coded stub whose text tells the model it "will query the asset_doc_comp table". Meanwhile a full
-lexical stack ships (`search_document`, `PostgresSearchProvider`, FTS + `pg_trgm`, ranking, facets,
-highlights, `SearchSortMode`) with `SearchEndpointService` as its only consumer. Neither tool has a
-unit test class.
+**⚠️ Superseded in part — re-scope before starting.** `SEARCH_TASKS.md` Task 1 landed on 2026-08-16:
+both tools now inject `SearchProvider`, `search_assets` applies query / MIME / library / tag / paging,
+`search_transcript` returns snippets with `assetUuid` + `timeFromMs`, both degrade honestly when
+search is unavailable, and `SearchToolTest` covers them. **What is left of RD1** is the *filter
+object*: date range, labels, collections, `hasComponent`/`missingComponent`, `SearchSortMode`, the
+`LOOM_AI_MAX_ASSETS_PER_TOOL` clamp with a report of what was applied, unknown-key validation errors,
+and the question of whether that arrives as a renamed `find_assets` or as parameters on the existing
+tools. Steps 1–5 below apply; step 6 (deleting the two tools) is now a consolidation decision, not a
+defect fix.
+
+**Argumentation Summary (as audited, before Task 1):** `SearchAssetsTool` declared `query` and
+`mimeType` and read neither — `assetDao.loadPage(null, limit, null, null, null)`, with a code comment
+admitting it. `SearchTranscriptTool` returned a hard-coded stub whose text told the model it "will
+query the asset_doc_comp table". Meanwhile a full lexical stack ships (`search_document`,
+`PostgresSearchProvider`, FTS + `pg_trgm`, ranking, facets, highlights, `SearchSortMode`) with
+`SearchEndpointService` as its only consumer. Neither tool had a unit test class.
 
 **Improvement Summary:** One `find_assets` tool over `SearchProvider` with a bounded, validated
 filter object that reports back exactly what it applied; delete the two lying tools.
@@ -1537,8 +1546,8 @@ via `npx`, which hangs in this repo.
   an over-quota job or a rejected definition must come back as text the model can act on.
 - **Never trust tool arguments for identity or scope.** Arguments may only narrow what
   `MCPCallerContext` already resolved. Identity-scoped tools have no EventBus address by design.
-- **Ignoring an unrecognized filter is a bug, not leniency** — today's `search_assets` accepts and
-  discards `query` and `mimeType`, which produces confidently wrong answers (RD1).
+- **Ignoring an unrecognized filter is a bug, not leniency** — `search_assets` used to accept and
+  discard `query` and `mimeType`, which produced confidently wrong answers (RD1; fixed 2026-08-16).
 - **Cap everything, and say when you capped.** A truncated result that does not announce itself makes
   the model assert absence.
 - **The model never sees a `visuals` payload** — the text result must stand alone, and anything only

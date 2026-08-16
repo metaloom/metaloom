@@ -27,10 +27,10 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 | REST: `GET /api/v1/search/{results,assets,suggestions,status}` | ✅ built | `SearchEndpoint`, `SearchEndpointService` |
 | Dagger binding, boot-safe fallback | ✅ built | `SearchModule` in `LoomCoreComponent` |
 | `LOOM_SEARCH_*` options (10 lexical + 15 semantic) | ✅ built | `SearchOptions` |
-| Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 84 tests |
+| Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 99 tests |
 | Index administration (`/search-indices`, reindex jobs) | ✅ built | `SearchIndexEndpoint` — [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | **loom-ui** | ✅ built — client, `/search` view, global sidebar field, capability gating | `src/api/search.ts`, `features/search/`, `SearchContext` |
-| **MCP `search_assets` / `search_transcript`** | 🔴 still stubs, still bypass the SPI | `loom/services/mcp` |
+| **MCP `search_assets` / `search_transcript`** | ✅ built — both query the SPI; no per-type narrowing (§2.2) | `loom/services/mcp`, [../../loom/MCP.md](../../loom/MCP.md) §5.1 |
 | **GraphQL `search` field** | 🔴 absent | `loom.graphqls` |
 | **Elasticsearch provider** | 🔴 `loom/services/elasticsearch` has **no `src/`** — `pom.xml` + README only | — |
 | **Qdrant** | 🔴 `loom/services/qdrant` has **no `src/`** | — |
@@ -74,7 +74,7 @@ graph TB
     VEC --> PG
     DOC -.->|"dirty / es_synced_at outbox<br/>🔴 nothing drains it yet"| ES["ElasticsearchSearchProvider ⬜"]
     UI["loom-ui ✅<br/>api/search.ts · SearchContext · /search"] --> EP
-    MCP["MCP tools ⬜ (still stubs)"] -.-> SPI
+    MCP["MCP tools ✅<br/>search_assets · search_transcript"] --> SPI
 ```
 
 The load-bearing idea: **`search_document` is simultaneously the Postgres index, the pre-assembled
@@ -152,6 +152,33 @@ unreachable → `NoopTextEmbedder`, logged, never a boot failure. Availability i
 with a real embedding call rather than a health check — a reachable server with no embedding model
 loaded answers `/health` perfectly well and then fails every actual request. The provider re-checks per
 call, so a host that dies later still retracts the capability.
+
+### 2.2 Who consumes the SPI
+
+One provider, three callers. Anything that searches must go through `SearchProvider` — a second query
+path is a second ranking, and the two drift.
+
+| Caller | Entry point | Auth | Notes |
+|---|---|---|---|
+| REST / loom-ui | `SearchEndpoint` → `SearchEndpointService` | `READ_SEARCH` gate **+ per-type narrowing** (§6) | The only caller that narrows |
+| MCP `search_assets` | `SearchAssetsTool` | `READ_ASSET` on the *call* only | `types=[ASSET]`; params `query` (required), `mimeType` (prefix), `library`, `tag`, `limit`, `offset` |
+| MCP `search_transcript` | `SearchTranscriptTool` | `READ_ASSET` on the *call* only | `types=[TRANSCRIPT]`, `highlight=true`; returns snippet + `assetUuid` + `timeFromMs`, so a hit deep-links to the moment it was said |
+| GraphQL | ⬜ absent | — | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 7 |
+
+🔴 **The MCP tools cannot narrow their results.** `MCPTool.execute(JsonObject)` receives arguments and
+no caller, so the per-type filtering `SearchEndpointService` applies is structurally unavailable there;
+`descriptor().permissions()` gates *whether the tool runs*, never *what it returns*. That is the
+existing MCP model — every tool calls DAOs directly — but it means an MCP caller reads whatever the
+index holds. Written down in [../rbac/RBAC.md](../rbac/RBAC.md) §4 and
+[../../loom/MCP.md](../../loom/MCP.md) §5.1 rather than left to be discovered.
+
+⚠️ **Degrading is the caller's job, and it differs per caller.** `NoopSearchProvider.search()` throws
+503, so REST returns it and the UI hides its search box; the MCP tools check `isAvailable()` first and
+answer with the reason from `info()` in words — a model shown an empty result set would report
+"nothing found" with confidence. Any future caller has to make the same choice explicitly.
+
+⚠️ **Highlights are not sanitised** (§5). loom-ui parses them into text segments; the MCP tools strip
+the `<b>` markers before the snippet reaches a chat answer. A new caller must do one or the other.
 
 ---
 
@@ -453,6 +480,7 @@ loom/db/jooq/generate.sh                     # after any codegen-exclusion chang
 mvn -o -pl loom-shared/api test -Dtest='RankFusionTest,LoomOptionsValidationTest'
 mvn -o -pl loom/db/jooq    test -Dtest='Search*'      # 55
 mvn -o -pl loom/core       test -Dtest=SearchEndpointTest   # 16
+mvn -o -pl loom/services/mcp test -Dtest=SearchToolTest     # 15 (MCP tools, mocked provider)
 ```
 
 ℹ️ The semantic work added **no migration**, so neither `setup-pool.sh` nor `generate.sh` is needed to
@@ -462,7 +490,7 @@ run or extend it.
 doclint errors in `PipelineRunEngine`, `ProcessorEndpoint`, `WebSocketAuthenticator` and `MCPService`.
 Unrelated to search, but it will stop your build.
 
-### 8.1 What exists — 84 tests, all green
+### 8.1 What exists — 99 tests, all green
 
 | Class | Path | Tests | Covers |
 |---|---|---|---|
@@ -471,6 +499,7 @@ Unrelated to search, but it will stop your build.
 | `SearchDocumentLifecycleTest` | same | 5 | insert/update/delete lifecycle, **delete-cascade** (only the deleted asset's documents), **rebuild-equals-incremental**, oversized body truncated but still indexed |
 | `SearchSemanticQueryTest` | same | 20 | the fused path — `SEMANTIC`/`HYBRID` dispatch, capability gating, RRF ordering, embedding-host failure retracting the capability. Uses `FakeTextEmbedder` + `InMemoryVectorIndex` in the same package ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §10) |
 | `RankFusionTest` | `loom-shared/api/src/test/…/search/` | 13 | RRF arithmetic in isolation, no DB |
+| `SearchToolTest` | `loom/services/mcp/src/test/java/io/metaloom/loom/mcp/tool/impl/` | 15 | the two MCP tools against a mocked `SearchProvider`: every declared filter reaches the `SearchRequest`, `video/*` normalised to a prefix, zero hits read as zero hits, a transcript hit carries snippet + `assetUuid` + `timeFromMs` with the `<b>` markers stripped, an unavailable provider is named rather than answered as empty, a provider rejection comes back as text |
 | `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 16 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |
 
 **loom-ui:** 25 client + 32 helper vitest cases; Playwright `search-mocked` (27),
@@ -539,7 +568,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | **`?sort=`** | ⚠️ Pre-existing bug: `AbstractJooqDao.getField(SortKey)` casts any column to `Field<UUID>`, so `?sort=name` emits `WHERE name > '<uuid>'::uuid`. Already broken for every non-UUID column; out of scope, but it blocks "sort list results by name". |
 | **`asset_doc_comp`** | ⚠️ FTS index, zero rows, no producer. Deliberately not a search source (§4.3). |
 | **`QueryParameterKey`** | ⚠️ Never add `q` there — `addListRoute` iterates its values and would document `q` on ~40 routes that ignore it. Use `SearchQueryParameterKey`. |
-| **MCP has no auth** | ⚠️ The MCP server bypasses REST auth and calls DAOs directly; `descriptor().permissions()` is advisory. Per-type narrowing cannot apply there when the tools are finally moved onto the SPI. |
+| **MCP has no auth** | ⚠️ The MCP tools now call the SPI directly, with no caller identity to narrow by — `descriptor().permissions()` gates the call, not the answer. The narrowing in §6 is a REST-layer control only (§2.2). |
 | **Constructor changes** | ⚠️ Clean-rebuild `loom/core` after endpoint constructor changes, before `setup-pool.sh`, or Dagger factories throw `NoSuchMethodError`. `PostgresSearchProvider` and `SearchEndpointService` both gained arguments for the semantic path — that rebuild is not optional. |
 | **Capabilities are dynamic** | 🔴 `capabilities()` is recomputed per call because `SEMANTIC`/`HYBRID` depend on an embedding host and a vector index that can fail at runtime (§2). Do not cache it into a constant; the UI renders its mode toggle from it. |
 | **Two search paths, one provider** | ⚠️ `search()` dispatches on `SearchRequest.mode`. The lexical path keeps exact totals, SQL sorting and corpus-wide facets; the fused path has none of those ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5.2). A change to matching or filtering must be made in the shared `appendMatch`/`appendFilters`/`SCORE_EXPRESSION` helpers, or the two drift into ranking differently. |
@@ -567,6 +596,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | The semantic/hybrid query path | `PostgresSearchProvider.fusedSearch`; `RankFusion` in `loom-shared/api` |
 | How documents become vectors | `loom/db/jooq/…/search/SearchEmbeddingService.java`; `loom/services/rest/…/search/SearchEmbeddingDrainer.java` |
 | The loom-ui search code | `loom-ui/src/api/search.ts`, `src/features/search/`, `src/context/SearchContext.tsx`, `src/layout/GlobalSearchField.tsx` |
+| The MCP search tools | `loom/services/mcp/.../tool/impl/Search{Assets,Transcript}Tool.java` + `SearchToolSupport`; contract in [../../loom/MCP.md](../../loom/MCP.md) §5.1 |
 | What users are told about search | `website/content/english/docs/ui/index.adoc` |
 | Highest migration | `V2.99__add_share_feedback.sql` at the time of writing — **always re-check**, sorted numerically, before claiming a version |
 | Permission model / REST conventions | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../guidelines/CODING.md](../../guidelines/CODING.md) |
@@ -584,7 +614,7 @@ Every unchecked box below has a numbered work item in
 - [x] `SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED` added to **both** copies of `LoomRestErrorCode`
 - [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); the search UI landed alongside them rather than replacing them — **Task 9**
 
-**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP + GraphQL ⬜
+**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP ✅ wired, GraphQL ⬜
 - [x] `io.metaloom.loom.api.search` SPI + value types
 - [x] `SearchOptions` (10 env vars) + `LoomOptions` wiring + validation
 - [x] `V2.57` `READ_SEARCH` · `V2.58` `pg_trgm` + tables + 12 functions · `V2.59` 17 triggers + backfill
@@ -593,7 +623,7 @@ Every unchecked box below has a numbered work item in
 - [x] `SearchEndpoint` (4 GET routes) + `SearchEndpointService` + `SearchModule` + `addSearchRoute`
 - [x] `SearchQueryParameterKey`, `SearchParameters`, `rest.model.search.*`, `SearchExamples`
 - [x] `SearchMethods` + `LoomHttpClientImpl` + `ClientMethods` registration
-- [x] 84 tests green, incl. delete-cascade, rebuild-equals-incremental, type-narrowing permission case
+- [x] 99 tests green, incl. delete-cascade, rebuild-equals-incremental, type-narrowing permission case, the two MCP tools
 - [ ] `SearchDocumentCodegenTest` — never written (§8.2) — **Task 5**
 - [ ] Source coverage for annotation / person / collection / library / cluster documents (§8.2) — **Task 6**
       (`remix` is covered, by `RemixSearchTest`: sources, all three staleness paths, and rebuild-equals-incremental)
@@ -603,7 +633,7 @@ Every unchecked box below has a numbered work item in
 - [x] Demo fixtures in `DemoDatabaseInitializer`; `search-backend.spec.ts` asserts against them (magic string: `quarterly`)
 - [x] Customer-facing docs — the "Search" section of `website/content/english/docs/ui/index.adoc`
 - [x] Spec sync into [../rbac/RBAC.md](../rbac/RBAC.md), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) and [../../loom/RESTAPI.md](../../loom/RESTAPI.md)
-- [ ] MCP `SearchAssetsTool` (declares `query`/`mimeType`, discards both, calls `loadPage(null, limit, null, null, null)`) and `SearchTranscriptTool` (hardcoded string) still stubs; [../../loom/MCP.md](../../loom/MCP.md) still documents them as such — **Task 1**
+- [x] MCP `SearchAssetsTool` and `SearchTranscriptTool` on the SPI (Task 1): real terms, filters and paging, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; 15 tests in `SearchToolTest`. Result-level narrowing remains impossible there (§2.2)
 - [ ] GraphQL `search` field not added — **Task 7**
 - [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
 - [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `list-search-mocked` (7), `search-backend` (14)
@@ -641,14 +671,17 @@ Every unchecked box below has a numbered work item in
 **Known gaps search exposes but does not own**
 - [ ] `?sort=` broken for non-UUID columns (§10)
 - [ ] `asset_doc_comp` has an FTS index and no producer
-- [ ] MCP bypasses REST authorization entirely
+- [ ] MCP bypasses REST authorization entirely — the tools authorize the call, not the answer (§2.2)
 - [ ] `user_permission` allows only one direct grant per user
 - [ ] Two `LoomRestErrorCode` classes share a package
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (`spec/concept/SEARCH_PLAN.md` retired — its shipped work folded into §0/§8/§12,
+_Git HEAD revision: `01802c07`_
+_Last updated: 2026-08-16 (Task 1: the two MCP search tools moved onto the SPI. New §2.2 records who
+consumes `SearchProvider`, what each caller may narrow, and how each one degrades; §0, §8.1, §10 and
+§12 corrected accordingly; the authorization limitation mirrored into RBAC.md §4 and MCP.md §5.1.
+Test count 84 → 99.) Earlier: 2026-08-11 (`spec/concept/SEARCH_PLAN.md` retired — its shipped work folded into §0/§8/§12,
 its build-order rules into §4.2/§8/§10, and its outstanding work into
 [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) as 24 numbered tasks now cited from §12.
 Corrected against the tree: test count 49 → 84 (`SearchSemanticQueryTest` and `RankFusionTest` were

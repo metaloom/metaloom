@@ -54,8 +54,8 @@ What it takes:
 
 What is missing:
 
-- `search_assets` accepts `query` and `mimeType` and **ignores both**; it calls
-  `assetDao.loadPage(null, limit, …)`. There is no sort parameter at all ([MCP.md §5.1](../loom/MCP.md)).
+- `search_assets` applies its query, MIME-type, library and tag filters through `SearchProvider`
+  since 2026-08-16, but there is still no sort parameter and no date filter ([MCP.md §5.1](../loom/MCP.md)).
 - `SearchSortMode.NEWEST` exists in the SPI and no MCP tool exposes it.
 - The chat cannot render a thumbnail — the only visual type is `pipeline-graph`.
 
@@ -140,7 +140,7 @@ like* a zoo" without any of the above.
 | 9 | "Photos from our Japan trip in 2023" | geo cluster + date range | `P3` + `NEW N4` |
 | 10 | "Everything shot within 500 m of this asset" | radius query around another asset's coordinates | `NEW N4` |
 | 11 | "Group last month's photos by the city they were taken in" | reverse geocode + group-by | `NEW N3` |
-| 12 | "Videos where somebody says 'quarterly results'" | transcript phrase search | `P1` — `asset_transcript_comp` is indexed; `search_transcript` is a stub |
+| 12 | "Videos where somebody says 'quarterly results'" | transcript phrase search | ✅ `search_transcript` answers this, with the timecode |
 | 13 | "Assets mentioning our old brand name anywhere — OCR, transcript, filename or metadata" | cross-corpus lexical search | `P1` — `search_document` already unifies exactly these |
 | 14 | "Find the shot where the camera pans across the harbour" | scene + caption + motion | `P6` + `NEW N6` (no motion/camera-movement descriptor anywhere) |
 | 15 | "Pictures that feel like this one" | perceptual or semantic similarity | `PARTIAL` — `/assets/:uuid/similar-assets` (Lucene fingerprints) exists and no tool exposes it; true semantic is `P6` |

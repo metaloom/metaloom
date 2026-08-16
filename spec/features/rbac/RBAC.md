@@ -157,6 +157,17 @@ requires a `READ_*` permission (`AclWiring`, `AssetWiring`, `MemoryWiring`, `Pip
 
 Anything reachable **only** over gRPC or WebSocket is effectively unauthorized.
 
+🔴 **MCP authorizes the *dispatch*, never the *result*.** `MCPTool.execute(JsonObject)` receives
+arguments and nothing else — no `User`, no `LoomRoutingContext` — so a tool cannot narrow what it
+returns to what the caller may see. The visible case is search: `SearchEndpointService` filters the
+requested `SearchEntityType`s against the caller's read permissions and 403s when none survive
+([../search/SEARCH.md](../search/SEARCH.md) §6), and `search_assets` / `search_transcript` **cannot
+do the same** even though they now query the identical `SearchProvider`. `descriptor().permissions()`
+is an all-or-nothing gate on the call, not a filter on the answer. This is the existing model, not a
+regression — every MCP tool calls DAOs directly — but it means an MCP caller with `READ_ASSET` reads
+every asset the index holds. Identity-scoped tools (`requiresIdentity`, [../../loom/MCP.md](../../loom/MCP.md) §3)
+are the seam a future fix would use.
+
 Endpoints registered without `secure(...)`: `HealthEndpoint`, `LoginEndpoint`, `OAuth2Endpoint`,
 `RESTInfoEndpoint` (intentional), plus `NodeDescriptorEndpoint` (node descriptors **and**
 `/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` (WS, own authenticator) — the last
@@ -338,6 +349,9 @@ Permission enforcement itself has no configuration switches.
 - [ ] WebSocket authenticates post-upgrade, lenient by default, and performs **no** permission check
 - [ ] MCP dispatches tools with **no** permission check when the user is null (default config)
 - [ ] MCP required permissions are free-form strings, not the `Permission` enum
+- [ ] MCP tools cannot narrow their *results* — `execute(JsonObject)` carries no caller, so the
+      per-type narrowing `SearchEndpointService` applies over REST is unavailable to `search_assets`
+      and `search_transcript` (§4)
 - [ ] `NodeDescriptorEndpoint` (incl. `/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` are not `secure(...)`d
 - [ ] Permission cache has no TTL; invalidation exists but is only wired to role-permission writes
 - [ ] 403 conflates "lacks permission" with "lookup failed"; the throw-from-callback breaks if persistence goes async

@@ -36,6 +36,7 @@ flowchart TD
   reg -->|EventBus mcp.tool.name| plain["Plain tools<br/>11 x loom/services/mcp"]
   reg -->|in-process execute(args, ctx)| ident["Identity-scoped tools<br/>2 x pipeline authoring<br/>4 x memory (loom/agent/memory)"]
   plain --> dao[("DaoCollection / DAOs")]
+  plain --> srch{{"SearchProvider SPI<br/>search_assets · search_transcript"}}
   plain --> auth2["PipelineAuthoringService<br/>(the one write path)"]
   ident --> auth2
   ident --> mem["MemoryService"]
@@ -52,8 +53,9 @@ flowchart TD
 - **Identity never travels on the EventBus.** Tools that need to know *who* asked
   declare `requiresIdentity()`; they get **no** EventBus address and are only
   reachable through `MCPToolRegistry.dispatch(name, args, user, ctx)`.
-- **DAO-backed.** Tools inject `DaoCollection` (or `MemoryService`) — no REST
-  round-trip.
+- **DAO-backed.** Tools inject `DaoCollection` (or `MemoryService`, or the
+  `SearchProvider` SPI for the two search tools) — no REST round-trip. The flip side
+  is that no tool sees a caller, so none of them can narrow *what* they return (§5.1).
 
 ---
 
@@ -243,7 +245,7 @@ memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 |---------------------|------------------------|----------|-------------------|----------|------------|--------|
 | `search_assets`     | `SearchAssetsTool`     | mcp      | `READ_ASSET`      | no       | asset      | —      |
 | `get_asset`         | `GetAssetTool`         | mcp      | `READ_ASSET`      | no       | asset      | —      |
-| `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | —          | —      |
+| `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | asset      | —      |
 | `list_collections`  | `ListCollectionsTool`  | mcp      | `READ_COLLECTION` | no       | collection | —      |
 | `asset_statistics`  | `AssetStatisticsTool`  | mcp      | `READ_ASSET`      | no       | —          | —      |
 | `list_pipelines`    | `ListPipelinesTool`    | mcp      | `READ_PIPELINE`   | no       | pipeline   | —      |
@@ -274,11 +276,27 @@ from any of them is a tool result, never a failed future.
 
 | Tool | Parameters | Result | Known gaps |
 |------|------------|--------|------------|
-| `search_assets` | `query` (string), `mimeType` (string), `limit` (int, 25) | `Found N assets.` + JSON array (uuid, filename, mimeType, size, sha512) | `query`/`mimeType` are **accepted but ignored** — `assetDao.loadPage(null, limit, …)` returns an unfiltered page |
+| `search_assets` | `query` (string, **required**), `mimeType` (string, prefix — a trailing `*` is stripped), `library` (uuid), `tag` (string), `limit` (int, 25), `offset` (int, 0) | `Found N of M matching assets for 'q'.` + JSON array (uuid, title, mimeType, size, score) | Served by `SearchProvider` ([../features/search/SEARCH.md](../features/search/SEARCH.md) §2.2). No result narrowing — see the note below the table |
 | `get_asset` | `assetId` (string, **required**) — UUID or SHA-512 via `AssetId.assetId()` | JSON object (uuid, filename, mimeType, size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath) | Description promises media properties, geo and components; they are not returned. Missing asset → text result, not an error |
-| `search_transcript` | `query` (string, **required**), `limit` (int, 10) | **Stub** text explaining that full-text search is unimplemented | Needs the search backend ([../features/search/SEARCH.md](../features/search/SEARCH.md)) |
+| `search_transcript` | `query` (string, **required**), `limit` (int, 10), `offset` (int, 0) | `Found N of M transcript matches for 'q'.` + JSON array (assetUuid, title, timeFromMs, snippet, score) | `types=[TRANSCRIPT]`, `highlight=true`; `<b>` markers are stripped from the snippet — `ts_headline` output is unsanitised source text |
 | `list_collections` | `limit` (int, 25) | `Found N collections.` + JSON array (uuid, name) | No name filter, no space scoping |
 | `asset_statistics` | `collection` (string) | JSON object: totalAssets, totalStorageBytes, totalStorageMB, images, videos, audio, documents, other | `collection` is **ignored**; loads up to 10 000 assets and aggregates in memory instead of using SQL aggregates |
+
+**The two search tools go through the same `SearchProvider` the REST routes use**, so the model and
+the UI rank one corpus. Three consequences worth knowing:
+
+- 🔴 **No per-type narrowing, and it cannot be added here.** `SearchEndpointService` filters the
+  requested entity types against the caller's read permissions and 403s when none survive
+  ([../features/search/SEARCH.md](../features/search/SEARCH.md) §6). `MCPTool.execute(JsonObject)`
+  has no caller, so these tools cannot. `descriptor().permissions()` gates the *call*, never the
+  *answer* — recorded in [../features/rbac/RBAC.md](../features/rbac/RBAC.md) §4.
+- ⚠️ **A term is mandatory.** The SPI rejects a blank query (400), so `query` is a required parameter
+  rather than an optional filter over a listing. There is no `list_assets`; a bare "what do we have"
+  is answered by `asset_statistics`.
+- ℹ️ **Search can be off.** With `LOOM_SEARCH_ENABLED=false` (or a provider that failed to start)
+  both tools answer with the reason from `SearchProvider.info()` and say so in words. They never
+  return an empty success, because "nothing matched" and "search is not running" are the same
+  sentence to a model otherwise.
 
 ### 5.2 Pipeline tools
 
@@ -657,6 +675,7 @@ Unit tests (module `loom-service-mcp`, no database):
 | `PipelineAuthoringToolTest` | `validate`/`create`/`update` against a **real** validator and descriptor registry: port errors name the port, a rejected create stores nothing, an update appends, `requiresIdentity` + the two-permission declaration, the identity-free `execute` fails loudly |
 | `NodeDescriptorToolTest` | Listing projection, `category`/`query` filters, clipping reported not silent, resolved ports, availability, unknown kind |
 | `MCPToolPermissionTest` | `listDescriptorsFor`: null user sees everything, a caller sees only what they hold, **all** declared permissions are required |
+| `SearchToolTest` | The two search tools against a mocked `SearchProvider`: every declared filter reaches the `SearchRequest`, `video/*` is normalised, zero hits read as zero hits, a transcript hit carries snippet + `assetUuid` + `timeFromMs` with the `<b>` markers stripped, an unavailable provider is named rather than answered as empty, a rejected query comes back as text |
 
 Integration tests (module `loom/core`, real PostgreSQL from the pooled test DB —
 run `./setup-pool.sh` first):
@@ -666,7 +685,7 @@ run `./setup-pool.sh` first):
 | `MCPAuthDisabledTest` | Unauthenticated tool call succeeds when auth is off |
 | `MCPAuthLenientTest` | Valid JWT, unprivileged JWT denied with structured error, missing credentials tolerated, API key path, `tools/list` exposes `requiredPermissions`, SSE `?token=`, CORS echo under wildcard |
 | `MCPAuthStrictTest` | Message/SSE rejection without credentials, invalid token rejected, WS 4401 vs. valid-token round trip, CORS allow/deny |
-| `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline` visual present/absent |
+| `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline` visual present/absent. The `search_assets` case is also the end-to-end proof that the tool reaches the real Postgres search backend |
 | `MCPPipelineAuthoringTest` | Authoring end to end: descriptors + guide, validate against the real registry, create persists pipeline + version 1 + `latest_version_uuid`, a broken definition leaves no row, update appends, and an unprivileged caller is neither listed nor allowed |
 | `MCPDirectToolCallTest` | Registry dispatch without HTTP, driven by an LLM tool-call loop |
 | `MCPServerToolCallTest` | Full HTTP JSON-RPC flow: `initialize` + `tools/list` (no LLM needed), then a full LLM tool-call loop |
@@ -717,14 +736,14 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 
 ### 13.4 Tools
 
-- [x] `search_assets`, `get_asset`, `search_transcript` (stub), `list_collections`, `asset_statistics`
+- [x] `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`
 - [x] `list_pipelines`, `get_pipeline` (+ `pipeline-graph` visual)
 - [x] `list_node_descriptors`, `get_node_descriptor` (resolved ports), `pipeline_authoring_guide`
 - [x] `validate_pipeline` (dry run, warnings), `create_pipeline`, `update_pipeline`
 - [x] `list_memory`, `get_memory`, `put_memory`, `delete_memory` (feature-gated)
-- [ ] `search_assets` ignores `query` and `mimeType`
+- [x] `search_assets` and `search_transcript` query the `SearchProvider` SPI (term, filters, paging, ranking)
 - [ ] `get_asset` returns none of the media/geo/component data its description promises
-- [ ] `search_transcript` is a stub — needs the search backend
+- [ ] Neither search tool can narrow its results to what the caller may read (§5.1)
 - [ ] `asset_statistics` ignores `collection` and aggregates 10 000 rows in memory
 - [ ] `list_pipelines` filters `query` in memory over the loaded page
 - [ ] No pipeline *operations* (run, cancel, status, events) — authoring only
@@ -783,7 +802,7 @@ Same DAOs, otherwise independent services — see [RESTAPI.md](RESTAPI.md).
 | Protocol       | HTTP REST (`/api/v1`)            | JSON-RPC 2.0 (`/mcp/sse`, `/mcp/message`, `/mcp/ws`) |
 | Auth           | JWT cookie + OAuth2 + API tokens | JWT (header/query), API key (header), strict/lenient, off by default |
 | Authorization  | Endpoint permission checks       | `requiredPermissions` in `MCPToolRegistry.dispatch()` — only when a `User` exists |
-| Data access    | `*EndpointService` → DAO         | Tool → `DaoCollection` / `MemoryService` |
+| Data access    | `*EndpointService` → DAO         | Tool → `DaoCollection` / `MemoryService` / `SearchProvider` |
 | Body limit     | Unlimited (`-1`)                 | 1 MB |
 | CORS           | All origins, all methods         | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
 | Write surface  | Full CRUD                        | Pipeline create/update and the memory bank; everything else read-only |
@@ -793,5 +812,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_
+_Git HEAD revision: `01802c07`_
+_Last updated: 2026-08-16 (`search_assets` and `search_transcript` moved onto the `SearchProvider` SPI: real terms, filters, paging, ranking, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; `SearchToolTest` added; the authorization limitation written down here and in RBAC.md). Earlier: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

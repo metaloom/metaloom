@@ -239,7 +239,9 @@ link:../features/[Features].
 | Tool | What it does | Permission
 
 | `search_assets`
-| Returns a page of assets with filename, MIME type, size and hash.
+| Ranked search across the library. The term is matched against filenames, paths, transcripts,
+  extracted document text, captions, detected labels and tags; results can be narrowed by MIME type,
+  library or tag, and paged through.
 | `READ_ASSET`
 
 | `get_asset`
@@ -247,7 +249,8 @@ link:../features/[Features].
 | `READ_ASSET`
 
 | `search_transcript`
-| Searches transcripts and extracted document text.
+| Searches spoken content. Each match comes back with the passage, the asset it belongs to and the
+  offset into the media, so the answer can point at the moment something was said.
 | `READ_ASSET`
 
 | `list_collections`
@@ -269,10 +272,16 @@ link:../features/[Features].
 | `READ_ASSET`
 |===
 
-NOTE: Two of these are narrower today than their names suggest. `search_assets` returns a page of
-the library but does not yet apply the query and MIME-type filters, and `search_transcript` reports
-that full-text search is not available yet rather than returning matches. `asset_statistics` covers
-the whole library; it does not yet narrow to a single collection.
+NOTE: Both search tools use the same search index as the search screen in the web UI, so an assistant
+and a person searching for the same words see the same ranking. Both need a search term - there is no
+"list everything" call; use `asset_statistics` for a library-wide overview. If search is switched off
+for your deployment, the tools say so instead of answering with an empty result.
+
+NOTE: `asset_statistics` covers the whole library; it does not yet narrow to a single collection.
+
+WARNING: A tool call is allowed or refused as a whole, based on the permissions your role grants. The
+tools cannot trim a *result* down to the part of the library a particular person may see, so anyone
+who can call `search_assets` can find anything the index holds. Grant MCP access accordingly.
 
 === Understanding and designing pipelines
 
