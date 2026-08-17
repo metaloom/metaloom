@@ -55,6 +55,8 @@
   translation: Product tour
 - id: studio
   translation: MetaLoom Studio
+- id: cloud
+  translation: MetaLoom Cloud
 - id: features
   translation: Features
 - id: announcements

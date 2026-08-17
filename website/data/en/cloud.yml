@@ -1,0 +1,129 @@
+############################# /cloud/ — MetaLoom // Cloud, the hosted offer ####################
+# Copy only. Structure and art live in themes/meghna-hugo/layouts/product/list.html and
+# layouts/partials/product/art-platform.html; styling in assets/css/product.css (.pr-*), with
+# `accent: commercial` switching the page to the amber /studio/ uses for a commercial offer.
+#
+# ⚠️ NOTHING ON THIS PAGE EXISTS YET. There is no control plane, no tenant provisioning, no
+# billing, no metering and no signup — the design lives in metaloom-saas/spec/SAAS_PLAN.md and is
+# explicitly marked as a plan. Every claim here is therefore written in the future or the
+# conditional, the status band says so in the first screen, and the only call to action is an
+# email to a person. If that ever stops being true, this file and the status band change in the
+# same pass as the thing that shipped.
+#
+# It is also the page most at risk of quietly contradicting /studio/: Studio is the SELF-HOSTED
+# commercial edition and is the thing a reader can actually talk to us about today. Cloud does
+# not replace it and must not be described as a better Studio.
+
+key: "cloud"
+accent: "commercial"
+
+hero:
+  eyebrow: "MetaLoom // Cloud"
+  image: "neon-lines.jpg"
+  title: "The same platform,<br>without the rack."
+  content: "MetaLoom Cloud is the hosted edition: your libraries, your pipelines and your GPU processing, run by the people who build the software. It is being designed now — this page is what it is meant to be, not what you can buy."
+  primary:
+    label: "Register interest"
+    link: "mailto:hello@metaloom.io?subject=MetaLoom%20Cloud"
+  secondary:
+    label: "Self-host it today"
+    link: "/docs/getting-started/"
+  status: "In planning · nothing is running, nothing is for sale, there is no signup"
+
+facts:
+  - label: "Status"
+    value: "Design, not deployment"
+  - label: "Availability"
+    value: "None — no trial, no beta"
+  - label: "Pricing"
+    value: "Not set"
+  - label: "Available today instead"
+    value: "Self-hosted, free · Studio"
+
+summary:
+  eyebrow: "What it would be"
+  title: "Hosted, not hollowed out."
+  content: "The hard constraint on the whole design is that it stays the same product. The same Loom, the same Cortex workers, the same APIs and the same pipelines — with the database, the storage, the upgrades and the GPUs someone else's problem."
+  art_caption: "Cloud is a way to run MetaLoom, not a different MetaLoom. The engine underneath is the open source one."
+  points:
+    - title: "One database per customer"
+      note: "The design is isolation by tenancy, not multi-tenancy inside the server. Your library is a database, and it is yours."
+    - title: "Bring your own hardware limits"
+      note: "Processing is the expensive part. A hosted pool has to be honest about what it costs, and about where your media sits while it is being read."
+    - title: "The exit is part of the design"
+      note: "Anything you can do in Cloud you can do on a machine in your office, because it is the same software. Leaving means moving data, not rewriting integrations."
+    - title: "It changes nothing about the open source build"
+      note: "No capability moves out of the Apache 2.0 platform to make a hosted plan look better. That rule is written down on the Studio page and it covers this one."
+
+capabilities:
+  eyebrow: "The plan"
+  title: "What is being designed."
+  content: "None of this is running. It is listed so the shape of the offer is public while it is still being argued about."
+  items:
+    - icon: "ti-server"
+      title: "Provisioned libraries"
+      note: "A control plane that stands up a Loom instance and its database per customer, on the same Helm charts the self-hosted deployment uses."
+    - icon: "ti-bolt"
+      title: "Processing on tap"
+      note: "A shared pool of GPU workers running the same Cortex node kinds, so transcription and face detection do not need a machine of your own."
+    - icon: "ti-key"
+      title: "Identity that federates"
+      note: "Sign in with your own identity provider rather than with another set of credentials, on the OAuth2 support Loom already has."
+    - icon: "ti-cloud"
+      title: "Storage and backup"
+      note: "Object storage for the binaries, with the retention and backup story a hosted service has to have and a self-hosted install can choose to skip."
+    - icon: "ti-receipt"
+      title: "Metering that you can audit"
+      note: "If a hosted plan is billed by what it processed, the number has to be inspectable. That is a design requirement, not a feature."
+    - icon: "ti-dashboard"
+      title: "Operated, and visible"
+      note: "The same Prometheus metrics the self-hosted build exposes, surfaced to you rather than kept behind an operations team."
+
+surfaces:
+  eyebrow: "Commitments"
+  title: "What will be true of it."
+  content: "These are the constraints the design is being held to. They are here to be quoted back at us."
+  items:
+    - name: "Same software"
+      note: "Cloud runs the open source platform. If a fix is needed to make hosting work, it lands in the open source build."
+    - name: "Your data is yours"
+      note: "Exportable through the same REST and GraphQL APIs you would use to put it there, without asking anyone."
+    - name: "No feature hostages"
+      note: "Nothing is removed from the self-hosted build to make the hosted one more attractive. Not now, not later."
+    - name: "Self-hosting stays first class"
+      note: "The documentation, the charts and the containers are for running it yourself, and that will not become the neglected path."
+    - name: "Honest about location"
+      note: "Where the media sits and which models see it will be stated plainly, per region and per node kind."
+    - name: "No sign-up theatre"
+      note: "There is no waiting list product and no form collecting addresses for a launch email. When there is something to try, this page will say so."
+
+docs:
+  eyebrow: "In the meantime"
+  title: "Two ways to run MetaLoom today."
+  items:
+    - title: "Self-host it"
+      note: "A container and a database on a workstation, or the Helm chart on your own Kubernetes. Free, unmetered, and the whole platform."
+      link: "/docs/deployment/"
+      label: "Deployment guide"
+    - title: "MetaLoom Studio"
+      note: "The commercial edition for organisations that need a counterparty: identity, storage, cleared models and a support agreement — still on your hardware."
+      link: "/studio/"
+      label: "About Studio"
+    - title: "See what it does first"
+      note: "Before any of this matters, the question is whether the platform does what you need. The tour is the short answer."
+      link: "/tour/"
+      label: "Take the tour"
+
+cta:
+  eyebrow: "Cloud"
+  title: "Tell us what you would need."
+  content: "The most useful thing right now is not a signup — it is knowing which of the constraints above are the ones that decide it for you. Where your media is allowed to live, what your identity provider is, how much you actually process in a month."
+  links:
+    - label: "Email us about Cloud"
+      link: "mailto:hello@metaloom.io?subject=MetaLoom%20Cloud"
+      primary: true
+    - label: "About Studio"
+      link: "/studio/"
+    - label: "Join the Discord"
+      link: "https://discord.gg/3Dy2SxKUtw"
+  note: "An email reaches a person, not a funnel. There is no mailing list to add you to, so nothing happens to your address except a reply."

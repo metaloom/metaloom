@@ -1125,6 +1125,163 @@ html { scrollbar-gutter: stable; }
 .navbar-expand-lg .navbar-nav .is-active .nav-link::after { transform: scaleX(1); }
 .navbar-expand-lg .navbar-nav .is-active .nav-link { color: #7efff4; }
 
+/* ----------------------------------------------------------------------------------
+   Section dropdowns — Products, Docs, Blog (partials/navigation.html)
+
+   Five entries carrying eleven destinations. The toggle is a <button>, so it inherits every
+   .nav-link rule above (colour, underline, the compact state) and needs only its own chrome
+   reset.
+
+   The panel opens in CSS on :hover and :focus-within — assets/js/script.js adds click, Escape
+   and outside-click on top. With JavaScript off the menu still opens; below the lg breakpoint it
+   is expanded from the start, so a phone with no JavaScript reaches every link by scrolling.
+   ---------------------------------------------------------------------------------- */
+.nav-menu-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+}
+.nav-menu-toggle:focus { outline: none; }
+.nav-menu-toggle:focus-visible {
+  outline: 2px solid #57cbcc;
+  outline-offset: 3px;
+}
+
+.nav-caret {
+  border-bottom: 1.6px solid currentColor;
+  border-right: 1.6px solid currentColor;
+  display: inline-block;
+  height: 6px;
+  margin-left: 8px;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .2s ease-in 0s;
+  width: 6px;
+}
+
+@media (min-width: 992px) {
+  /* The bar reads logo → menu → … → search. The menu used to carry `ml-auto`, which pinned it to
+     the right edge and left ~350px of empty bar between the wordmark and the first link; the auto
+     margin now lives on the search box, the one control that belongs at the end. `margin-right`
+     keeps a gap between the last entry and the field at widths where there is no slack left for
+     the auto margin to take. */
+  .navbar-expand-lg .navbar-collapse .navbar-nav {
+    margin-left: 6px;
+    margin-right: 20px;
+  }
+
+  .nav-has-menu { position: relative; }
+
+  /* The wrapper is transparent and carries the top padding; the surface is on the list inside
+     it. That padding is the hover bridge — a gap between the toggle and a panel that closes on
+     mouseleave is a menu that shuts while the pointer is travelling to it. */
+  /* 18px = the 34px left margin every .nav-link carries, less a 16px overhang, so the panel is
+     inset from its toggle by the same amount on both sides. The margin is on the button, not on
+     the <li> the panel is positioned against — anchoring at 0 lands it under the previous entry. */
+  .nav-menu {
+    left: 18px;
+    opacity: 0;
+    padding-top: 12px;
+    pointer-events: none;
+    position: absolute;
+    top: 100%;
+    transform: translateY(-6px);
+    transition: opacity .18s ease-in 0s, transform .18s ease-in 0s;
+    visibility: hidden;
+    z-index: 30;
+  }
+  /* Only bites when a DROPDOWN ends the bar (Team does today, and it has no panel): a panel
+     opening rightward from the last entry would hang off the container. Keep it — the last entry
+     is one config.toml edit away from being a group again. */
+  .navbar-nav > .nav-item:last-child .nav-menu {
+    left: auto;
+    right: -16px;
+  }
+
+  /* ⚠️ EXACTLY ONE PANEL IS OPEN AT A TIME, and that is only true because the CSS-only openers
+     are scoped to `body:not(.nav-js)`. The script sets `.nav-js` on <body>, takes hover and focus
+     over itself, and drives every panel from `.is-open` alone — so closing one when another opens
+     actually closes it. While `:focus-within` was live for everyone, clicking a toggle left focus
+     on its button, the panel stayed open through the class being removed, and the next menu
+     opened on top of it. Do not add a bare `:hover` / `:focus-within` opener back here. */
+  .nav-has-menu.is-open .nav-menu,
+  body:not(.nav-js) .nav-has-menu:hover .nav-menu,
+  body:not(.nav-js) .nav-has-menu:focus-within .nav-menu {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    visibility: visible;
+  }
+  .nav-has-menu.is-open .nav-caret,
+  body:not(.nav-js) .nav-has-menu:hover .nav-caret,
+  body:not(.nav-js) .nav-has-menu:focus-within .nav-caret { transform: translateY(1px) rotate(-135deg); }
+
+  .nav-menu-list {
+    background: rgba(9, 12, 16, .98);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    box-shadow: 0 26px 60px -28px rgba(0, 0, 0, .95);
+    list-style: none;
+    margin: 0;
+    min-width: 306px;
+    padding: 8px;
+  }
+}
+
+.nav-menu-list { list-style: none; }
+
+.nav-menu-link {
+  border-radius: 8px;
+  border-left: 2px solid transparent;
+  display: block;
+  padding: 9px 12px;
+  transition: background-color .18s ease-in 0s, border-color .18s ease-in 0s;
+}
+.nav-menu-link:hover,
+.nav-menu-link:focus { text-decoration: none; }
+.nav-menu-link:hover { background: rgba(255, 255, 255, .06); }
+.nav-menu-link:focus-visible {
+  outline: 2px solid #57cbcc;
+  outline-offset: -2px;
+}
+
+.nav-menu-name {
+  color: #dfe6ee;
+  display: block;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: color .18s ease-in 0s;
+}
+.nav-menu-link:hover .nav-menu-name { color: #fff; }
+
+/* One short phrase under the name. It is what makes a bar of five words legible: "Cortex" says
+   nothing to a first-time reader, "the processing engine" does. */
+.nav-menu-note {
+  color: #8b97a3;
+  display: block;
+  font-family: var(--ml-sans);
+  font-size: 12.5px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.nav-menu-link.is-current {
+  background: rgba(87, 203, 204, .1);
+  border-left-color: #57cbcc;
+}
+.nav-menu-link.is-current .nav-menu-name { color: #7efff4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-menu,
+  .nav-caret,
+  .nav-menu-link { transition: none; }
+}
+
 /* Discord sits apart from the section links — icon only, no underline. */
 .navbar-expand-lg .navbar-nav .nav-link-icon {
   border: 1px solid rgba(255, 255, 255, .14);
@@ -1199,6 +1356,23 @@ html { scrollbar-gutter: stable; }
     margin: 10px 0 0;
     text-align: center;
   }
+
+  /* In the hamburger panel a dropdown is just an indented group, EXPANDED FROM THE START. There
+     is no hover on a phone, and a panel that only opens on a tap is content behind JavaScript —
+     the one thing the site does not do. The toggle still collapses the group for a reader who
+     wants a shorter list; `is-collapsed` is set by assets/js/script.js, so with the script
+     blocked every link is simply on screen. */
+  .nav-has-menu .nav-menu { padding-top: 2px; }
+  .nav-has-menu.is-collapsed .nav-menu { display: none; }
+  .nav-has-menu.is-collapsed .nav-caret { transform: translateY(-2px) rotate(-45deg); }
+  .nav-has-menu .nav-caret { transform: translateY(1px) rotate(45deg); }
+  .nav-menu-list {
+    border-left: 1px solid rgba(255, 255, 255, .1);
+    margin: 0 0 6px;
+    padding: 0 0 0 12px;
+  }
+  .nav-menu-link { padding: 8px 10px; }
+  .navbar-expand-lg .navbar-nav .nav-menu-toggle { width: 100%; justify-content: space-between; }
 }
 
 /* ==========================================================
@@ -1294,9 +1468,10 @@ html { scrollbar-gutter: stable; }
 .docs-search-nav {
   align-self: center;
   flex-shrink: 0;
-  margin-left: 30px;
-  /* Fixed, deliberately. The menu beside it is pushed right by `ml-auto`, so a box that grew on
-     focus would drag every nav link sideways with it. */
+  /* The auto margin the menu used to carry: the box keeps the right edge of the bar while the
+     links sit beside the logo. */
+  margin-left: auto;
+  /* Fixed, deliberately. A box that grew on focus would drag the whole right edge with it. */
   width: 200px;
 }
 
@@ -1354,15 +1529,18 @@ html { scrollbar-gutter: stable; }
 }
 
 /* Between the lg breakpoint and 1200px the menu is expanded but the container is not yet wide
-   enough for seven links, a logo and a search field: the box ran off the right edge of the page.
+   enough for six entries, a logo and a search field: the box ran off the right edge of the page.
    The links give up half their gutter and the box gives up 40px, which is enough at 992. Without
    this the whole document scrolls sideways — the defect WEBSITE.md § Test Setup checks for. */
 @media (min-width: 992px) and (max-width: 1199px) {
   .navbar-expand-lg .navbar-nav .nav-link {
     margin-left: 18px;
   }
+  .navbar-expand-lg .navbar-collapse .navbar-nav {
+    margin-left: 0;
+    margin-right: 14px;
+  }
   .docs-search-nav {
-    margin-left: 18px;
     width: 160px;
   }
 }

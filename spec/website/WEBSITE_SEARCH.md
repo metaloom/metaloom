@@ -190,8 +190,10 @@ cap matters — chunk overlap means one page can otherwise fill the panel with f
 
 ## The box
 
-`partials/docs-search.html` (variant `nav`), rendered once from `partials/navigation.html` at the end
-of the menu — **right of *Docs***. `docs-search.js` binds every `[data-docs-search]` root, so extra
+`partials/docs-search.html` (variant `nav`), rendered once from `partials/navigation.html` after the
+menu and **pinned to the right edge of the bar** — `.docs-search-nav` carries the `margin-left: auto`
+that used to be on the menu, which now sits beside the logo
+([WEBSITE.md](WEBSITE.md) § *The header*). `docs-search.js` binds every `[data-docs-search]` root, so extra
 placements would work, but there is exactly one today. The script itself is loaded site-wide from
 `partials/footer.html`.
 

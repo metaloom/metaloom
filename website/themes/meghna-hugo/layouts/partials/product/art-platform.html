@@ -1,0 +1,79 @@
+{{/*
+  The five products as one picture, with the page that asked for it highlighted.
+
+      {{ partial "product/art-platform.html" (dict "active" "cortex" "caption" "…") }}
+
+  `active` is one of loom · cortex · graph · studio · cloud, and it is also what /graph/ and
+  /studio/ would pass if they ever adopt this partial — the tiles are the menu.
+
+  It is markup + CSS (assets/css/product.css, .pr-plat-*), not SVG and certainly not ASCII art:
+  every tile is a real link with real text, so it reads correctly to a screen reader, survives a
+  reader's own font size, and doubles as navigation between the product pages. The current page's
+  tile is not a link — the one thing worse than no "you are here" is a "you are here" you can
+  click.
+
+  ⚠️ The active tile and the linked tile are written out in full rather than switching the tag
+  name inside one element. Hugo renders through html/template, which tracks the HTML context of
+  every branch; a `<{{ if }}div{{ else }}a{{ end }}` fails the build rather than rendering.
+*/}}
+{{ $active := .active }}
+<div class="pr-art pr-art-platform">
+
+  <p class="pr-plat-band">Open source · Apache 2.0 · runs on your hardware</p>
+
+  <div class="pr-plat-row pr-plat-core">
+    {{ range slice
+        (dict "key" "loom"   "name" "Loom"   "role" "Asset server"      "note" "API · storage · search · UI"  "url" "/loom/")
+        (dict "key" "cortex" "name" "Cortex" "role" "Processing engine" "note" "45 node kinds · GPU-friendly" "url" "/cortex/")
+        (dict "key" "graph"  "name" "Graph"  "role" "Graph database"    "note" "Native code · openCypher"     "url" "/graph/") }}
+    {{ if eq $active .key }}
+    <div class="pr-plat-tile is-active">
+      <b>{{ .name }}</b>
+      <span class="pr-plat-role">{{ .role }}</span>
+      <span class="pr-plat-note">{{ .note }}</span>
+      <span class="pr-plat-here">You are here<span class="sr-only"> — this page</span></span>
+    </div>
+    {{ else }}
+    <a class="pr-plat-tile" href="{{ .url | relURL }}">
+      <b>{{ .name }}</b>
+      <span class="pr-plat-role">{{ .role }}</span>
+      <span class="pr-plat-note">{{ .note }}</span>
+    </a>
+    {{ end }}
+    {{ end }}
+  </div>
+
+  {{/* One strip under the core row standing for the traffic between the three: Cortex hands Loom
+       what it found, Loom asks Graph how things relate. The travelling pip is decoration and is
+       frozen by prefers-reduced-motion. */}}
+  <div class="pr-plat-edges" aria-hidden="true">
+    <span class="pr-plat-edge"><i class="pr-plat-pip"></i></span>
+  </div>
+
+  <p class="pr-plat-band pr-plat-band-alt">Ways to run it</p>
+
+  <div class="pr-plat-row pr-plat-delivery">
+    <div class="pr-plat-tile pr-plat-tile-sm">
+      <b>Self-hosted</b>
+      <span class="pr-plat-note">Free, unmetered, air-gap capable</span>
+    </div>
+    {{ range slice
+        (dict "key" "studio" "name" "Studio" "note" "Commercial edition · support" "url" "/studio/")
+        (dict "key" "cloud"  "name" "Cloud"  "note" "Hosted by us · in planning"   "url" "/cloud/") }}
+    {{ if eq $active .key }}
+    <div class="pr-plat-tile pr-plat-tile-sm pr-plat-tile-com is-active">
+      <b>{{ .name }}</b>
+      <span class="pr-plat-note">{{ .note }}</span>
+      <span class="pr-plat-here">You are here<span class="sr-only"> — this page</span></span>
+    </div>
+    {{ else }}
+    <a class="pr-plat-tile pr-plat-tile-sm pr-plat-tile-com" href="{{ .url | relURL }}">
+      <b>{{ .name }}</b>
+      <span class="pr-plat-note">{{ .note }}</span>
+    </a>
+    {{ end }}
+    {{ end }}
+  </div>
+
+  {{ with .caption }}<p class="pr-art-foot">{{ . }}</p>{{ end }}
+</div>

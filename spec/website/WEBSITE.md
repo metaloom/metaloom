@@ -31,7 +31,8 @@ coding agent that has to add or restructure site content, or fix the build/publi
   `baseURL = https://metaloom.io`. Single language `en`, `contentDir = content/english`.
 * Docs and blog are **AsciiDoc** (`.adoc`) — `asciidoctor` must be on `PATH` and allow-listed in
   `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
-* **Client-side semantic search over `/docs/**`**, from a box in the site header right of *Docs*.
+* **Client-side semantic search over `/docs/**`**, from a box pinned to the right edge of the
+  site header.
   A build step embeds every page with a vendored 7 MB model and the browser runs it on the CPU.
   See [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md).
 * Build with `./build.sh` → `dist/`, then the **search index** and three gates: a **localhost-link check**,
@@ -41,10 +42,14 @@ coding agent that has to add or restructure site content, or fix the build/publi
   site; it used to be 0.131, which could not (see [Prerequisites](#prerequisites)).
 * Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
   → its `docs/`, served by GitHub Pages at `metaloom.io`.
-* Nine top-level areas besides `/docs/`: `/tour/`, `/features/`, `/studio/`,
-  `/pipeline-editor/`, `/announcements/`, `/blog/`, `/author/`, `/faq/`, `/team/`.
+* Top-level areas besides `/docs/`: the five **product** pages `/loom/`, `/cortex/`, `/graph/`,
+  `/studio/`, `/cloud/`, plus `/tour/`, `/features/`, `/pipeline-editor/`, `/announcements/`,
+  `/blog/`, `/author/`, `/faq/`, `/team/` and the `/help/` redirector.
   ⚠️ `/tour/` **used to be `/studios/`** — renamed so it could not be confused with `/studio/`; a
   Hugo alias keeps the old URL alive.
+* **The header is six entries, three of them dropdowns** — *Products* (the five product pages),
+  *Tour*, *Features*, *Docs* (docs · getting started · pipeline editor), *Blog* (posts ·
+  announcements) and *Team*. See [The header](#the-header-and-what-scrolling-does-to-it).
 * **Every page carries a unique `<title>` and a hand-written `<meta name="description">`.** Both are
   rules enforced by construction rather than by a gate — see [Titles, descriptions and indexing](#titles-descriptions-and-indexing).
 * Site chrome beyond the header: a **breadcrumb trail** under it on every page with an ancestor, and
@@ -150,7 +155,8 @@ website/
 ├── pom.xml                # Maven module registration only
 ├── content/english/       # contentDir — see the page inventory below
 ├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
-├── data/en/*.yml          # LIVE: home · tour · studio · feature · faq · team. The other 9 are dead Meghna copy
+├── data/en/*.yml          # LIVE: home · tour · studio · feature · faq · team · loom · cortex · cloud.
+│                          #       The other 9 are dead Meghna copy
 ├── data/en/help.json      # /help/ topic id → docs URL, the Loom UI's half in loom-ui/src/help/
 ├── i18n/en.yaml           # UI strings (menu labels, footer headings, "Read more")
 ├── static/                # verbatim → dist/: images/ · CNAME · .nojekyll
@@ -159,11 +165,12 @@ website/
 │   └── images/og-*.jpg    #   1200×630 social cards
 ├── themes/meghna-hugo/    # the only theme
 │   ├── layouts/           #   index · alias · 404 · robots.txt · _default · docs · announcements
-│   │                      #   · author · features · tour · studio · faq · team · pipeline-editor
+│   │                      #   · author · features · tour · studio · product · graph · faq · team
+│   │                      #   · help · pipeline-editor
 │   │                      #   · partials (incl. breadcrumb.html, func/page-title.html)
 │   ├── less/              #   main.less + includes/{custom,adoc,docs,toc,variables}.less → assets/css/main.css
 │   ├── assets/css/        #   main.css (compiled) · home.css (also /faq/ + /team/) · tour.css
-│   │                      #   · studio.css · pipeline-editor.css · 404.css
+│   │                      #   · studio.css · product.css · pipeline-editor.css · 404.css
 │   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js · docs-search.js · 404.js
 │   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/ and /studio/
 │   └── static/plugins/    #   15 vendored plugins incl. swagger · graphiql · nodeviz · toc
@@ -185,6 +192,8 @@ Every content page is a **page bundle**: a directory with `index.adoc`/`index.md
 | `/` | `_index.md` (front matter only) | `data/en/home.yml` | `layouts/index.html` + `partials/home/*` |
 | `/tour/` | `_index.md` (front matter only, `aliases: [/studios/]`) | `data/en/tour.yml` | `layouts/tour/list.html` + `partials/tour/art-*.html` (8) |
 | `/features/` | `_index.md` | `data/en/feature.yml` | `layouts/features/list.html` |
+| `/loom/` · `/cortex/` · `/cloud/` | `_index.md` (front matter only, `type: product` + `data_key:`) | `data/en/{loom,cortex,cloud}.yml` | `layouts/product/list.html` + `partials/product/art-platform.html` — see [The product pages](#the-product-pages) |
+| `/graph/` | `_index.adoc` + a reference tree (`api/`, `cypher/`, `benchmarks/`, …) | in the pages | `layouts/graph/{list,single}.html`, reusing the docs topic rail |
 | `/studio/` | `_index.md` (front matter only) | `data/en/studio.yml` | `layouts/studio/list.html` + `partials/studio/art-*.html` (7) |
 | `/pipeline-editor/` | `_index.md` (front matter only) | — (all in JS) | `layouts/pipeline-editor/list.html` — see [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
 | `/announcements/` | `_index.adoc` + `metaloom-1-0-0/index.adoc` | in the pages | `layouts/announcements/{list,single}.html` |
@@ -198,6 +207,42 @@ Every content page is a **page bundle**: a directory with `index.adoc`/`index.md
 
 Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup`,
 `day3-vertx-dagger-poc`, `day4-vertx-jooq-poc`, `video-fingerprinting`.
+
+### The product pages
+
+**Five things are called a product** and the header's *Products* menu lists exactly those five:
+Loom, Cortex and Graph (the open source platform) and Studio and Cloud (the two commercial ways
+to get it). Three of them — `/loom/`, `/cortex/`, `/cloud/` — share **one layout and no template
+work**: a page opts in with `type: product` and names its copy with `data_key`, so adding a
+product page means adding `content/english/<name>/_index.md` and `data/en/<name>.yml`.
+
+* **Every section of the layout is optional** (`hero`, `facts`, `summary`, `capabilities`,
+  `surfaces`, `docs`, `cta`), rendered `with` its key. A product with nothing to say about its
+  interfaces omits `surfaces:` rather than shipping an empty band.
+* **`partials/product/art-platform.html` is the one piece of art** and it is shared: it draws all
+  five products and highlights the one whose `key:` was passed in. The tiles are real links with
+  real text — it is the diagram *and* the way across to the sibling products. The current page's
+  tile is deliberately **not** a link.
+  ⚠️ The active tile and the linked tile are written out in full rather than switching the tag
+  name inside one element. Hugo renders through `html/template`, which tracks the HTML context of
+  each branch, and `<{{ if }}div{{ else }}a{{ end }}` fails the build.
+* **Colour carries the same meaning as everywhere else on the site**: teal is the open source
+  platform, amber is the commercial offer. `/cloud/` sets `accent: commercial` in its data file
+  and gets `/studio/`'s amber; no third accent was invented. The commercial *tiles* stay amber
+  even on a teal page — the colour is a statement about the offer, not decoration for the page.
+* **`seo_title` is mandatory on these three.** `/loom/` and `/docs/loom/` would otherwise both
+  publish a title built from the word "Loom" ([Titles](#titles-descriptions-and-indexing)).
+* ⚠️ **The node count is a real number** and it appears in four places: `data/en/cortex.yml`
+  (twice), the *Cortex* note in `config.toml`, and `art-platform.html`. It is the number of kinds
+  in `static/pipeline-editor/node-descriptors.json` — **45** at the time of writing, printed by
+  `check-node-screenshots.mjs` on every build. Re-count it when the snapshot is regenerated.
+* ⚠️ **`/cloud/` describes something that does not exist.** There is no control plane, no
+  provisioning, no billing and no signup — the design lives in
+  [metaloom-saas/spec/SAAS_PLAN.md](../../../metaloom-saas/spec/SAAS_PLAN.md), which is explicitly
+  marked as a plan. The page is written in the future tense throughout, the status band says so in
+  the first screen, and the only call to action is an email to a person. Keep it that way until
+  something ships, and keep it from reading as a better Studio: Studio is the offer a reader can
+  act on today.
 
 ### `content/english/docs/` — the customer documentation
 
@@ -634,8 +679,60 @@ they land in the docs TOC.
 ### The header, and what scrolling does to it
 
 Sticky, translucent, `.is-active` + `aria-current` on the current section, hamburger → X, and the
-**docs search box** at the end of the menu ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)). Two classes are
-set from `assets/js/script.js` in one rAF-throttled scroll listener:
+**docs search box** pinned to the right edge of the bar ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)).
+
+**Six entries, three of them dropdowns.** *Products* (Loom · Cortex · Graph · Studio · Cloud),
+*Tour*, *Features*, *Docs* (all documentation · getting started · pipeline editor), *Blog*
+(all posts · announcements) and *Team*. Everything the header reaches appears **exactly once**;
+before this, Studio, Graph, Pipeline Editor and Announcements each held a slot of their own and
+the bar ran out of room between 992 and 1200 px.
+
+**The menu sits beside the logo and the search box keeps the right edge.** The `ml-auto` that used
+to be on `.navbar-nav` is now on `.docs-search-nav`: with the list carrying it, six entries and a
+field left ~350 px of empty bar between the wordmark and the first link, and the gap grew with the
+viewport. The nav keeps a `margin-right` so the last entry cannot touch the field at a width where
+there is no slack left for the auto margin to take.
+
+* **Children are ordinary Hugo menu entries** with `parent = "<identifier>"`, and each carries a
+  `[Languages.en.menu.main.params] note` — the second line of the dropdown item. Keep the note a
+  short phrase: it is what makes a bar of five nouns legible to a first-time reader.
+* **A parent with children is a `<button>`, not a link.** It has no page of its own, and a link
+  that opens a menu instead of navigating is a lie to a screen reader. Where the parent *does*
+  have a landing page, that page is the **first child** — "All documentation", "All posts" — so
+  nothing became unreachable when the slot was given up.
+* **The longest matching child wins.** `/docs/getting-started/` sits under both "All
+  documentation" and "Getting Started"; marking both `.is-current` says the reader is in two
+  places at once. The parent is `.is-active` whenever any child matched.
+* **Exactly one panel is open at a time**, and `.nav-js` on `<body>` is what makes that true. The
+  dropdown script sets it, and `custom.less` scopes its CSS-only openers (`:hover`,
+  `:focus-within`) to `body:not(.nav-js)` — so with JavaScript running, `.is-open` is the *only*
+  thing that opens a panel and closing one when another opens actually closes it. ⚠️ While
+  `:focus-within` was live for everyone, clicking a toggle left focus on its button, that panel
+  stayed open through the class being removed, and the next menu opened **on top of it**. Do not
+  put a bare `:hover` / `:focus-within` opener back. With the script blocked the class is never
+  set, the CSS openers apply, and the menu still works on a desktop.
+* **A click under the pointer only ever means "open".** With a mouse the panel is already open by
+  the time the click lands — the pointer had to cross the toggle to reach it — so toggling would
+  close the menu the reader had just decided to use. The handler checks `:hover` and only
+  toggles for keyboard and touch, where no hover happened.
+* **Moving the pointer onto any other part of the bar closes what is open** (a `mouseover`
+  listener on `.navigation` that ignores events inside a group). Otherwise a click-opened panel
+  hangs over the page while the reader is plainly on their way to *Tour*.
+  A panel opened from the keyboard survives the pointer drifting off it: the `mouseleave` timer
+  skips the close while focus is still inside the group.
+* **The two breakpoints want opposite defaults**, which is why there are two state classes.
+  Desktop uses `.is-open` and starts closed. Below 992 px the group is an indented list inside the
+  hamburger panel, **expanded by default in CSS**, and the script *collapses* it (`.is-collapsed`)
+  to keep the panel short — except the group holding the current page. A panel that only opened on
+  a tap would be content behind JavaScript, which this site does not do.
+* The wrapper `.nav-menu` is transparent and carries the top padding; the surface is on
+  `.nav-menu-list` inside it. That padding is the **hover bridge** — a gap between the toggle and
+  a panel that closes on `mouseleave` is a menu that shuts while the pointer is travelling to it.
+* ⚠️ The panel is positioned against the `<li>`, but the 34 px gap between entries is a **margin
+  on the button**. Anchoring at `left: 0` lands the panel under the *previous* entry; it is inset
+  with `left: 18px`, and the last group's panel is right-aligned so it cannot hang off the page.
+
+Two classes are set from `assets/js/script.js` in one rAF-throttled scroll listener:
 
 | Class | When | Effect |
 |---|---|---|
@@ -1017,7 +1114,7 @@ is restricted to `^HUGO_` and `^CI$`, so **templates can read no other env var**
 | `paginate` / `summaryLength` | `6` / `15` | Blog list page size, auto-summary words |
 | `enableRobotsTXT` / `disableLanguages` | `true` / `[]` | |
 | `Languages.en.contentDir` | `content/english` | Only language; `locale = en-us`, `label = En` |
-| `[[Languages.en.menu.main]]` | Tour 2 · Features 3 · Studio 4 · **Pipeline Editor 5** · Announcements 6 · Blog 7 · Docs 8 | All point at real pages — never a `pre = "#"` anchor |
+| `[[Languages.en.menu.main]]` | **Products 1** (Loom · Cortex · Graph · Studio · Cloud) · Tour 2 · Features 3 · **Docs 4** (docs · getting started · pipeline editor) · **Blog 5** (posts · announcements) · Team 6 | Children use `parent = "<identifier>"` + a `params.note`. All point at real pages — never a `pre = "#"` anchor. A parent carries no `url` |
 | `[security.exec] allow` | includes `asciidoctor` | **Must** include it or `.adoc` renders empty |
 | `[security] enableInlineShortcodes` | `false` | Why layout uses `++++` passthrough |
 | `[security.funcs] getenv` | `['^HUGO_', '^CI$']` | |
@@ -1055,6 +1152,8 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a task-oriented guide | `docs/playbooks/<name>/index.adoc` — link from `playbooks/_index.adoc` **and** `docs/_index.adoc` |
 | Add/redraw a node diagram | The `data-nodeviz` block on the page; renderer `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` |
 | Change home / tour / studio / feature / FAQ / team copy | `website/data/en/{home,tour,studio,feature,faq,team}.yml` — **never the layout** |
+| Change a product page's copy (`/loom/`, `/cortex/`, `/cloud/`) | `website/data/en/{loom,cortex,cloud}.yml` — one shared layout, see [The product pages](#the-product-pages) |
+| Add a product page | `content/english/<name>/_index.md` with `type: product`, `data_key`, `seo_title`, `page_css: css/product.css` + `data/en/<name>.yml` + a tile in `partials/product/art-platform.html` + a child entry under `products` in `config.toml` |
 | Add or edit an FAQ entry | `data/en/faq.yml` — it feeds the page *and* the schema.org `FAQPage` metadata |
 | Change the 404 page or its animation | `layouts/404.html`, `assets/css/404.css`, `assets/js/404.js` |
 | Change the breadcrumb | `partials/breadcrumb.html`; styling is the *Breadcrumb trail* block in `custom.less` |
@@ -1077,7 +1176,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a node page for a new kind | the page folder, plus an entry in `loom-ui/scripts/node-capture-plan.mjs` — the build gate fails until both exist |
 | Record which model a node uses + its license | `docs/legal/model-licenses/index.adoc` |
 | Fill in the Impressum | `docs/legal/impressum/index.adoc` — the `[…]` markers and the comment block at the top |
-| Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + `.navigation` in `custom.less`. **Re-check header overflow at 992–1200 px** — the bar is full |
+| Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + the `.navigation` / `.nav-has-menu` blocks in `custom.less` and the dropdown IIFE in `assets/js/script.js`. **Re-check header overflow at 992–1200 px** — a sixth top-level entry is what the dropdowns bought back |
 | Change UI labels / footer headings | `website/i18n/en.yaml` |
 | Change the footer | `layouts/partials/footer.html`; contact pills in `[[params.social]]` |
 | Change site colours | the `--ml-*` block at the top of `less/includes/custom.less` (rebuild via `build.sh`) |
@@ -1350,8 +1449,14 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `836d2509`_
-_Last updated: 2026-08-13 (the `/help/` page — `layouts/help/list.html`, `data/en/help.json`,
+_Git HEAD revision: `9512cc3f`_
+_Last updated: 2026-08-17 (the header became six entries with three dropdowns — *Products*,
+*Docs*, *Blog* — plus *Team*, each panel opening one at a time via `.nav-js`, with the menu moved
+beside the logo and the search box left holding the right edge; and the three new product pages `/loom/`, `/cortex/` and `/cloud/` landed on one
+shared `layouts/product/list.html` driven by `data/en/*.yml`. `/cloud/` describes an offering that
+does not exist yet and says so on the first screen. The stale "19 node kinds" claims on `/` and
+`/studio/` were corrected to the 45 the descriptor snapshot actually carries.)
+Earlier: 2026-08-13 (the `/help/` page — `layouts/help/list.html`, `data/en/help.json`,
 `assets/js/help-redirect.js`, `assets/css/help.css`. It is the junction the Loom UI's help icons
 resolve through, so a shipped installation never stores a documentation URL; detail belongs to
 [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md), this file carries the catalogue entry only. Also documented

@@ -67,7 +67,7 @@ glance:
       link: "/docs/loom/features/"
     - title: "Understand"
       content: "Speech becomes text, faces become vectors, scenes become captions, documents become searchable content."
-      chips: ["19 node kinds", "GPU-friendly", "custom nodes"]
+      chips: ["45 node kinds", "GPU-friendly", "custom nodes"]
       link: "/docs/nodes/"
     - title: "Find &amp; ask"
       content: "Full-text and vector search over everything that came out — or just ask the built-in agent."

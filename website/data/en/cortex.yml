@@ -1,0 +1,139 @@
+############################# /cortex/ — MetaLoom // Cortex, the engine #######################
+# Copy only. Structure and art live in themes/meghna-hugo/layouts/product/list.html and
+# layouts/partials/product/art-platform.html; styling in assets/css/product.css (.pr-*).
+#
+# This is the PRODUCT page. The reference is /docs/cortex/ and the node catalogue is
+# /docs/nodes/ — the code is authoritative over all three.
+#
+# ⚠️ The node count is a real number: it is the number of kinds in the staged descriptor
+# snapshot, website/static/pipeline-editor/node-descriptors.json, which is also what the pipeline
+# editor is built from. Re-count it when that file is regenerated; it is quoted here, in the
+# header menu note in config.toml, and in the platform diagram partial.
+#
+# Two things must never appear on this page: an "online vs offline mode" for Cortex
+# (isOfflineMode() only means "no Loom client configured") and webhooks (not a product feature).
+
+key: "cortex"
+
+hero:
+  eyebrow: "MetaLoom // Cortex"
+  image: "grid-lights.jpg"
+  title: "The engine that<br>watches everything."
+  content: "Cortex is the processing engine. It runs as a worker daemon, registers with Loom, and executes the nodes that turn a file into facts — speech into text, faces into vectors, scenes into captions, documents into searchable content."
+  primary:
+    label: "Browse the nodes"
+    link: "/docs/nodes/"
+  secondary:
+    label: "Try the pipeline editor"
+    link: "/pipeline-editor/"
+  status: "Apache 2.0 · 45 node kinds shipped · every one of them open source"
+
+facts:
+  - label: "License"
+    value: "Apache 2.0"
+  - label: "Node kinds"
+    value: "45, plus your own"
+  - label: "Acceleration"
+    value: "CPU or GPU, per worker"
+  - label: "Scaling"
+    value: "Add workers, pin kinds"
+
+summary:
+  eyebrow: "What it is"
+  title: "A worker fleet,<br>not a batch script."
+  content: "Cortex is long-running. On startup it opens a connection to Loom, announces the node kinds it can run and what their ports look like, and then waits. Loom pushes work down that connection — Cortex never polls, and it never holds the pipeline graph."
+  art_caption: "Run one worker on a laptop or twenty on a rack. The graph stays on Loom either way."
+  points:
+    - title: "One node at a time"
+      note: "A worker sees a single task — this node, this item — and answers with a result. That is what makes a fleet of unequal machines work."
+    - title: "Kinds are advertised, not assumed"
+      note: "A GPU box can offer only facedetect and whisper. Loom routes each task to a worker that has said it can run it."
+    - title: "Typed ports, checked before the run"
+      note: "Nodes bind to each other by port and content type, so a graph that cannot work is rejected in the editor rather than at three in the morning."
+    - title: "The results are auditable"
+      note: "Every node result is recorded against the asset with the node that produced it — including the ones that produced nothing, and why."
+
+capabilities:
+  eyebrow: "What it does"
+  title: "Forty-five kinds of looking closely."
+  content: "Each node does one thing, declares what it needs and what it emits, and can be swapped for another that emits the same."
+  items:
+    - icon: "ti-microphone"
+      title: "Speech and language"
+      note: "Transcription with whisper.cpp, translation, summarisation and classification against an OpenAI-compatible model, sentiment, and text-to-speech."
+      link: "/docs/nodes/whisper/"
+      link_label: "The whisper node"
+    - icon: "ti-eye"
+      title: "Vision"
+      note: "Face detection and description, object detection, OCR, captioning, scene detection and layout, depth maps, quality and dominant colour."
+      link: "/docs/nodes/facedetect/"
+      link_label: "The facedetect node"
+    - icon: "ti-files"
+      title: "Identity and duplicates"
+      note: "MD5, SHA-256, SHA-512 and chunk hashes, perceptual video fingerprints, and the dedup nodes that use them to find the same footage twice."
+      link: "/docs/nodes/dedup/"
+      link_label: "Deduplication"
+    - icon: "ti-import"
+      title: "Sources and sinks"
+      note: "Pull from a filesystem, S3, Google Drive or OneDrive; write back to S3; move, tag, rate and assign what came out."
+      link: "/docs/nodes/filesystem-source/"
+      link_label: "Source nodes"
+    - icon: "ti-filter"
+      title: "Flow control"
+      note: "Filters, guards and gates that decide what continues through the graph — including ones that route on a human's rating or tag rather than on a score."
+      link: "/docs/nodes/filter/"
+      link_label: "Filter nodes"
+    - icon: "ti-write"
+      title: "Nodes of your own"
+      note: "Script a node in JavaScript inside the editor, or build one in Java or Python when it needs to be a real component of the fleet."
+      link: "/docs/playbooks/python-node/"
+      link_label: "Write a node"
+
+surfaces:
+  eyebrow: "Running it"
+  title: "Built to be operated."
+  content: "A processing fleet is only as good as what it tells you while it is running."
+  items:
+    - name: "Registration"
+      note: "A worker connects to Loom, registers its kinds and appears in the UI. There is nothing to configure on the server for a new worker."
+    - name: "Affinity and routing"
+      note: "Pin heavy kinds to the machines that can run them, and keep a segment of a graph on one worker when the intermediate data should not travel."
+    - name: "Metrics and monitoring"
+      note: "A Prometheus endpoint per worker with a documented catalogue, plus the tasks view in the UI for what is running right now."
+    - name: "Containers and Helm"
+      note: "Published images and a chart that deploys a fleet alongside Loom, including GPU node selectors."
+    - name: "Sidecars where they help"
+      note: "A few nodes call a small local service for a model that only exists in Python. It is started next to the worker, not somewhere else."
+    - name: "Debug mode"
+      note: "Arm a breakpoint, hold a run at a node and look at exactly what it produced, with the result strip the docs' screenshots come from."
+
+docs:
+  eyebrow: "Where to next"
+  title: "Look at the catalogue first."
+  items:
+    - title: "The node catalogue"
+      note: "Every shipped node: what it takes, what it emits, what it costs and what it looks like in the product."
+      link: "/docs/nodes/"
+      label: "Browse nodes"
+    - title: "Pipeline editor"
+      note: "Build a graph in your browser and simulate a run against it. No server, no account, nothing to install."
+      link: "/pipeline-editor/"
+      label: "Open the editor"
+    - title: "Cortex configuration"
+      note: "Worker settings, the connection to Loom, model paths and per-node options."
+      link: "/docs/cortex/configuration/"
+      label: "Configure Cortex"
+
+cta:
+  eyebrow: "Cortex"
+  title: "Point it at a folder."
+  content: "The fastest way to understand the engine is to run one pipeline over a directory you already have and look at what comes back attached to the files."
+  links:
+    - label: "Getting started"
+      link: "/docs/getting-started/"
+      primary: true
+    - label: "How a pipeline runs"
+      link: "/docs/pipeline/"
+    - label: "Join the Discord"
+      link: "https://discord.gg/3Dy2SxKUtw"
+  note: "MetaLoom ships no model weights. Every model is a configuration value, and what each node loads by default — with its license — is written down."

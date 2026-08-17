@@ -1,0 +1,201 @@
+{{/*
+  One layout for the three product pages the header's *Products* menu points at that are not
+  already a section of their own: /loom/, /cortex/ and /cloud/. (/graph/ has its own reference
+  tree and renders through layouts/graph/; /studio/ is the commercial pitch and has its own.)
+
+  A page opts in with `type: product` in its front matter and names its copy with `data_key`, so
+  the three pages are three data files and no template. Copy lives in data/en/<key>.yml, styling
+  in assets/css/product.css (loaded via `page_css`), everything prefixed .pr-*.
+
+  Every section is optional and rendered `with` its key — a product with nothing to say about,
+  say, its interfaces simply omits `surfaces:` rather than shipping an empty band.
+
+  The one piece of art is shared: partials/product/art-platform.html draws the five products as
+  one system and highlights whichever page is asking. It is the reason a reader who arrived on
+  /cortex/ from a dropdown can see what Cortex is *part of* without leaving the page.
+*/}}
+{{ define "main" }}
+{{ $d := index (index hugo.Data site.Language.Lang) .Params.data_key }}
+
+{{ partial "navigation.html" . }}
+
+<main class="pr-page{{ with $d.accent }} pr-{{ . }}{{ end }}" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  {{/* ---------------------------------------------------------------- hero */}}
+  {{ with $d.hero }}
+  {{ $src := resources.Get (printf "images/scenery/%s" (.image | default "hero-threads.jpg")) }}
+  <section class="pr-hero" id="top">
+    {{/* Same layer order as /tour/ and /studio/: photo, veil for legibility, fade so the picture
+         dissolves into the page instead of being cut off at a hard edge. */}}
+    <div class="pr-hero-media">
+      <img src="{{ ($src.Fill "1920x1100 webp q66 Center").RelPermalink }}"
+           srcset="{{ ($src.Fill "900x1000 webp q60 Center").RelPermalink }} 900w, {{ ($src.Fill "1920x1100 webp q66 Center").RelPermalink }} 1920w"
+           sizes="100vw" alt="" aria-hidden="true" fetchpriority="high">
+      <div class="pr-hero-veil"></div>
+      <div class="pr-hero-fade" aria-hidden="true"></div>
+    </div>
+    <div class="pr-wrap pr-hero-inner">
+      <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+      <h1 class="pr-hero-title reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="pr-hero-lead reveal" data-reveal-delay="2">{{ .content }}</p>
+      <div class="pr-actions reveal" data-reveal-delay="3">
+        {{ with .primary }}
+        <a class="pr-btn pr-btn-primary" href="{{ if or (hasPrefix .link "#") (hasPrefix .link "mailto:") }}{{ .link | safeURL }}{{ else }}{{ .link | relURL }}{{ end }}">{{ .label }}</a>
+        {{ end }}
+        {{ with .secondary }}
+        <a class="pr-btn pr-btn-ghost" href="{{ if or (hasPrefix .link "#") (hasPrefix .link "mailto:") }}{{ .link | safeURL }}{{ else }}{{ .link | relURL }}{{ end }}"{{ if hasPrefix .link "http" }} rel="noopener"{{ end }}>{{ .label }}</a>
+        {{ end }}
+      </div>
+      {{ with .status }}
+      <p class="pr-status reveal" data-reveal-delay="4"><span class="pr-status-dot" aria-hidden="true"></span>{{ . }}</p>
+      {{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* --------------------------------------------------------------- facts */}}
+  {{/* Plain facts rather than adjectives, the same device the home page's status card uses. On a
+       product page they are also the fastest answer to "is this thing real yet". */}}
+  {{ with $d.facts }}
+  <section class="pr-factsband">
+    <div class="pr-wrap">
+      <dl class="pr-facts">
+        {{ range $i, $f := . }}
+        <div class="pr-fact reveal" data-reveal-delay="{{ $i }}">
+          <dt>{{ $f.label }}</dt>
+          <dd>{{ $f.value | safeHTML }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ------------------------------------------------------- what it is + art */}}
+  {{ with $d.summary }}
+  <section class="pr-section" id="what-it-is">
+    <div class="pr-wrap pr-split">
+      <div class="pr-split-text">
+        <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="pr-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="pr-lead reveal">{{ .content }}</p>
+        {{ with .points }}
+        <ul class="pr-points">
+          {{ range $i, $p := . }}
+          <li class="reveal" data-reveal-delay="{{ $i }}">
+            <b>{{ $p.title }}</b>
+            <span>{{ $p.note }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+      </div>
+      <div class="pr-split-art reveal">
+        {{ partial "product/art-platform.html" (dict "active" $d.key "caption" .art_caption) }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* -------------------------------------------------------- capabilities */}}
+  {{ with $d.capabilities }}
+  <section class="pr-section pr-capabilities" id="capabilities">
+    <div class="pr-wrap">
+      <div class="pr-section-head">
+        <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="pr-title reveal">{{ .title | safeHTML }}</h2>
+        {{ with .content }}<p class="pr-lead reveal">{{ . }}</p>{{ end }}
+      </div>
+      <div class="pr-cards">
+        {{ range $i, $c := .items }}
+        <article class="pr-card reveal" data-reveal-delay="{{ $i }}">
+          <i class="{{ $c.icon }}" aria-hidden="true"></i>
+          <h3>{{ $c.title }}</h3>
+          <p>{{ $c.note }}</p>
+          {{ with $c.link }}
+          <a class="pr-link" href="{{ . | relURL }}">{{ $c.link_label | default "Read more" }} <span aria-hidden="true">&rarr;</span></a>
+          {{ end }}
+        </article>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ------------------------------------------------------------ surfaces */}}
+  {{/* The ways in: APIs, clients, deployment targets. A table would imply a comparison; this is
+       an inventory, so it is a definition list of name → one line. */}}
+  {{ with $d.surfaces }}
+  <section class="pr-section pr-surfaces" id="surfaces">
+    {{ $src := resources.Get "images/scenery/grid-lights.jpg" }}
+    <div class="pr-bg-media" aria-hidden="true">
+      <img src="{{ ($src.Fill "1600x900 webp q58 Center").RelPermalink }}" alt="" loading="lazy">
+      <div class="pr-bg-veil"></div>
+    </div>
+    <div class="pr-wrap">
+      <div class="pr-section-head">
+        <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="pr-title reveal">{{ .title | safeHTML }}</h2>
+        {{ with .content }}<p class="pr-lead reveal">{{ . }}</p>{{ end }}
+      </div>
+      <dl class="pr-surface-grid">
+        {{ range $i, $s := .items }}
+        <div class="pr-surface reveal" data-reveal-delay="{{ $i }}">
+          <dt>{{ $s.name }}</dt>
+          <dd>{{ $s.note }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ---------------------------------------------------------------- docs */}}
+  {{ with $d.docs }}
+  <section class="pr-section pr-docs" id="documentation">
+    <div class="pr-wrap">
+      <div class="pr-section-head">
+        <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="pr-title reveal">{{ .title | safeHTML }}</h2>
+      </div>
+      <div class="pr-cards pr-cards-3">
+        {{ range $i, $c := .items }}
+        <a class="pr-doc-card reveal" data-reveal-delay="{{ $i }}" href="{{ $c.link | relURL }}">
+          <h3>{{ $c.title }}</h3>
+          <p>{{ $c.note }}</p>
+          <span class="pr-doc-more">{{ $c.label | default "Open" }} <span aria-hidden="true">&rarr;</span></span>
+        </a>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------------- cta */}}
+  {{ with $d.cta }}
+  {{ $src := resources.Get "images/scenery/neon-lines.jpg" }}
+  <section class="pr-section pr-cta" id="next">
+    <div class="pr-bg-media" aria-hidden="true">
+      <img src="{{ ($src.Fill "1600x900 webp q58 Center").RelPermalink }}" alt="" loading="lazy">
+      <div class="pr-bg-veil"></div>
+    </div>
+    <div class="pr-wrap pr-cta-inner">
+      <p class="pr-eyebrow reveal">{{ .eyebrow }}</p>
+      <h2 class="pr-title reveal">{{ .title | safeHTML }}</h2>
+      <p class="pr-lead reveal">{{ .content }}</p>
+      <div class="pr-actions reveal">
+        {{ range .links }}
+        <a class="pr-btn {{ if .primary }}pr-btn-primary{{ else }}pr-btn-ghost{{ end }}"
+           href="{{ if or (hasPrefix .link "mailto:") (hasPrefix .link "http") }}{{ .link | safeURL }}{{ else }}{{ .link | relURL }}{{ end }}"{{ if hasPrefix .link "http" }} rel="noopener"{{ end }}>{{ .label }}</a>
+        {{ end }}
+      </div>
+      {{ with .note }}<p class="pr-cta-note reveal">{{ . }}</p>{{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+</main>
+
+{{ partial "reveal-script.html" . }}
+{{ end }}

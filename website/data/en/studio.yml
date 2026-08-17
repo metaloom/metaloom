@@ -37,7 +37,7 @@ open_core:
     open_label: "Always open source"
     open_items:
       - "Loom server · Cortex engine"
-      - "All 19 processing node kinds"
+      - "All 45 processing node kinds"
       - "REST · GraphQL · CLI · desktop"
       - "Pipeline editor & chat agent"
       - "Helm chart & container images"
@@ -106,7 +106,7 @@ panels:
     link_label: "Writing your own node"
 
 numbers:
-  - value: "19"
+  - value: "45"
     label: "processing nodes — every one of them open source"
   - value: "0"
     label: "minutes, frames or assets metered"
@@ -124,7 +124,7 @@ editions:
   studio_label: "Studio"
   studio_note: "Commercial · pricing with 1.0.0"
   rows:
-    - feature: "Loom server, Cortex engine, all 19 node kinds"
+    - feature: "Loom server, Cortex engine, all 45 node kinds"
       community: true
       studio: true
     - feature: "Self-hosted, unmetered, air-gap capable"

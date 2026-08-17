@@ -82,24 +82,78 @@ link = "plugins/nodeviz/nodeviz.js"
 link = "plugins/detectionplayer/detectionplayer.js"
 
 ################### English Navigation ########################
-#[[Languages.en.menu.main]]
-#name = "about"
-#pre = "#"
-#url = "about"
-#weight = 1
+# Five top-level entries, three of which open a dropdown. Everything the header reaches appears
+# EXACTLY ONCE: the five products under *Products*, the two reference surfaces under *Docs*, the
+# two written ones under *Blog*. Before this, Studio, Graph, Pipeline Editor and Announcements
+# each held a slot of their own and the bar ran out of room between 992 and 1200 px.
+#
+# A parent with children is a disclosure button, not a link — a reader never has to guess whether
+# clicking it navigates or opens. Where the parent has a landing page of its own, that page is the
+# FIRST item in its panel ("All documentation", "All posts"), so nothing becomes unreachable.
+#
+# `[Languages.en.menu.main.params]` after an entry carries a `note`, rendered as the second line
+# of the dropdown item. Keep it to one short phrase — it is a label, not a sentence.
+#
+# Rendering: partials/navigation.html · styling: the `.nav-has-menu` block in
+# less/includes/custom.less · behaviour: the header-dropdown IIFE in assets/js/script.js.
 
-#[[Languages.en.menu.main]]
-#name = "services"
-#pre = "#"
-#url = "services"
-#weight = 2
+# ---------------------------------------------------------------- Products (no page of its own)
+[[Languages.en.menu.main]]
+identifier = "products"
+name = "Products"
+weight = 1
 
-#[[Languages.en.menu.main]]
-#name = "portfolio"
-#pre = "#"
-#url = "portfolio"
-#weight = 3
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Loom"
+url = "loom"
+weight = 1
+  [Languages.en.menu.main.params]
+  note = "The asset server — APIs, storage, search, UI"
 
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Cortex"
+url = "cortex"
+weight = 2
+  [Languages.en.menu.main.params]
+  note = "The processing engine and its 45 node kinds"
+
+# The graph database. Its own top-level section rather than a page under /docs/, because it is a
+# separate product with its own repository — and it carries its own reference tree, so it renders
+# through layouts/graph/ and reuses the docs topic rail via the partial's `root` argument.
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Graph"
+url = "graph"
+weight = 3
+  [Languages.en.menu.main.params]
+  note = "Native-code graph database for Java"
+
+# The commercial edition. Deliberately singular ("Studio") and distinct from the /tour/ page
+# below, which used to sit at /studios/ and confused the two.
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Studio"
+url = "studio"
+weight = 4
+  [Languages.en.menu.main.params]
+  note = "Self-hosted commercial edition"
+
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Cloud"
+url = "cloud"
+weight = 5
+  [Languages.en.menu.main.params]
+  note = "Hosted MetaLoom — in planning"
+
+# ------------------------------------------------------------------------------- plain entries
+[[Languages.en.menu.main]]
+name = "Tour"
+pre = ""
+url = "tour"
+weight = 2
 
 [[Languages.en.menu.main]]
 name = "Features"
@@ -107,65 +161,66 @@ pre = ""
 url = "features"
 weight = 3
 
-#[[Languages.en.menu.main]]
-#name = "pricing"
-#pre = "#"
-#url = "pricing"
-#weight = 5
-
+# ------------------------------------------------------------------------------ Docs (dropdown)
 [[Languages.en.menu.main]]
-name = "Tour"
-pre = ""
-url = "tour"
-weight = 2
-
-# The commercial edition. Deliberately singular ("Studio") and distinct from the /tour/
-# page above, which used to sit at /studios/ and confused the two.
-[[Languages.en.menu.main]]
-name = "Studio"
-pre = ""
-url = "studio"
+identifier = "docs"
+name = "Docs"
 weight = 4
 
 [[Languages.en.menu.main]]
+parent = "docs"
+name = "All documentation"
+url = "docs"
+weight = 1
+  [Languages.en.menu.main.params]
+  note = "Reference, playbooks and the node catalogue"
+
+[[Languages.en.menu.main]]
+parent = "docs"
+name = "Getting Started"
+url = "docs/getting-started"
+weight = 2
+  [Languages.en.menu.main.params]
+  note = "From a container to a first pipeline"
+
+[[Languages.en.menu.main]]
+parent = "docs"
 name = "Pipeline Editor"
-pre = ""
 url = "pipeline-editor"
+weight = 3
+  [Languages.en.menu.main.params]
+  note = "Build and simulate a graph in the browser"
+
+# ------------------------------------------------------------------------------ Blog (dropdown)
+[[Languages.en.menu.main]]
+identifier = "blog"
+name = "Blog"
 weight = 5
 
 [[Languages.en.menu.main]]
-name = "Announcements"
-pre = ""
-url = "announcements"
-weight = 7
-
-[[Languages.en.menu.main]]
-name = "Blog"
-pre = ""
+parent = "blog"
+name = "All posts"
 url = "blog"
-weight = 8
+weight = 1
+  [Languages.en.menu.main.params]
+  note = "Design notes from the build log"
 
-# The graph database. Its own top-level section rather than a page under /docs/, because it is a
-# separate product with its own repository — and it carries its own reference tree, so it renders
-# through layouts/graph/ and reuses the docs topic rail via the partial's `root` argument.
 [[Languages.en.menu.main]]
-name = "Graph"
+parent = "blog"
+name = "Announcements"
+url = "announcements"
+weight = 2
+  [Languages.en.menu.main.params]
+  note = "Releases and what is in them"
+
+# ------------------------------------------------------------------------------- plain entries
+# Last in the bar on purpose: it is the "who is behind this" question, which a reader asks after
+# the product ones, not before them.
+[[Languages.en.menu.main]]
+name = "Team"
 pre = ""
-url = "graph"
+url = "team"
 weight = 6
-
-[[Languages.en.menu.main]]
-name = "Docs"
-pre = ""
-url = "docs"
-weight = 9
-
-
-#[[Languages.en.menu.main]]
-#name = "contact"
-#pre = "#"
-#url = "contact"
-#weight = 7
 
 ############################# Default Parameters ##########################
 [params]

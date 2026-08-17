@@ -1,0 +1,136 @@
+############################# /loom/ — MetaLoom // Loom, the asset server ######################
+# Copy only. Structure and art live in themes/meghna-hugo/layouts/product/list.html and
+# layouts/partials/product/art-platform.html; styling in assets/css/product.css (.pr-*).
+#
+# This is the PRODUCT page. The reference is /docs/loom/ and the code is authoritative over both
+# — when a claim here stops being true, fix it in the same change that made it untrue
+# (spec/guidelines/CODING.md § Docs). Every link below must resolve; check-links.mjs fails the
+# build if one does not.
+#
+# Keep the two site-wide promises intact: nothing here may imply a hosted service (that is
+# /cloud/, and it is unbuilt) or a feature moving behind a paywall (see /studio/).
+
+key: "loom"
+
+hero:
+  eyebrow: "MetaLoom // Loom"
+  image: "hero-threads.jpg"
+  title: "The server that<br>remembers everything."
+  content: "Loom is the media asset server at the heart of MetaLoom. It holds the files — or just points at where they already live — keeps everything the engine discovers about them, and hands it all back over a REST, GraphQL, gRPC or MCP interface."
+  primary:
+    label: "Read the docs"
+    link: "/docs/loom/"
+  secondary:
+    label: "Get started in a container"
+    link: "/docs/getting-started/"
+  status: "Apache 2.0 · 1.0.0 in development, nothing tagged as a release yet"
+
+facts:
+  - label: "License"
+    value: "Apache 2.0"
+  - label: "Interfaces"
+    value: "REST · GraphQL · gRPC · MCP"
+  - label: "Built on"
+    value: "Java 25 · Vert.x 5 · PostgreSQL"
+  - label: "Runs on"
+    value: "One container, or Kubernetes"
+
+summary:
+  eyebrow: "What it is"
+  title: "One system of record<br>for the whole archive."
+  content: "Loom owns the library: the assets, the people, the tags, the permissions, the pipelines and every result a processing node has ever produced. Cortex does the analysis and Graph answers questions about how things relate — but what is true about a file is true because Loom says so."
+  art_caption: "Loom is the only component the outside world talks to. Everything else registers with it."
+  points:
+    - title: "Files stay where they are"
+      note: "Reference a directory in place or upload into managed storage — on disk or an S3-compatible bucket, chosen per library."
+    - title: "Results land on the asset"
+      note: "Transcripts, detections, embeddings, captions, hashes and thumbnails are written back against the file they describe, with a ledger of which node produced them."
+    - title: "It dispatches the work"
+      note: "The pipeline graph lives here. Loom pushes one task at a time to whichever Cortex worker is allowed to run that node kind."
+    - title: "Nothing leaves the building"
+      note: "There is no phone-home and no metering. A Loom install works with no route to the internet at all."
+
+capabilities:
+  eyebrow: "What it does"
+  title: "An asset manager, not a file browser."
+  content: "The parts that make an archive searchable rather than merely stored."
+  items:
+    - icon: "ti-layout-grid2"
+      title: "Assets, libraries and people"
+      note: "Libraries, collections, tags, ratings, reactions, users, groups and roles — with the person model that face clustering fills in as it goes."
+      link: "/docs/loom/features/"
+      link_label: "The entity model"
+    - icon: "ti-search"
+      title: "Search and vector indices"
+      note: "Full-text search and nearest-neighbour search over embeddings, backed by Elasticsearch, Lucene or Qdrant, with tooling to inspect, reindex and resync each one."
+      link: "/docs/loom/search-indices/"
+      link_label: "Search indices"
+    - icon: "ti-comments"
+      title: "Chat and the AI agent"
+      note: "A conversational assistant over your own library — sessions, skills, memory, and an optional sandbox where it can write and run code against what it finds."
+      link: "/docs/loom/chat/"
+      link_label: "Chat & AI agent"
+    - icon: "ti-share"
+      title: "Pipelines and dispatch"
+      note: "Author a graph in the editor, run it against a library, and watch each node's result come back — including breakpoints and a debugger for a run that went wrong."
+      link: "/docs/pipeline/"
+      link_label: "Pipeline mechanism"
+    - icon: "ti-harddrive"
+      title: "Binary storage"
+      note: "Disk or S3-compatible object storage per library, content-addressed, with a report of how much space each kind of content is using and how full each backend is."
+      link: "/docs/loom/binary-storage/"
+      link_label: "Binary storage"
+    - icon: "ti-shield"
+      title: "Authentication and permissions"
+      note: "JWT bearer tokens, optional OAuth2, API keys, and per-entity permissions expressed as roles and groups rather than as a flag on a user."
+      link: "/docs/loom/authentication/"
+      link_label: "Authentication"
+
+surfaces:
+  eyebrow: "Ways in"
+  title: "Six front doors to the same library."
+  content: "Every one of them is generated from the same model, so nothing is a second-class interface."
+  items:
+    - name: "REST API"
+      note: "Full CRUD over every entity, with a published OpenAPI document and an explorer you can drive from the docs page."
+    - name: "GraphQL API"
+      note: "Nested queries over the asset model when one round trip should answer a whole screen. The schema and a GraphiQL explorer ship with the docs."
+    - name: "gRPC API"
+      note: "Binary RPC over HTTP/2 on its own port, for integrations that want a generated client."
+    - name: "MCP server"
+      note: "Connect Claude Desktop, an IDE or your own agent to the library over the Model Context Protocol."
+    - name: "Java & Python clients"
+      note: "Typed clients for both, kept in step with the REST surface by a parity test rather than by hand."
+    - name: "Web UI, desktop and CLI"
+      note: "The same server, driven from a browser, a desktop build or a shell — including the pipeline editor and the debugger."
+
+docs:
+  eyebrow: "Where to next"
+  title: "Run it, then wire it up."
+  items:
+    - title: "Getting Started"
+      note: "From a container and a database to a first library with a pipeline running against it."
+      link: "/docs/getting-started/"
+      label: "Start here"
+    - title: "REST API reference"
+      note: "Every endpoint, its payloads and an explorer, generated from the server itself."
+      link: "/docs/loom/rest-api/"
+      label: "Open the reference"
+    - title: "Configuration"
+      note: "The YAML file and every environment variable, including storage, search and the agent."
+      link: "/docs/loom/configuration/"
+      label: "Configure Loom"
+
+cta:
+  eyebrow: "Loom"
+  title: "It runs today."
+  content: "1.0.0 is not tagged and the interfaces can still move, but the demo container starts, seeds a library and gives you a UI to look at it with. That is the fastest way to find out whether this is what you want."
+  links:
+    - label: "Getting started"
+      link: "/docs/getting-started/"
+      primary: true
+    - label: "See what it looks like"
+      link: "/tour/"
+    - label: "Join the Discord"
+      link: "https://discord.gg/3Dy2SxKUtw"
+  note: "MetaLoom is Apache 2.0 and stays that way. The commercial edition adds identity, storage and support around it — it takes nothing out."

@@ -6,7 +6,16 @@
   menu entry matches when the current page's URL sits under it (`/docs/nodes/whisper/` →
   *Docs*). Styling lives in less/includes/custom.less; labels come from config.toml.
 
-  The documentation search box sits at the end of the menu, right of *Docs*. It is site chrome
+  A menu entry with children (Products, Docs, Blog) renders as a disclosure BUTTON plus a panel
+  of links, never as a link that also opens something. The parent is active when any of its
+  children matches, and the matching child is marked `.is-current` inside the panel — so the bar
+  still answers "where am I" for a section that no longer has a slot of its own.
+
+  With JavaScript the panels are driven entirely from `.is-open` (assets/js/script.js, which sets
+  `.nav-js` on <body> to switch the CSS-only openers off) so exactly one can be open at a time.
+  With the script blocked, `:hover` and `:focus-within` open them and the menu still works.
+
+  The documentation search box sits at the right edge of the bar, after the menu. It is site chrome
   rather than a docs control, so a reader who lands on the home page or a blog post can reach the
   reference without navigating to it first — the placeholder says "docs" because that is what the
   index covers. See ../../../../spec/website/WEBSITE_SEARCH.md.
@@ -28,16 +37,54 @@
 				<span class="navbar-toggler-bars" aria-hidden="true"><span></span><span></span><span></span></span>
 			</button>
 
+			{{/* The menu sits beside the logo, not against the right edge: `ml-auto` moved to the
+			     search box instead (`.docs-search-nav` in custom.less), which is the one control
+			     that belongs at the end of the bar. With it on the list, six entries and a search
+			     field left ~350px of empty bar between the wordmark and the first link. */}}
 			<div class="collapse navbar-collapse" id="navigation">
-				<ul class="navbar-nav ml-auto">
+				<ul class="navbar-nav">
 					{{ $current := .RelPermalink }}
 					{{ range site.Menus.main }}
+					{{ if .HasChildren }}
+					{{/* A section group. The parent carries no URL of its own — its landing page, where
+					     there is one, is the first child — so the toggle is a <button>: there is nothing
+					     for it to link to, and a link that does not navigate is a lie to a screen reader. */}}
+					{{ $panel := printf "nav-menu-%s" (.Identifier | urlize) }}
+					{{/* The LONGEST matching child wins, not every matching one: /docs/getting-started/
+					     sits under both "All documentation" and "Getting Started", and marking both as
+					     the current page says the reader is in two places at once. */}}
+					{{ $best := "" }}
+					{{ range .Children }}
+					{{ $t := printf "%s/" (strings.TrimSuffix "/" (.URL | relLangURL)) }}
+					{{ if and (ne $t "/") (hasPrefix $current $t) (gt (len $t) (len $best)) }}{{ $best = $t }}{{ end }}
+					{{ end }}
+					<li class="nav-item nav-has-menu{{ if $best }} is-active{{ end }}">
+						<button class="nav-link nav-menu-toggle" type="button" aria-expanded="false" aria-controls="{{ $panel }}">
+							{{ .Name }}<span class="nav-caret" aria-hidden="true"></span>
+						</button>
+						<div class="nav-menu" id="{{ $panel }}">
+							<ul class="nav-menu-list">
+								{{ range .Children }}
+								{{ $t := printf "%s/" (strings.TrimSuffix "/" (.URL | relLangURL)) }}
+								{{ $childActive := eq $t $best }}
+								<li>
+									<a class="nav-menu-link{{ if $childActive }} is-current{{ end }}" {{ if $childActive }}aria-current="page" {{ end }}href="{{ .URL | relLangURL }}">
+										<span class="nav-menu-name">{{ .Name }}</span>
+										{{ with .Params.note }}<span class="nav-menu-note">{{ . }}</span>{{ end }}
+									</a>
+								</li>
+								{{ end }}
+							</ul>
+						</div>
+					</li>
+					{{ else }}
 					{{ $anchor := .Pre }}
 					{{ $target := printf "%s/" (strings.TrimSuffix "/" (.URL | relLangURL)) }}
 					{{ $active := and (not $anchor) (ne $target "/") (hasPrefix $current $target) }}
 					<li class="nav-item{{ if $active }} is-active{{ end }}">
 						<a class="nav-link" {{ if $active }}aria-current="page" {{ end }}href="{{ if $anchor }}{{ if not $.IsHome }}{{ site.Home.RelPermalink }}{{ end }}{{ $anchor }}{{ .URL }}{{ else }}{{ .URL | relLangURL }}{{ end }}">{{ .Name }}</a>
 					</li>
+					{{ end }}
 					{{ end }}
 				</ul>
 
