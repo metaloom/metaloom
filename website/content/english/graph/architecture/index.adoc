@@ -1,0 +1,81 @@
+---
+title: "Architecture"
+description: "Ids that carry their own byte offset, segments, records, and the layers between the API and the disk."
+---
+
+== The addressing invariant
+
+Every element id decodes arithmetically into the file and byte offset of its record. That single rule shapes
+everything else, and any design that would introduce a mandatory indirection between "I have an id" and "I know the
+byte offset" is out of scope.
+
+The id is 64 bits:
+
+[cols="1,1,3"]
+|===
+| Field | Width | Meaning
+
+| `kind` | 4 bit | The store family: node, relationship, adjacency, property, blob, index, undo, vector
+| `segment` | 24 bit | Which file
+| `slot` | 24 bit | Which fixed-size record inside it
+| `gen` | 12 bit | A per-slot reuse counter, so a stale id is detected rather than followed
+|===
+
+`NULL_ID` is `0`, and kind 0 is reserved as "none" — so a zeroed page is unambiguously empty rather than full of
+plausible references to element zero.
+
+== The numbers that matter
+
+[cols="1,1,3"]
+|===
+| Constant | Value | Rationale
+
+| `PAGE_SIZE` | 8192 B | A multiple of the 4 KiB SSD write unit; configurable to 4 or 16 KiB, fixed at store creation
+| Node record | 64 B | Exactly one cache line, and it never straddles a page
+| Relationship record | 64 B | The same
+| Property cell | 32 B | 256 cells per page
+| Adjacency cell | 512 B | A block is a _run_ of cells that doubles as the node fills
+| Segment capacity | 4 GiB | Sparse, so unused space costs nothing
+| WAL segment | 64 MiB | Preallocated, `O_DIRECT`, 4 KiB aligned
+|===
+
+Every stride divides the page size. A record that straddled a page boundary would double the I/O and break the
+per-page checksum, which is why there is nothing here shaped like the 1080-byte record the predecessor used.
+
+== Adjacency sizing, and the measurement that changed it
+
+An adjacency block was a *page* per node until a 10-million-node graph was measured: 59 of 61 GiB went on adjacency
+for a mean degree of 4. Making a block a run of 512-byte cells that doubles as the node fills took the same graph to
+*6.2 GiB* and its load time from 43 minutes to 11.
+
+A node of degree 3 now costs 512 bytes rather than 8192. This is the single largest space decision in the format,
+and it was made by measuring rather than by reasoning.
+
+== Layers
+
+[cols="1,3"]
+|===
+| *API* | `GraphStore`, transactions, cursors, traversal
+| *Transaction manager* | Snapshots, the retention horizon, per-page before-images
+| *WAL manager* | Append, group commit, redo recovery, checkpoints
+| *Record stores* | Node, relationship, adjacency, property, blob, vector
+| *Segment layer* | Superblock, page metadata array, free-slot bitmap
+| *Page cache* | Latches, dirty tracking, eviction
+| *Native library* | Rust via FFM: io_uring, `O_DIRECT`, SIMD checksums, `fallocate` and hole punching
+|===
+
+== Recovery is redo-only
+
+The engine is *no-steal, force-at-commit*: a writer mutates private copies of the pages it touches, and commit
+fsyncs the redo records before applying them. Uncommitted data therefore cannot reach a data file, and there is
+nothing to undo.
+
+Two consequences worth knowing:
+
+* Recovery is a *single redo pass*. There are no compensation records and no three-pass ARIES machinery, because
+  there is nothing for them to do.
+* MVCC before-images live *in memory*, per page, rather than in an on-disk undo segment — undo does not need to be
+  durable under no-steal.
+
+The cost is that *a transaction is bounded by heap*: a writer holds a private copy of every page it touches until
+commit, so a transaction touching a gigabyte of pages needs a gigabyte. Split large loads into batches.

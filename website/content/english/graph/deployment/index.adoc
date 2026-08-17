@@ -1,0 +1,91 @@
+---
+title: "Deployment"
+description: "Container images and a Helm chart, and the two decisions in them that are about correctness rather than taste."
+---
+
+[source,bash]
+----
+mvn -o clean package -DskipTests
+container/build-containers.sh jvm            # or: native, or: both
+docker run --rm -e GRAPH_DEMO=true -p 8080:8080 -p 8082:8082 metaloom/graph-server:latest
+
+helm install g helm/metaloom-graph --set graph.demo=true
+helm/test/run.sh --build                     # the whole thing on a throwaway k3d cluster
+----
+
+== Two images
+
+[cols="2,1,1,2"]
+|===
+| | Base | Start | Why
+
+| `Containerfile` | `eclipse-temurin:25-jre` | seconds | The default
+| `Containerfile.native` | `debian:stable-slim` | ~110 ms | GraalVM native image, ~38 MB binary, ~78 MB RSS
+|===
+
+=== Not Alpine, and that is about correctness
+
+The Rust crate is built for `x86_64-unknown-linux-gnu`, and the JVM unpacks that shared object to a temporary
+directory and `dlopen`s it. On musl the `dlopen` fails, the capability status becomes "failed to load", and the
+server carries on happily on the pure-Java fallback — silently giving up the one thing the JVM cannot approach, which
+is *12.4x on scattered reads* via io_uring. No error, no crash, just a slower database.
+
+`GET /api/stats` reports `nativeLayer`, and on a correctly built image the value is *`ABI 2`*. That single assertion
+is what proves the base image is right.
+
+Native plus Alpine is the one combination that cannot work at all: the GraalVM binary is linked against glibc.
+
+=== `/tmp` is load-bearing
+
+It has to be writable and not `noexec`, because that is where the native library lands before it is `dlopen`ed. The
+chart mounts an `emptyDir` there precisely so that `readOnlyRootFilesystem: true` does not quietly cost the native
+layer — the two belong together or not at all.
+
+== The chart
+
+A StatefulSet, *not* a Deployment. The store holds a `LOCK` file, allows exactly one writer process, and memory-maps
+its segments. A Deployment's default rolling update starts the replacement pod _before_ the old one terminates, so
+two processes briefly hold one volume: the new one fails to take the lock and crash-loops while the old one is still
+serving, which reads as a broken image rather than as the ordering mistake it is.
+
+*`replicaCount` other than 1 is refused at template time*, with a message naming the lock file. That is the honest
+encoding of "no concurrent writers": scale by giving a graph its own release, not its own replica.
+
+=== Three values that encode a decision
+
+[cols="2,1,3"]
+|===
+| Value | Default | Why
+
+| `graph.allowWrite` | `false` | No port has authentication. On a ClusterIP Service, enabling this hands everything in the cluster that can resolve the name the ability to delete data
+| `wire.host` | `127.0.0.1` | The Service port exists but nothing outside the pod reaches it until this is widened
+| `securityContext.readOnlyRootFilesystem` | `true` | Only correct paired with the `/tmp` volume, above
+|===
+
+`persistence.size` defaults to 10Gi, sized from the measured 6.1 GiB for 10M nodes and 20M relationships plus the log
+and room to compact. *It cannot be changed by `helm upgrade`* — a StatefulSet's volume claim template is immutable
+once the object exists.
+
+=== Probes are on the monitoring port
+
+Never the query port. A query load heavy enough to saturate HTTP would otherwise time out the liveness probe and get
+a merely-busy server killed, turning a slow database into a restart loop.
+
+`/ready` turns 503 as soon as shutdown begins, which is what takes the pod out of the Service's endpoints _before_
+the listener closes. A startup probe buys recovery time: recovery is normally milliseconds, but after a crash during
+a large bulk load it can take minutes, and a liveness probe firing during it produces a crash loop that can never
+finish recovering.
+
+== The test harness
+
+`helm/test/run.sh` deploys the chart on a throwaway k3d cluster and runs *35 assertions* across nine phases. k3d and
+kubectl are downloaded into the test directory, and it never touches your `~/.kube/config`.
+
+Three of the phases are the ones worth having:
+
+* *Delete the pod and assert the same node count comes back.* Everything else could be true of a chart for a
+  stateless service; this is the phase that tests what this project is.
+* *Assert `graph_store_nodes` equals `/api/stats`.* A scrape full of plausible zeroes would not tell you the cached
+  metrics tier had come unwired from the store the API reads.
+* *Uninstall and reinstall against the retained volume.* A StatefulSet's claim deliberately outlives its release,
+  which is the behaviour somebody relies on the first time they uninstall a chart by mistake.

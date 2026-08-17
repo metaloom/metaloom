@@ -9,7 +9,7 @@
         <div class="docs-sidebar toc-sticky-top">
           <div class="docs-sidebar-title">On this page</div>
           <nav id="toc"></nav>
-          {{ partial "docs-topics.html" . }}
+          {{ partial "docs-topics.html" (dict "page" . "root" "/docs") }}
         </div>
       </div>
       <div class="col-lg-9">

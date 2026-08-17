@@ -1,0 +1,71 @@
+---
+title: "MetaLoom // Graph"
+subtitle: "A native-code backed graph database for Java, built on the Foreign Function and Memory API."
+weight: 6
+---
+
+It stores nodes, relationships and attributes in compact, purpose-built binary files, optimised for SSD.
+The defining design constraint:
+
+[quote]
+____
+*An element id decodes arithmetically into the exact file and byte offset of its record.*
+Reading an element by id costs zero index probes and zero extra seeks.
+____
+
+No lookup. No probe. No seek beyond the one the read itself performs:
+
+[source,java]
+----
+long byteOffset = dataStart(kind) + (long) slot(id) * stride(kind);
+----
+
+== What it is
+
+[cols="1,3"]
+|===
+| *Durability* | A write-ahead log. Every commit is fsynced _before_ it touches a data file, so uncommitted data cannot reach disk and recovery is a single redo pass.
+| *Query language* | An link:/graph/cypher/[openCypher subset] that reads and writes, in its own module, plus a single-jar server and a React and D3 browser.
+| *Transactions* | `begin` / `commit` / `rollback`, plus auto-commit for single operations.
+| *Isolation* | One writer at a time; many concurrent readers. A reader gets *MVCC snapshot isolation* — a view fixed at one instant across many reads, while the writer keeps committing. Reads take no lock and scale to 10x at 32 threads. *No concurrent writers.*
+| *Indexes* | Label and property B+trees, declared composite indexes, unique constraints, and an HNSW index for nearest-neighbour search over vector properties.
+| *Space reclamation* | `reclaim()` punches all-free pages and breaks no ids. `compact()` relocates records to close holes within pages, rewrites every internal reference, and pulls the high water marks down.
+| *Native layer* | Rust via FFM. *io_uring is 12.4x* over a `pread` loop on 64 scattered reads — the one capability the JVM cannot approach.
+| *Operations* | link:/graph/metrics/[Prometheus metrics], a link:/graph/operations/[slow query log], link:/graph/deployment/[container images and a Helm chart], and an link:/graph/mcp/[MCP server] so an agent can query the graph.
+|===
+
+== What it is not
+
+Stated plainly, because a database page that implies capabilities the system lacks is a liability.
+
+* *No concurrent writers.* Writers serialise on one lock. That is a property of the storage engine, not a
+  configuration, and it is why the Helm chart refuses more than one replica.
+* *No backup mechanism.* A cold copy of a stopped store is the only correct procedure today.
+* *No authentication on any port.* Not the HTTP port, not the binary port, not the monitoring port.
+* *No `OPTIONAL MATCH`*, and several other openCypher constructs — link:/graph/cypher/[each refused by name at
+  parse time] rather than silently doing something else.
+* *No repair tool* for a store that fails `verify`.
+
+== At scale
+
+Ten million nodes and twenty million random relationships load in *11 to 25 minutes* and occupy *6.1 GiB*.
+Reopening the finished store takes 1 ms; `nodeLabel` runs at 4.2M/s over it and `neighbours` at 1.1M/s.
+
+The load figure is a range because it was measured four times with the same command and the edge phase varied 2.5x
+across the runs while the resulting store stayed identical to the byte. link:/graph/benchmarks/[The benchmarks page]
+has every run and what is known about the spread.
+
+== Where to go next
+
+[cols="1,2"]
+|===
+| link:/graph/architecture/[Architecture] | Ids, segments, records, and how the address function works
+| link:/graph/cypher/[Query language] | The openCypher subset, and what is deliberately not in it
+| link:/graph/browser/[Browser] | The built-in Cypher editor and graph view
+| link:/graph/api/[API and wire protocol] | The embedded Java API and the binary streaming port
+| link:/graph/operations/[Operations] | Sizing, tuning, configuration, the slow query log, security posture
+| link:/graph/metrics/[Metrics] | The Prometheus catalogue and the alert rules it implies
+| link:/graph/mcp/[MCP server] | Letting an AI client query the graph
+| link:/graph/deployment/[Deployment] | Container images and the Helm chart
+| link:/graph/benchmarks/[Benchmarks] | Measured numbers, with their caveats
+|===

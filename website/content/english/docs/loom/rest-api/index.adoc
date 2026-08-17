@@ -198,7 +198,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 the user being renamed. Every element response carries `status.creator.uuid`.
 
 Filters match exactly — there is no "contains". For text search across the catalogue use
-link:../../features/search/[the search endpoints], which rank by relevance.
+link:../search-indices/[the search endpoints], which rank by relevance.
 ====
 
 [WARNING]

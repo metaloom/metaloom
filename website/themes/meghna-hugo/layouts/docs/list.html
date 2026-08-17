@@ -19,7 +19,7 @@
       {{ if not $isRoot }}
       <div class="col-lg-3 d-none d-lg-block">
         <div class="docs-sidebar toc-sticky-top">
-          {{ partial "docs-topics.html" . }}
+          {{ partial "docs-topics.html" (dict "page" . "root" "/docs") }}
         </div>
       </div>
       {{ end }}

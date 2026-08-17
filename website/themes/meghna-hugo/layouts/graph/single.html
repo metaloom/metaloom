@@ -1,0 +1,41 @@
+{{ define "main" }}
+
+{{ partial "navigation.html" . }}
+
+{{/* The /graph/ reference pages. Deliberately the same layout as layouts/docs/single.html — a
+     top-level section that looked like a different site would be worse than a subsection.
+
+     The .post-single-content wrapper is NOT cosmetic: build-search-index.mjs reads it to extract a
+     page's text, and fails the build with a message about this exact class if it cannot find one.
+     Keep it if you restyle this. */}}
+<section class="section docs-section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-3 d-none d-lg-block">
+        <div class="docs-sidebar toc-sticky-top">
+          <div class="docs-sidebar-title">On this page</div>
+          <nav id="toc"></nav>
+          {{ partial "docs-topics.html" (dict "page" . "root" "/graph" "title" "MetaLoom // Graph") }}
+        </div>
+      </div>
+      <div class="col-lg-9">
+        <header class="page-head">
+          <h1>{{ .Title }}</h1>
+          {{ with .Params.description }}<p class="page-lead">{{ . }}</p>{{ end }}
+        </header>
+        <div class="post-single-content docs-main-content">
+          {{ .Content }}
+        </div>
+
+        <div class="docs-foot">
+          <p>Looking for something else?</p>
+          <div class="docs-foot-actions">
+            <a class="ml-btn ml-btn-primary" href="{{ "graph/" | relURL }}">Graph overview</a>
+            <a class="ml-btn ml-btn-ghost" href="{{ "docs/" | relURL }}">All documentation</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

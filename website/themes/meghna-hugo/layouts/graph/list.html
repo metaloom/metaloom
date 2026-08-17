@@ -1,0 +1,35 @@
+{{ define "main" }}
+
+{{ partial "navigation.html" . }}
+
+{{/* Mirrors layouts/docs/list.html: the section root is centred and rail-free because it IS the map,
+     and every sub-section index gets the rail so a reader landing on one has a way onward. */}}
+{{ $isRoot := eq .RelPermalink (relURL "graph/") }}
+
+<section class="section docs-section">
+  <div class="container">
+    <div class="row{{ if $isRoot }} justify-content-center{{ end }}">
+      {{ if not $isRoot }}
+      <div class="col-lg-3 d-none d-lg-block">
+        <div class="docs-sidebar toc-sticky-top">
+          {{ partial "docs-topics.html" (dict "page" . "root" "/graph" "title" "MetaLoom // Graph") }}
+        </div>
+      </div>
+      {{ end }}
+
+      <div class="{{ if $isRoot }}col-lg-10{{ else }}col-lg-9{{ end }}">
+        <header class="page-head{{ if $isRoot }} page-head-center{{ end }}">
+          <h1>{{ .Title }}</h1>
+          {{ with .Params.subtitle }}<p class="page-lead">{{ . | markdownify }}</p>{{ end }}
+          {{ with .Params.description }}{{ if not $.Params.subtitle }}<p class="page-lead">{{ . }}</p>{{ end }}{{ end }}
+        </header>
+
+        {{/* See the note in graph/single.html: this class is what the search indexer reads. */}}
+        <div class="post-single-content docs-content docs-main-content">
+          {{ .Content }}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

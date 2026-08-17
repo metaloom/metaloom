@@ -1,0 +1,73 @@
+---
+title: "Query language"
+description: "An openCypher subset that reads and writes — and a precise account of what is not in it."
+---
+
+The query language lives in its own module, which depends on the storage engine's public API and nothing inside it.
+That is deliberate: the engine's specification says a query language is not a goal _of the storage layer_, and the
+module boundary is what keeps that literally true.
+
+== What is supported
+
+[source,cypher]
+----
+MATCH (p:Person)-[:KNOWS*1..2]->(friend)
+WHERE p.city = $city AND friend.age IS NOT NULL
+RETURN friend.name AS name, count(*) AS routes
+ORDER BY routes DESC LIMIT 10
+----
+
+* `MATCH` with variable-length paths, `shortestPath` and `allShortestPaths`
+* `WHERE`, `RETURN`, `WITH`, `UNWIND`, `CASE`, `UNION [ALL]`
+* `CREATE`, `MERGE` with `ON CREATE` / `ON MATCH`, `SET`, `REMOVE`, `DETACH DELETE`
+* Aggregation: `count` (including `count(*)`), `sum`, `avg`, `min`, `max`, `collect`, each with `DISTINCT`
+* Parameters as `$name`, comments as `//` and `/* */`, backticks around a name with spaces
+* One procedure: `CALL vector.query(label, key, vector, k) YIELD node, score`
+
+== What is not, and why
+
+Each of these is *refused at parse time, by name, with a caret* — so "this build cannot do that" and "you typed it
+wrong" are different messages.
+
+[cols="1,2"]
+|===
+| Construct | Reason
+
+| `OPTIONAL MATCH` | Needs null-padding semantics through the rest of the pipeline
+| `FOREACH` | `UNWIND` covers the common case
+| List comprehensions, map projections, pattern comprehensions | Not built
+| `ALL` / `ANY` / `NONE` / `SINGLE`, `EXISTS` subqueries | Not built
+| User-defined procedures, `LOAD CSV` | There is no procedure registry; `CALL` itself exists with exactly one procedure
+| Temporal and spatial types | The store has `Instant`; Cypher's temporal algebra is not implemented
+|===
+
+....
+MATCH (n) FOREACH (x IN [1] | SET n.x = x)
+          ^
+FOREACH is not supported: use UNWIND, which this build does implement (1:11)
+....
+
+`CREATE` additionally refuses three patterns that `MATCH` accepts, each with its own message, because none of them
+describes a graph that could be built: a variable-length range does not say how many relationships to make, an
+undirected arrow does not say which way one points, and a missing or alternated type does not say what to create.
+
+== Writes are off by default
+
+A write query is refused with 403 on the HTTP port and `READ_ONLY` on the binary port unless the server was started
+with `--allow-write`. No port has authentication, and the difference between handing out a copy of the data and
+handing out the ability to delete it is worth an explicit act.
+
+A write query also *does not stream*: its rows are produced, its transaction commits, and only then does the first
+byte go out. A client that had already received rows when the commit failed would be holding a result from a
+transaction that no longer exists.
+
+== Null semantics
+
+Comparison with `null` yields `null`, not false, and `WHERE` keeps a row only when the predicate is `true`. Use
+`IS NULL` and `IS NOT NULL` rather than `= null`.
+
+== Access paths
+
+A `WHERE` on an indexed `(label, key)` pair is a lookup; on an unindexed one it is a full scan. The
+link:/graph/browser/[browser] and the link:/graph/mcp/[MCP server] both expose the declared indexes so you can tell
+which you are about to get.

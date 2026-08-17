@@ -44,6 +44,16 @@ const DIMS = 384;
 const SKIP_PAGES = new Set(['/docs/rest/', '/docs/test/', '/docs/configuration/']);
 const SKIP_PREFIXES = ['/docs/examples/'];
 
+/**
+ * Which sections are reference material worth searching.
+ *
+ * /graph/ is a top-level section rather than a docs subsection, and it renders through
+ * layouts/graph/{single,list}.html — which keep the same ".post-single-content" wrapper this
+ * extractor reads. Without it here the whole section is unsearchable from the site's own search box,
+ * silently, which is the failure this list exists to prevent repeating.
+ */
+const INDEXED_PREFIXES = ['/docs/', '/graph/'];
+
 /** Below this many pages something has gone wrong upstream rather than in the content. */
 const MIN_PAGES = 50;
 
@@ -349,7 +359,7 @@ async function main() {
 	const pageFiles = walk(dist)
 		.filter((f) => f.endsWith(sep + 'index.html'))
 		.map((f) => ({ file: f, url: '/' + relative(dist, dirname(f)).split(sep).join('/') + '/' }))
-		.filter(({ url }) => url.startsWith('/docs/'))
+		.filter(({ url }) => INDEXED_PREFIXES.some((p) => url.startsWith(p)))
 		.filter(({ url }) => !SKIP_PAGES.has(url) && !SKIP_PREFIXES.some((p) => url.startsWith(p)))
 		.sort((a, b) => a.url.localeCompare(b.url));
 
@@ -423,7 +433,7 @@ async function main() {
 			...unreadable,
 			'',
 			'These pages render the docs header but nothing this extractor recognises as a body.',
-			'The ".post-single-content" wrapper in layouts/docs/{single,list}.html is what it reads —',
+			'The ".post-single-content" wrapper in layouts/{docs,graph}/{single,list}.html is what it reads —',
 			'if that class was renamed, rename it here too rather than letting the pages fall out',
 			'of search silently.'
 		]);
@@ -446,7 +456,7 @@ async function main() {
 			'',
 			'A page with no indexable prose cannot be found by search. Usually this means the page is',
 			'nothing but passthrough HTML or images, or that the ".post-single-content" wrapper in',
-			'layouts/docs/*.html was renamed and the extractor is now reading nothing.'
+			'layouts/{docs,graph}/*.html was renamed and the extractor is now reading nothing.'
 		]);
 	}
 

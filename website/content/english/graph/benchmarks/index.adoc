@@ -1,0 +1,98 @@
+---
+title: "Benchmarks"
+description: "Measured numbers at ten million nodes, with the caveats that make them honest."
+---
+
+Everything here was measured rather than estimated, on an AMD Ryzen 9 9900X with 62 GiB of RAM and an overlay
+filesystem on NVMe, under Java 25 with the default 8 KiB pages and `FSYNC_ON_COMMIT`.
+
+== Ten million nodes, twenty million relationships
+
+The two columns are an A/B taken back to back: the adjacency block was a page per node, and became a run of 512-byte
+cells that doubles as the node fills. *Nothing else changed between the two runs.*
+
+[cols="2,1,1,1"]
+|===
+| | Page-sized block | Cell-based block |
+
+| 10,000,000 nodes | 83 s | *90 s* |
+| 20,000,000 edges | 2,470 s — 41 minutes | *563 s — 9.4 minutes* | *4.4x faster*
+| Total | 42 min 48 s | *10 min 54 s* | *3.9x faster*
+| On disk | 61 GiB | *6.2 GiB* | *9.8x smaller*
+| of which adjacency | 59 GiB | *3.7 GiB* | *16x smaller*
+| Bytes per node | 6,530 | *656* | *10x*
+| Reopen | 3 ms | *1 ms* |
+| `neighbours(OUT)` | 18,911 /s | *1,203,825 /s* | *64x*
+|===
+
+The nodes were never the story. The edges were, and the number that explained everything else was *7,618,146
+adjacency blocks* — one 8 KiB block for 76 percent of the nodes in the graph. There are still 7,618,146 of them;
+each is now 512 bytes.
+
+[WARNING]
+====
+*The absolute times are not reproducible, and the ratios are what this table is about.*
+
+The same command has been run four times. Two later runs produced a store *identical to the byte* with an edge phase
+2.5x slower than the run above, for reasons that have not been attributed — a shared machine over hours. Quoting
+"loads in 11 minutes" as a property of the software would be quoting the best of four runs of something with a 2.5x
+spread.
+
+The honest figure for a load of this size is *11 to 25 minutes*.
+====
+
+== Against the predecessor
+
+[cols="2,1,1"]
+|===
+| | Before | Now
+
+| Node record | 1080 B | 64 B
+| Node with two properties | ~1144 B | 128 B
+| Directed adjacency entry | 32 B | 1.0 to 1.3 B, from degree 3 upwards
+| Reads to enumerate d neighbours | d | 0 for d ≤ 2, one per ~8000 otherwise
+| Memory mappings for N accesses | N | 1 per segment
+| Durability | none | fsync before any data page is touched
+| Space returned after mass deletion | none | hole punching, plus compaction to over 0.94 liveness
+|===
+
+== The native layer
+
+Rust via the Foreign Function and Memory API, with `cargo test` and `clippy -D warnings` running inside `mvn test`.
+
+[cols="2,1,3"]
+|===
+| Capability | Result | Note
+
+| io_uring on 64 scattered reads | *12.4x* | The one capability the JVM cannot approach
+| Adjacency delta+varint codec | 1.38x | Real, and small
+| CRC32C | *7.8x slower* | The JVM's intrinsic wins outright
+|===
+
+Two of those three are the reason the native layer is a capability rather than a policy: every one of them has a
+pure-Java fallback, and the build routes around a missing toolchain.
+
+== Tried on something real, and the recommendation was no
+
+The engine was built into MetaLoom as an index over the asset relationship graph — behind an interface, alongside
+Postgres, with a differential check that both return the same answers. They do, through insertions, deletions, a
+rebuild and a compaction.
+
+[cols="2,1,1,1,1"]
+|===
+| Nodes / edges | Obvious SQL | Tuned SQL | This engine | vs tuned
+
+| 1,000 / 8,000 | 1,684 µs | 388 µs | 165 µs | *2.4x*
+| 10,000 / 80,000 | 14,204 µs | 303 µs | 127 µs | *2.4x*
+| 50,000 / 400,000 | 126,755 µs | 456 µs | 193 µs | *2.4x*
+|===
+
+Against the obvious SQL, this engine looks *657x faster* at the largest size — and that number is an artefact of the
+comparison rather than a property of the engine: the naive query degrades from 1.7 ms to 127 ms across a 50x increase
+while the tuned one is flat. Against the query written properly, it is *2.4x faster*, consistently.
+
+*Only the second number is a reason to do anything*, and 2.4x was not enough to justify a second storage system
+alongside Postgres. The recommendation was, and remains, *not to adopt*.
+
+That is a result rather than a failure to reach one — and publishing the 657x without the 2.4x would be the one way
+to make this page dishonest.

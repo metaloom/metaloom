@@ -1,0 +1,95 @@
+---
+title: "Metrics"
+description: "Prometheus metrics for the storage engine, the query path and every front end — and the alert rules they imply."
+---
+
+== The endpoints
+
+[source,bash]
+----
+curl localhost:8082/metrics        # the scrape
+curl localhost:8082/health         # liveness  — 200 while the process is up
+curl localhost:8082/ready          # readiness — 503 once shutdown has begun
+----
+
+Port 8082 by default, `--metrics-port=` or `GRAPH_METRICS_PORT`, `--no-metrics` to turn it off.
+*Do not publish this port*: it carries database names, node counts and store sizes, and like every other port here it
+has no authentication.
+
+`/health` and `/ready` are on the monitoring port and *not* the query port, so a query load heavy enough to saturate
+HTTP cannot make a liveness probe time out and get a merely-busy server killed.
+
+== Queries
+
+Tagged `frontend` = `http` | `wire` | `mcp`, so one dashboard covers all three.
+
+[cols="2,1,2"]
+|===
+| Metric | Type | Labels
+
+| `graph_queries` | counter | frontend, kind, outcome
+| `graph_query_duration` | timer | frontend, kind
+| `graph_query_rows` | summary | frontend
+| `graph_queries_rejected` | counter | frontend, reason
+| `graph_queries_slow` | counter | frontend
+| `graph_write_operations` | counter | operation
+| `graph_mcp_tool_calls` | counter | tool, outcome
+|===
+
+*Only successful queries enter the duration histogram.* A syntax error is fast and a timeout is exactly as long as
+the budget; including either would make the histogram describe the mix of failures rather than how long the engine
+takes to answer. A refusal — `readonly`, `overloaded`, `shutdown` — is counted separately for the same reason.
+
+== The store
+
+All tagged `database`. Counts come from a *cached* tier refreshed every 15 seconds; everything else is read live on
+every scrape.
+
+[cols="2,1,3"]
+|===
+| Metric | Type | Meaning
+
+| `graph_store_nodes`, `graph_store_relationships` | gauge | Live element counts
+| `graph_store_bytes`, `graph_store_record_bytes` | gauge | The engine's own accounting, not what `du` reports
+| `graph_store_stats_age_seconds` | gauge | How stale the cached tier is
+| `graph_store_wal_lag_bytes` | gauge | Non-zero under `FSYNC_ON_COMMIT` means a commit returned without an fsync
+| `graph_store_wal_bytes_since_checkpoint` | gauge | Growing without bound means nothing is checkpointing
+| `graph_store_unflushed_pages` | gauge | Monotonically rising means writes are outrunning the flush
+| `graph_store_open_views`, `graph_store_retained_bytes` | gauge | A reader holding a view open holds back reclamation
+| `graph_store_wal_syncs`, `graph_store_page_applies`, … | counter | I/O totals
+| `graph_store_record_reads` | counter | Per `kind`, because the budget is stated per kind
+|===
+
+*Why the counts are cached.* `store.stats()` lists a directory and stats every file in it, while a Prometheus scrape
+collects gauges on an event loop. A gauge that called it would do filesystem I/O on an event loop, once per series,
+on every scrape — making the server slower the more closely it is watched. The staleness that introduces is real, so
+it is exported as `graph_store_stats_age_seconds` rather than hidden.
+
+*The I/O totals are counters, not gauges.* They only ever go up, and Prometheus computes `rate()` over a counter with
+reset detection — publish a total as a gauge and its rate goes sharply negative on every restart.
+
+== From a signal to an alert
+
+[cols="2,2"]
+|===
+| Investigate when | Expression
+
+| A commit returned without an fsync | `graph_store_wal_lag_bytes > 0`
+| Nothing is checkpointing | `graph_store_wal_bytes_since_checkpoint` growing without bound
+| Something forces more often than it needs to | `rate(graph_store_wal_syncs_total)` well above one per commit
+| Something was added to the read path | `rate(graph_store_record_reads_total{kind="node"})` above one per read-by-id
+| The log writes far more than the payload | `rate(graph_store_wal_bytes_appended_total) / rate(graph_store_bytes_applied_total) > 3`
+| The concurrency bound is being reached | `rate(graph_queries_rejected_total{reason="overloaded"}) > 0`
+| A database was dropped with its meters still bound | `graph_store_stats_age_seconds` climbing past 15
+|===
+
+== The catalogue is tested
+
+The specification file these tables come from is *parsed at test time*: a real registry is bound to a real store,
+scraped, and compared against the document in both directions — every meter documented as live must appear, and
+every meter documented as absent must not.
+
+That test earned its place on its first run. The obvious naming for the write counters, `graph_nodes_created`, is
+silently republished by the Prometheus client as `graph_nodes_total`, because `_created` is a reserved suffix it
+strips before re-adding the type suffix — a metric that reads like a count of _all_ nodes rather than of the ones
+this server created. Hence the single `graph_write_operations{operation=...}` counter above.

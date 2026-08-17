@@ -137,19 +137,28 @@ weight = 5
 name = "Announcements"
 pre = ""
 url = "announcements"
-weight = 6
+weight = 7
 
 [[Languages.en.menu.main]]
 name = "Blog"
 pre = ""
 url = "blog"
-weight = 7
+weight = 8
+
+# The graph database. Its own top-level section rather than a page under /docs/, because it is a
+# separate product with its own repository — and it carries its own reference tree, so it renders
+# through layouts/graph/ and reuses the docs topic rail via the partial's `root` argument.
+[[Languages.en.menu.main]]
+name = "Graph"
+pre = ""
+url = "graph"
+weight = 6
 
 [[Languages.en.menu.main]]
 name = "Docs"
 pre = ""
 url = "docs"
-weight = 8
+weight = 9
 
 
 #[[Languages.en.menu.main]]

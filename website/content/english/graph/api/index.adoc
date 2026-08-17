@@ -1,0 +1,98 @@
+---
+title: "API and wire protocol"
+description: "The embedded Java API, and the binary streaming port for reading a result as it is produced."
+---
+
+== Embedded
+
+Every line below runs as a test, so the documentation cannot drift from the API.
+
+[source,java]
+----
+try (GraphStore store = GraphStore.open(Path.of("/data/mygraph"))) {
+
+    long person;
+    long vehicle;
+
+    // One transaction for a bulk load: durability costs an fsync per commit, so batching matters.
+    try (Transaction txn = store.begin()) {
+        person = store.createNode("Person", Properties.of()
+            .set("name", "Wes Anderson")
+            .set("born", 1969));
+
+        vehicle = store.createNode("Vehicle", Properties.of().set("name", "VW Beetle"));
+
+        // A property-free edge: 16 bytes in total, and no relationship record at all.
+        store.createEdge(person, "OWNS", vehicle);
+
+        // An edge that carries properties gets a record and a stable id.
+        store.createRelationship(person, "DROVE", vehicle,
+            Properties.of().set("since", Instant.parse("2019-04-01T00:00:00Z")));
+
+        txn.commit();
+    }
+
+    for (Edge edge : store.neighbours(person, Direction.OUT, Set.of("OWNS"))) {
+        System.out.println(store.nodeProperties(edge.neighbourId()).getString("name"));
+    }
+
+    // A read view fixes what every read on this thread sees, however much the writer commits
+    // underneath it. Close it: an open view holds versions in memory until it does.
+    try (ReadTransaction view = store.beginRead()) {
+        List<Edge> before = store.traverse(person, Direction.OUT, null, 3);
+        store.createEdge(person, "OWNS", store.createNode("Vehicle"));
+        assert store.traverse(person, Direction.OUT, null, 3).equals(before);
+    }
+
+    store.verify(VerifyLevel.FULL);
+
+    // Give space back. reclaim() moves nothing and keeps every id valid; compact() closes holes
+    // *inside* pages and is the only thing in the engine that invalidates an id.
+    store.reclaim();
+    CompactionReport report = store.compact();
+}
+----
+
+A read view is *thread-confined*. Holding one across an asynchronous boundary is the one thing that will silently
+give you a wrong answer rather than an exception: `Snapshot.close()` does not check its owner, and a foreign thread
+reads current committed data outside the snapshot without complaining.
+
+== The binary streaming port
+
+The HTTP route materialises a whole result as JSON, which is right for a browser and wrong for a million rows. The
+binary port encodes and flushes rows *as the engine produces them*, so the encoded payload is never built in full and
+a client never waits for the last row to see the first.
+
+[source,java]
+----
+try (GraphClient client = GraphClient.connect(vertx, ClientOptions.of("localhost", 8081)).await();
+     RowStream stream = client.query("MATCH (a:Airport) RETURN a.code", Map.of()).await()) {
+    for (Row row : stream) {
+        System.out.println(row.getString(0));
+    }
+}
+----
+
+The client jar carries *neither the storage engine nor the query engine* — there is a test that fails if either ever
+appears on its classpath. A client that had to carry a storage engine to read a row would be a strange thing to ship,
+and one that pulled in FFM would need a native-access grant from every application that used it.
+
+=== Four bounds on a slow client
+
+The failure being prevented is not "the server runs out of memory". A slow client pins a worker thread *and* a read
+view; the open view holds back reclamation, so retention grows with write volume times duration; and past its
+retention budget the store abandons *the oldest* view, which need not be the slow client's. One misbehaving reader
+breaks a well-behaved one.
+
+. Bounded concurrency — refused rather than queued, because a client waiting on a queued query cannot tell a busy
+  server from a stuck one.
+. A hard wall-clock deadline no client behaviour can extend, which is also the bound on view age.
+. No unbounded park anywhere in the producer.
+. A retention watchdog that abandons the oldest stream *before the store has to*, so the client gets a typed error
+  naming the reason.
+
+`maxConcurrentStreams × (writeQueueMaxBytes + socketSendBufferBytes)` is the most the server can be holding for
+clients that have stopped reading. Those three settings are validated together, because they are not independent
+knobs — they are the factors of one number, and that number is how you size the server.
+
+The port binds loopback by default. It has no authentication.

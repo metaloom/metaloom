@@ -1,0 +1,120 @@
+---
+title: "Operations"
+description: "Configuring, sizing and monitoring the server — including the slow query log and an honest account of the security posture."
+---
+
+== Configuration
+
+Three sources, and *a command line flag beats an environment variable beats a default*. The flag wins so that a shell
+which exported `GRAPH_ALLOW_WRITE` for one server cannot silently change what a second one started in the same shell
+does. The environment exists because a container image cannot be reconfigured without rebuilding its `CMD`, and a
+Helm chart has environment variables and not an argument vector.
+
+[cols="2,2,1"]
+|===
+| Variable | Flag | Default
+
+| `GRAPH_ROOT` | _(first positional)_ | required
+| `GRAPH_HTTP_PORT` | _(second positional)_ | 8080
+| `GRAPH_DATABASE` | `--database=` | `default`
+| `GRAPH_ALLOW_WRITE` | `--allow-write` | false
+| `GRAPH_ALLOW_DROP` | `--allow-drop` | false
+| `GRAPH_DEMO` | `--demo` | false
+| `GRAPH_DEMO_SIZE` | `--demo-size=` | small
+| `GRAPH_QUERY_TIMEOUT_MILLIS` | `--query-timeout=` | 30000
+| `GRAPH_SLOW_QUERY_MILLIS` | `--slow-query-millis=` | 1000
+| `GRAPH_WIRE_ENABLED` | `--no-wire` | true
+| `GRAPH_WIRE_PORT` | `--wire-port=` | 8081
+| `GRAPH_WIRE_HOST` | `--wire-host=` | 127.0.0.1
+| `GRAPH_MAX_STREAMS` | `--max-streams=` | 8
+| `GRAPH_METRICS_ENABLED` | `--no-metrics` | true
+| `GRAPH_METRICS_PORT` | `--metrics-port=` | 8082
+| `GRAPH_MCP_ENABLED` | `--mcp` | *false*
+| `GRAPH_MCP_PORT` | `--mcp-port=` | 8083
+| `GRAPH_MCP_HOST` | `--mcp-host=` | 127.0.0.1
+|===
+
+Three behaviours that are decisions rather than accidents:
+
+* *An empty variable is unset, not empty.* `GRAPH_DATABASE=""` is exactly how a Helm template renders a value nobody
+  set, and treating it as a real setting would turn an omitted chart value into an empty database name.
+* *A boolean typo is refused.* `GRAPH_ALLOW_WRITE=ture` is a start-up error naming the variable, rather than a
+  read-only server with no explanation.
+* *Two fixed ports on one number are refused at parse time*, across all four listeners — rather than surfacing as
+  "address already in use" from whichever bound second.
+
+== Sizing
+
+A hundred million nodes with two properties each and an average degree of ten is roughly *27 GB*, plus the log:
+
+[cols="2,1"]
+|===
+| Node with two small properties | 128 bytes
+| Secondary index entries for the same node | ~133 bytes
+| Directed adjacency entry | 1.0 to 1.2 bytes
+| Relationship record (only for edges with properties) | 64 bytes
+|===
+
+Two multipliers to plan for. *Segment metadata is sized for the segment, not its contents* — about 6 MB per segment
+file whatever is in it, though the files are sparse. And *a transaction is bounded by heap*, because the engine is
+no-steal: a bulk load touching a gigabyte of pages needs a gigabyte. Split large loads into batches.
+
+The one tuning decision that matters most is not a setting: durable commits run at roughly 750 to 1000 per second,
+because each one is an fsync. Batching a load into a single transaction is nearly three orders of magnitude faster.
+
+== The slow query log
+
+A histogram says _how often_ and _how bad_. It cannot say _which query_ — a query string cannot be a Prometheus
+label without producing one time series per distinct query. That is what this is for, and the two are meant to be
+read together with link:/graph/metrics/[the metrics].
+
+....
+Slow query: 1420 ms, 12 rows, outcome ok, http front end, database 'default', params [city, since] — MATCH (p:Person)...
+....
+
+Four decisions in that line:
+
+* *Parameter values are never logged.* `MATCH (u:User {token: $t})` puts the secret in the parameter map rather than
+  in the text, and this is the file most likely to be shipped whole to an aggregator that a different set of people
+  can read. The parameter _names_ are logged, because they are schema rather than data.
+* *The text is collapsed to one line and truncated at 500 characters*, so a generated query cannot fill a disk.
+* *Failed and abandoned queries are logged too.* A query that hit its timeout is the most interesting line in this
+  log: it cost the most and returned nothing.
+* *Set it below the query timeout*, or nothing can ever be logged — the query is abandoned first. The server warns
+  at start-up if the two are configured that way.
+
+== Shutting down
+
+The order is a safety property rather than politeness. A store's segments are memory-mapped, and closing one unmaps
+them, so a worker still inside a query at that moment would be reading an address the process no longer owns.
+
+New queries are refused first, running ones are given a grace period, and only then are the stores closed. Nothing
+committed is at risk regardless — the log is fsynced before any data page is touched, so a write interrupted at any
+instant either committed or did not.
+
+== Security posture
+
+*There is no authentication or transport security on any port.* This is stated rather than mitigated:
+
+[cols="1,1,2"]
+|===
+| Port | Binds | Notes
+
+| HTTP 8080 | all interfaces | Browser UI and `/api/query`
+| Binary 8081 | *loopback* | Streaming Cypher; loopback because a new unauthenticated port should not default to every interface
+| Monitoring 8082 | all interfaces | `/metrics`, `/health`, `/ready`. *Do not publish it* — a scrape carries database names, node counts and store sizes
+| MCP 8083 | *loopback*, *off* | A remote code path an LLM drives
+|===
+
+Anything that can reach the HTTP or binary port can read *every byte of every database under the root*. Treat
+exposing either as equivalent to handing out the root directory, because that is what it is.
+
+`--allow-write` bounds *what* a peer can do, not *who* the peer is. It is a posture, not access control.
+
+== What is not here
+
+* *No online backup, no incremental backup, no point-in-time recovery.* A cold copy of a stopped store is the only
+  correct procedure today, and `cp -a --sparse=always` matters — hole punching leaves large sparse regions.
+* *No repair tool* for a store that fails `verify`.
+* *No background maintenance.* Checkpoint, reclaim and compact are calls the embedder schedules.
+* *No multi-writer concurrency, no replication, no failover.*

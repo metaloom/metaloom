@@ -59,4 +59,12 @@ echo "Checking node documentation pictures"
 node "$BASEDIR/check-node-screenshots.mjs"
 
 
+# Also against the source, and for the same reason. The graph browser screenshots are captured in a
+# different repository (metaloom-graph, by Playwright against a real demo server) and imported here
+# with ./import-graph-screenshots.sh — so a failed capture arrives as a missing or zero-byte file
+# rather than as an error, and a rename arrives as an orphan.
+echo "Checking graph browser pictures"
+node "$BASEDIR/check-graph-screenshots.mjs"
+
+
 echo "All done"

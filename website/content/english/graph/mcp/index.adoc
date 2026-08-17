@@ -1,0 +1,84 @@
+---
+title: "MCP server"
+description: "Letting an AI client query the graph over the Model Context Protocol — and why this is the one port that is off by default."
+---
+
+[source,bash]
+----
+java -jar graph-server.jar --mcp --demo /tmp/demo      # loopback:8083, read-only
+npx @modelcontextprotocol/inspector                     # → http://127.0.0.1:8083/mcp/sse
+----
+
+Two transports, HTTP+SSE and WebSocket, both speaking JSON-RPC 2.0 at protocol revision `2025-03-26`.
+
+== Why it is off by default when nothing else is
+
+Every other port defaults to on. This one does not.
+
+There is no authentication anywhere in this server. For the HTTP and binary ports that means "anyone who can reach it
+can read everything", which is stated plainly and bounded by where you put it. MCP is different in kind: it is a
+remote code path an *LLM* drives, against a database, over a protocol whose whole purpose is to let a model decide
+what to run. The blast radius of leaving it open is not the same as for a port a person has to point a client at on
+purpose.
+
+So it is opt-in, and when it is on it binds loopback, and widening it is a second deliberate act.
+
+== The tools
+
+[cols="2,1,3"]
+|===
+| Tool | Writes | What it is for
+
+| `graph_cypher_guide` | | The grammar this build implements, and what it does not
+| `graph_schema` | | Labels, relationship types and property keys, with counts
+| `graph_stats` | | Size and health: is a full scan affordable?
+| `graph_list_databases` | | The databases under the root
+| `graph_list_indexes` | | Which pairs are a lookup rather than a scan
+| `graph_query` | per query | Run Cypher, return rows
+| `graph_create_index` | *yes* | Declare an index, optionally unique
+| `graph_drop_index` | *yes* | Drop one; the data is untouched
+|===
+
+=== The guide is the one that earns its place
+
+It looks like documentation and it is the highest-value tool here. A model that has seen Neo4j writes
+`OPTIONAL MATCH` within two turns. This engine link:/graph/cypher/[refuses it at parse time] — correctly — and the
+model is left with an error it cannot reason its way out of, so it tries a synonym, and then another. One call
+replaces that whole loop.
+
+=== The row cap
+
+*An LLM context is not a result set.* `graph_query` stops at 200 rows by default and 1000 at most, enforced through
+the engine's own back-pressure so the scan actually stops rather than being truncated after it has already been paid
+for. The response says when it was truncated: a model told it saw everything when it did not will draw a conclusion
+from half an answer.
+
+=== What is not exposed
+
+Creating or dropping a *database*. Dropping already sits behind its own flag, separate from `--allow-write`, because
+it destroys a whole directory in one request — and handing that to a model is further still.
+
+== The write gate is checked twice
+
+One rule, the server's own `--allow-write`, and two enforcement points: `tools/list` omits write tools on a read-only
+server, *and* `tools/call` re-checks before dispatch. Either alone is a hole — listing without dispatch checking
+trusts the client's memory, dispatch checking without listing wastes the model's time.
+
+A refusal comes back as a tool result flagged as an error, whose text names the flag and says _do not retry_, rather
+than as a JSON-RPC error the model would reasonably retry.
+
+== Client configuration
+
+[source,json]
+----
+{
+  "mcpServers": {
+    "metaloom-graph": {
+      "url": "http://127.0.0.1:8083/mcp/sse"
+    }
+  }
+}
+----
+
+There is no token, because there is no authentication. If the port is reachable, so is everything in every database
+under the root.

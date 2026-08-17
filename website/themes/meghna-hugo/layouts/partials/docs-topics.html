@@ -14,10 +14,23 @@
 
   The legacy stub pages stay out of the list.
 */}}
+{{/*
+  Called either with the page itself (the /docs/ tree, which is what this was written for) or with a
+  dict of "page" and "root", so a second reference tree can reuse the rail rather than fork it. The
+  /graph/ section is that second tree; it is a top-level section rather than a docs subsection, and a
+  copy of this file is the version of that which drifts.
+*/}}
 {{ $page := . }}
-{{ with site.GetPage "/docs" }}
-<nav class="docs-topics" aria-label="Documentation topics">
-	<div class="docs-sidebar-title">{{ i18n "documentation" | default "Documentation" }}</div>
+{{ $root := "/docs" }}
+{{ $title := i18n "documentation" | default "Documentation" }}
+{{ if reflect.IsMap . }}
+	{{ $page = .page }}
+	{{ $root = .root }}
+	{{ $title = .title | default $title }}
+{{ end }}
+{{ with site.GetPage $root }}
+<nav class="docs-topics" aria-label="{{ $title }}">
+	<div class="docs-sidebar-title">{{ $title }}</div>
 	<ul>
 		{{ range .Pages }}
 		{{ if not (in (slice "rest" "test" "configuration") (path.Base .RelPermalink)) }}
