@@ -79,11 +79,21 @@ This file tracks no progress — the linked specs do.
 
 Real code/spec disagreements found during the audit that no task file owns.
 
-* **`ctx.failure(cause).next()` reports SUCCESS.** `NodeContextImpl.next()` reads only `skipReason`;
-  `failureCause` is read by `abort()` alone, so `failure(...).next()` returns
-  `ResultState.SUCCESS` with a `null` message and the diagnosis is dropped on the floor. ~20 call
-  sites under `cortex/` do exactly that. Fix is a choice: have `next()` honour `failureCause`, or
-  make `failure()` before `next()` illegal.
+* ~~**`ctx.failure(cause).next()` reports SUCCESS.**~~ **FIXED 2026-08-18** under
+  [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) Task 17. The choice recorded here was a false dichotomy and
+  **both** were taken, because they catch different failures: `next()` now honours `failureCause`
+  (fail-closed, for a cause recorded in a helper several frames above the return), *and* the chained
+  shape fails the build via `FailurePathGuardTest` (`cortex/api`), which keeps the intent visible in
+  the node instead of hidden in the context. 15 chained sites in 13 node classes converted, plus
+  `CaptioningNode`'s `printStackTrace()` + bare `NodeResult.failed()` variant.
+
+* **A swallowed `persist(...)` leaves a green node whose result was never stored.** Surfaced while
+  fixing the entry above, and *not* the same defect: 24 `persist(...)` catch blocks across 22 node
+  classes log a warning, record a `FAILED` ledger row and fall through, so the node returns SUCCESS
+  with its value stored nowhere durable. No failure cause is ever recorded on the context, so neither
+  `next()`'s fail-closed branch nor `FailurePathGuardTest` can see it. Owned now by
+  [NODE_TASKS.md](NODE_TASKS.md) **Task 21** — it needs a per-node judgement (does this node's value
+  survive anywhere else?), not a sweep.
 
 * **Dedup: `PATCH keepAssetUuid` never rewrites `dedup_group_member.role`.**
   `DedupGroupDaoImpl.updateStatus` updates `dedup_group` only; `role` is written solely by
@@ -111,5 +121,5 @@ Real code/spec disagreements found during the audit that no task file owns.
   served descriptor advertises it.
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the `ctx.failure(cause).next()` unowned defect is closed; a sibling defect it surfaced (a swallowed `persist(...)`) is recorded and routed to NODE_TASKS.md Task 21). Earlier: 2026-08-11 (code audit)_

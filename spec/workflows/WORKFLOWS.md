@@ -297,7 +297,7 @@ Conventions that apply to every workflow test:
 | **A worker is not a user** | 🔴 Any table a node writes needs **nullable** `creator_uuid`/`editor_uuid` plus `node_kind`/`node_id`/`producer_version` (`V2.47` is the precedent). `cluster` still fails this — defect X4 |
 | **Snapshots are hints, not authority** | ⚠️ Values captured at discovery time (`dedup_group_member.size`, a confidence, a thumbnail) exist for the reviewer. The applying node must re-verify against live state |
 | **Upsert keys, not appends** | ⚠️ Every proposal table needs an idempotency key or a re-run doubles the queue. Note the known limit: the `detection` key omits `node_id`, so two instances of one kind in a graph overwrite each other, and a re-run that finds fewer items leaves the higher-indexed rows behind |
-| **`ctx.failure(...).next()` returns SUCCESS** | 🔴 `NodeContextImpl.next()` drops the failure cause. Use `ctx.failure(msg).abort()` in a workflow producer, or a failed proposal is silently reported as a good one |
+| **`ctx.failure(...).next()` returned SUCCESS** | 🟢 Fixed 2026-08-18: `next()` honours a recorded failure cause, and `FailurePathGuardTest` (`cortex/api`) fails the build on the chained shape. Still write `ctx.failure(msg).abort()` in a workflow producer — a failed proposal reported as a good one is exactly what this cost |
 | **Emoji reactions carry ratings** | ⚠️ Defect X8 — do not add a second rating mechanism without deciding what happens to the reaction rows already written |
 | **Tag placements are per-region** | ⚠️ Since `V2.71`, `tag_asset` has its own `uuid` and a `UNIQUE NULLS NOT DISTINCT (tag, asset, time_from, time_to, areaStartX, areaStartY)`. Removing "the tag" and removing "this placement" are different operations |
 | **`POST` creates and updates** | ⚠️ Everywhere in the REST API. `PATCH`/`PUT` exist only on User, Group and Asset |
@@ -366,6 +366,6 @@ Conventions that apply to every workflow test:
 
 ---
 
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
 updated; dedup is now the reference implementation the other five modes should copy)_

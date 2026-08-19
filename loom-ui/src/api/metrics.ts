@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders } from "./http";
 
 /**
  * Client for `GET /metrics` — the JSON read of Loom's `loom_*` metric catalog.
@@ -36,13 +37,6 @@ export interface MetricsResponse {
   /** Server time the snapshot was taken (ISO 8601 instant). */
   timestamp: string;
   metrics: MetricRecord[];
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
 }
 
 /**

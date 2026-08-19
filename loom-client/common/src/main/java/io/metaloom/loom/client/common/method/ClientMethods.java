@@ -17,6 +17,7 @@ public interface ClientMethods extends
 	RoleMethods,
 	CollectionMethods,
 	RemixMethods,
+	FailureReportMethods,
 	ShareMethods,
 	AnnotationMethods,
 	TaskMethods,

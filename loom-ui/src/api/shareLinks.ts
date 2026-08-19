@@ -6,6 +6,7 @@
  */
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 export type ShareTargetType = "ASSET" | "COLLECTION";
 
@@ -124,21 +125,6 @@ export interface ShareFeedbackResponse {
   comments: ShareCommentResponse[];
   annotations: ShareAnnotationResponse[];
   reactions: ShareReactionResponse[];
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function listShareLinks(token: string, paging?: PagingParams): Promise<ShareListResponse> {

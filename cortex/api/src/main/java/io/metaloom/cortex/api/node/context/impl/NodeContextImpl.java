@@ -264,6 +264,19 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 
 	@Override
 	public NodeResult next() {
+		if (failureCause != null) {
+			// A recorded failure outranks everything else this method could report. Until 2026-08-18 this
+			// branch did not exist: next() read only skipReason, so ctx.failure(cause).next() built a
+			// SUCCESS result with a null message and threw the diagnosis away. Fifteen call sites across
+			// thirteen node classes did exactly that, which made a run whose transcript, thumbnail or
+			// fingerprint had failed indistinguishable from one that worked.
+			//
+			// Nodes are still expected to write ctx.failure(cause).abort() - the intent belongs in the
+			// node, and FailurePathGuardTest (cortex/api) fails the build on the .next() shape. This
+			// branch is the fail-closed backstop for the site that guard cannot see, e.g. a failure
+			// recorded in a helper several frames above the return.
+			return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews());
+		}
 		if (skipReason != null) {
 			// Outputs survive a skip on purpose. Emptying the map here used to throw away
 			// exactly the diagnostics needed to understand why the node did not finish.

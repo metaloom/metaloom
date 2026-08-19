@@ -63,8 +63,12 @@ Return contract (see [NEW_NODE.md §1.1](../../guidelines/NEW_NODE.md)):
 | nothing to do | `ctx.skipped(reason).next()` | SKIPPED |
 | failure | `ctx.failure(msg).abort()` | FAILED |
 
-🔴 **`ctx.failure(msg).next()` reports SUCCESS.** `NodeContextImpl.next()` reads only `skipReason`
-and ignores `failureCause`. See §9 for the exact list of nodes still doing it.
+**Failure is `.abort()`.** `NodeContextImpl.next()` used to read only `skipReason`, so
+`ctx.failure(msg).next()` built a SUCCESS result and discarded the cause; every node in the tree has
+been converted and `next()` is now fail-closed (a recorded cause yields FAILED). The chained shape is
+still wrong and fails the build — `FailurePathGuardTest`
+(`cortex/api/src/test/java/io/metaloom/cortex/api/node/context/`) scans every Cortex main source and
+names the offending file and line. See §9.
 
 A cache hit is **SUCCESS with `ResultOrigin.LOCAL`, never SKIPPED** — a SKIPPED node's outputs are
 treated as absent by the engine, which starves every node bound to that port. This was a real bug in
@@ -710,7 +714,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 | Rule | Why |
 |---|---|
-| **Failure is always `.abort()`** | `ctx.failure(msg).next()` builds a SUCCESS result. Only 5 of 31 nodes get this right today (§10) |
+| **Failure is always `.abort()`** | The cause and the terminator belong together, where a reader of the catch block sees both. `FailurePathGuardTest` (cortex/api) fails the build on `ctx.failure(...).next()`, naming file and line; `next()` is fail-closed as a backstop but is not a supported spelling |
 | **A cache hit is SUCCESS + `ResultOrigin.LOCAL`, and must re-emit** | SKIPPED means "produced nothing", which starves every downstream node bound to that port |
 | **Put the options hash in the cache key** | Path-only keys serve stale results when an option or an upstream payload changes. `dominant-color` is the model |
 | **`KEY` ≠ kind, sometimes** | `facedetect`/`facedetection` and `scene-detection`/`scene-detector` really do differ. The `@StringKey`, `name()` and descriptor `kind` must all agree; only the options `KEY` may lag |
@@ -756,17 +760,20 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ### Correctness
 
-- [ ] 🔴 **`ctx.failure(cause).next()` reports SUCCESS in 15 of 31 node classes** (18 call sites):
-      `FingerprintNode`, `ThumbnailNode`, `QualityNode` (×2), `TikaNode`, `FacedetectNode`,
-      `WhisperNode`, `TtsNode`, `SentimentNode`, `DepthmapNode`, `SceneLayoutNode`, `ImageGenNode`,
-      `VideoGenNode`, `HashDedupNode`, `FingerprintDedupNode` (×2), `FingerprintDedupApplyNode` (×2).
-      A failed run is reported to the pipeline as a green node with no outputs, so `nodeFailedCounts`,
-      blocking-dependency skipping and the UI status all see a success — while the
-      `asset_node_result` ledger correctly records FAILED.
-      Only `WatermarkNode`, `S3SinkNode`, `ScriptNode`, `DominantColorNode` and `MetadataNode` use
-      `.abort()`; the last three carry a comment explaining exactly why. Fixing the rest is 18 one-word edits, **or** a change
-      to `next()` so it honours a recorded failure cause — the latter is smaller but silently changes
-      what `next()` means for every caller, so it needs its own review.
+- [x] **`ctx.failure(cause).next()` reported SUCCESS** — fixed 2026-08-18. The last 15 call sites in
+      13 node classes (`FacedetectNode`, `TtsNode`, `FingerprintDedupNode` ×2, `TikaNode`,
+      `SceneLayoutNode`, `QualityNode` ×2, `SentimentNode`, `ImageGenNode`, `WhisperNode`,
+      `DepthmapNode`, `VideoGenNode`, `ThumbnailNode`, `FingerprintNode`) now `.abort()`, and
+      `CaptioningNode`'s related shape — `printStackTrace()` plus a bare `NodeResult.failed()` with no
+      logger, no ledger row and no message — was converted with them. Both halves of the choice
+      recorded in the old note were taken: `NodeContextImpl.next()` now honours a recorded
+      `failureCause` (fail-closed, so a cause recorded out of sight of the call site still lands), and
+      the chained shape is a build failure via `FailurePathGuardTest`. Each converted node has a test
+      asserting the terminal state **and** that the cause survives; `NodeContextFailureTest` pins the
+      context contract itself. Three causes were also made useful rather than merely visible:
+      `TikaNode`'s bare `"failed processing"` and `FingerprintDedupNode`'s bare
+      `"failed to report dedup group"` now carry the exception message, and `QualityNode`'s
+      undecodable-image path says which of the two it was.
 - [ ] 🔴 **Path-only cache keys** — every node except `dominant-color`, `watermark`, `script`,
       `translate`, `guard` and `metadata` keys its `LocalResultCache` on `media.absolutePath()` alone, so a
       changed option or a different wired upstream payload serves a stale result (§4).
@@ -896,8 +903,10 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `67000540`_
-_Last updated: 2026-08-16 (V2.105 renames the column to `window_index`, so §"Media components" and the `fingerprint` row name it that; the conflation with the algorithm's internal sectors is spelled out rather than only flagged. Earlier: §"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§1.2, §9 and §10 — the `ctx.failure(cause).next()` list is empty: the last 15 sites in 13 node classes were converted to `.abort()`, `NodeContextImpl.next()` is fail-closed, and `FailurePathGuardTest` (cortex/api) fails the build on the shape)_
+
+_Previously: 2026-08-16 (V2.105 renames the column to `window_index`, so §"Media components" and the `fingerprint` row name it that; the conflation with the algorithm's internal sectors is spelled out rather than only flagged. Earlier: §"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
 
 _Previously: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
 all four `filterBy` values are implemented. Earlier the same day: added the routing row for

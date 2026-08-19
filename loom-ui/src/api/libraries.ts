@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 export interface LibraryResponse {
   uuid: string;
@@ -32,21 +33,6 @@ export interface LibraryUpdateRequest {
   name?: string;
   poolUuid?: string;
   meta?: Record<string, unknown>;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function listLibraries(token: string, paging?: PagingParams): Promise<LibraryListResponse> {

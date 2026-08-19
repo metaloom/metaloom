@@ -289,7 +289,7 @@ neither reads nor writes them.
 
 | Gotcha | Detail |
 |---|---|
-| 🔴 `ctx.failure(msg).abort()`, **never** `.next()` | `NodeContextImpl.next()` ignores a recorded failure cause and reports SUCCESS ([../NODES.md](../NODES.md)). For a sink, "green node, empty bucket" is the worst possible outcome |
+| `ctx.failure(msg).abort()`, **never** `.next()` | `NodeContextImpl.next()` used to ignore a recorded failure cause and report SUCCESS ([../NODES.md](../NODES.md)); fixed 2026-08-18, and the shape now fails the build via `FailurePathGuardTest`. This node was already correct. For a sink, "green node, empty bucket" is the worst possible outcome |
 | 🔴 `validate()` deliberately does **not** require `bucket` | `RegistryNodeRegistrar.adapt` validates the *worker's* options for every node it builds, so a bucket-required `validate()` would make every `s3-sink` in every pipeline fail to build with a misleading message. `validate()` checks shape; `configure(nodeDef)` requires the effective bucket and throws. Same split `ScriptNode` uses for its script. `S3SinkOptionsValidationTest.testDefaultsDoNotRequireABucket` is the guard |
 | 🔴 S3 inactive on this worker → **fail, not skip** | The kind binding is unconditional (unlike `s3-source`, which has no `@IntoSet FilesystemNode` binding at all), so a worker with no S3 configuration still advertises `s3-sink`. Skipping would be silent data loss on a green run; the message names `CORTEX_NODE_WHITELIST` as the fix |
 | `ctx.abort()` returns an empty output map | `NodeContextImpl.abort()` passes `Collections.emptyMap()`, so a FAILED sink cannot report per-artifact detail through its ports. The detail still reaches Loom via the `asset_json_comp`, which is written **before** the node returns — but `result` is only observable on a successful or `failOnPartial=false` run |
@@ -465,5 +465,5 @@ Re-run and confirm `Last Modified` is unchanged (the `IF_DIFFERENT` skip);
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§8 — the `ctx.failure(...).next()` gotcha it warned about is fixed tree-wide). Earlier: 2026-08-11_

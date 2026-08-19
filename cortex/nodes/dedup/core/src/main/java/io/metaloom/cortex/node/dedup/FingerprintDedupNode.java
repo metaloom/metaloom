@@ -97,7 +97,10 @@ public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDisc
 			similar = client().listSimilarAssets(asset.getUuid(), algorithm, options().getTopK(), options().getScoreThreshold()).sync().body();
 		} catch (Exception e) {
 			log.warn("Similarity query failed for asset {}: {}", asset.getUuid(), e.getMessage());
-			return ctx.failure("similarity query failed: " + e.getMessage()).next();
+			// An unreachable similarity index is a failure, not "no duplicates found". Reporting it as
+			// either SUCCESS or SKIPPED makes a run that proposed nothing because it could not ask
+			// indistinguishable from one that asked and found nothing.
+			return ctx.failure("similarity query failed: " + e.getMessage()).abort();
 		}
 		if (similar == null || similar.getData() == null || similar.getData().isEmpty()) {
 			return ctx.skipped("no similar assets").next();
@@ -178,7 +181,7 @@ public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDisc
 		} catch (Exception e) {
 			log.warn("Failed to report dedup group for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), algorithm, null);
-			return ctx.failure("failed to report dedup group").next();
+			return ctx.failure("failed to report dedup group: " + e.getMessage()).abort();
 		}
 	}
 

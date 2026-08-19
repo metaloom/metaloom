@@ -23,6 +23,7 @@ import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from 
 import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
+import { useFailure } from "../../context/FailureContext";
 
 // Backend tags are flat with a "collection" grouper.
 // We present them as a two-level tree: collection → tag leaf nodes.
@@ -187,6 +188,7 @@ function TagTreeRow({
 // ── Main view ─────────────────────────────────────────────────────────
 export default function TagsView() {
   const { token } = useAuth();
+  const { reportFailure } = useFailure();
   const { t } = useTranslation();
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT);
   const [creator, setCreator] = useState("");
@@ -241,20 +243,31 @@ export default function TagsView() {
     const name = newTagName.trim();
     const collection = newTagCollection.trim() || "general";
     if (!name || !token) return;
-    const created = await createTag(token, { name, collection });
-    setAllTags(prev => [...prev, created]);
-    setNewTagName("");
-    setNewTagCollection("");
-    setExpanded(prev => new Set([...prev, `col:${collection}`]));
+    try {
+      const created = await createTag(token, { name, collection });
+      setAllTags(prev => [...prev, created]);
+      setNewTagName("");
+      setNewTagCollection("");
+      setExpanded(prev => new Set([...prev, `col:${collection}`]));
+    } catch (e) {
+      // There was no try/catch here at all, so a rejection was an unhandled promise rejection and
+      // the form simply sat there. The typed name is deliberately left in place for a retry.
+      reportFailure("createTag", e);
+    }
   };
 
   // ── Delete tag ──────────────────────────────────────────────────────
   const handleDeleteTag = useCallback(async (node: TagNode) => {
     if (!node.isTag || !token) return;
-    await apiDeleteTag(token, node.id);
-    setAllTags(prev => prev.filter(t => t.uuid !== node.id));
-    if (selectedNode?.id === node.id) setSelectedNode(null);
-  }, [token, selectedNode]);
+    try {
+      await apiDeleteTag(token, node.id);
+      setAllTags(prev => prev.filter(t => t.uuid !== node.id));
+      if (selectedNode?.id === node.id) setSelectedNode(null);
+    } catch (e) {
+      // The tag stays in the tree, because it stayed in the database.
+      reportFailure("deleteTag", e);
+    }
+  }, [reportFailure, token, selectedNode]);
 
   // ── Update tag (name / move to different collection) ────────────────
   const handleSaveTag = async () => {
@@ -262,10 +275,14 @@ export default function TagsView() {
     const name = editName.trim();
     const collection = editCollection.trim() || "general";
     if (!name) return;
-    const updated = await updateTag(token, selectedNode.id, { name, collection });
-    setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
-    setSelectedNode({ ...selectedNode, label: updated.name, collection: updated.collection });
-    setExpanded(prev => new Set([...prev, `col:${collection}`]));
+    try {
+      const updated = await updateTag(token, selectedNode.id, { name, collection });
+      setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
+      setSelectedNode({ ...selectedNode, label: updated.name, collection: updated.collection });
+      setExpanded(prev => new Set([...prev, `col:${collection}`]));
+    } catch (e) {
+      reportFailure("updateTag", e);
+    }
   };
 
   // ── Drag-and-drop: move tag to a different collection ───────────────
@@ -285,10 +302,19 @@ export default function TagsView() {
     const targetCollection = targetCollectionId.replace(/^col:/, "");
     const tag = allTags.find(t => t.uuid === dragId);
     if (!tag || tag.collection === targetCollection) { setDragId(null); return; }
-    const updated = await updateTag(token, dragId, { name: tag.name, collection: targetCollection });
-    setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
-    setDragId(null);
-  }, [dragId, token, allTags]);
+    try {
+      const updated = await updateTag(token, dragId, { name: tag.name, collection: targetCollection });
+      setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
+    } catch (e) {
+      // Nothing to roll back, because nothing was moved optimistically: the tree is rebuilt from
+      // `allTags`, and `allTags` is only touched once the PATCH has been accepted. A tree that
+      // showed the tag in its new collection after a failed move would be lying about where it
+      // lives, and the user would have no way to find that out.
+      reportFailure("moveTag", e);
+    } finally {
+      setDragId(null);
+    }
+  }, [dragId, reportFailure, token, allTags]);
 
   // ── Expand / collapse ──────────────────────────────────────────────
   const toggleExpand = useCallback((id: string) => {
@@ -375,6 +401,7 @@ export default function TagsView() {
               onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
               placeholder={t("tags.placeholder.name")}
               size="small"
+              inputProps={{ "data-testid": "tag-new-name" }}
               sx={{ width: 140, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
             />
             <TextField
@@ -383,10 +410,11 @@ export default function TagsView() {
               onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
               placeholder={t("tags.placeholder.collection")}
               size="small"
+              inputProps={{ "data-testid": "tag-new-collection" }}
               sx={{ width: 120, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
             />
               <Tooltip title={t("tags.tooltip.create")}>
-              <IconButton size="small" onClick={handleCreateTag} sx={{ bgcolor: tokens.primary.main, color: "#fff", "&:hover": { bgcolor: tokens.primary.dark }, width: 28, height: 28 }}>
+              <IconButton size="small" onClick={handleCreateTag} data-testid="tag-create-button" sx={{ bgcolor: tokens.primary.main, color: "#fff", "&:hover": { bgcolor: tokens.primary.dark }, width: 28, height: 28 }}>
                 <AddOutlined sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>

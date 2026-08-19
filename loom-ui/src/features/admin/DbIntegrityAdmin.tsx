@@ -12,6 +12,7 @@ import { tokens } from "../../theme";
 import StatusChip, { type Tone } from "../../components/StatusChip";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
+import { isApiError } from "../../api/http";
 import {
   checkStatus, groupByCategory, loadDbIntegrityReport, notRunCount, passedCount, severityCounts,
   type DbIntegrityCategory, type DbIntegrityCheckResult, type DbIntegrityReport,
@@ -53,8 +54,15 @@ const cardSx = {
   bgcolor: tokens.bg.surface,
 };
 
-function isForbidden(error: Error): boolean {
-  return error.message.startsWith("API error 403");
+/**
+ * Reads the status, not the message.
+ *
+ * This used to be `error.message.startsWith("API error 403")`, which worked only for as long as
+ * every one of the 36 response handlers formatted its message that way. `ApiError` carries the
+ * status as a number, so the check no longer depends on a string the server is free to change.
+ */
+function isForbidden(error: unknown): boolean {
+  return isApiError(error) && error.status === 403;
 }
 
 export default function DbIntegrityAdmin() {

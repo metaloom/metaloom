@@ -11,6 +11,11 @@
  * elements, and both must stay in step.
  */
 import { API_BASE_URL } from "./config";
+// traceIdOf only, deliberately without noteUnauthorized: this is the share VISITOR path, where a
+// 401 means the share session token lapsed, not that a Loom session expired. Firing the global
+// session-expired event here would sign out somebody who was never signed in - SharePage handles
+// its own 401 by re-showing the password challenge.
+import { traceIdOf } from "./http";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import type { ShareAnnotationResponse, ShareCommentResponse, ShareReactionResponse, ShareTargetType } from "./shareLinks";
 
@@ -120,11 +125,14 @@ export interface ShareReactionRequest {
  */
 export class ShareApiError extends Error {
   readonly status: number;
+  /** The X-Trace-Id of the failing response, or null. What a problem report quotes. */
+  readonly traceId: string | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, traceId: string | null = null) {
     super(message);
     this.name = "ShareApiError";
     this.status = status;
+    this.traceId = traceId;
   }
 }
 
@@ -137,7 +145,7 @@ function shareHeaders(sessionToken?: string): Record<string, string> {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ShareApiError(res.status, text || `API error ${res.status}`);
+    throw new ShareApiError(res.status, text || `API error ${res.status}`, traceIdOf(res));
   }
   return res.json() as Promise<T>;
 }
@@ -246,7 +254,7 @@ export async function deleteSharedComment(slug: string, sessionToken: string, co
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ShareApiError(res.status, text || `API error ${res.status}`);
+    throw new ShareApiError(res.status, text || `API error ${res.status}`, traceIdOf(res));
   }
 }
 
@@ -281,7 +289,7 @@ export async function deleteSharedAnnotation(slug: string, sessionToken: string,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ShareApiError(res.status, text || `API error ${res.status}`);
+    throw new ShareApiError(res.status, text || `API error ${res.status}`, traceIdOf(res));
   }
 }
 
@@ -316,6 +324,6 @@ export async function deleteSharedReaction(slug: string, sessionToken: string, r
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ShareApiError(res.status, text || `API error ${res.status}`);
+    throw new ShareApiError(res.status, text || `API error ${res.status}`, traceIdOf(res));
   }
 }

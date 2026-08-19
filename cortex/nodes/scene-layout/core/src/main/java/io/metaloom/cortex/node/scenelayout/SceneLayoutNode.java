@@ -215,7 +215,7 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 		} catch (Exception e) {
 			log.error("Failed to compute scene layout for media {}", path, e);
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

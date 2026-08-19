@@ -26,10 +26,10 @@
 >
 > **Ordering / blocking.** Ordered by severity, not by number (numbers are stable so other files can
 > cite them; the gaps are earlier tasks that are now closed and were removed).
-> **Task 14 blocks Task 16 and Task 17**: the a11y sweep and the new admin specs both assert on
-> feedback that does not exist until the silent catches are fixed.
-> **Task 11 should land before Task 13**, because `React.lazy` without an error boundary turns a
-> chunk-load failure into a blank page. Tasks 4, 9, 17, 18, 19, 20 are independent.
+> **Task 14 and Task 11 landed on 2026-08-18**, so Tasks 16, 17 and 13 are unblocked: the feedback
+> they assert on now exists, and `React.lazy` now has a boundary above it. What is left of Task 14
+> is the long tail of step 5 (ten views that still render a failed load as an empty one) and step 6
+> (loading indicators). Tasks 4, 9, 17, 18, 19, 20 are independent.
 >
 > **The E2E coverage batches (Tasks 21–31)** each close eight cases against
 > [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2's mocked tier and are independent of each other
@@ -49,7 +49,24 @@
 
 ---
 
-## Task 14: Mutations that fail silently — no toast, no error state, and a dialog that closes anyway
+## Task 14: Mutations that fail silently — LARGELY DONE (2026-08-18), steps 5 and 6 partly open
+
+> **Landed 2026-08-18, and generalised well beyond what this task asked for.** The task said "use
+> the toast mechanism that already exists". What went in instead is a *generic failure surface*:
+> `useFailure().reportFailure(action, error)` raises the toast **and** offers a Report button, and
+> the report carries the `X-Trace-Id` of the failing response so an operator can find the exact
+> stack trace behind it. That needed a trace id on every response (new: `TraceIdHandler`), one
+> shared HTTP layer to capture it (new: `src/api/http.ts`, replacing 36 private `handleResponse`
+> copies and therefore also closing Task 11 step 1), and somewhere for reports to go (new:
+> `/api/v1/failure-reports` plus an admin inbox). The whole design is
+> [../features/ui/FAILURE_REPORTING.md](../features/ui/FAILURE_REPORTING.md).
+>
+> **Steps 1-4 are done**, including the three `FaceDetectionManagement` handlers that reset outside
+> the try, both `AdminArea` blacklist swallows, all four `TagsView` mutations, and both face panels.
+> **Step 5 is partly done** — `LibraryView` and `FaceDetectionManagement` distinguish failed from
+> empty via the new shared `LoadFailure` component; the other ten views listed below still do not.
+> **Step 6 (loading indicators) is done for `FaceDetectionManagement` only.**
+> The rule from step 7 is recorded in ../loom/ui/LOOM_UI.md §11.2.
 
 **Argumentation Summary:** Across the feature tree a failed write is indistinguishable from a
 successful one. The worst case is
@@ -123,7 +140,16 @@ say "could not load" instead of "empty".
 
 ---
 
-## Task 11: React error boundaries and a global 401 path
+## Task 11: React error boundaries and a global 401 path — DONE (2026-08-18)
+
+> **Landed 2026-08-18**, alongside Task 14, because both needed the same thing: one shared response
+> handler. All seven steps are in. Step 1's `src/api/http.ts` also carries the trace id and an
+> `ApiError` with a numeric `status` — the migration touched 39 modules and changed no request
+> shape. Step 3 is **one** boundary around the routed area keyed by `location.pathname` rather than
+> thirty per-route wrappers; the keying makes a navigation reset it and the sidebar stays outside.
+> Step 5's `isJwtExpired` is now called on mount and on window focus rather than deleted.
+> Tests: `src/api/http.test.ts` (14 cases), `e2e/error-feedback-mocked.spec.ts` (5 cases, including
+> the one-message-for-an-expired-session case), `TraceIdEndpointTest` (6 cases, server side).
 
 **Argumentation Summary:** Two shell gaps, both still unchecked in
 [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §13.1, that share a failure mode: the app goes blank

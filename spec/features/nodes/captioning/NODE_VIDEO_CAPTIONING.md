@@ -380,10 +380,13 @@ pin vLLM to the 4090; llama.cpp *can* use both with `--split-mode layer --tensor
 
 ### Open
 
-- [ ] 🟡 **`compute()` swallows the cause** (§3.6). It catches `Exception`, prints the stack trace and
-      returns `NodeResult.failed()` with no ledger row and no message — while `persistVideo` records a
-      `FAILED` row properly. Align it with the rest of the tree: record the failure, and prefer
-      `ctx.failure(msg).abort()` (`.next()` reports `SUCCESS` and drops the message).
+- [x] **`compute()` swallowed the cause** (§3.6) — fixed 2026-08-18 alongside the tree-wide
+      `ctx.failure(...).next()` sweep ([../../../tasks/WORKFLOW_TASKS.md](../../../tasks/WORKFLOW_TASKS.md)
+      Task 17). It caught `Exception`, printed the stack trace and returned `NodeResult.failed()` with
+      no logger, no ledger row and no message. It now logs, records the `FAILED` row and returns
+      `ctx.failure(msg).abort()`; the unreachable `else` branch below it became a skip, since
+      `isProcessable()` has already gated on image-or-video.
+      `CaptioningNodeTest.testFailedCaptioningIsFailedAndKeepsTheCause` covers it.
 - [ ] 🟡 **No video option is configurable from the UI** (§6.1). Drop `hidden = true` from the video
       fields in `CaptioningNodeOptions`, add the enum/number/string metadata, and regenerate with
       `mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true`.
@@ -509,5 +512,5 @@ Video tests call `assumeVideo4j()` / initialise `Video4j` statically; see
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (`compute()` no longer swallows the cause). Earlier: 2026-08-11_

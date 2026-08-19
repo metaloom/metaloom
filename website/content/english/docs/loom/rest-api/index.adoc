@@ -394,6 +394,51 @@ See link:../chat/[Chat & AI Agent] for the streaming event protocol.
 | DELETE | `/api/v1/collections/:uuid` | Delete collection
 |===
 
+=== Problem Reports
+
+`/api/v1/failure-reports` collects what users report as broken from the UI, joined to the server log
+by the trace ID of the request that failed.
+
+[options="header",cols="1,2,3"]
+|===
+| Method | Path | Description
+| `POST` | `/failure-reports` | Submit a report. Only `action` is required
+| `GET` | `/failure-reports` | List reports (paged)
+| `GET` | `/failure-reports/<uuid>` | Load one report
+| `GET` | `/failure-reports/<uuid>/screenshot` | Download the attached screenshot
+| `POST` | `/failure-reports/<uuid>` | Triage: `NEW`, `ACKNOWLEDGED` or `RESOLVED`
+| `DELETE` | `/failure-reports/<uuid>` | Delete a report and its screenshot
+|===
+
+*Submitting a report requires authentication and no permission.* That is deliberate: a permission to
+report a failure would, wherever it went ungranted, turn the one response to a breakage into a `403`.
+Reading, triaging and deleting need `READ_FAILURE_REPORT`, `UPDATE_FAILURE_REPORT` and
+`DELETE_FAILURE_REPORT` respectively.
+
+Only `action` — what was being attempted, in your own vocabulary — is mandatory. Everything
+describing the failing request is optional, because failures that produced no response at all are
+worth reporting too:
+
+[source,json]
+----
+{
+  "action": "createPerson",
+  "traceId": "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+  "httpMethod": "POST",
+  "path": "/api/v1/persons",
+  "statusCode": 500,
+  "errorMessage": "Internal Server Error",
+  "route": "/detection",
+  "text": "I filled in the name and pressed Create. The dialog closed but the person is not there.",
+  "screenshot": "data:image/png;base64,..."
+}
+----
+
+A screenshot may be sent as a data URL or as bare base64, up to *5 MB* decoded, and must be a PNG,
+JPEG or WebP — the image type is determined from the bytes, not from what the request claims. An
+oversized image answers `413`. The `userAgent` recorded on a report is taken from the request headers
+rather than the body, so it reflects what the server observed.
+
 === Further Endpoints
 
 Additional endpoints exist for: `attachments`, `tasks`, `comments`, `reactions`,
@@ -414,14 +459,23 @@ only your own entries; another user's notification answers `404`.
 
 == Error Responses
 
-All errors return the HTTP status code plus a JSON body carrying a human readable `message`:
+All errors return the HTTP status code plus a JSON body carrying a human readable `message` and the
+`traceId` of the request:
 
 [source,json]
 ----
 {
-  "message": "Cannot find asset with uuid 'abc'"
+  "message": "Cannot find asset with uuid 'abc'",
+  "traceId": "9f2c41ab7d0e4c6fa1b83e5d72c09148"
 }
 ----
+
+*Every* response — successful or not — also carries the same value in an `X-Trace-Id` header, and the
+server writes it into the log line for the failure. Quote it when reporting a problem and the exact
+request can be found with certainty rather than by guessing from timestamps. If your client already
+has an identifier of its own, send it as `X-Trace-Id` and it will be used, provided it is at most 64
+characters of letters, digits, `-`, `_` or `.`; anything else is replaced with a freshly generated
+one.
 
 [options="header",cols="1,4"]
 |===

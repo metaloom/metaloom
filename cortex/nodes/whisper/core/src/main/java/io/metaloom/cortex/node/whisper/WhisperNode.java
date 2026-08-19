@@ -148,7 +148,7 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 			if (asset != null && client() != null) {
 				recordNodeResult(asset.getUuid(), model, ResultState.FAILED, e.getMessage(), ctx.duration(), null);
 			}
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

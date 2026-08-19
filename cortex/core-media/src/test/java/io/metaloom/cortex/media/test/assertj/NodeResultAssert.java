@@ -29,7 +29,32 @@ public class NodeResultAssert extends AbstractAssert<NodeResultAssert, NodeResul
 	}
 
 	public NodeResultAssert isFailed() {
-		assertEquals(ResultState.FAILED, actual.getState(), "The node was not in state failed.");
+		assertEquals(ResultState.FAILED, actual.getState(), "The node was not in state failed. Message: " + actual.getMessage());
+		return this;
+	}
+
+	/**
+	 * Assert the skip reason / failure cause the result carries.
+	 *
+	 * <p>
+	 * Worth asserting separately from the state: the historical bug was not only that
+	 * {@code ctx.failure(cause).next()} reported SUCCESS, but that it dropped the cause on the way, so
+	 * even a result whose state was later corrected could arrive with nothing to diagnose from.
+	 * </p>
+	 */
+	public NodeResultAssert hasMessage(String expected) {
+		assertEquals(expected, actual.getMessage(), "The result message did not match.");
+		return this;
+	}
+
+	/**
+	 * Assert that the result's message contains the given text — for a cause built from an exception
+	 * message the test does not want to spell in full.
+	 */
+	public NodeResultAssert hasMessageContaining(String expected) {
+		assertNotNull(actual.getMessage(), "The result carried no message at all; expected one containing: " + expected);
+		assertTrue(actual.getMessage().contains(expected),
+			"The result message did not contain '" + expected + "'. It was: " + actual.getMessage());
 		return this;
 	}
 

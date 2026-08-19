@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Chip, TextField, InputAdornment, Button,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, Select, MenuItem, SelectChangeEvent,
+  FormControl, Select, MenuItem, SelectChangeEvent, CircularProgress,
 } from "@mui/material";
 import {
   SearchOutlined, GroupWorkOutlined, PersonOutlined, AddOutlined,
@@ -23,6 +23,8 @@ import PersonsPanel from "./PersonsPanel";
 import { toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 import { ListFilterSelect } from "../../components/ListControls";
+import { useFailure } from "../../context/FailureContext";
+import LoadFailure from "../../components/LoadFailure";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
@@ -38,8 +40,16 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const [newPersonLastname, setNewPersonLastname] = useState("");
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
   const [assignPersonId, setAssignPersonId] = useState("");
+  // Three states, not two: loading, failed and loaded-but-empty are different things to say, and
+  // this screen used to render all three identically.
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped by the retry button. The effect depends on it, so a retry re-runs the same load
+  // rather than needing the load extracted into a callback the effect and the button both call.
+  const [reloadToken, setReloadToken] = useState(0);
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { reportFailure } = useFailure();
 
   const toUiCluster = (r: ClusterResponse): FaceCluster => ({
     id: r.uuid,
@@ -62,6 +72,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   useEffect(() => {
     const loadData = async () => {
       if (token) {
+        setLoading(true);
+        setLoadError(null);
         try {
           const [clustersResp, personsResp] = await Promise.all([
             apiListClusters(token, { limit: PAGE_SIZE }),
@@ -82,12 +94,17 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           );
           setPersons(persons.map((p, i) => toUiPerson(p, clusterIdsByPerson[i])));
         } catch (e) {
-          console.error("Failed to load face detection data", e);
+          // An inline state, not only a toast: the toast fades and the screen would still read as
+          // "no faces found", which is a different and much more alarming statement than "this
+          // could not be loaded". See LOOM_UI.md 11.2.
+          setLoadError(reportFailure("loadFaceDetection", e).message);
+        } finally {
+          setLoading(false);
         }
       }
     };
     loadData();
-  }, [token]);
+  }, [token, reloadToken]);
 
   const filteredClusters = clusters.filter(c => {
     // Assignment is the axis review actually runs along: the work is finding the clusters that
@@ -115,13 +132,18 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         lastname: newPersonLastname || undefined,
       });
       setPersons(prev => [...prev, toUiPerson(resp)]);
+      // Inside the try, after the await. These four lines used to sit outside it, so a rejected
+      // create cleared the form and closed the dialog exactly as an accepted one did - and the
+      // user walked away believing in a person that does not exist.
+      setNewPersonAlias("");
+      setNewPersonFirstname("");
+      setNewPersonLastname("");
+      setCreatePersonOpen(false);
     } catch (e) {
-      console.error("Failed to create person", e);
+      // The dialog stays open with the typed values intact, so the user can retry without
+      // retyping - which is the whole reason the reset moved.
+      reportFailure("createPerson", e);
     }
-    setNewPersonAlias("");
-    setNewPersonFirstname("");
-    setNewPersonLastname("");
-    setCreatePersonOpen(false);
   };
 
   const handleCreateCluster = async () => {
@@ -129,11 +151,11 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     try {
       const resp = await apiCreateCluster(token, { name: newClusterName });
       setClusters(prev => [...prev, toUiCluster(resp)]);
+      setNewClusterName("");
+      setCreateClusterOpen(false);
     } catch (e) {
-      console.error("Failed to create cluster", e);
+      reportFailure("createCluster", e);
     }
-    setNewClusterName("");
-    setCreateClusterOpen(false);
   };
 
   /**
@@ -153,11 +175,11 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           ? { ...p, clusterIds: [...p.clusterIds, assignOpen] } 
           : p)),
       );
+      setAssignOpen(null);
+      setAssignPersonId("");
     } catch (e) {
-      console.error("Failed to confirm the cluster", e);
+      reportFailure("confirmCluster", e);
     }
-    setAssignOpen(null);
-    setAssignPersonId("");
   };
 
   return (
@@ -259,7 +281,13 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
       {/* Content */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {activeSection === "clusters" && (
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }} data-testid="face-detection-loading">
+            <CircularProgress size={28} />
+          </Box>
+        )}
+        {!loading && loadError && <LoadFailure message={loadError} onRetry={() => setReloadToken(n => n + 1)} testId="face-detection-load-failure" />}
+        {!loading && !loadError && activeSection === "clusters" && (
           <ClustersPanel
             clusters={filteredClusters}
             persons={persons}
@@ -268,7 +296,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onClusterUpdated={(updated) => setClusters(prev => prev.map(c => c.id === updated.id ? updated : c))}
           />
         )}
-        {activeSection === "persons" && (
+        {!loading && !loadError && activeSection === "persons" && (
           <PersonsPanel
             persons={filteredPersons}
             clusters={clusters}

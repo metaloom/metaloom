@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders, handleResponse } from "./http";
 
 /**
  * Client for `GET /db-integrity` — whether the database still holds the invariants the server
@@ -70,21 +71,6 @@ export interface DbIntegrityFilters {
   severity?: DbIntegritySeverity;
   /** Offending rows to name per finding. The server caps this. */
   limit?: number;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 /** Build the query string for the report route. Exported so it can be unit-tested. */

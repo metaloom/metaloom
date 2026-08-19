@@ -68,6 +68,22 @@ public interface NodeContext<I> {
 	 */
 	ResultOrigin resultOrigin();
 
+	/**
+	 * Record why this item could not be processed.
+	 *
+	 * <p>
+	 * Terminate with {@link #abort()}. The cause is the node's diagnosis and {@code abort()} is the
+	 * statement that the item failed — writing them together keeps the intent in the node rather than
+	 * in the context. {@code failure(cause).next()} used to build a <em>SUCCESS</em> result and discard
+	 * the cause; it now yields {@code FAILED} like {@code abort()}, but it is still the wrong shape and
+	 * {@code FailurePathGuardTest} fails the build on it.
+	 * </p>
+	 *
+	 * <p>
+	 * A failure is a real error an operator must see. "This item is not applicable" is
+	 * {@link #skipped(String)}, which is a different outcome and reads as one in the ledger.
+	 * </p>
+	 */
 	NodeContext<I> failure(String cause);
 
 	// ── inputs ───────────────────────────────────────────────────────────
@@ -248,8 +264,21 @@ public interface NodeContext<I> {
 	 */
 	Map<String, NodePreview> previews();
 
+	/**
+	 * Finish this item and let the pipeline continue.
+	 *
+	 * <p>
+	 * Yields {@code SUCCESS}, or {@code SKIPPED} when {@link #skipped(String)} recorded a reason. If
+	 * {@link #failure(String)} recorded a cause it yields {@code FAILED} carrying that cause — a
+	 * fail-closed backstop, not a supported spelling of {@link #abort()}.
+	 * </p>
+	 */
 	NodeResult next();
 
+	/**
+	 * Finish this item as {@code FAILED}, carrying whatever {@link #failure(String)} recorded and
+	 * whatever the node managed to emit before it broke. This is the failure terminator.
+	 */
 	NodeResult abort();
 
 	NodeContext<I> print(String string, String string2);

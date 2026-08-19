@@ -19,6 +19,7 @@ public interface LoomModelBuilder extends
 	CollectionModelBuilder,
 	RemixModelBuilder,
 	ShareModelBuilder,
+	FailureReportModelBuilder,
 	ClusterModelBuilder,
 	CommentModelBuilder,
 	DetectionModelBuilder,

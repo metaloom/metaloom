@@ -19,6 +19,7 @@ import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.loom.LoomDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
+import io.metaloom.loom.db.model.failure.FailureReportDao;
 import io.metaloom.loom.db.model.share.ShareDao;
 import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
@@ -176,6 +177,10 @@ public interface DaoCollection {
 	 * the worker's presence is not.</p>
 	 */
 	io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao nodeDescriptorDao();
+
+	// Failure reports (problem reports submitted from the UI)
+
+	FailureReportDao failureReportDao();
 
 	// System
 

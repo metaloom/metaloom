@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders, handleResponse } from "./http";
 
 // ── Types matching the Loom REST notification models ──────────────────
 
@@ -45,21 +46,6 @@ export interface NotificationListResponse {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 async function expectNoContent(res: Response): Promise<void> {
   if (!res.ok) {

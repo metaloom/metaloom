@@ -905,7 +905,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
-| **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Several nodes still report success on their failure paths. Use `ctx.failure(msg).abort()` in new nodes |
+| **`ctx.failure(...).next()`** | ✅ Fixed 2026-08-18. It returned **SUCCESS** with the cause discarded, across 15 call sites in 13 node classes; all now `.abort()`, and `NodeContextImpl.next()` honours a recorded `failureCause` as a fail-closed backstop. Write `ctx.failure(msg).abort()` — `FailurePathGuardTest` (`cortex/api`) scans every Cortex main source and fails the build on the chained shape, naming file and line |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation |
 | **Two `NodeState` vocabularies** | They *are* reconciled: `NodeResultMapper.toWireState()` maps SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. The wire enum's extra `PENDING`/`RUNNING` are never produced by a terminal result |
 | **Cortex `cortex.yml`** | ✅ **Is** read (corrected 2026-08-08): `CortexClientModule.options(...)` calls `CortexOptionsLoader.load()` whenever no explicit `CortexOptions` is injected — the `CortexMain` path — and the environment is then applied on top. 🔴 But the loader probes **only** `${user.home}/.config/metaloom/cortex.yml`, while the container/Helm config path is `/config`, so in a container the YAML layer is still dead in practice. Anything only settable in YAML (e.g. `CortexOptions.dryrun`, which has no `CortexEnvOptions` mapping) is therefore unreachable there |
@@ -1024,8 +1024,10 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `5c5de81b`_
-_Last updated: 2026-08-16 (registered concept/CORTEX_LOOM_1-TO-N.md — whether one Cortex worker can
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the `ctx.failure(...).next()` cheat-sheet row — fixed tree-wide, with a `FailurePathGuardTest` build guard)_
+
+_Previously: 2026-08-16 (registered concept/CORTEX_LOOM_1-TO-N.md — whether one Cortex worker can
 attach to several Loom instances; tree entry under concept/ and a routing row next to CLUSTERING.md.
 Earlier the same day: registered tasks/SEARCH_ELASTICSEARCH.md — the decision that Elasticsearch
 stays deferred, plus the Tasks 11-15 + 23 moved out of SEARCH_TASKS.md; two routing rows added

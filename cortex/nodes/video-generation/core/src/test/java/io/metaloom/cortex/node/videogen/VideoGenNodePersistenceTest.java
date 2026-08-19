@@ -100,7 +100,9 @@ class VideoGenNodePersistenceTest {
 		when(videoGenClient.generate(anyString(), nullable(String.class), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), anyDouble(),
 			nullable(Integer.class))).thenThrow(new RuntimeException("sidecar down"));
 
-		node().process(NodeContext.create(media));
+		// The returned state has to agree with the row. It did not until 2026-08-18: the node ended its
+		// catch block with ctx.failure(cause).next(), which reported SUCCESS and dropped the cause.
+		assertThat(node().process(NodeContext.create(media))).isFailed().hasMessage("sidecar down");
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "sidecar down".equals(r.getReason())));

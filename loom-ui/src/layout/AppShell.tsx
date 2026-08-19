@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Box } from "@mui/material";
 import Sidebar from "./Sidebar";
 import { tokens } from "../theme";
@@ -28,6 +28,36 @@ import AssetPoolsView from "../features/assetPools/AssetPoolsView";
 import UploadView from "../features/uploads/UploadView";
 import { LayoutContext, type NavGuard } from "../context/LayoutContext";
 import { runGuarded } from "../hooks/useUnsavedChanges";
+import ErrorBoundary from "../components/ErrorBoundary";
+import { useFailure } from "../context/FailureContext";
+import { toFailure } from "../failure/failure";
+
+/**
+ * One error boundary around the routed area, re-keyed by path.
+ *
+ * Deliberately one boundary rather than thirty - one per `<Route element>`. The keying is what
+ * makes them equivalent: a change of pathname remounts the boundary, so a screen that threw does
+ * not stay broken once the user navigates away, and a throw is still contained to the routed area
+ * with the sidebar outside it and unaffected. Thirty wrappers would have been thirty places for
+ * the next route to forget one.
+ */
+function RouteBoundary({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const { openReport } = useFailure();
+
+  return (
+    <ErrorBoundary
+      key={location.pathname}
+      feature={location.pathname}
+      // Straight to the report form, not through a toast: the screen is already showing a
+      // fallback that says what happened, so a toast saying it again would be noise. What the
+      // user does not have is a way to tell anybody, and that is what this offers.
+      onError={(error, feature) => openReport(toFailure(`render:${feature}`, error, feature))}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -61,6 +91,7 @@ export default function AppShell() {
           minWidth: 0,
         }}
       >
+        <RouteBoundary>
         <Routes>
           <Route path="/" element={<ChatWorkspace />} />
           <Route path="/search" element={<SearchView />} />
@@ -90,6 +121,7 @@ export default function AppShell() {
           <Route path="/maintenance" element={<MaintenanceView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </RouteBoundary>
       </Box>
     </Box>
     </LayoutContext.Provider>

@@ -35,7 +35,7 @@
 >
 > **Do not duplicate work owned elsewhere.** Cross-reference by number instead of restating:
 > [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 16** (re-baseline the workflow specs and
-> `METALOOM_CONTEXT.md`), **Task 17** (`ctx.failure(...).next()` reports SUCCESS), **Task 18**
+> `METALOOM_CONTEXT.md`), **Task 17** (`ctx.failure(...).next()` reported SUCCESS — **done 2026-08-18**), **Task 18**
 > (ledger provenance: constant `origin`, no `runUuid`/`taskUuid`) ·
 > [LOOM_UI_TASKS.md](LOOM_UI_TASKS.md) **Task 11** (the shared `src/api/http.ts` seam — the UI-side
 > layering fix) · [CHAT_TASKS.md](CHAT_TASKS.md) (all chat/agent-loop items) ·
@@ -987,5 +987,5 @@ Recorded so nobody re-derives them and wonders why they vanished.
 | Node capability whitelist, node affinity, durable item queue with leases | **Built**, not dropped — see [../cortex/METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md) |
 
 ---
-_Git HEAD revision: `67000540`_
-_Last updated: 2026-08-16 (merged `METALOOM_ARCHITECTURE_V2_TASKS.md` in as Tasks 13-18; all 17 tasks re-verified against the code)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the WORKFLOW_TASKS Task 17 cross-reference is marked done). Earlier: 2026-08-16 (merged `METALOOM_ARCHITECTURE_V2_TASKS.md` in as Tasks 13-18; all 17 tasks re-verified against the code)_

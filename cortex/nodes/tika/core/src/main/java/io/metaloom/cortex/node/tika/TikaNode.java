@@ -88,7 +88,7 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 		} catch (Exception e) {
 			log.error("Error while processing media " + media.path(), e);
 			ctx.output(OUT_FLAGS, "FAILED");
-			return ctx.failure("failed processing").next();
+			return ctx.failure("failed processing: " + e.getMessage()).abort();
 		}
 	}
 

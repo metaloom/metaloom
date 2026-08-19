@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders, noteUnauthorized, traceIdOf } from "./http";
 
 // ── Types matching the Loom REST API search index models ──────────────────
 // Mirrors io.metaloom.loom.rest.model.searchindex.*
@@ -78,31 +79,28 @@ export interface IndexJobListResponse {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
 /**
  * A typed error so a caller can tell a 403 (no permission — hide the screen) from a
  * network failure (keep the last good snapshot and warn), which a bare Error cannot.
  */
 export class SearchIndexApiError extends Error {
   readonly status: number;
+  /** The X-Trace-Id of the failing response, or null. What a problem report quotes. */
+  readonly traceId: string | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, traceId: string | null = null) {
     super(message);
     this.name = "SearchIndexApiError";
     this.status = status;
+    this.traceId = traceId;
   }
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new SearchIndexApiError(res.status, `API error ${res.status}: ${text}`);
+    noteUnauthorized(res.status);
+    throw new SearchIndexApiError(res.status, `API error ${res.status}: ${text}`, traceIdOf(res));
   }
   return res.json() as Promise<T>;
 }

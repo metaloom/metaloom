@@ -42,6 +42,8 @@ import io.metaloom.loom.db.jooq.tables.JooqDedupGroupMember;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
+import io.metaloom.loom.db.jooq.tables.JooqFailureReport;
+import io.metaloom.loom.db.jooq.tables.JooqFailureReportScreenshot;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
 import io.metaloom.loom.db.jooq.tables.JooqGroup;
 import io.metaloom.loom.db.jooq.tables.JooqLibrary;
@@ -350,6 +352,20 @@ public class Tables {
      * List embeddings for clusters
      */
     public static final JooqEmbeddingCluster EMBEDDING_CLUSTER = JooqEmbeddingCluster.EMBEDDING_CLUSTER;
+
+    /**
+     * A problem report submitted from the UI. Carries the half of a failure the
+     * server log cannot hold - what the user was doing and what they expected -
+     * joined to the log by trace_id
+     */
+    public static final JooqFailureReport FAILURE_REPORT = JooqFailureReport.FAILURE_REPORT;
+
+    /**
+     * The optional screenshot attached to a report. bytea in its own table, not
+     * binary storage: a report must be storable when storage is the thing that
+     * is broken, and the inbox listing must not read megabytes it never shows
+     */
+    public static final JooqFailureReportScreenshot FAILURE_REPORT_SCREENSHOT = JooqFailureReportScreenshot.FAILURE_REPORT_SCREENSHOT;
 
     /**
      * The table <code>public.flyway_schema_history</code>.

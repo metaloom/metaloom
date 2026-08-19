@@ -35,8 +35,9 @@
 >    parser half landed.
 > 6. **Tasks 13, 17** — one missing meter, and the spec arrears.
 >
-> **Owned elsewhere — do not restate.** The `ctx.failure(...).next()` defect (16 sites, 14 node
-> classes) is [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 17**. The `asset_node_result` provenance
+> **Owned elsewhere — do not restate.** The `ctx.failure(...).next()` defect
+> ([WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 17**) is **DONE 2026-08-18** — 15 sites in 13 node
+> classes converted, plus a build guard. The `asset_node_result` provenance
 > record (`origin` hard-coded `COMPUTED`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest`) is
 > **Task 18** there. Re-baselining `WORKFLOWS.md` and `METALOOM_CONTEXT.md` is **Task 16** there —
 > Task 17 below covers only the `spec/features/pipeline/` files, which that sweep does not touch.
@@ -478,7 +479,7 @@ not open a parallel task.
 
 | Item | Owner |
 |---|---|
-| `ctx.failure(...).next()` returns SUCCESS — 16 call sites in 14 node classes | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 17** |
+| ~~`ctx.failure(...).next()` returns SUCCESS~~ — **DONE 2026-08-18**; 15 sites in 13 node classes, guarded by `FailurePathGuardTest` | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 17** |
 | `asset_node_result` provenance — `origin` hard-coded `COMPUTED`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest` | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18** |
 | Re-baselining `WORKFLOWS.md` and `METALOOM_CONTEXT.md` | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 16** (Task 17 above covers only `spec/features/pipeline/`) |
 | Ad-hoc ("pipelineless") node execution — `pipeline_run.kind = ADHOC`, the `/api/v1/node-runs` routes | [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md). It reuses `PipelineGraphParser`, `PipelineRunEngine` and `WebSocketNodeDispatcher` unchanged |
@@ -550,5 +551,5 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit; §B owner rows repointed after PLAN_C became a task list)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§B owner rows — WORKFLOW_TASKS Task 17 is done). Earlier: 2026-08-11 (code audit; §B owner rows repointed after PLAN_C became a task list)_

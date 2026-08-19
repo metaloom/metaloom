@@ -146,18 +146,20 @@ within one worker's lifetime a re-run with changed options is served the old map
 ([../NODES.md](../NODES.md) §4 lists this node under "everything else | `absolutePath` only").
 `dominant-color` and `sam2` are the models to copy. Tracked in §10.
 
-### 3.5 🔴 The failure path returns `.next()`, and that is a defect
+### 3.5 🟢 The failure path aborts (fixed 2026-08-18)
 
 ```java
 ctx.output(OUT_FLAG, "FAILED");
 recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
-return ctx.failure(e.getMessage()).next();
+return ctx.failure(e.getMessage()).abort();
 ```
 
-`NodeContextImpl.next()` reads `skipReason` but **not** `failureCause`, so the returned `NodeResult`
-reports `SUCCESS` and the message is dropped. The `FAILED` ledger row and the `FAILED` flag are
-recorded explicitly just above, which is why `DepthmapNodePersistenceTest` still passes — the defect
-is invisible to the tests that exist. `Sam2Node` uses `.abort()` and is the correct shape; see
+It was `.next()` until 2026-08-18: `NodeContextImpl.next()` read `skipReason` but **not**
+`failureCause`, so the returned `NodeResult` reported `SUCCESS` and the message was dropped. The
+`FAILED` ledger row and the `FAILED` flag were recorded explicitly just above, which is exactly why
+`DepthmapNodePersistenceTest` kept passing — the defect was invisible to the tests that existed.
+`DepthmapNodeTest` now asserts the terminal state and the cause on both failure paths (the sidecar
+throwing, and a rejected depth convention). `Sam2Node` had the correct shape all along; see
 [../sam2/NODE_SAM2.md](../sam2/NODE_SAM2.md) §3.8 and the nineteen-node list in
 [../NODES.md](../NODES.md). Tracked in §10.
 
@@ -417,7 +419,7 @@ curl -s localhost:9120/health                  # expect convention:"NEARNESS"
 | **Affinity** | 🔴 **Mandatory** for any consumer. The PNG is worker-local; `AffinityValidator` cannot warn about a group you never declared (§4). |
 | **Two dimension pairs** | 🔴 `width`/`height` are the **map's**, `imageWidth`/`imageHeight` the **source image's**. Mixing them throws nothing and samples the wrong pixels (§3.1). |
 | **Cache key** | 🔴 Path only — changing `mode`/`model`/`maxDim` does not invalidate it within a worker's lifetime (§3.4). |
-| **Failure path** | 🔴 `ctx.failure(msg).next()` reports `SUCCESS` and drops the message; only the explicit `FAILED` ledger row and flag survive (§3.5). |
+| **Failure path** | 🟢 `ctx.failure(msg).abort()` since 2026-08-18. It used to be `.next()`, which reported `SUCCESS` and dropped the message — only the explicit `FAILED` ledger row and flag survived (§3.5). |
 | **PNG, not JPEG** | ⚠️ `DepthImages` encodes PNG deliberately. Do not "reuse" `VlmImages` here (§3.2). |
 | **16-bit round trip** | Written Python-side with `cv2.imencode` on a `uint16` array — PIL's `I;16` mode is version-dependent. Java reads `BufferedImage.TYPE_USHORT_GRAY` and samples `raster.getSample(x,y,0)` in `0..65535`. |
 | **HTTP/1.1** | ⚠️ Force `Version.HTTP_1_1`; FastAPI rejects the JDK client's default HTTP/2 upgrade. |
@@ -459,5 +461,5 @@ curl -s localhost:9120/health                  # expect convention:"NEARNESS"
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§3.5 — the failure path aborts; the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-11_

@@ -17,6 +17,7 @@ public interface LoomModelValidator extends
 	CollectionModelValidator,
 	RemixModelValidator,
 	ShareModelValidator,
+	FailureReportModelValidator,
 	ClusterModelValidator,
 	CommentModelValidator,
 	DetectionModelValidator,

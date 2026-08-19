@@ -164,7 +164,9 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 		// decode rather than opening the file again. Alone, this is still one ImageIO.read.
 		BufferedImage image = MediaArtifacts.decodedImageOrNull(ctx);
 		if (image == null) {
-			return ctx.failure("Could not read image file").next();
+			// A file that reached this node claiming to be an image and cannot be decoded is a broken
+			// file, not a photo with nothing to measure. The latter is what skipped() is for.
+			return ctx.failure("Could not read image file").abort();
 		}
 
 		QualityNodeOptions opts = options();
@@ -215,7 +217,7 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to process video quality", e);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

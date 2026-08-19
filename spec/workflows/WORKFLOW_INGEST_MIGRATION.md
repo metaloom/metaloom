@@ -121,7 +121,7 @@ Each of these is verified in this tree and each will bite a real migration.
 | 🔴 **Loom has no JVM shutdown hook** | SIGTERM skips `deinit()` mid-migration. Only Cortex drains (`CORTEX_DRAIN_TIMEOUT_MS`, 30 s) | Do not restart Loom during a run; fix the hook |
 | 🔴 **Dev-only cloud auth** | `CORTEX_GDRIVE_REFRESH_TOKEN` expires after 7 days in "Testing" status; the OneDrive token **rotates on every use** and a stateless worker cannot persist the replacement | Use the service-account / app-only paths for any migration lasting more than a day |
 | 🔴 **`cortex.yml` is never read** on the CLI/server path | Options set there silently do nothing, and the container path `/config` disagrees with the loader's probe path anyway | Configure by environment variable |
-| 🔴 **`ctx.failure(...).next()` returns SUCCESS** | A failed item is recorded as processed. In a migration that is **silent data loss** | Audit every node on the ingest path for this before starting |
+| 🟢 **`ctx.failure(...).next()` returned SUCCESS** | A failed item was recorded as processed — in a migration, **silent data loss**. Fixed 2026-08-18 | No audit needed on a build after that date; `FailurePathGuardTest` (`cortex/api`) fails the build if it comes back |
 | 🔴 **Unschedulable run ⇒ 503** | A kind with no online worker rejects the whole run, naming the kinds | Check worker whitelists before dispatching a long run |
 | ⚠️ **`HashDedupNode` blocks on `System.in.read()`** | A size mismatch halts a headless worker indefinitely | Fix, or exclude `sha512-dedup` from the migration graph |
 | ⚠️ **Deep paging is capped** | Progress UIs that seek by offset break past `LOOM_SEARCH_MAX_OFFSET` (400) | Page forward from a cursor |
@@ -139,7 +139,7 @@ Each of these is verified in this tree and each will bite a real migration.
 - [ ] 🔵 Content-identity fallback where key identity is unreliable (S3 renames, §3)
 - [ ] 🔵 Resumable per-item progress surfaced in the UI, not only in the log
 - [ ] 🔵 A documented phase ordering (identity before enrichment) as a demo pipeline set
-- [ ] 🔴 Audit every ingest-path node for `ctx.failure(...).next()` before trusting a run
+- [x] 🔴 Audit every ingest-path node for `ctx.failure(...).next()` — done 2026-08-18; every site converted and a build guard added ([../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) Task 17)
 - [ ] 🔴 Fix `HashDedupNode`'s `System.in.read()` halt
 - [ ] 🔵 Tiering: reclaim the local copy after `s3-sink` ([../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md))
 - [ ] 🔵 Throughput guidance: what one worker sustains per kind, so a migration can be planned
@@ -204,7 +204,7 @@ The densest configuration surface in the product. Full lists:
 | **Identity before enrichment** | 🔴 Prove the scan is complete before spending GPU. A gap found after enrichment costs the enrichment |
 | **Scale Cortex, never Loom** | 🔴 Loom is single-writer; a second instance is destructive |
 | **A rename is invisible on S3** | 🔴 Fall back to content identity; key identity only works where the provider exposes a stable file id |
-| **`ctx.failure(...).next()` returns SUCCESS** | 🔴 On an ingest path this is silent data loss, not a cosmetic bug |
+| **`ctx.failure(...).next()` returned SUCCESS** | 🟢 Fixed 2026-08-18. Worth remembering why it mattered: on an ingest path it was silent data loss, not a cosmetic bug |
 | **`cortex.yml` is dead** | 🔴 `CortexOptionsLoader.load()` has no caller. Configure by environment variable |
 | **Dev-only refresh tokens** | 🔴 Google's expires in 7 days; Microsoft's rotates on every use and a stateless worker cannot persist the replacement |
 | **`_MAX_OBJECT_SIZE` silently excludes** | ⚠️ It surfaces as an unexplained reconciliation gap. Report it as `SKIPPED_BY_FILTER`, not as missing |
@@ -230,5 +230,5 @@ The densest configuration surface in the product. Full lists:
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — proposal; traps verified against the cortex config and node sources)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the `ctx.failure(...).next()` trap is fixed, so the pre-run audit it required is closed). Earlier: 2026-08-07 (new file — proposal; traps verified against the cortex config and node sources)_

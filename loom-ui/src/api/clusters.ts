@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 /** Review verdict on a machine-proposed cluster. */
 export const CLUSTER_STATUS_PENDING = "PENDING";
@@ -102,21 +103,6 @@ export interface ClusterUpdateRequest {
   name?: string;
   type?: string;
   meta?: Record<string, unknown>;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export interface ClusterFilter {

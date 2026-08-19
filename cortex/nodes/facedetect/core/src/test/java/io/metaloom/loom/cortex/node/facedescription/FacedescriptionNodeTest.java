@@ -2,6 +2,7 @@ package io.metaloom.loom.cortex.node.facedescription;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
@@ -33,12 +34,23 @@ public class FacedescriptionNodeTest extends AbstractFacedetectMediaTest {
 		mockNode().process(video);
 	}
 
+	/**
+	 * Ten runs rather than one because the description comes from a sampling model at
+	 * {@code temperature=0.6}: a single agreeing answer proves very little about whether the prompt
+	 * pins the fields it claims to pin.
+	 */
 	@Test
 	public void testProcessImage() throws IOException, LoomClientException {
 		VisionBackendAvailability.assumeRunning();
 		BufferedImage image = ImageUtils.loadResource("/images/face_occluded.jpg");
 		for (int i = 0; i < 10; i++) {
 			FaceDescription result = mockNode().processFace(image);
+			// processFace returns null after three failed model calls. Say so, rather than letting the
+			// next line throw an NPE that reads like a broken assertion - the guard above has already
+			// established that a backend is there, so a null here is worth reporting as itself.
+			assertNotNull(result, "processFace returned null on run " + (i + 1)
+				+ " - three model calls to " + VisionBackendAvailability.BASE_URL
+				+ " failed; see the logged cause. Is a vision-capable model loaded?");
 			assertTrue(result.getAge() > 18 && result.getAge() < 30);
 			assertEquals("caucasian", result.getRace());
 			assertEquals("closed", result.getMouth());

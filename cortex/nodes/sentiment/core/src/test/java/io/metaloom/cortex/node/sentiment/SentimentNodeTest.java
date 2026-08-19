@@ -162,9 +162,11 @@ class SentimentNodeTest {
 		SentimentNode node = node();
 		NodeResult result = node.process(ctxWithText("Der Kundenservice war eine Katastrophe."));
 
-		// The node takes the ctx.failure(...).next() path shared by every node in the tree; NodeContextImpl.next() reports SUCCESS regardless of the
-		// recorded failure cause (only abort() yields FAILED). What is observable here is that nothing was emitted and nothing was cached - the
-		// FAILED ledger row is asserted in SentimentNodePersistenceTest.
+		// The node reports the failure it recorded. It did not until 2026-08-18: it ended the catch block
+		// with ctx.failure(cause).next(), and NodeContextImpl.next() read only skipReason, so the result
+		// came back SUCCESS with a null message. The FAILED ledger row is asserted in
+		// SentimentNodePersistenceTest.
+		assertThat(result).isFailed().hasMessage("sidecar down");
 		assertNull(result.get(SentimentNode.OUT_LABEL), "A failed run must not emit a label");
 		assertNull(result.get(SentimentNode.OUT_RESULT), "A failed run must not emit a result payload");
 

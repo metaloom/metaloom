@@ -81,6 +81,10 @@ import io.metaloom.loom.rest.model.collection.CollectionAssetRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
+import io.metaloom.loom.rest.model.failure.FailureReportCreateRequest;
+import io.metaloom.loom.rest.model.failure.FailureReportListResponse;
+import io.metaloom.loom.rest.model.failure.FailureReportResponse;
+import io.metaloom.loom.rest.model.failure.FailureReportUpdateRequest;
 import io.metaloom.loom.rest.model.remix.RemixCreateRequest;
 import io.metaloom.loom.rest.model.remix.RemixListResponse;
 import io.metaloom.loom.rest.model.remix.RemixMemberListResponse;
@@ -1094,6 +1098,31 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 
 	// REMIXES
+
+	@Override
+	public LoomClientHttpRequest<FailureReportResponse> loadFailureReport(UUID reportUuid) {
+		return getRequest("failure-reports/" + reportUuid, FailureReportResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<FailureReportResponse> createFailureReport(FailureReportCreateRequest request) {
+		return postRequest("failure-reports", request, FailureReportResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<FailureReportResponse> updateFailureReport(UUID reportUuid, FailureReportUpdateRequest request) {
+		return postRequest("failure-reports/" + reportUuid, request, FailureReportResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<FailureReportListResponse> listFailureReports() {
+		return getRequest("failure-reports", FailureReportListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteFailureReport(UUID reportUuid) {
+		return deleteRequest("failure-reports/" + reportUuid);
+	}
 
 	@Override
 	public LoomClientHttpRequest<RemixResponse> loadRemix(UUID remixUuid) {

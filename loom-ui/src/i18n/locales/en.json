@@ -78,7 +78,8 @@
       "permissions": "Permissions",
       "apiKeys": "API Keys",
       "blacklist": "Blacklist",
-      "memoryDenylist": "Memory Denylist"
+      "memoryDenylist": "Memory Denylist",
+      "failureReports": "Problem reports"
     },
     "divider": {
       "admin": "Admin",
@@ -687,7 +688,8 @@
       "memoryDenylist": "Memory Denylist",
       "searchIndices": "Indices",
       "dbIntegrity": "Database integrity",
-      "storage": "Storage"
+      "storage": "Storage",
+      "failureReports": "Problem reports"
     },
     "spaces": {
       "title": "Spaces",
@@ -991,7 +993,8 @@
         "reasonPlaceholder": "Reason for blacklisting",
         "expiry": "Expiry date (optional)"
       },
-      "defaultReason": "Manual entry"
+      "defaultReason": "Manual entry",
+      "delete": "Delete the blacklist entry {{name}}"
     },
     "memoryDenylist": {
       "title": "Memory denylist",
@@ -1157,6 +1160,37 @@
     },
     "filter": {
       "allCreators": "All creators"
+    },
+    "failureReports": {
+      "title": "Problem reports",
+      "count": "{{count}} report(s)",
+      "noTrace": "no trace ID",
+      "noText": "no description",
+      "viewScreenshot": "Screenshot",
+      "screenshotAlt": "Screenshot attached to the report about {{action}}",
+      "filter": {
+        "all": "All states"
+      },
+      "status": {
+        "NEW": "New",
+        "ACKNOWLEDGED": "Acknowledged",
+        "RESOLVED": "Resolved"
+      },
+      "action": {
+        "acknowledge": "Acknowledge",
+        "resolve": "Resolve",
+        "delete": "Delete this report"
+      },
+      "column": {
+        "trace": "Trace ID",
+        "action": "What was being done",
+        "report": "What the user said",
+        "status": "State"
+      },
+      "emptyState": {
+        "title": "No problem reports",
+        "description": "When something fails, the toast offers a Report button. Reports submitted that way appear here."
+      }
     }
   },
   "pipeline": {

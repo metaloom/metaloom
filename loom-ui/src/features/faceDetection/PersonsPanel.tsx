@@ -11,6 +11,7 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
+import { useFailure } from "../../context/FailureContext";
 import { deletePerson as apiDeletePerson, updatePerson as apiUpdatePerson } from "../../api/persons";
 import { toUiPerson } from "./personMapping";
 
@@ -24,6 +25,7 @@ interface PersonsPanelProps {
 export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPersonUpdated }: PersonsPanelProps) {
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { reportFailure } = useFailure();
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [editAlias, setEditAlias] = useState("");
   const [editFirstname, setEditFirstname] = useState("");
@@ -35,7 +37,9 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
       await apiDeletePerson(token, id);
       onPersonDeleted?.(id);
     } catch (e) {
-      console.error("Failed to delete person", e);
+      // The row stays. The optimistic removal is only applied once the server has agreed, so
+      // there is nothing to roll back - which is the arrangement that cannot lie.
+      reportFailure("deletePerson", e);
     }
   };
 
@@ -65,10 +69,11 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
       // previously assigned and never read, so the panel showed the edit even when the write had
       // silently dropped part of it - which it did, for the avatar, on every save.
       onPersonUpdated?.(toUiPerson(resp, editPerson.clusterIds));
+      // Inside the try: closing the editor outside it made a rejected save look like a saved one.
+      setEditPerson(null);
     } catch (e) {
-      console.error("Failed to update person", e);
+      reportFailure("updatePerson", e);
     }
-    setEditPerson(null);
   };
 
   return (

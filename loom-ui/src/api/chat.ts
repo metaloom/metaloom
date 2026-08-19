@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
 import { ChatMessage, ChatReference, ChatToolCall, ChatVisual, PipelineGraphPayload } from "../types";
+import { authHeaders, handleResponse } from "./http";
 
 /**
  * Reference shape used by the backend (persisted messages and tool_end events):
@@ -99,21 +100,6 @@ export interface ChatUpdateRequest {
   messages?: ChatMessage[];
   spaceUuid?: string;
   meta?: Record<string, unknown>;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function listChats(token: string): Promise<ChatListResponse> {

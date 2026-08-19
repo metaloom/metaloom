@@ -55,9 +55,9 @@ Three layers must stay in sync:
 
 | Layer | Type | Location |
 |---|---|---|
-| Java | `enum Permission` — **139** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
-| Postgres | `loom_permission` enum — **140** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
-| Generated | `enum JooqLoomPermission` — **140** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
+| Java | `enum Permission` — **152** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
+| Postgres | `loom_permission` enum — **153** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
+| Generated | `enum JooqLoomPermission` — **153** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
 
 `PermissionDaoImpl` bridges with `JooqLoomPermission.valueOf(perm.name())`, so a
 Java constant without a Postgres value throws `IllegalArgumentException` at grant time.
@@ -94,6 +94,7 @@ Non-CRUD and partial-quad constants:
 | `CREATE_SHARE` / `READ_SHARE` / `UPDATE_SHARE` / `DELETE_SHARE` | Share links: creating one, reading it or the feedback left through it, changing its expiry/password/capabilities, and revoking it (`V2.96`, granted to the existing admin role by `V2.98`). **Creating additionally requires `READ_ASSET` or `READ_COLLECTION` on the target**, resolved from the request body: publishing material to the open internet must not be a way around not being allowed to look at it. There is deliberately no `VIEW_SHARE` - the visitor holds no permission at all and is never resolved to a user, so a constant no code path could check would advertise an enforcement point that is not there. What a visitor may do is decided by `ShareAccessService` against the share row; see [../share/SHARE_SYSTEM.md](../share/SHARE_SYSTEM.md) |
 | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` | Pipeline authoring **through an agent** (the MCP tools `create_pipeline`, `update_pipeline`, `validate_pipeline`). Separate from the `*_PIPELINE` quad because letting an agent write a pipeline is a different trust decision from letting a person draw one, and an admin must be able to grant one without the other. The two write tools declare the base permission **and** the MCP one, and MCP requires all declared permissions — so an MCP permission alone can never widen what a user may do. `VALIDATE_` is its own value because the dry run stores nothing (`V2.76`, [../../loom/MCP.md §6.0a](../../loom/MCP.md)) |
 | `READ/UPDATE/DELETE_NOTIFICATION` | The per-user inbox. **No `CREATE`** — notifications are raised by `NotificationDispatcher`, never posted, so the constant would be dead the day it was added. These gate the *feature*, not the row: holding `READ_NOTIFICATION` reads **your** inbox, and `NotificationEndpointService.loadOwn` answers **404 (not 403)** for a foreign entry, so a permitted caller still cannot enumerate somebody else's |
+| `READ/UPDATE/DELETE_FAILURE_REPORT` | The problem-report inbox at `/api/v1/failure-reports` (`V2.106`, granted to the existing admin role by `V2.108`). **No `CREATE`**, and this is a deliberate asymmetry rather than an oversight: submitting a report needs authentication and nothing else, because a permission to report a failure would - on every upgraded installation where nobody thought to grant it - turn the product's one response to a breakage into a 403, and the users likeliest to hit that are the ones with the fewest grants. Reading the inbox *is* a separate authority, because a report may carry a screenshot of whatever was on the reporter's screen, which can include assets its reader is not otherwise cleared to see. `UPDATE` is triage only (`NEW`/`ACKNOWLEDGED`/`RESOLVED`) - nothing else on a report is editable, because a record an operator can rewrite is not a record. See [../ui/FAILURE_REPORTING.md](../ui/FAILURE_REPORTING.md) |
 
 **No `LIST` permission exists** — list routes reuse the entity's `READ_*`.
 
@@ -800,7 +801,13 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
 _Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-11 (the four `*_SHARE` permissions added by `V2.96`, granted by `V2.98`;
+_Last updated: 2026-08-18 (`READ_FAILURE_REPORT` / `UPDATE_FAILURE_REPORT` / `DELETE_FAILURE_REPORT`
+added by `V2.106` for `/api/v1/failure-reports`, granted to the existing admin role by `V2.108`.
+`ui:yes`, in `PERMISSION_GROUPS` under "Problem report" and both locale files, with RBAC cases in
+`FailureReportEndpointTest` - including the one that matters most, `testCreateNeedsNoPermission`,
+which asserts that a caller holding nothing at all can still submit. The counts above were also
+corrected: they read 139/140 and had been stale for several additions before this one. Earlier:
+2026-08-11 (the four `*_SHARE` permissions added by `V2.96`, granted by `V2.98`;
 note that creating a share also requires read access to the target. Earlier: `READ_STORAGE` added by
 `V2.94` for `GET /api/v1/storage`, granted to the
 existing admin role by `V2.95` - which also repairs the missing grants for `READ_METRIC` (`V2.84`)

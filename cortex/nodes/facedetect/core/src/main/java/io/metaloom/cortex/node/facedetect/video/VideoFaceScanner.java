@@ -286,25 +286,6 @@ public class VideoFaceScanner {
 				break;
 			}
 		}
-		// Sort by blurriness and return the found two
-
-		// .map(face -> {
-		// double f = face.get(BLURRINESS_KEY);
-		// BufferedImage img = face.get(IMAGE_KEY);
-		// Graphics g = img.getGraphics();
-		// g.setColor(Color.RED);
-		// g.drawString("B: " + f, 10, 10);
-		// g.dispose();
-		// ImageUtils.show(img);
-		// return face;
-		// }).toList();
-
-		// try {
-		// System.in.read();
-		// } catch (IOException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// }
 		return faces;
 	}
 

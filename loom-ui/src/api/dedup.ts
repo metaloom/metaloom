@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { withPaging, type PagingInfo, type PagingParams } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API dedup models ─────────────────────────
 // Mirrors io.metaloom.loom.rest.model.dedup.*
@@ -58,21 +59,6 @@ export interface DedupGroupUpdateRequest {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 // ── Review queue API ──────────────────────────────────────────────────────
 

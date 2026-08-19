@@ -461,10 +461,11 @@ mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDo
   1. the result state is anything but `SUCCESS` — the `script` recipe's first run emitted
      `ReferenceError: text is not defined`, having invented binding names instead of using the
      node's (`data.text`, `out.*`, `params`, `log`);
-  2. **no port carried anything.** `NodeContextImpl.next()` reads `skipReason` but *not*
-     `failureCause`, so the nineteen nodes that end a catch block with `ctx.failure(msg).next()`
-     return `SUCCESS` with the message dropped. The sentiment recipe reported `COMPLETED` for a
-     request the sidecar had answered with a 500;
+  2. **no port carried anything.** `NodeContextImpl.next()` used to read `skipReason` but *not*
+     `failureCause`, so the nineteen nodes that ended a catch block with `ctx.failure(msg).next()`
+     returned `SUCCESS` with the message dropped. The sentiment recipe reported `COMPLETED` for a
+     request the sidecar had answered with a 500. Fixed 2026-08-18 — but the check stays: it is
+     cheap, and it is what caught this in the first place;
   3. **`flag=FAILED`.** The nodes with a `flag` port set it to `FAILED` and *then* return success, so
      a failed run arrives with outputs and a green state. The flag is the node's own verdict and it
      outranks the result state — this is what caught the TTS sidecar running out of VRAM;
@@ -1449,8 +1450,10 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `9512cc3f`_
-_Last updated: 2026-08-17 (the header became six entries with three dropdowns — *Products*,
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the recipe-harness note on `NodeContextImpl.next()` is now historical — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard. The four-way success check stays)_
+
+_Previously: 2026-08-17 (the header became six entries with three dropdowns — *Products*,
 *Docs*, *Blog* — plus *Team*, each panel opening one at a time via `.nav-js`, with the menu moved
 beside the logo and the search box left holding the right edge; and the three new product pages `/loom/`, `/cortex/` and `/cloud/` landed on one
 shared `layouts/product/list.html` driven by `data/en/*.yml`. `/cloud/` describes an offering that

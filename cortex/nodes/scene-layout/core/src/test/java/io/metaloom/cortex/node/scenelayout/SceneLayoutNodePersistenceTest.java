@@ -170,11 +170,40 @@ class SceneLayoutNodePersistenceTest {
 	void testRecordsFailedLedgerWhenComponentWriteFails() throws Exception {
 		when(client.createAssetJsonComp(any(), any())).thenThrow(new RuntimeException("loom unreachable"));
 
-		// The component write is best-effort: the node still completes, but the ledger records it.
-		node().process(media, withUpstreamBoxes());
+		// The component write is best-effort and deliberately so: persist() catches its own exception,
+		// so the node completes and the FAILED row is the record. This is NOT the ctx.failure(...).next()
+		// defect - the node never records a failure cause on this path at all, which is why the returned
+		// state stays SUCCESS. See testFailedLayoutComputationIsFailedAndKeepsTheCause for the path that
+		// does, and the follow-up note in ../../tasks/NODE_TASKS.md for why "green node, unstored
+		// result" is worth revisiting on its own terms.
+		assertThat(node().process(media, withUpstreamBoxes())).isSuccess();
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "loom unreachable".equals(r.getReason())));
+	}
+
+	/**
+	 * A depth map the node cannot read is a failure, and it says which.
+	 *
+	 * <p>
+	 * This is the path that ended in {@code ctx.failure(cause).next()} until 2026-08-18 — SUCCESS with
+	 * the cause dropped — so an item whose spatial relations were never computed was reported
+	 * identically to one that had none to compute. The trigger is real rather than mocked: the map file
+	 * exists (so the node's own existence check passes) but is not a decodable PNG, which is what a
+	 * truncated write from the upstream depthmap node leaves behind.
+	 * </p>
+	 */
+	@Test
+	void testFailedLayoutComputationIsFailedAndKeepsTheCause() throws Exception {
+		java.nio.file.Files.writeString(mapFile.toPath(), "not a png at all");
+
+		assertThat(node().process(media, withUpstreamBoxes()))
+			.isFailed()
+			.hasNoOutput(SceneLayoutNode.OUT_RESULT);
+
+		verify(client, never()).createAssetJsonComp(any(), any());
+		verify(client).createAssetNodeResult(eq(assetUuid),
+			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState())));
 	}
 
 	@Test

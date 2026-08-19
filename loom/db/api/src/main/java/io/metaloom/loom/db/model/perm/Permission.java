@@ -297,6 +297,16 @@ public enum Permission {
 	// report is computed on every request and owns no rows. Separate from READ_ASSET_POOL because
 	// seeing how full a pool is and being able to repoint it at another bucket are different
 	// authorities, and an operator on call needs only the first.
-	READ_STORAGE;             // doc:yes  ui:yes test:StorageEndpointTest (403 cases)
+	READ_STORAGE,             // doc:yes  ui:yes test:StorageEndpointTest (403 cases)
+
+	// Problem reports submitted from the UI. Gate on /api/v1/failure-reports.
+	// There is deliberately no CREATE_FAILURE_REPORT: submitting one needs authentication and
+	// nothing else, because a permission to report a failure would, on any upgraded installation
+	// where it went ungranted, turn the product's one response to a breakage into a 403. Reading
+	// the inbox is a separate authority because a report may carry a screenshot of assets its
+	// reader is not otherwise cleared to see. See V2.106.
+	READ_FAILURE_REPORT,      // doc:yes  ui:yes test:FailureReportEndpointTest (403 cases)
+	UPDATE_FAILURE_REPORT,    // doc:yes  ui:yes test:FailureReportEndpointTest (403 cases)
+	DELETE_FAILURE_REPORT;    // doc:yes  ui:yes test:FailureReportEndpointTest (403 cases)
 
 }

@@ -95,6 +95,17 @@ public class LoomRoutingContext {
 		rc.response().setStatusCode(204).end();
 	}
 
+	/**
+	 * The id stamped onto this request by {@link TraceIdHandler}, already present as the {@code X-Trace-Id} response header.
+	 *
+	 * <p>
+	 * Null only when no trace handler ran, which outside a hand-built test context does not happen.
+	 * </p>
+	 */
+	public String traceId() {
+		return TraceIdHandler.traceIdOf(rc);
+	}
+
 	public List<String> queryParam(String key) {
 		return rc.queryParam(key);
 	}
@@ -162,7 +173,7 @@ public class LoomRoutingContext {
 	}
 
 	public void error(String msg) {
-		send(new GenericMessageResponse().setMessage(msg), 500);
+		send(new GenericMessageResponse().setMessage(msg).setTraceId(traceId()), 500);
 	}
 
 	public UUID pathParamUUID(String key) {

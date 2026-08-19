@@ -161,7 +161,7 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 			log.error("Failed to synthesize audio for media {}", path, e);
 			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), producerVersion, null);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

@@ -13,7 +13,7 @@ import {
   FolderOpenOutlined, ExpandLess, ExpandMore,
   PersonOutlined, LogoutOutlined,
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
-  SecurityOutlined, VpnKeyOutlined, BlockOutlined, ShieldOutlined,
+  SecurityOutlined, VpnKeyOutlined, BlockOutlined, ShieldOutlined, ReportProblemOutlined,
   SpeedOutlined, VisibilityOutlined, StorageOutlined, AutoFixHighOutlined,
   HistoryOutlined, CloudUploadOutlined,
 } from "@mui/icons-material";
@@ -104,6 +104,7 @@ function aclNavItems(t: (k: string) => string): NavItem[] {
     { label: t("sidebar.admin.permissions"), path: "/admin/permissions", icon: <SecurityOutlined fontSize="small" /> },
     { label: t("sidebar.admin.apiKeys"), path: "/admin/api-keys", icon: <VpnKeyOutlined fontSize="small" /> },
     { label: t("sidebar.admin.blacklist"), path: "/admin/blacklist", icon: <BlockOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.failureReports"), path: "/admin/failure-reports", icon: <ReportProblemOutlined fontSize="small" /> },
   ];
 }
 

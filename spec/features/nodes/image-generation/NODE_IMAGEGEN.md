@@ -136,12 +136,13 @@ this reason. `imagegen` does not, and compounds it: the node is **not** `Pipelin
 ([../NODES.md](../NODES.md) §6.5), so its `prompt`, `mode`, `host` and `port` are per *worker*, not per
 node instance — the `prompt` port is the only way two instances can differ at all.
 
-### 3.4 🔴 `ctx.failure(msg).next()`, where it should be `.abort()`
+### 3.4 🟢 `ctx.failure(msg).abort()` (fixed 2026-08-18)
 
-`NodeContextImpl.next()` reads `skipReason` but **not** `failureCause`, so the failure branch reports
-`SUCCESS` and drops the message. The `FAILED` ledger row and the `FAILED` value on the `flag` port are
-both written correctly first — pinned by `ImageGenNodePersistenceTest` — so the failure is recorded
-even though the returned state is wrong. `sam2` aborts; this node is one of the nineteen that do not.
+`NodeContextImpl.next()` read `skipReason` but **not** `failureCause`, so until 2026-08-18 the failure
+branch reported `SUCCESS` and dropped the message. The `FAILED` ledger row and the `FAILED` value on
+the `flag` port were both written correctly first — pinned by `ImageGenNodePersistenceTest` — so the
+failure *was* recorded even though the returned state was wrong, which is precisely why no test caught
+it. That test now also asserts the returned state and the cause. `sam2` aborted all along.
 
 ### 3.5 The client is a plain `java.net.http` client forced to HTTP/1.1
 
@@ -438,5 +439,5 @@ ledger path.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§3.4 — the failure path aborts; the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-11_

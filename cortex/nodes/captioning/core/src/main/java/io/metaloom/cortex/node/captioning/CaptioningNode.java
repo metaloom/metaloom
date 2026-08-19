@@ -8,6 +8,9 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
@@ -44,6 +47,8 @@ import io.vertx.core.json.JsonObject;
 	description = "Generate a textual caption for an image.",
 	inputGroups = @PortGroupDoc(id = "media_alt", mode = PortGroupMode.XOR, label = "Media"))
 public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
+
+	private static final Logger log = LoggerFactory.getLogger(CaptioningNode.class);
 
 	private final SmolVLMClient smolvlmClient;
 	private final VideoCaptioner videoCaptioner;
@@ -99,11 +104,14 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 			} else if (media.isAudio()) {
 				return ctx.skipped("not applicable").next();
 			} else {
-				return NodeResult.failed();
+				// isProcessable() already gated on image-or-video, so reaching here means the two
+				// disagree - a wiring bug rather than a property of this file.
+				return ctx.skipped("neither image nor video").next();
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
-			return NodeResult.failed();
+			log.error("Failed to caption media {}", media.absolutePath(), e);
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

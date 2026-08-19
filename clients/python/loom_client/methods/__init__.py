@@ -45,6 +45,7 @@ from .node_run import NodeRunMethods
 from .person import PersonMethods
 from .pipeline import PipelineMethods
 from .reaction import ReactionMethods
+from .failure import FailureReportMethods
 from .remix import RemixMethods
 from .role import RoleMethods
 from .search import SearchMethods
@@ -95,6 +96,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     PersonMethods,
     PipelineMethods,
     ReactionMethods,
+    FailureReportMethods,
     RemixMethods,
     RoleMethods,
     SearchIndexMethods,
@@ -145,6 +147,7 @@ __all__ = [
     "PersonMethods",
     "PipelineMethods",
     "ReactionMethods",
+    "FailureReportMethods",
     "RemixMethods",
     "RoleMethods",
     "SearchIndexMethods",

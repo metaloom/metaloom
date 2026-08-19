@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API group models ─────────────────────
 
@@ -31,21 +32,6 @@ export interface GroupUpdateRequest {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 

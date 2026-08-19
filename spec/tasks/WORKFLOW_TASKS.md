@@ -19,8 +19,8 @@
 > **Ordering.** Tasks stay in numeric order below so a citation is findable; severity order for a
 > reader picking up work is:
 >
-> 1. **Task 17** — 16 `ctx.failure(...).next()` call sites silently report SUCCESS. Cross-cutting
->    correctness, and it **blocks Task 13** (an ingest migration cannot be trusted while it holds).
+> 1. ~~**Task 17**~~ — **DONE 2026-08-18.** The `ctx.failure(...).next()` call sites are converted
+>    and guarded; **Task 13 is unblocked**.
 > 2. **Task 6** — one migration comment and two DTO fields; an hour, and it stops the
 >    `detection.type` string drifting a second time.
 > 3. **Task 18** — the ledger's `origin` is a constant and a row cannot name its run. **Blocks Task 9**
@@ -534,8 +534,9 @@ This is the one workflow whose failure mode is silent data loss.
 object with a named disposition.
 
 ```
-BLOCKED ON Task 17. Do not trust a real migration while 16 call sites report SUCCESS on a
-failure. (The two specific hazards named in the old version of this task are FIXED:
+UNBLOCKED 2026-08-18 - Task 17 is done, so a node that fails on the ingest path now reports
+FAILED with its cause instead of a green SUCCESS. (The two specific hazards named in the old
+version of this task are also FIXED:
 HashDedupNode's System.in.read() halt is gone - HashDedupNode.java:132-140 now logs and
 returns ctx.skipped(...) - and pipeline_run_item has carried per-item state since V2.31,
 normalised by V2.77.)
@@ -721,7 +722,7 @@ by `MetricsCatalogScrapeTest` at runtime — if this sweep touches it, run
 
 ---
 
-## Task 17: Stop dropping failures — 16 `ctx.failure(...).next()` call sites report SUCCESS
+## Task 17: Stop dropping failures — `ctx.failure(...).next()` call sites report SUCCESS — DONE (2026-08-18)
 
 **Argumentation Summary:** `ctx.failure(cause).next()` returns SUCCESS and the message is discarded;
 only `.abort()` reads `failureCause`. Sixteen call sites across fourteen production node classes
@@ -757,10 +758,45 @@ seventeenth cannot be written.
    cortex/nodes/facedetect/core/.../video/VideoFaceScanner.java:301-303.
 ```
 
+**Outcome (2026-08-18).** The tree scan found **15** chained call sites in **13** production node
+classes, not 16 in 14 — the extra one in the old count was `DominantColorNode`'s own explanatory
+comment, which a naive `grep` cannot tell from code. All 15 were catch blocks or hard-error guards
+and all 15 became `.abort()`; none turned out to be a "degraded but continue" case. `CaptioningNode`
+was fixed alongside them: it caught `Exception`, called `printStackTrace()` and returned a bare
+`NodeResult.failed()` with no logger, no ledger row and no message — the same defect wearing a
+different shape.
+
+Three of the causes were also made *useful* rather than merely visible, which the original task did
+not ask for but which the conversion exposed: `TikaNode` reported the constant `"failed processing"`,
+`FingerprintDedupNode` the constant `"failed to report dedup group"`, and both now carry the
+exception message.
+
+Step 3's choice: **a source-scanning JUnit test, not ArchUnit** —
+`cortex/api/src/test/java/io/metaloom/cortex/api/node/context/FailurePathGuardTest.java`. ArchUnit
+reasons over bytecode, where the pattern is not expressible: after compilation
+`failure(...).next()` and `failure(...); ...; next()` are the same two interface invocations on the
+same receiver, so a rule broad enough to catch the first flags every correct `.abort()` path that
+also has a skip branch. The offence is a *source* shape, so it is checked against source. The scan
+strips comments and string literals first (several files quote the anti-pattern on purpose), matches
+`failure(...)` by counting parentheses rather than by regex, reports `file:line`, and carries three
+self-tests — one that feeds it the offending shape, one that feeds it the corrected shape, and one
+that feeds it the pattern inside a comment and a string.
+
+Both halves of the choice recorded in [METALOOM_NOTES.md](METALOOM_NOTES.md) were taken, because they
+cover different failures: `NodeContextImpl.next()` now honours a recorded `failureCause` (fail-closed,
+for a cause recorded in a helper the guard cannot see), *and* the chained shape fails the build (so
+the intent stays visible in the node). Each converted node has a test asserting the terminal state and
+that the cause survives; `NodeContextFailureTest` pins the context contract, including that a failure
+outranks a skip. The dead `// System.in.read();` block in `VideoFaceScanner` is gone, along with the
+orphaned commented-out `.map(...)` chain immediately above it that it belonged to.
+
+⚠️ Pre-existing and unrelated: `FacedescriptionNodeTest.testProcessImage` fails at plain `HEAD` too
+(`processFace` returns null against the live vision backend). Verified in a clean worktree.
+
 **References:** [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) ·
 [../features/pipeline/PIPELINE_FLOW.md](../features/pipeline/PIPELINE_FLOW.md) ·
 [../workflows/WORKFLOW_INGEST_MIGRATION.md](../workflows/WORKFLOW_INGEST_MIGRATION.md) (Task 13 is
-blocked on this) · `cortex/nodes/dominant-color/` (the converted reference)
+unblocked by this) · `cortex/nodes/dominant-color/` (the converted reference)
 **Test Requirements:** One state-assertion test per converted node, the anti-regression guard from
 step 3, and the full cortex suite green. `mvn -pl cortex -am test`. ⚠️ `cortex/**` modules share one
 JVM per module, so per-class peak RSS in the reports is really the module's number — do not read a
@@ -814,5 +850,5 @@ fails with `NoSuchMethodError`.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (Task 17 DONE — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard; Task 13 unblocked). Earlier: 2026-08-11 (code audit)_

@@ -198,6 +198,18 @@ Until that URL becomes configurable, a host running both needs either a multimod
 model with an `mmproj`, which also serves `llm`) or this sidecar moved off 8080 via
 `LLAMACPP_PORT` + `nodes.llm.openaiUrl` — which then leaves `facedescription` pointing at nothing.
 
+**The collision is wider than this sidecar** (found 2026-08-18). 8080 is the most contested port on a
+developer machine, and *anything* holding it is enough: `FacedescriptionNodeTest.testProcessImage`
+failed with an NPE on a checkout where an unrelated `gaussian-splatting` viewer owned
+`127.0.0.1:8080`. Its `VisionBackendAvailability` guard tested only that a TCP connect succeeded, so
+the assumption passed, all three model calls failed, `processFace` returned `null`, and the NPE read
+like a regression in the node. The guard now probes `GET <baseUrl>/models` and requires an
+OpenAI-shaped model list, so a foreign service on the port reads as "not the backend" and the test
+skips; it also logs the served model ids, because the *next* failure mode after a foreign service is
+the one described above — the right server with a text-only model, which the guard cannot detect and
+only the log can explain. That makes the symptom legible; it does not make the URL configurable,
+which is still the open item below.
+
 The other vision nodes could be served by llama.cpp too — it supports multimodal GGUFs with an
 `mmproj` file — but that is a second container with a different model, not a flag on this one.
 Nothing in the repo does it yet.
@@ -276,7 +288,9 @@ properly means adding an API-key field to `AbstractLlmNodeOptions` and a header 
 - [ ] 🔴 Not in any Helm chart or compose file — same as the other six
 - [ ] 🔴 No test starts it; the `llm` node tests target `loom-test-env/llamacpp` instead
 - [ ] 🔴 `FacedescriptionNode.URL` hardcodes this sidecar's port but needs a vision model (§6.1) —
-      make it an option
+      make it an option. Any process on 8080 is enough to break it, not only a text-model sidecar; the
+      test guard was hardened on 2026-08-18 so the symptom is legible, but the node is still
+      unpointable at a remote backend
 - [ ] 🟡 Per-prompt `model` is silently ignored by llama.cpp (§4.2) — the node should log or validate
 - [ ] 🟡 Node `contextWindow` and `--ctx-size` are unreconciled (§5.3)
 - [ ] 🟡 podman path is written but unverified — no podman on this machine
@@ -286,5 +300,5 @@ properly means adding an API-key field to `AbstractLlmNodeOptions` and a header 
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (new file — first sidecar spec written against an observed live run)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§6.1 — any listener on 8080 breaks `facedescription`, not only a text-model sidecar; its test guard now probes the OpenAI `/models` surface instead of a bare TCP connect). Earlier: 2026-08-04 (new file — first sidecar spec written against an observed live run)_

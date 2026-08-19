@@ -10,6 +10,7 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
+import { useFailure } from "../../context/FailureContext";
 import {
   deleteCluster as apiDeleteCluster,
   updateCluster as apiUpdateCluster,
@@ -28,6 +29,7 @@ interface ClustersPanelProps {
 export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated }: ClustersPanelProps) {
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { reportFailure } = useFailure();
   const [editCluster, setEditCluster] = useState<FaceCluster | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -77,7 +79,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
       await apiDeleteCluster(token, id);
       onClusterDeleted?.(id);
     } catch (e) {
-      console.error("Failed to delete cluster", e);
+      reportFailure("deleteCluster", e);
     }
   };
 
@@ -91,10 +93,10 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
     try {
       await apiUpdateCluster(token, editCluster.id, { name: editName });
       onClusterUpdated?.({ ...editCluster, label: editName });
+      setEditCluster(null);
     } catch (e) {
-      console.error("Failed to update cluster", e);
+      reportFailure("updateCluster", e);
     }
-    setEditCluster(null);
   };
 
   return (

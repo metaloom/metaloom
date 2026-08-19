@@ -132,7 +132,7 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 			log.error("Failed to compute thumbnail", e);
 			ctx.output(OUT_FLAG, "FAILED");
 			error(media, "NULL");
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

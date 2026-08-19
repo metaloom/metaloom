@@ -173,6 +173,10 @@ class DepthmapNodeTest {
 
 		NodeResult result = node().process(ctx());
 
+		// The terminal state, not only the flag port: until 2026-08-18 the node ended this path with
+		// ctx.failure(cause).next(), which reported SUCCESS and dropped the cause, so a run that had
+		// stored no depth map at all was indistinguishable from one that had.
+		assertThat(result).isFailed().hasMessageContaining("METRIC_METERS");
 		assertEquals("FAILED", result.get(DepthmapNode.OUT_FLAG));
 		assertNull(result.get(DepthmapNode.OUT_MAP), "A rejected result must not emit an artifact path");
 	}
@@ -213,6 +217,7 @@ class DepthmapNodeTest {
 
 		DepthmapNode node = node();
 		NodeResult failed = node.process(ctx());
+		assertThat(failed).isFailed().hasMessage("sidecar down");
 		assertEquals("FAILED", failed.get(DepthmapNode.OUT_FLAG));
 		assertNull(failed.get(DepthmapNode.OUT_MAP));
 

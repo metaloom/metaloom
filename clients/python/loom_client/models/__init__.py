@@ -204,6 +204,12 @@ from .enums import (
     TaskPriority,
     TaskStatus,
 )
+from .failure import (
+    FailureReportCreateRequest,
+    FailureReportListResponse,
+    FailureReportResponse,
+    FailureReportUpdateRequest,
+)
 from .fingerprintcomp import (
     FingerprintCompCreateRequest,
     FingerprintCompListResponse,
@@ -591,6 +597,10 @@ __all__ = [
     "EmbeddingResponse",
     "EmbeddingUpdateRequest",
     "Embeddings",
+    "FailureReportCreateRequest",
+    "FailureReportListResponse",
+    "FailureReportResponse",
+    "FailureReportUpdateRequest",
     "FileInfo",
     "FileKey",
     "FingerprintCompCreateRequest",

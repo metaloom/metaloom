@@ -76,9 +76,11 @@ copy it; flat modules exist only for `filesystem-source`, `s3-source` and `cloud
   | nothing to do | `ctx.skipped(reason).next()` | SKIPPED (outputs survive) |
   | failure | `ctx.failure(msg).abort()` | FAILED |
 
-  🔴 **`ctx.failure(msg).next()` reports SUCCESS.** `NodeContextImpl.next()` looks only at
-  `skipReason` and ignores `failureCause`. Several older nodes (`whisper` among them) still do this
-  and are wrong — do not copy them. Failure is always `.abort()`.
+  **Failure is always `.abort()`, never `.next()`.** `NodeContextImpl.next()` used to look only at
+  `skipReason`, so `ctx.failure(msg).next()` built a SUCCESS result and threw the cause away. Every
+  node in the tree was converted on 2026-08-18 and `next()` is now fail-closed, but the chained shape
+  still fails the build: `FailurePathGuardTest` (`cortex/api`) scans every Cortex main source and
+  names the offending file and line. `DominantColorNode` is the worked example.
 
 ### 1.2 Persistence (choose one)
 
@@ -334,8 +336,10 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
 | Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) · `cortex/nodes/guard` (one kind over three incompatible model families) · `cortex/nodes/sam2` (three modes behind one kind, N artifacts per item, and a new content type) |
 
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (kind count 43 after the `sam2` node — the first to write **N artifacts per
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§1.1's return contract — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard)_
+
+_Previously: 2026-08-06 (kind count 43 after the `sam2` node — the first to write **N artifacts per
 item** and the first to add a content type since `depthmap`. Two things it learned: `NodePreviews`
 downsamples only the **first** element of a `MANY` port, so a node emitting a sequence of images needs
 a `ONE` summary port or its debug card understates the result; and touch-point 2 means

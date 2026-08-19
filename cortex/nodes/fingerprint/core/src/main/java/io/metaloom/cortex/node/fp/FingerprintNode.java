@@ -159,7 +159,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 					log.error("Error while processing media " + media.path(), e);
 				}
 				ctx.output(OUT_FINGERPRINT, "NULL");
-				return ctx.failure(e.getMessage()).next();
+				return ctx.failure(e.getMessage()).abort();
 			}
 		}
 	}

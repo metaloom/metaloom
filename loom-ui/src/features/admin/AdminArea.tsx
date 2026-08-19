@@ -21,12 +21,14 @@ import HelpHint from "../../components/HelpHint";
 import SearchIndicesAdmin from "./SearchIndicesAdmin";
 import DbIntegrityAdmin from "./DbIntegrityAdmin";
 import StorageAdmin from "./StorageAdmin";
+import FailureReportsAdmin from "./FailureReportsAdmin";
 import { listBlacklists, createBlacklist, deleteBlacklist, BlacklistResponse } from "../../api/blacklist";
 import {
   listMemoryDenyRules, createMemoryDenyRule, updateMemoryDenyRule, deleteMemoryDenyRule,
   MemoryDenyRuleResponse,
 } from "../../api/memoryDenylist";
 import { useAuth } from "../../context/AuthContext";
+import { useFailure } from "../../context/FailureContext";
 import {
   listUsers, createUser, updateUser, deleteUser,
   UserResponse, UserCreateRequest,
@@ -1060,6 +1062,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   // may do is decided from the share row.
   "Share link": ["CREATE_SHARE", "READ_SHARE", "DELETE_SHARE", "UPDATE_SHARE"],
   Comment: ["CREATE_COMMENT", "READ_COMMENT", "DELETE_COMMENT", "UPDATE_COMMENT"],
+  // Three, not four: anybody signed in may submit a problem report, so there is no CREATE. Reading
+  // the inbox is its own grant because a report may carry a screenshot of somebody else's screen.
+  "Problem report": ["READ_FAILURE_REPORT", "UPDATE_FAILURE_REPORT", "DELETE_FAILURE_REPORT"],
   // READ + UPDATE is the reviewer's set: see the queue, decide a group. CREATE belongs to the
   // discovery node's credentials, DELETE discards a proposal outright.
   Deduplication: ["CREATE_DEDUP", "READ_DEDUP", "DELETE_DEDUP", "UPDATE_DEDUP"],
@@ -1310,6 +1315,7 @@ function ApiKeysAdmin() {
 function BlacklistAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { reportFailure } = useFailure();
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -1343,14 +1349,18 @@ function BlacklistAdmin() {
     if (!newName.trim() || !token) return;
     createBlacklist(token, { name: newName.trim(), assetUuid: newAssetUuid.trim() || undefined }).then(() => {
       loadEntries();
+      // Closed and cleared only on success, so a rejected create leaves the dialog open with the
+      // typed values still in it.
       setCreateOpen(false);
       setNewName(""); setNewAssetUuid("");
-    }).catch(() => {});
+    }).catch(e => reportFailure("createBlacklistEntry", e));
   };
 
   const handleDelete = (uuid: string) => {
     if (!token) return;
-    deleteBlacklist(token, uuid).then(() => loadEntries()).catch(() => {});
+    // Was a bare `.catch(() => {})` on a MUTATION: the row stayed on screen, the user assumed it
+    // had gone, and nothing anywhere said otherwise.
+    deleteBlacklist(token, uuid).then(() => loadEntries()).catch(e => reportFailure("deleteBlacklistEntry", e));
   };
 
   return (
@@ -1403,7 +1413,12 @@ function BlacklistAdmin() {
                 <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, fontSize: "0.72rem" }}>{e.assetUuid ?? "—"}</Typography></TableCell>
                 <TableCell><Typography variant="caption" color="text.secondary">{e.status?.created ? new Date(e.status.created).toLocaleDateString() : "—"}</Typography></TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => handleDelete(e.uuid)}>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDelete(e.uuid)}
+                    aria-label={t("admin.blacklist.delete", { name: e.name ?? e.assetUuid ?? "" })}
+                    data-testid={`blacklist-delete-${e.uuid}`}
+                  >
                     <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
                   </IconButton>
                 </TableCell>
@@ -1651,6 +1666,7 @@ export default function AdminArea() {
     { label: t("admin.tab.searchIndices"), path: "/admin/indices" },
     { label: t("admin.tab.dbIntegrity"), path: "/admin/db-integrity" },
     { label: t("admin.tab.storage"), path: "/admin/storage" },
+    { label: t("admin.tab.failureReports"), path: "/admin/failure-reports" },
   ];
 
   const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
@@ -1687,6 +1703,7 @@ export default function AdminArea() {
           <Route path="indices" element={<SearchIndicesAdmin />} />
           <Route path="db-integrity" element={<DbIntegrityAdmin />} />
           <Route path="storage" element={<StorageAdmin />} />
+          <Route path="failure-reports" element={<FailureReportsAdmin />} />
         </Routes>
       </Box>
     </Box>

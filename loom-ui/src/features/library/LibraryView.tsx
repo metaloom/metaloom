@@ -9,6 +9,7 @@ import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOut
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
 import EmptyState from "../../components/EmptyState";
+import LoadFailure from "../../components/LoadFailure";
 import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
 import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
 import { SearchApiError, searchAssets, type SearchHitResponse } from "../../api/search";
@@ -23,6 +24,7 @@ import { clampOffset, hasNextPage } from "../search/searchHits";
 import { useSpace } from "../../context/SpaceContext";
 import { useSearch } from "../../context/SearchContext";
 import { useToast } from "../../context/ToastContext";
+import { useFailure } from "../../context/FailureContext";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { AssetType, SEARCH_PAGE_SIZE } from "../../types";
@@ -93,6 +95,8 @@ function formatBytes(bytes: number): string {
 export default function LibraryView() {
   const { activeSpace } = useSpace();
   const { showToast } = useToast();
+  const { reportFailure } = useFailure();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { token } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -170,11 +174,13 @@ export default function LibraryView() {
       }));
       setLibraries(libs);
       setSelectedLib(prev => libs.find(l => l.id === prev?.id) ?? libs[0] ?? null);
-    }).catch(() => {
-      setLibraries([]);
-      setSelectedLib(null);
+      setLoadError(null);
+    }).catch(e => {
+      // This used to `setLibraries([])`, which rendered a failed load as "no libraries" - a
+      // statement about the user's data rather than about the request, and the wrong one.
+      setLoadError(reportFailure("loadLibraries", e).message);
     });
-  }, [token]);
+  }, [reportFailure, token]);
 
   // A navigation — the back button, or a link into a filtered library — puts a term in the URL that
   // this component did not type. Adopt it. Our own writes are skipped: they land while the user may
@@ -589,7 +595,12 @@ export default function LibraryView() {
             </Box>
           </>
         ) : (
-          libraries.length === 0 ? (
+          loadError ? (
+            // Checked BEFORE the empty state, which is the whole point: "no libraries" and "the
+            // libraries could not be loaded" are different statements, and this branch used to
+            // make the second one look like the first.
+            <LoadFailure message={loadError} testId="library-load-failure" />
+          ) : libraries.length === 0 ? (
             // No libraries in this space yet — offer to create the first one.
             <EmptyState
               icon={LibraryBooksOutlined}

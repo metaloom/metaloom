@@ -7,6 +7,7 @@ import "./i18n/i18n";
 import { SpaceProvider } from "./context/SpaceContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { FailureProvider } from "./context/FailureContext";
 import { NodeRegistryProvider } from "./context/NodeRegistryContext";
 // The React context reporting whether the server can serve searches — not to be confused with
 // the backend's SearchProvider SPI, which is the thing it reports on.
@@ -54,23 +55,31 @@ function ThemedApp() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter basename={ROUTER_BASENAME}>
-        <AuthProvider>
-          <ToastProvider>
-            {/* The customer-facing share area sits ABOVE AuthGate, and is the only route that
-                does. Authentication here is a conditional render rather than a route guard:
-                AuthGate answers every URL with LoginPage when there is no token, and AppShell —
-                which declares every other route — is mounted only once there is one. A share
-                route inside AppShell would therefore be unreachable by the people it exists for,
-                and AppShell's catch-all redirect would swallow it besides.
+        {/* ToastProvider sits ABOVE AuthProvider, which is the reverse of how it used to nest.
+            AuthProvider owns the global 401 path and has to raise exactly one "your session
+            expired" toast, so it consumes the toast context rather than being wrapped by it.
 
-                It stays inside ThemedApp because `tokens` is read at render time; a component
-                mounted outside ThemeModeProvider would paint with stale values. */}
-            <Routes>
-              <Route path="/share/:slug" element={<SharePage />} />
-              <Route path="*" element={<AuthGate />} />
-            </Routes>
-          </ToastProvider>
-        </AuthProvider>
+            FailureProvider is below both: it needs the toast to show a failure, the auth token to
+            submit a report, and the router to record which route the user was on. */}
+        <ToastProvider>
+          <AuthProvider>
+            <FailureProvider>
+              {/* The customer-facing share area sits ABOVE AuthGate, and is the only route that
+                  does. Authentication here is a conditional render rather than a route guard:
+                  AuthGate answers every URL with LoginPage when there is no token, and AppShell —
+                  which declares every other route — is mounted only once there is one. A share
+                  route inside AppShell would therefore be unreachable by the people it exists for,
+                  and AppShell's catch-all redirect would swallow it besides.
+
+                  It stays inside ThemedApp because `tokens` is read at render time; a component
+                  mounted outside ThemeModeProvider would paint with stale values. */}
+              <Routes>
+                <Route path="/share/:slug" element={<SharePage />} />
+                <Route path="*" element={<AuthGate />} />
+              </Routes>
+            </FailureProvider>
+          </AuthProvider>
+        </ToastProvider>
       </BrowserRouter>
     </ThemeProvider>
   );

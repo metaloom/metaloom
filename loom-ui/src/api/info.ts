@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders, handleResponse } from "./http";
 
 // ── Types matching the Loom REST RESTInfoResponse model ───────────────
 //
@@ -11,21 +12,6 @@ export interface InfoResponse {
   version: string;
   dbRevision?: string;  // applied DB schema revision
   lastUsed?: string;    // ISO-8601 local date-time
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 // The info route is mounted at the API base path itself (`/api/v1`), so the

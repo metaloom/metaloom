@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 /** The three review verdicts, mirroring the `review_status` Postgres enum. */
 export type ReviewStatus = "PENDING" | "CONFIRMED" | "REJECTED";
@@ -89,21 +90,6 @@ export interface DetectionBulkResponse {
   total: number;
   created: number;
   failed: number;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function listAssetDetections(

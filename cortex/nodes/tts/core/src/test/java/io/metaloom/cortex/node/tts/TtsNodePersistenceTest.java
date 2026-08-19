@@ -101,8 +101,12 @@ class TtsNodePersistenceTest {
 	void testRecordsFailedLedgerWhenSidecarThrows() {
 		when(ttsClient.synthesize(anyString(), anyString(), anyString())).thenThrow(new RuntimeException("sidecar down"));
 
-		node().process(ctxWithText("Guten Tag"));
+		NodeResult result = node().process(ctxWithText("Guten Tag"));
 
+		// The ledger row and the node result have to agree. They did not until 2026-08-18: the row said
+		// FAILED while ctx.failure(cause).next() handed the pipeline a SUCCESS with no message, which is
+		// exactly why no test caught the wrong return state.
+		assertThat(result).isFailed().hasMessage("sidecar down");
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "sidecar down".equals(r.getReason())));
 	}

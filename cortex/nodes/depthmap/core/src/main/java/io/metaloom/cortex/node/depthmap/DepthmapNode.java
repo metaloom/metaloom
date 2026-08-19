@@ -181,7 +181,7 @@ public class DepthmapNode extends AbstractMediaNode<DepthmapNodeOptions> {
 			log.error("Failed to estimate depth for media {}", path, e);
 			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

@@ -319,7 +319,7 @@ graph TB
 | **No in-memory DAO** | ⚠️ `loom/db/memory` does not mirror `DedupGroupDao`, following the `AssetNodeResultDao` precedent. The jOOQ impl is exercised against the pooled database |
 | **First asset-to-asset relation** | 🔴 Respect the cascade split: `SET NULL` on `keep_asset_uuid` (deleting the kept asset must not erase the review record), `CASCADE` on members (a membership without its asset is meaningless) |
 | **Offline mode** | ⚠️ Both fingerprint nodes are no-ops when `client() == null` or offline. The workflow needs Loom **and** an enabled similarity index |
-| **Failure handling is split** | ⚠️ Apply uses `ctx.failure(...).abort()` and reports its cause; discovery uses `ctx.failure(...).next()`, where `NodeContextImpl.next()` reads `skipReason` but not `failureCause` — so the message is dropped and the state reports SUCCESS. See the node-wide list in [../NODES.md](../NODES.md) |
+| **Failure handling was split** | 🟢 Fixed 2026-08-18. Apply always used `ctx.failure(...).abort()`; discovery used `.next()`, where `NodeContextImpl.next()` read `skipReason` but not `failureCause` — so the message was dropped and the state reported SUCCESS. Both now abort, and discovery's second cause carries the exception message instead of the bare `"failed to report dedup group"`. An unreachable similarity index is a **failure**, not "no duplicates found" |
 | **Test package is not the main package** | ⚠️ The three node tests live in `io.metaloom.loom.cortex.dedup`, the option tests in `io.metaloom.cortex.node.dedup`. Grepping only the main package finds half of them |
 | **Thumbnail safeguard dropped** | ⚠️ `xdb-clean` compares generated thumbnails before declaring a near-duplicate. MetaLoom gates on fingerprint score plus size/completeness only — a deliberate gap, recorded so it is not rediscovered as a bug |
 
@@ -372,7 +372,7 @@ graph TB
 - [ ] **No per-node E2E.** Nothing under `integration-test/` or `e2e-test/` exercises the dedup runtime; `NodeSpecGoldenTest` only spot-checks that `fingerprint-dedup` is present in the harvest. Target: two near-identical demo videos → fingerprinted → discovery proposes a PENDING group → `PATCH` CONFIRMED → apply emits `confirmed_dup` → a `move` node relocates it → re-running is a no-op
 - [ ] **`toResponse` is N+1** — one `loadMembers` query per group. Bounded by the page size, but still a join waiting to be written
 - [ ] **`keepExcludeFolder` is advertised on `hash-dedup` and never read there** (§4.2). Either split the options classes or hide the parameter on that descriptor
-- [ ] **Discovery still uses `ctx.failure(...).next()`** on both its failure paths, so the cause is dropped and the state reports SUCCESS. Apply already uses `.abort()`
+- [x] **Discovery used `ctx.failure(...).next()`** on both its failure paths — fixed 2026-08-18. Both abort now, `FingerprintDedupNodeTest` covers each, and the second cause names the exception rather than repeating a constant
 - [ ] **Dead move-era imports** in `HashDedupNode` and `FingerprintDedupApplyNode` (`FileUtils`, `Files`, `Path`, `FileAlreadyExistsException`) survived the supersede
 
 ### Deliberately not built
@@ -445,5 +445,5 @@ direct `user_permission` grant.
 
 ---
 
-_Git HEAD revision: `0b8fe39a`_
-_Last updated: 2026-08-12 (the demo dedup pair now carries the fingerprints it would have been discovered from)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (discovery's two failure paths abort and name their cause). Earlier: 2026-08-12 (the demo dedup pair now carries the fingerprints it would have been discovered from)_

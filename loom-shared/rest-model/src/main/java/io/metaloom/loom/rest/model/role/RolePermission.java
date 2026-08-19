@@ -256,6 +256,14 @@ public enum RolePermission {
 	// The storage report. Gate on /api/v1/storage and /api/v1/storage/backends.
 	// Read only, for the same reason as READ_DB_INTEGRITY. Separate from READ_ASSET_POOL: seeing how
 	// full a pool is and being able to repoint it at another bucket are different authorities.
-	READ_STORAGE;
+	READ_STORAGE,
+
+	// Problem reports submitted from the UI. Gate on /api/v1/failure-reports.
+	// No CREATE_FAILURE_REPORT: submitting one needs authentication and nothing else, because a
+	// permission to report a failure would, wherever it went ungranted, turn the product's only
+	// response to a breakage into a 403. See V2.106.
+	READ_FAILURE_REPORT,
+	UPDATE_FAILURE_REPORT,
+	DELETE_FAILURE_REPORT;
 
 }

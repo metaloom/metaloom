@@ -6,6 +6,7 @@ import type {
   SearchMode,
   SearchSortMode,
 } from "../types";
+import { authHeaders, noteUnauthorized, traceIdOf } from "./http";
 
 // ── Types matching the Loom REST API search models ────────────────────
 
@@ -159,23 +160,20 @@ export class SearchApiError extends Error {
   /** The server's human-readable message, unwrapped from the JSON envelope. */
   readonly body: string;
 
-  constructor(status: number, body: string) {
+  /** The X-Trace-Id of the failing response, or null. What a problem report quotes. */
+  readonly traceId: string | null;
+
+  constructor(status: number, body: string, traceId: string | null = null) {
     // Same message shape the other clients throw, so existing log scraping still reads.
     super(`API error ${status}: ${body}`);
     this.name = "SearchApiError";
     this.status = status;
     this.body = body;
+    this.traceId = traceId;
   }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
 
 /** Pull `message` out of the error envelope, falling back to the raw body. */
 function extractMessage(text: string): string {
@@ -191,7 +189,8 @@ function extractMessage(text: string): string {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new SearchApiError(res.status, extractMessage(text));
+    noteUnauthorized(res.status);
+    throw new SearchApiError(res.status, extractMessage(text), traceIdOf(res));
   }
   return res.json() as Promise<T>;
 }

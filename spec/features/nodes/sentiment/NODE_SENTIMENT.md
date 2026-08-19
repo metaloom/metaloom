@@ -104,16 +104,19 @@ The consequence is that within one worker lifetime a re-run with a *different* w
 the first score for that file, because the wired text is not part of the key.
 [../NODES.md](../NODES.md) records the same shape for the other in-heap caches.
 
-### 2.5 🟡 `ctx.failure(msg).next()` reports SUCCESS
+### 2.5 🟢 `ctx.failure(msg).abort()` (fixed 2026-08-18)
 
-On a sidecar error the node records a `FAILED` ledger row and then returns `ctx.failure(e.getMessage()).next()`.
-`NodeContextImpl.next()` inspects only `skipReason`; the recorded `failureCause` is dropped and only
-`abort()` yields `ResultState.FAILED`. So the observable outcome is: no outputs, nothing cached, a
-`FAILED` **ledger** row, and a `SUCCESS` node result.
+On a sidecar error the node records a `FAILED` ledger row and then returns
+`ctx.failure(e.getMessage()).abort()`. It was `.next()` until 2026-08-18: `NodeContextImpl.next()`
+inspected only `skipReason`, the recorded `failureCause` was dropped, and only `abort()` yielded
+`ResultState.FAILED` — so the observable outcome was no outputs, nothing cached, a `FAILED`
+**ledger** row, and a `SUCCESS` node result.
 
-This node follows the repo-wide idiom rather than being the lone exception — the fix touches roughly
-nineteen nodes and is not a sentiment change. `SentimentNodeTest.testEmitsNoOutputAndDoesNotCacheWhenSidecarThrows`
-documents it in a comment and asserts what *is* observable: nothing emitted, cache not poisoned.
+This node followed the repo-wide idiom rather than being the lone exception, which is why the fix was
+a tree-wide sweep rather than a sentiment change
+([../../../tasks/WORKFLOW_TASKS.md](../../../tasks/WORKFLOW_TASKS.md) Task 17).
+`SentimentNodeTest.testEmitsNoOutputAndDoesNotCacheWhenSidecarThrows` now asserts the FAILED state
+and the surviving cause alongside what it always asserted: nothing emitted, cache not poisoned.
 
 ### 2.6 🟢 A persistence failure is swallowed
 
@@ -454,5 +457,5 @@ Java test conventions and the definition of done:
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§2.5 — the failure path aborts; the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-11_

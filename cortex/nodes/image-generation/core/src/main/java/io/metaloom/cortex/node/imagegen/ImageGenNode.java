@@ -147,7 +147,7 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 			log.error("Failed to generate image for media {}", path, e);
 			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

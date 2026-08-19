@@ -19,6 +19,7 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.RESTService;
 import io.metaloom.loom.rest.ServerFailureHandler;
+import io.metaloom.loom.rest.TraceIdHandler;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AnnotationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetBinaryEndpoint;
@@ -32,6 +33,7 @@ import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RemixEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PublicShareEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.FailureReportEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ShareLinkEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
@@ -185,9 +187,12 @@ public class LoomOpenAPI {
 			Set<RESTEndpoint> endpoints = endpoints(deps);
 			endpoints.addAll(extraEndpoints.apply(deps));
 			ServerFailureHandler failureHandler = null;
+			// The trace handler is real rather than null, unlike the rest: setupRouter() installs it as a route
+			// handler, and Vert.x rejects a null handler outright. It is also cheap and stateless.
+			TraceIdHandler traceIdHandler = new TraceIdHandler();
 			// Only the router is needed to describe the API; start() - which is what would
 			// use the reapers - is never called here.
-			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null, null, null);
+			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, traceIdHandler, null, null, null, null);
 			rest.setupRouter();
 			return describe(router, DEFAULT_BASE_URL);
 		} finally {
@@ -249,6 +254,7 @@ public class LoomOpenAPI {
 		endpoints.add(new ClusterEndpoint(null, deps, examples));
 		endpoints.add(new CollectionEndpoint(null, null, deps, examples));
 		endpoints.add(new RemixEndpoint(null, deps, examples));
+		endpoints.add(new FailureReportEndpoint(null, deps, examples));
 		endpoints.add(new ShareLinkEndpoint(null, deps, examples));
 		endpoints.add(new PublicShareEndpoint(null, deps, examples));
 		endpoints.add(new CommentEndpoint(null, null, deps, examples));

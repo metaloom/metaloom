@@ -31,6 +31,7 @@ import io.metaloom.loom.db.jooq.tables.JooqDedupGroupMember;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
+import io.metaloom.loom.db.jooq.tables.JooqFailureReport;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
 import io.metaloom.loom.db.jooq.tables.JooqGroup;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
@@ -138,6 +139,10 @@ public class Indexes {
     public static final Index IDX_EMBEDDING_DETECTION_UUID = Internal.createIndex(DSL.name("idx_embedding_detection_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.DETECTION_UUID }, false);
     public static final Index IDX_EMBEDDING_DIRTY = Internal.createIndex(DSL.name("idx_embedding_dirty"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.SYNCED_AT }, false);
     public static final Index IDX_EMBEDDING_TYPE_MODEL = Internal.createIndex(DSL.name("idx_embedding_type_model"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.TYPE, JooqEmbedding.EMBEDDING.MODEL }, false);
+    public static final Index IDX_FAILURE_REPORT_CREATED = Internal.createIndex(DSL.name("idx_failure_report_created"), JooqFailureReport.FAILURE_REPORT, new OrderField[] { JooqFailureReport.FAILURE_REPORT.CREATED.desc() }, false);
+    public static final Index IDX_FAILURE_REPORT_CREATOR = Internal.createIndex(DSL.name("idx_failure_report_creator"), JooqFailureReport.FAILURE_REPORT, new OrderField[] { JooqFailureReport.FAILURE_REPORT.CREATOR_UUID }, false);
+    public static final Index IDX_FAILURE_REPORT_TRACE = Internal.createIndex(DSL.name("idx_failure_report_trace"), JooqFailureReport.FAILURE_REPORT, new OrderField[] { JooqFailureReport.FAILURE_REPORT.TRACE_ID }, false);
+    public static final Index IDX_FAILURE_REPORT_TRIAGE_CREATED = Internal.createIndex(DSL.name("idx_failure_report_triage_created"), JooqFailureReport.FAILURE_REPORT, new OrderField[] { JooqFailureReport.FAILURE_REPORT.TRIAGE_STATUS, JooqFailureReport.FAILURE_REPORT.CREATED.desc() }, false);
     public static final Index IDX_MEMORY_DENY_RULE_ENABLED = Internal.createIndex(DSL.name("idx_memory_deny_rule_enabled"), JooqMemoryDenyRule.MEMORY_DENY_RULE, new OrderField[] { JooqMemoryDenyRule.MEMORY_DENY_RULE.ENABLED }, false);
     public static final Index IDX_MEMORY_ENTRY_SCOPE = Internal.createIndex(DSL.name("idx_memory_entry_scope"), JooqMemoryEntry.MEMORY_ENTRY, new OrderField[] { JooqMemoryEntry.MEMORY_ENTRY.SCOPE, JooqMemoryEntry.MEMORY_ENTRY.SCOPE_UUID }, false);
     public static final Index IDX_NODE_DESCRIPTOR_INSTANCE_NODE_ID = Internal.createIndex(DSL.name("idx_node_descriptor_instance_node_id"), JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE, new OrderField[] { JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE.NODE_ID }, false);

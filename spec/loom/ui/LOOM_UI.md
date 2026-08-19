@@ -935,7 +935,10 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Dead capitalised directories | `src/Admin`, `src/Asset`, … are unreferenced legacy; editing them changes nothing. `src/Login` and `src/index.js` are already gone; drop this row once the rest follows (TASK_UI_PIPELINE.md Task 5) |
 | No `console.log` of credentials | `src/sourceHygiene.test.ts` scans every non-test source for a `console.*` call mentioning password/secret/credential/api-key and fails the vitest run. It exists because the deleted `Login.tsx` did exactly that |
 | Auth is in-memory | Every reload lands on the login form — on the *same* URL, so signing in resolves to the requested route |
-| No global 401 handling | Each call handles its own failure; there is no interceptor |
+| A `catch` that only `console.error`s is a bug | A **mutation** must call `useFailure().reportFailure(action, e)`, which toasts and offers a report. A **load** must additionally render `LoadFailure` — a toast fades and the screen then reads as *empty*, and "no libraries" is a different, far more alarming statement than "the libraries could not be loaded". `EmptyState` is only for a request that succeeded and found nothing. See [../../features/ui/FAILURE_REPORTING.md](../../features/ui/FAILURE_REPORTING.md) |
+| Close the dialog **inside** the try | Resetting a form or closing a dialog after the `try` block makes a rejected write look exactly like an accepted one. `FaceDetectionManagement` did this on three handlers, so a user could walk away believing in a person that does not exist |
+| Never match on an error's message | Branch on `ApiError.status`. `DbIntegrityAdmin` tested `message.startsWith("API error 403")` and broke the moment the shared handler started surfacing the server's own message |
+| Global 401 handling exists now | `src/api/http.ts` dispatches `loom:session-expired`; `AuthProvider` logs out and raises exactly **one** toast however many requests failed. The six modules with their own typed error class call `noteUnauthorized` to join in — except `shares.ts`, deliberately: a 401 there is a lapsed *share* session, not a Loom one |
 | Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
 | ACL nav is nested | Open `sidebar-group-acl` before asserting on Users/Groups/Permissions/API-Keys/Blacklist |
 | Deep-link 404 on reload | Keep `base`, `basename` and the `UIService` fallback in sync (§7.3) |
@@ -943,7 +946,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | One shared WebSocket | Filter pipeline events client-side by `pipelineName`; close code `4401` disables reconnect (§7.4) |
 | React Flow node identity | Use `useNodesState`/`useEdgesState`; reset only on `pipeline.id` **or** `reloadKey` change (see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md)) |
 | Navigating away from unsaved work | A screen with work only the browser holds registers a guard via `useUnsavedChanges` / `useNavigationGuard` (§7.9). A *new* navigation control outside a screen body must call `requestNavigation`, not `navigate` — otherwise it discards the pipeline canvas silently, as every exit but the editor's own list once did |
-| No error boundaries | A render throw blanks the app; there is no fallback UI |
+| One error boundary, keyed by route | `AppShell` wraps the routed area in a single `ErrorBoundary` keyed by `location.pathname`, not one per `<Route element>`: the keying makes a navigation reset it, and thirty wrappers would be thirty places for the next route to forget one. The sidebar sits outside it |
 | Missing i18n key | Renders the raw key — always add to both locale files |
 | MUI `select` test ids | `inputProps` lands on the hidden native input, which is never clickable. Use `SelectProps.SelectDisplayProps` (`ShareDialog`'s expiry field) |
 | Comment replies are **task-only** | `CommentItem` renders `comment-reply` only when its parent passes `onReply`. `TasksView` does — reply banner (`tasks-comment-reply-banner`), `parentUuid` on the create, one-level threading via `features/tasks/commentThread.ts`. `AssetDetail`'s comments tab does **not**, and its `handlePostComment` never sends a `parentUuid`, so an asset comment thread is flat |
@@ -1039,8 +1042,15 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Single shared reconnecting WebSocket (pipeline + processor channels)
 - [x] Documentation coachmarks on eight screens, resolved through a topic id rather than a URL, with
       a gate at each end of the contract (§7.10)
-- [ ] Global 401 interceptor / session-expiry warning
-- [ ] React error boundaries
+- [x] Global 401 interceptor / session-expiry warning (`src/api/http.ts` dispatches
+      `loom:session-expired`, `AuthProvider` collapses ten parallel 401s into one message and also
+      checks `isJwtExpired` on mount and on window focus)
+- [x] React error boundaries (`components/ErrorBoundary.tsx`, one around the routed area in
+      `AppShell`, keyed by pathname; the fallback resets the boundary rather than reloading, so the
+      in-memory session survives)
+- [x] A generic failure surface: `useFailure().reportFailure` raises an error toast with a Report
+      action, and the report carries the response's `X-Trace-Id`
+      (see [../../features/ui/FAILURE_REPORTING.md](../../features/ui/FAILURE_REPORTING.md))
 - [ ] Sidebar collapse persistence
 - [ ] Route-level code splitting (`React.lazy`) — everything is in one bundle
 - [ ] Accessibility audit (contrast, keyboard nav, ARIA)

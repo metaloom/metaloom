@@ -149,7 +149,7 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 		} catch (Exception e) {
 			log.error("Failed to analyze sentiment for media {}", path, e);
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

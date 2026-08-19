@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
+import { authHeaders, handleResponse } from "./http";
 
 /**
  * The memory denylist: instance-wide regular expressions that must never be written into the agent
@@ -42,21 +43,6 @@ export interface MemoryDenyRuleUpdateRequest {
   pattern?: string;
   message?: string;
   enabled?: boolean;
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function listMemoryDenyRules(token: string): Promise<MemoryDenyRuleListResponse> {

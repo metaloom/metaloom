@@ -97,7 +97,9 @@ class ImageGenNodePersistenceTest {
 		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt()))
 			.thenThrow(new RuntimeException("sidecar down"));
 
-		node().process(NodeContext.create(media));
+		// The returned state has to agree with the row. It did not until 2026-08-18: the node ended its
+		// catch block with ctx.failure(cause).next(), which reported SUCCESS and dropped the cause.
+		assertThat(node().process(NodeContext.create(media))).isFailed().hasMessage("sidecar down");
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "sidecar down".equals(r.getReason())));

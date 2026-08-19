@@ -695,6 +695,38 @@ link:../loom/authentication/[Authentication].
 
 image::api-keys.png[API key management,role=img-fluid]
 
+=== Problem Reports
+
+*Problem reports* is the inbox for everything users have reported as broken.
+
+When something fails anywhere in the UI, the message that appears carries a *Report* button. Pressing
+it opens a short form that already knows what was being attempted, which request failed, and what the
+server answered. The person reporting only has to add the part the server cannot know: what they
+expected to happen instead. They can also attach a screenshot — the browser asks which window or tab
+to share, the captured image is shown back before anything is sent, and it can be enlarged to check
+it before submitting.
+
+Every report carries a *trace ID*. This is the single most useful field on the screen: the same
+identifier appears in the Loom server log next to the failure, so a report and its stack trace can be
+matched with certainty rather than by guessing from timestamps. It is also shown to the person
+reporting, with a copy button, so they can quote it in a support ticket without submitting anything
+at all.
+
+[TIP]
+====
+*Anybody signed in can submit a report.* Reporting a failure needs no permission at all — deliberately,
+because the users most likely to run into a problem are often the ones with the fewest permissions.
+
+*Reading the inbox does need one*: `READ_FAILURE_REPORT`, granted to the administrator role by
+default. Reports can carry a screenshot of whatever was on somebody's screen, so seeing them is a
+separate decision. `UPDATE_FAILURE_REPORT` allows triage (*New*, *Acknowledged*, *Resolved*) and
+`DELETE_FAILURE_REPORT` allows removing a report and its screenshot.
+====
+
+Screenshots are stored in the database alongside the report rather than in a storage pool. That is
+deliberate: an unreachable storage backend is one of the things worth reporting, and a report that
+had to write to storage first would fail exactly when it was most needed.
+
 == Related
 
 * link:../getting-started/[Getting Started] — run the demo container and open the UI

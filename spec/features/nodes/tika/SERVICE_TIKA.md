@@ -102,7 +102,10 @@ is missing, skips `unprocessable`, fetches the `AssetResponse` (null when offlin
    cached value is non-null, return `origin(LOCAL).next()`.
 2. Otherwise `MediaTikaParser.parse(media)` → `OUT_FLAGS="DONE"`, `OUT_CONTENT` when non-null, cache
    the result, `persist(...)`, return `origin(COMPUTED).next()`.
-3. Any exception → log, `OUT_FLAGS="FAILED"`, `ctx.failure("failed processing").next()`.
+3. Any exception → log, `OUT_FLAGS="FAILED"`,
+   `ctx.failure("failed processing: " + e.getMessage()).abort()`. It was `.next()` with the bare
+   constant until 2026-08-18, so the item reported SUCCESS *and* said nothing about why —
+   `TikaNodeFailureTest` now pins both the FAILED state and the message.
 
 `persist()` is best-effort and a no-op when `asset == null || client() == null`. It writes
 `JsonCompCreateRequest{nodeKind="tika", schemaType="tika", variant="", data={"content": content ?: ""}}`
@@ -332,4 +335,6 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 
 ---
 
-_Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Last updated: 2026-08-18 — git HEAD `d4e9134f` (step 3 of `compute()` aborts instead of `.next()`, and its cause names the exception)_
+
+_Previously: 2026-08-02 — git HEAD `d930e222`_

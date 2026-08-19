@@ -235,9 +235,11 @@ Java test conventions: [../guidelines/CODING.md](../guidelines/CODING.md).
   assuming token weighting.
 - **`OUT_SCORE` is confidence in [0,1], not polarity.** `SentimentDescriptorProvider` still describes it
   as *"Polarity in [-1, 1]; its sign agrees with the label"* — wrong, and still wrong at this HEAD.
-- **`ctx.failure(msg).next()` does not yield `FAILED`.** `NodeContextImpl.next()` (`cortex/api/.../NodeContextImpl.java:192`)
-  inspects only `skipReason`; only `abort()` returns `ResultState.FAILED`. On a sidecar error the node
-  writes a FAILED **ledger** row but the node result is SUCCESS. Repo-wide, not sentiment-specific.
+- **`ctx.failure(msg).next()` did not yield `FAILED`** — fixed 2026-08-18. `NodeContextImpl.next()`
+  inspected only `skipReason`, so on a sidecar error the node wrote a FAILED **ledger** row while the
+  node result said SUCCESS. It was repo-wide, not sentiment-specific, and the fix was too:
+  `SentimentNode` aborts, `next()` is fail-closed, and `FailurePathGuardTest` (`cortex/api`) fails the
+  build on the chained shape.
 - **Never adopt CC-BY-NC checkpoints.** If a deployment cannot carry the CC-BY-4.0 attribution for the
   English default, set `SENTIMENT_MODEL_EN` to the Apache-2.0 fallback id.
 
@@ -308,5 +310,5 @@ Java test conventions: [../guidelines/CODING.md](../guidelines/CODING.md).
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the `ctx.failure(msg).next()` gotcha is fixed). Earlier: 2026-08-06 (reference sweep — no content changes)_

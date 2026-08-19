@@ -106,8 +106,12 @@ class WhisperNodePersistenceTest {
 	void testRecordsFailedLedgerWhenProcessorThrows() throws Exception {
 		when(processor.process(anyString())).thenThrow(new RuntimeException("boom"));
 
-		node().process(NodeContext.create(media));
+		NodeResult result = node().process(NodeContext.create(media));
 
+		// A run whose transcript silently failed used to be indistinguishable from one that worked -
+		// ctx.failure(cause).next() reported SUCCESS. The state and the cause are both part of the
+		// contract now.
+		assertThat(result).isFailed().hasMessage("boom");
 		verify(client, never()).createAssetTranscript(any(), any());
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "boom".equals(r.getReason())));

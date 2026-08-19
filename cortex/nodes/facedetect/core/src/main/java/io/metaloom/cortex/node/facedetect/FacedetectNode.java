@@ -385,7 +385,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
-			return ctx.failure(e.getMessage()).next();
+			return ctx.failure(e.getMessage()).abort();
 		}
 	}
 

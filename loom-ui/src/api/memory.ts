@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { authHeaders, noteUnauthorized, traceIdOf } from "./http";
 
 /**
  * The agent memory bank: scoped markdown notes addressed by a path-like id.
@@ -63,25 +64,22 @@ export interface MemoryWriteRequest {
  */
 export class MemoryApiError extends Error {
   readonly status: number;
+  /** The X-Trace-Id of the failing response, or null. What a problem report quotes. */
+  readonly traceId: string | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, traceId: string | null = null) {
     super(message);
     this.name = "MemoryApiError";
     this.status = status;
+    this.traceId = traceId;
   }
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`);
+    noteUnauthorized(res.status);
+    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`, traceIdOf(res));
   }
   return res.json() as Promise<T>;
 }
@@ -163,6 +161,7 @@ export async function deleteMemoryEntry(token: string, scope: string, id: string
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`);
+    noteUnauthorized(res.status);
+    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`, traceIdOf(res));
   }
 }

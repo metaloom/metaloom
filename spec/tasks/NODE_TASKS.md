@@ -145,7 +145,16 @@ the node `PipelineConfigurable` so per-instance options work at all.
 
 ---
 
-## Task 5: `ctx.failure(...).next()` reports SUCCESS — fix the remaining nodes
+## Task 5: `ctx.failure(...).next()` reports SUCCESS — fix the remaining nodes — DONE (2026-08-18)
+
+> Completed together with [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 17**, which owned the
+> cross-cutting sweep. All four sites named below (`DepthmapNode`, `SceneLayoutNode`,
+> `FingerprintDedupNode` ×2) and `CaptioningNode`'s `printStackTrace()` shape are fixed; the sweep in
+> step 2 found 15 chained sites in 13 classes, not nineteen, and the surviving list in
+> [../features/nodes/NODES.md](../features/nodes/NODES.md) is now empty. Step 4 landed as a
+> source-scanning guard (`FailurePathGuardTest`, `cortex/api`) rather than as prose in
+> [../guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](../guidelines/METALOOM_STATIC_CODE_ANALYSIS.md);
+> that file records the outcome.
 
 **Argumentation Summary:** `NodeContextImpl.next()` never reads `failureCause`, so
 `ctx.failure(msg).next()` drops the message and reports the item successful. Only `.abort()` reads it.
@@ -529,6 +538,53 @@ reports success. That contradicts `UploadedArtifact.State.FAILED`'s own javadoc
 
 ---
 
+## Task 21: A swallowed `persist(...)` leaves a green node whose result was never stored
+
+**Argumentation Summary:** Found while closing Task 5 / [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) Task 17,
+and deliberately left out of that change because the shape is different. **24 `persist(...)` catch
+blocks across 22 node classes** catch their own exception, log a warning, record a `FAILED`
+`asset_node_result` row and then fall through, so the node returns SUCCESS. The consequence is the one
+Task 17 existed to eliminate — a green node whose result exists nowhere durable — reached by a
+different route, and it is invisible to `next()`, to `abort()` and to `FailurePathGuardTest` alike,
+because no failure cause is ever recorded on the context. `SceneLayoutNodePersistenceTest.testRecordsFailedLedgerWhenComponentWriteFails`
+pins the current behaviour and says so; a first attempt to assert FAILED there is what surfaced this.
+
+The sites (`grep` for a `catch` recording `ResultState.FAILED` with no `return` or `throw`):
+`MetadataNode:295`, `FacedescriptionNode:271`, `TranslateNode:219`, `GuardNode:276`,
+`SceneLayoutNode:427`, `TikaNode:111`, `QualityNode:242`, `SentimentNode:191`, `S3SinkNode:479`,
+`SceneDetectionNode:128`, `ConsistencyNode:112`, `CaptioningNode:193` and `:225`, `VlmNode:205`,
+`ObjectDetectNode:582`, `OCRNode:106`, `ScriptNode:493`, `WhisperNode:136`, `ChunkHashNode:98`,
+`SHA256Node:98`, `MD5Node:103`, `DominantColorNode:397`, `FingerprintNode:183`, `LLMNode:171`.
+
+**Improvement Summary:** Decide per node whether the durable write is part of the result, then make
+the terminal state say so — this is a **judgement call per node, not a sweep**, which is why it is its
+own task.
+
+```
+1. Split the list in two. A node whose value survives only in Loom (scene-layout, tika, sentiment,
+   captioning, ocr, vlm, llm, objectdetect, dominant-color) loses the result outright when the
+   component write fails - that is a failure. A node whose value also lives on local disk or on a
+   port (the hash nodes, fingerprint, whisper's ledger marker) can defensibly continue.
+2. For the first group: propagate, so the existing outer catch aborts with the cause. Do NOT add a
+   second failure vocabulary.
+3. For the second group: document the choice in the node's spec file next to its persist(), so the
+   next reader does not have to re-derive it. Several already do (SENTIMENT_SIDECAR, SERVICE_TIKA).
+4. Decide once whether a best-effort ledger write that itself fails should ever fail the node.
+   AbstractMediaNode.recordNodeResult is best-effort by design and must stay that way - the
+   distinction is between "the ledger row failed" and "the value failed to persist".
+5. One test per converted node: a Loom client that refuses the component write must produce FAILED
+   carrying the cause.
+```
+
+**References:** [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) Task 17 (the sibling defect, done) ·
+[../features/nodes/NODES.md](../features/nodes/NODES.md) §9 ·
+[../features/nodes/scene-layout/NODE_SCENE_LAYOUT.md](../features/nodes/scene-layout/NODE_SCENE_LAYOUT.md)
+**Test Requirements:** One failure-state test per converted node; the full cortex suite green.
+`mvn -o -f cortex/pom.xml test`. ⚠️ `cortex/**` modules share one JVM per module, so per-class peak
+RSS in the reports is really the module's number.
+
+---
+
 ## Task 19: S3 and cloud sources ignore the `asset_pool` Loom already models
 
 **Argumentation Summary:** Loom models S3-backed pools (`asset_pool`, `library.pool_uuid`,
@@ -608,5 +664,5 @@ there before opening a task here.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (Task 5 done — the `ctx.failure(...).next()` sweep landed tree-wide with a build guard; Task 21 added for the swallowed-`persist` sibling defect it surfaced)_

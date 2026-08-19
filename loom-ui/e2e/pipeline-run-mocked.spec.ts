@@ -220,8 +220,10 @@ test.describe("Pipeline run trigger – mocked", () => {
     await page.getByText("Run", { exact: true }).click();
 
     await expect.poll(() => runTrigger.calls, { timeout: 5_000 }).toBe(1);
-    // handleResponse throws `API error 400: ...`, which the editor reports via the error toast.
-    await expect(page.getByText(/API error 400/)).toBeVisible({ timeout: 5_000 });
+    // The shared handleResponse unwraps the server's own message, so the toast reads "boom" rather
+    // than the "API error 400: {json}" the 36 private copies used to produce. Asserting the message
+    // rather than the status wording is the point: it is what the user is actually shown.
+    await expect(page.getByText("boom")).toBeVisible({ timeout: 5_000 });
     await expect(page.getByTestId("pipeline-run-banner")).toHaveCount(0);
   });
 });

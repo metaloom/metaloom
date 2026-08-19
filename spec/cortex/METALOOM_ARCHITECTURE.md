@@ -483,7 +483,7 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 
 | Gotcha | Detail |
 |---|---|
-| 🔴 `ctx.failure(msg).next()` | Returns **SUCCESS** — `NodeContextImpl.next()` ignores `failureCause`. Only `abort()` yields `FAILED`. Use `ctx.failure(msg).abort()` |
+| `ctx.failure(msg).next()` | Fixed 2026-08-18. It used to return **SUCCESS** with the cause discarded; `next()` now yields `FAILED` when a cause was recorded. Still write `ctx.failure(msg).abort()` — `FailurePathGuardTest` (`cortex/api`) fails the build on the chained shape |
 | 🔴 `cortex.yml` on the CLI path | Never read — the CLI always supplies a `CortexOptions`, so `CortexOptionsLoader` is skipped (§8) |
 | 🔴 No worker liveness sweep | Heartbeats are acked but never audited; only a socket close evicts (§3) |
 | Stale Javadoc | `PipelineEventBroadcaster` (claims a 1024-entry drop-oldest queue), `WebSocketNodeDispatcher` (claims load is ignored and kinds cannot be routed) and `RegistryNodeFactory` ("falling back to stub") all contradict their own code |
@@ -513,6 +513,6 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 Run DB-backed tests only after `./setup-pool.sh`.
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (repointed the PLAN_C reference: that file is a task list now, this file's
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§14 — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-11 (repointed the PLAN_C reference: that file is a task list now, this file's
 §11 is the build record). Earlier: 2026-08-06 (reference sweep — no content changes)_

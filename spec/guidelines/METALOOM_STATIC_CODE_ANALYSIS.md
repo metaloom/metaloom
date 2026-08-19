@@ -180,8 +180,12 @@ The class the user specifically asked for. A single fact stated twice, different
 
 A generated-code specialty: the fluent call is written, its return value is dropped.
 
-* Real example, still present at 19 call sites: `ctx.failure(...).next()` — the failure message is
-  discarded and the node reports `SUCCESS`. Only `.abort()` reads `failureCause`.
+* Real example, once present at 19 call sites and now zero: `ctx.failure(...).next()` — the failure
+  message was discarded and the node reported `SUCCESS`, because only `.abort()` read `failureCause`.
+  Fixed 2026-08-18. What it cost is the point: a defect of this shape survived for as long as it did
+  because every node also wrote a *correct* `FAILED` ledger row on the same path, so the tests that
+  existed all passed. Two things now hold it down — `next()` honours a recorded cause (fail-closed),
+  and `FailurePathGuardTest` (`cortex/api`) fails the build on the call shape.
 * Any `@CheckReturnValue`-shaped API used as a statement: `String.trim()`, `Stream` ops,
   `Optional.map`, immutable-builder `withX(...)`, `Instant.plus(...)`.
 * `Future`/`Completable`/`Flowable` created and never subscribed or composed — the work never runs.
@@ -369,5 +373,5 @@ Finally, print to the console: the report path, the totals by severity, and the 
 | Generated reports | `spec/reports/` |
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (D6's worked example is now historical — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard)_

@@ -188,7 +188,7 @@ No new variable. Review state is data, not configuration.
 | **Never overwrite the original** | 🔴 A correction is a second value. The original is the drift signal |
 | **A review is scoped to a `producer_version`** | 🟢 Hanging the review off the ledger row gets this for free: re-running under a new version yields an unreviewed value, as it should |
 | **`result_ref` is often null** | 🔴 Several producers pass `null`; the review key depends on it |
-| **`ctx.failure(...).next()` returns SUCCESS** | 🔴 A producer reporting success on failure creates an empty "result" for a human to review |
+| **`ctx.failure(...).next()` returned SUCCESS** | 🟢 Fixed 2026-08-18. A producer reporting success on failure created an empty "result" for a human to review — the review queue's own version of the defect |
 | **Whisper succeeds with an empty transcript** | 🔴 Every video in the local test corpus is silent; a success with no text is the normal case there, not an anomaly |
 | **Tika's parser returns null** | 🔴 Known open defect — document text has no producer today |
 | **`origin` is hard-coded `COMPUTED`** | ⚠️ So the ledger cannot yet distinguish computed from imported from human-corrected |
@@ -210,5 +210,5 @@ No new variable. Review state is data, not configuration.
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — proposal; verified LLMMode is fully mocked)_
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-07 (new file — proposal; verified LLMMode is fully mocked)_

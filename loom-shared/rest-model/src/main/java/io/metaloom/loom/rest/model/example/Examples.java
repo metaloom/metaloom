@@ -32,6 +32,7 @@ import io.metaloom.loom.rest.model.noderun.NodeRunExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
 import io.metaloom.loom.rest.model.pipeline.PipelineExamples;
 import io.metaloom.loom.rest.model.processor.ProcessorExamples;
+import io.metaloom.loom.rest.model.failure.FailureReportExamples;
 import io.metaloom.loom.rest.model.share.ShareExamples;
 import io.metaloom.loom.rest.model.space.SpaceExamples;
 import io.metaloom.loom.rest.model.reaction.ReactionExamples;
@@ -65,6 +66,7 @@ public interface Examples extends
 	CommentExamples,
 	CollectionExamples,
 	RemixExamples,
+	FailureReportExamples,
 	ShareExamples,
 	DetectionExamples,
 	EmbeddingExamples,

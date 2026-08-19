@@ -19,6 +19,7 @@ import io.metaloom.loom.db.jooq.dao.skill.SkillVersionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
 import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.remix.RemixDaoImpl;
+import io.metaloom.loom.db.jooq.dao.failure.FailureReportDaoImpl;
 import io.metaloom.loom.db.jooq.dao.share.ShareDaoImpl;
 import io.metaloom.loom.db.jooq.dao.share.ShareFeedbackDaoImpl;
 import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
@@ -55,6 +56,7 @@ import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.remix.RemixDao;
+import io.metaloom.loom.db.model.failure.FailureReportDao;
 import io.metaloom.loom.db.model.share.ShareDao;
 import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
@@ -126,6 +128,9 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract RemixDao remixDao(RemixDaoImpl dao);
+
+	@Binds
+	abstract FailureReportDao failureReportDao(FailureReportDaoImpl dao);
 
 	@Binds
 	abstract ShareDao shareDao(ShareDaoImpl dao);

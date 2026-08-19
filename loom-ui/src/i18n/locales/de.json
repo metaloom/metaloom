@@ -78,7 +78,8 @@
       "permissions": "Berechtigungen",
       "apiKeys": "API-Schlüssel",
       "blacklist": "Sperrliste",
-      "memoryDenylist": "Gedächtnis-Sperrliste"
+      "memoryDenylist": "Gedächtnis-Sperrliste",
+      "failureReports": "Fehlerberichte"
     },
     "divider": {
       "admin": "Administration",
@@ -678,7 +679,8 @@
       "memoryDenylist": "Gedächtnis-Sperrliste",
       "searchIndices": "Indizes",
       "dbIntegrity": "Datenbank-Integrität",
-      "storage": "Speicher"
+      "storage": "Speicher",
+      "failureReports": "Fehlerberichte"
     },
     "spaces": {
       "title": "Spaces",
@@ -982,7 +984,8 @@
         "reasonPlaceholder": "Grund für die Sperrung",
         "expiry": "Ablaufdatum (optional)"
       },
-      "defaultReason": "Manueller Eintrag"
+      "defaultReason": "Manueller Eintrag",
+      "delete": "Blacklist-Eintrag {{name}} löschen"
     },
     "memoryDenylist": {
       "title": "Gedächtnis-Sperrliste",
@@ -1148,6 +1151,37 @@
     },
     "filter": {
       "allCreators": "Alle Ersteller"
+    },
+    "failureReports": {
+      "title": "Fehlerberichte",
+      "count": "{{count}} Bericht(e)",
+      "noTrace": "keine Trace-ID",
+      "noText": "keine Beschreibung",
+      "viewScreenshot": "Screenshot",
+      "screenshotAlt": "Screenshot zum Bericht über {{action}}",
+      "filter": {
+        "all": "Alle Zustände"
+      },
+      "status": {
+        "NEW": "Neu",
+        "ACKNOWLEDGED": "Gesehen",
+        "RESOLVED": "Erledigt"
+      },
+      "action": {
+        "acknowledge": "Zur Kenntnis nehmen",
+        "resolve": "Erledigen",
+        "delete": "Diesen Bericht löschen"
+      },
+      "column": {
+        "trace": "Trace-ID",
+        "action": "Aktion",
+        "report": "Beschreibung",
+        "status": "Zustand"
+      },
+      "emptyState": {
+        "title": "Keine Fehlerberichte",
+        "description": "Wenn etwas fehlschlägt, bietet die Meldung eine Schaltfläche „Melden“. So gesendete Berichte erscheinen hier."
+      }
     }
   },
   "pipeline": {

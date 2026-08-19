@@ -385,7 +385,7 @@ variables:
 | **Cross-device is a silent copy** | 🟢 Fixed: `FileStores.sameStore` probes before writing. ⚠️ Do not reach for `FileUtils.moveFile` again |
 | **Preserve xattrs** | 🟢 `XAttrs` carries them and **reports** a failure instead of printing a stack trace. Losing `loom_sha512` costs a full re-read per item downstream |
 | **Never overwrite on conflict** | ⚠️ There is deliberately no `OVERWRITE`. A collision in the trash folder may be a genuinely different asset |
-| **`ctx.failure(...).next()` returns SUCCESS** | 🔴 Use `.abort()`. Fixed in both dedup nodes as part of this work; the move node never had it |
+| **`ctx.failure(...).next()` returns SUCCESS** | 🟢 Use `.abort()`. Fixed in both dedup nodes as part of this work; the move node never had it. Tree-wide as of 2026-08-18, with a build guard |
 | **`Path.startsWith`, not `String.startsWith`** | 🔴 `/data/dups-old` is not inside `/data/dups`. The old `isInFolder` said it was; `PathContainment` is the fix and has a test named after the bug |
 | **A path is a `scalar/string`** | ⚠️ Not `artifact/file` - that means "a file this node produced", and would make a relocated original an `s3-sink` upload candidate |
 | **`/locations` does not exist** | 🔴 `AssetLocationMethods` in the Java client calls routes no endpoint serves. The live API is `AssetBinaryMethods` over `/binaries` |
@@ -413,8 +413,10 @@ variables:
 
 ---
 
-_Git HEAD revision: `98a6dbe1`_
-_Last updated: 2026-08-08 (the mover is built. `move` and `assign` ship as kinds; `cortex/fs` holds the
+_Git HEAD revision: `d4e9134f`_
+_Last updated: 2026-08-18 (the `ctx.failure(...).next()` gotcha row — fixed tree-wide, not only in the dedup pair)_
+
+_Previously: 2026-08-08 (the mover is built. `move` and `assign` ship as kinds; `cortex/fs` holds the
 shared mechanics and absorbed two duplicated `AtomicFiles`; the dedup nodes were superseded and now
 report on ports; `V2.80` fixed a pre-existing collection-delete 500 found on the way. Still open: demo
 data, customer docs, the per-node E2E and four of the standard node tests.)_

@@ -638,7 +638,7 @@ A test needing "a photo shot in the southern hemisphere with no lens tag" writes
 |---|---|
 | **Never change the `schemaType` string** | `search_extract_json_text` is a SQL `CASE` with **no default branch** — a renamed type is silently skipped, not an error. The same trap `tika` sits in |
 | **`method` is the source, not the format** | `exif`, `xmp`, `sidecar`, `gps-track` — as the `asset_geo_comp.method` column comment prescribes. Writing `jpeg` there destroys the key's meaning: an EXIF reading and an XMP reading of one photo would collide |
-| **`ctx.failure(msg).next()` reports SUCCESS** | A known 🔴 in `NodeContextImpl`; several older nodes do it. Failure is always `.abort()`. This node does |
+| **Failure is always `.abort()`** | This node always did. `ctx.failure(msg).next()` used to report SUCCESS tree-wide; fixed 2026-08-18, and `FailurePathGuardTest` (`cortex/api`) now fails the build on the shape |
 | **An empty envelope is SUCCESS** | SKIPPED means "this item did not need processing". A JPEG with no EXIF *was* processed; that it says nothing is the result |
 | **A parse *error* is a failure** | A file that carries nothing → SUCCESS. A file that cannot be read → FAILED, loudly. Do not conflate them |
 | **The kind string appears five times** | `MetadataNodeOptions.KEY`, the `@StringKey`, `name()`, the descriptor `kind`, the YAML key — all must read `metadata` |
@@ -677,6 +677,10 @@ A test needing "a photo shot in the southern hemisphere with no lens tag" writes
 ---
 
 **GIT HEAD**: `9a41819442c3031f621d514d30b857f4297b4743` (master)
-**Last updated**: 2026-08-03 17:37 UTC — written when the node shipped, replacing the pre-build concept
+**Last updated**: 2026-08-18 — the Conventions row on `ctx.failure(msg).next()` is historical: the
+defect is fixed tree-wide and `FailurePathGuardTest` (`cortex/api`) fails the build on the shape. This
+node always aborted.
+
+**Previously**: 2026-08-03 17:37 UTC — written when the node shipped, replacing the pre-build concept
 `spec/concept/ASSET_METADATA_INGEST.md`. Every "today" claim above was read from this checkout; the
 standards summary in §3 is external reference material.

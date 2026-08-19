@@ -2,6 +2,7 @@ package io.metaloom.cortex.node.captioning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
@@ -67,6 +68,33 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 	private CaptioningNode node(CaptioningNodeOptions options, AtomicInteger imageCalls) {
 		// null Loom client = offline mode (no Loom server needed for unit tests).
 		return new CaptioningNode(null, new CortexOptions(), options, stubImageClient(imageCalls), stubVideoClient());
+	}
+
+	/**
+	 * A vision model that throws leaves the item FAILED, carrying the cause.
+	 *
+	 * <p>
+	 * Until 2026-08-18 this node's catch block called {@code e.printStackTrace()} and returned a bare
+	 * {@code NodeResult.failed()} — no logger, no ledger row, and no message, so the run recorded that
+	 * something went wrong without recording <em>what</em>. It is the same class of defect as the
+	 * {@code ctx.failure(cause).next()} sites in the sibling nodes: a failure the operator cannot see.
+	 * </p>
+	 */
+	@Test
+	public void testFailedCaptioningIsFailedAndKeepsTheCause() throws IOException {
+		SmolVLMClient throwing = new SmolVLMClient("localhost", 0) {
+			@Override
+			public String captionByImage(BufferedImage image, int targetSize) {
+				throw new RuntimeException("vision model down");
+			}
+		};
+		CaptioningNode node = new CaptioningNode(null, new CortexOptions(), new CaptioningNodeOptions(), throwing, stubVideoClient());
+
+		NodeResult result = node.process(mediaImage1());
+
+		assertEquals(ResultState.FAILED, result.getState());
+		assertEquals("vision model down", result.getMessage());
+		assertNull(result.get(CaptioningNode.OUT_CAPTION), "A failed run must not emit a caption");
 	}
 
 	@Test

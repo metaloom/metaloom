@@ -170,4 +170,55 @@ class FingerprintDedupNodeTest {
 
 		verify(client, never()).createDedupGroup(any());
 	}
+
+	/**
+	 * An unreachable similarity index is a failure, not "no duplicates found".
+	 *
+	 * <p>
+	 * Discovery reported SUCCESS on both of its failure paths until 2026-08-18, because it ended them
+	 * with {@code ctx.failure(cause).next()} and {@code NodeContextImpl.next()} read only the skip
+	 * reason. A dedup proposal that never appeared because the query broke looked exactly like a corpus
+	 * with no duplicates in it.
+	 * </p>
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void testFailsWhenTheSimilarityQueryThrows() throws Exception {
+		// Build the request mock first; nesting a stubbed mock inside another when() confuses Mockito.
+		AssetResponse query = asset(queryUuid, 2000L, 0L).setFingerprint(new FingerprintInfo().setFingerprintV1("deadbeef"));
+		LoomClientRequest<AssetResponse> queryReq = request(query);
+
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+		when(client.listSimilarAssets(eq(queryUuid), any(), anyInt(), anyFloat())).thenThrow(new RuntimeException("index unreachable"));
+
+		assertThat(node().process(NodeContext.create(media)))
+			.isFailed()
+			.hasMessageContaining("index unreachable");
+
+		verify(client, never()).createDedupGroup(any());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void testFailsWhenTheGroupCannotBeReported() throws Exception {
+		AssetResponse query = asset(queryUuid, 2000L, 0L).setFingerprint(new FingerprintInfo().setFingerprintV1("deadbeef"));
+		LoomClientRequest<AssetResponse> queryReq = request(query);
+		LoomClientRequest<AssetResponse> hitReq = request(asset(hitUuid, 1000L, 0L));
+		SimilarAssetListResponse hits = new SimilarAssetListResponse();
+		hits.add(new SimilarAssetResponse().setAssetUuid(hitUuid.toString()).setScore(0.9f).setSha512("hitsha"));
+		LoomClientRequest<SimilarAssetListResponse> hitsReq = request(hits);
+
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+		when(client.loadAsset(eq(hitUuid))).thenReturn(hitReq);
+		when(client.listSimilarAssets(eq(queryUuid), any(), anyInt(), anyFloat())).thenReturn(hitsReq);
+		when(client.createDedupGroup(any())).thenThrow(new RuntimeException("loom unreachable"));
+
+		// The cause now names what actually broke - the old message was the bare "failed to report dedup
+		// group", which said nothing an operator could act on even once it stopped being discarded.
+		assertThat(node().process(NodeContext.create(media)))
+			.isFailed()
+			.hasMessageContaining("loom unreachable");
+
+		verify(client).createAssetNodeResult(any(), any());
+	}
 }

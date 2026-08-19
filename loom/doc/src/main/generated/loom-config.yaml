@@ -53,6 +53,14 @@ ai:
   thinkEnabled: true
   streaming: false
   titleGeneration: true
+  contextReserveTokens: 2048
+  historyMaxMessages: 0
+  compactionThresholdMessages: 20
+  compactionMaxChars: 4096
+  fanoutMaxItems: 25
+  fanoutConcurrency: 4
+  fanoutChildMaxChars: 1024
+  maxLlmCallsPerRun: 64
 sandbox:
   enabled: false
   backend: "podman"

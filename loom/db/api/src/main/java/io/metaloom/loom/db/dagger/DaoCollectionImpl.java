@@ -38,6 +38,7 @@ import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.notification.NotificationDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.failure.FailureReportDao;
 import io.metaloom.loom.db.model.share.ShareDao;
 import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
@@ -61,6 +62,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AttachmentDao> attachmentDao;
 	private final Lazy<CollectionDao> collectionDao;
 	private final Lazy<RemixDao> remixDao;
+	private final Lazy<FailureReportDao> failureReportDao;
 	private final Lazy<ShareDao> shareDao;
 	private final Lazy<ShareFeedbackDao> shareFeedbackDao;
 	private final Lazy<LibraryDao> libraryDao;
@@ -99,7 +101,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
 		Lazy<CollectionDao> collectionDao, Lazy<RemixDao> remixDao, Lazy<LibraryDao> libraryDao,
-		Lazy<ShareDao> shareDao, Lazy<ShareFeedbackDao> shareFeedbackDao,
+		Lazy<FailureReportDao> failureReportDao, Lazy<ShareDao> shareDao, Lazy<ShareFeedbackDao> shareFeedbackDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
@@ -124,6 +126,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
 		this.remixDao = remixDao;
+		this.failureReportDao = failureReportDao;
 		this.shareDao = shareDao;
 		this.shareFeedbackDao = shareFeedbackDao;
 		this.annotationDao = annotationDao;
@@ -220,6 +223,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public RemixDao remixDao() {
 		return remixDao.get();
+	}
+
+	@Override
+	public FailureReportDao failureReportDao() {
+		return failureReportDao.get();
 	}
 
 	@Override
