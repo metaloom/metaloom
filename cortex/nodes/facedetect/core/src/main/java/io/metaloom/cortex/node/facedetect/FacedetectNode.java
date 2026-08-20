@@ -192,6 +192,14 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	/** Per-instance override of {@link FacedetectNodeOptions#getFaceClusterMinimum()}. See {@link #faceClusterEPS} for why it lives here. */
 	private Integer faceClusterMinimum;
 
+	public static final String KIND = "facedetect";
+
+	/**
+	 * Graph-local id, which is the ledger {@code node_id}. Two instances of this node in one graph differ in their clustering knobs, so without this
+	 * their {@code asset_node_result} rows would overwrite each other on the shared {@code (asset_uuid, node_kind, node_id)} key.
+	 */
+	private String nodeId = KIND;
+
 	@Inject
 	public FacedetectNode(@Nullable LoomClient client, CortexOptions cortexOption, FacedetectNodeOptions options, InspireFacedetector inspireface, VideoFaceScanner videoScanner) {
 		super(client, cortexOption, options);
@@ -212,6 +220,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	@Override
 	public void configure(JsonObject nodeDef) {
 		String id = nodeDef.getString("id", name());
+		this.nodeId = id;
 
 		if (nodeDef.containsKey("faceClusterEPS")) {
 			// Same rule as FacedetectNodeOptions.validate(). Enforced here too because that validates the
@@ -268,7 +277,13 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 
 	@Override
 	public String name() {
-		return "facedetect";
+		return KIND;
+	}
+
+	/** The graph-local instance id — the ledger {@code node_id}. See the field for why the override matters. */
+	@Override
+	protected String nodeId() {
+		return nodeId;
 	}
 
 	@Override

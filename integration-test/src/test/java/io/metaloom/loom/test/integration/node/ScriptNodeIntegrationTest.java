@@ -160,6 +160,16 @@ public class ScriptNodeIntegrationTest extends AbstractNodeIntegrationTest {
 				.collect(java.util.stream.Collectors.toMap(JsonCompResponse::getVariant, c -> c.getData().getString("note")));
 
 			assertThat(byVariant).containsEntry("script-a", "from a").containsEntry("script-b", "from b");
+
+			// The ledger must keep two rows too. Before ScriptNode overrode nodeId() both instances
+			// upserted onto (asset, 'script', '') and the second silently overwrote the first's
+			// state, reason and producer version - the component rows above never caught that,
+			// because they are keyed per variant.
+			List<NodeResultResponse> ledger = client.listAssetNodeResults(asset.getUuid()).sync().body().getData().stream()
+				.filter(r -> ScriptNode.KIND.equals(r.getNodeKind()))
+				.filter(r -> "script-a".equals(r.getNodeId()) || "script-b".equals(r.getNodeId()))
+				.toList();
+			assertThat(ledger).as("two script instances must write two distinct asset_node_result rows").hasSize(2);
 		});
 	}
 }

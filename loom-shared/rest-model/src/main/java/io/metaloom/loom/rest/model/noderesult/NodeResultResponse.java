@@ -15,6 +15,8 @@ public class NodeResultResponse extends AbstractCreatorEditorRestResponse<NodeRe
 	private String reason;
 	private Long durationMs;
 	private JsonObject resultRef;
+	private String runUuid;
+	private String taskUuid;
 
 	public String getAssetUuid() {
 		return assetUuid;
@@ -110,6 +112,28 @@ public class NodeResultResponse extends AbstractCreatorEditorRestResponse<NodeRe
 	@Override
 	public NodeResultResponse setResultRef(JsonObject resultRef) {
 		this.resultRef = resultRef;
+		return this;
+	}
+
+	@Override
+	public String getRunUuid() {
+		return runUuid;
+	}
+
+	@Override
+	public NodeResultResponse setRunUuid(String runUuid) {
+		this.runUuid = runUuid;
+		return this;
+	}
+
+	@Override
+	public String getTaskUuid() {
+		return taskUuid;
+	}
+
+	@Override
+	public NodeResultResponse setTaskUuid(String taskUuid) {
+		this.taskUuid = taskUuid;
 		return this;
 	}
 

@@ -147,11 +147,24 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 			ledger.setNodeId(nodeId());
 			ledger.setProducerVersion(producerVersion);
 			ledger.setState(state.name());
-			ledger.setOrigin(ResultOrigin.COMPUTED.name());
+			// The origin the node actually determined for this item - LOCAL for a cache replay,
+			// REMOTE for a value fetched from Loom. COMPUTED only as the fallback for a node that
+			// recorded nothing; hardcoding it here used to make a replay indistinguishable from
+			// real work in the ledger.
+			ResultOrigin origin = ctx.resultOrigin();
+			ledger.setOrigin((origin != null ? origin : ResultOrigin.COMPUTED).name());
 			ledger.setReason(reason);
 			ledger.setDurationMs(ctx.duration());
 			if (resultRef != null) {
 				ledger.setResultRef(resultRef);
+			}
+			// Null outside a pipeline run - the columns are ON DELETE SET NULL, so the ledger row
+			// outlives the run it references.
+			if (ctx.runUuid() != null) {
+				ledger.setRunUuid(ctx.runUuid().toString());
+			}
+			if (ctx.taskUuid() != null) {
+				ledger.setTaskUuid(ctx.taskUuid().toString());
 			}
 			client().createAssetNodeResult(asset.getUuid(), ledger).sync();
 		} catch (Exception e) {

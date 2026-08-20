@@ -3,6 +3,7 @@ package io.metaloom.cortex.api.node.context;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.Element;
@@ -116,6 +117,21 @@ public interface NodeContext<I> {
 	 * @return the origin, or null when the node is running outside a pipeline run
 	 */
 	Origin origin();
+
+	/**
+	 * The pipeline run this execution belongs to. This is what lets a ledger row ({@code asset_node_result}) name the run that produced it — the join
+	 * every invalidation sweep starts from.
+	 *
+	 * @return the run uuid, or null when the node is running outside a pipeline run
+	 */
+	UUID runUuid();
+
+	/**
+	 * The pipeline node task this execution answers.
+	 *
+	 * @return the task uuid, or null when the node is running outside a pipeline run
+	 */
+	UUID taskUuid();
 
 	/**
 	 * Whether the pipeline wired anything into this input port.

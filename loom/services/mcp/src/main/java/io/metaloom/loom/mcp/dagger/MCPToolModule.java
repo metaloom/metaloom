@@ -11,6 +11,7 @@ import io.metaloom.loom.mcp.tool.MCPTool;
 import io.metaloom.loom.mcp.tool.impl.AssetStatisticsTool;
 import io.metaloom.loom.mcp.tool.impl.CancelJobTool;
 import io.metaloom.loom.mcp.tool.impl.CreatePipelineTool;
+import io.metaloom.loom.mcp.tool.impl.FindAssetsTool;
 import io.metaloom.loom.mcp.tool.impl.GetAssetTool;
 import io.metaloom.loom.mcp.tool.impl.GetJobTool;
 import io.metaloom.loom.mcp.tool.impl.GetNodeDescriptorTool;
@@ -39,6 +40,7 @@ public class MCPToolModule {
 	@MCPTools
 	static Set<MCPTool> mcpTools(
 		SearchAssetsTool searchAssetsTool,
+		FindAssetsTool findAssetsTool,
 		GetAssetTool getAssetTool,
 		SearchTranscriptTool searchTranscriptTool,
 		ListCollectionsTool listCollectionsTool,
@@ -59,6 +61,8 @@ public class MCPToolModule {
 		CancelJobTool cancelJobTool) {
 		return new HashSet<>(Arrays.asList(
 			searchAssetsTool,
+			// Structured search: the whole question - who, when, where, what kind - not just a term.
+			findAssetsTool,
 			getAssetTool,
 			searchTranscriptTool,
 			listCollectionsTool,

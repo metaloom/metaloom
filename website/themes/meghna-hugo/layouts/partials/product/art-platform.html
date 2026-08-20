@@ -1,10 +1,11 @@
 {{/*
-  The five products as one picture, with the page that asked for it highlighted.
+  The six products as one picture, with the page that asked for it highlighted.
 
       {{ partial "product/art-platform.html" (dict "active" "cortex" "caption" "…") }}
 
-  `active` is one of loom · cortex · graph · studio · cloud, and it is also what /graph/ and
-  /studio/ would pass if they ever adopt this partial — the tiles are the menu.
+  `active` is one of loom · cortex · graph · studio · cloud · lumen, and it is also what
+  /graph/, /studio/ and /lumen/ would pass if they ever adopt this partial — the tiles are
+  the menu.
 
   It is markup + CSS (assets/css/product.css, .pr-plat-*), not SVG and certainly not ASCII art:
   every tile is a real link with real text, so it reads correctly to a screen reader, survives a
@@ -59,7 +60,8 @@
     </div>
     {{ range slice
         (dict "key" "studio" "name" "Studio" "note" "Commercial edition · support" "url" "/studio/")
-        (dict "key" "cloud"  "name" "Cloud"  "note" "Hosted by us · in planning"   "url" "/cloud/") }}
+        (dict "key" "cloud"  "name" "Cloud"  "note" "Hosted by us · in planning"   "url" "/cloud/")
+        (dict "key" "lumen"  "name" "Lumen"  "note" "Spatial media engine"         "url" "/lumen/") }}
     {{ if eq $active .key }}
     <div class="pr-plat-tile pr-plat-tile-sm pr-plat-tile-com is-active">
       <b>{{ .name }}</b>

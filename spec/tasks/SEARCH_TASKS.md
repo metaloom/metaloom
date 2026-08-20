@@ -668,3 +668,14 @@ Corrections found during the audit: the `integration-test` build failure the pla
 (`DedupNodeOptions.setDupFolder`) no longer exists; the migration high-water mark is `V2.99`, not
 `V2.84`; the P1-24 spec sync into RBAC / PERMISSIONS / RESTAPI is done, leaving only MCP.md, which is
 folded into Task 1; the search test count is 55 DB-side plus 16 endpoint plus 13 fusion, not 49))_
+
+
+
+
+
+
+
+------
+
+Add a agentic search loop which can process a user query and return a list of elements. 
+It can either run the simple query against postgres or a complex MCP / Agentic search

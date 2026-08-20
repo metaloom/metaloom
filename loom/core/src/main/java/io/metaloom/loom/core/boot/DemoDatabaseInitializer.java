@@ -811,13 +811,17 @@ public class DemoDatabaseInitializer {
 		// The demo has no audio and no PDF to seed: every clip in demo-content/ is silent and the set
 		// carries no document. These stay rows without bytes, which is also a case worth having on the
 		// screen — the asset browser has to look right for material Loom only knows about.
+		// Attributed to Emily rather than to the admin, so the catalogue can answer a question about a
+		// person. "What did Emily add?" is one of the first things anybody asks the chat agent, and on a
+		// demo where a single account uploaded everything it is unanswerable - find_assets resolves the
+		// name correctly and then honestly reports nothing.
 		Asset[] audioAssets = {
-			createAsset(admin, "ambient-rain.mp3", "audio/mpeg", 8_500_000, "/demo/audio/ambient-rain.mp3"),
-			createAsset(admin, "podcast-episode1.mp3", "audio/mpeg", 45_000_000, "/demo/audio/podcast-episode1.mp3"),
+			createAsset(editor, "ambient-rain.mp3", "audio/mpeg", 8_500_000, "/demo/audio/ambient-rain.mp3"),
+			createAsset(editor, "podcast-episode1.mp3", "audio/mpeg", 45_000_000, "/demo/audio/podcast-episode1.mp3"),
 		};
 
 		Asset[] docAssets = {
-			createAsset(admin, "space-brief.pdf", "application/pdf", 1_200_000, "/demo/docs/space-brief.pdf"),
+			createAsset(editor, "space-brief.pdf", "application/pdf", 1_200_000, "/demo/docs/space-brief.pdf"),
 			createAsset(admin, "meeting-notes.pdf", "application/pdf", 340_000, "/demo/docs/meeting-notes.pdf"),
 		};
 
@@ -1766,7 +1770,12 @@ public class DemoDatabaseInitializer {
 		return pool;
 	}
 
-	private Asset createAsset(User admin, String filename, String mimeType, long size, String origin) {
+	/**
+	 * @param creator
+	 *            who the asset is attributed to. Not always the admin: a catalogue where one account uploaded everything cannot demonstrate any
+	 *            question of the form "what did <i>she</i> add", which the chat agent's {@code find_assets} answers by resolving a person's name.
+	 */
+	private Asset createAsset(User creator, String filename, String mimeType, long size, String origin) {
 		String hashHex = String.format("%0128x", new java.math.BigInteger(1, filename.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
 			.substring(0, 128);
 		// Pad to 128 hex chars
@@ -1774,10 +1783,10 @@ public class DemoDatabaseInitializer {
 			hashHex = hashHex + "0";
 		}
 		SHA512 sha512 = SHA512.fromString(hashHex);
-		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, size);
+		Asset asset = assetDao.createAsset(creator, sha512, mimeType, filename, origin, size);
 		asset.setUuid(LoomUUID.timeOrdered());
-		asset.setCreator(admin);
-		asset.setEditor(admin);
+		asset.setCreator(creator);
+		asset.setEditor(creator);
 		asset.setCreated(Instant.now());
 		asset.setEdited(Instant.now());
 		asset.setFirstSeen(Instant.now());

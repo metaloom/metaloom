@@ -83,7 +83,7 @@ link = "plugins/detectionplayer/detectionplayer.js"
 
 ################### English Navigation ########################
 # Five top-level entries, three of which open a dropdown. Everything the header reaches appears
-# EXACTLY ONCE: the five products under *Products*, the two reference surfaces under *Docs*, the
+# EXACTLY ONCE: the six products under *Products*, the two reference surfaces under *Docs*, the
 # two written ones under *Blog*. Before this, Studio, Graph, Pipeline Editor and Announcements
 # each held a slot of their own and the bar ran out of room between 992 and 1200 px.
 #
@@ -147,6 +147,14 @@ url = "cloud"
 weight = 5
   [Languages.en.menu.main.params]
   note = "Hosted MetaLoom — in planning"
+
+[[Languages.en.menu.main]]
+parent = "products"
+name = "MetaLoom // Lumen"
+url = "lumen"
+weight = 6
+  [Languages.en.menu.main.params]
+  note = "Spatial media engine — commercial"
 
 # ------------------------------------------------------------------------------- plain entries
 [[Languages.en.menu.main]]

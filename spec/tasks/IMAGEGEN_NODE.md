@@ -13,7 +13,7 @@
 | Item | Where it lives |
 |---|---|
 | Maven module | `cortex/nodes/image-generation/` (parent + `core`), registered in `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`, `integration-test/pom.xml` |
-| Node | `cortex/nodes/image-generation/core/.../imagegen/ImageGenNode.java` — `name()="imagegen"`, `isProcessable = media.isImage()`, `LocalResultCache`, writes `metaPath/imagegen_bin/<seg>/<sha512>.png`, ledger-only `recordNodeResult` |
+| Node | `cortex/nodes/image-generation/core/.../imagegen/ImageGenNode.java` — `name()="imagegen"`, `isProcessable = media.isImage()`, `LocalResultCache`, writes `metaPath/imagegen_bin/<seg>/<sha512>-<digest>.png` (options digest since 2026-08-20; the node is now `PipelineConfigurable` with a `nodeId()` override), ledger-only `recordNodeResult` |
 | Modes | `ImageGenMode` (`GENERATE` \| `REMIX`), selected via `ImageGenNodeOptions.mode` |
 | Options | `ImageGenNodeOptions` (`KEY="imagegen"`): `mode`, `prompt`, `host`, `port` (9200), `generateEndpoint`, `remixEndpoint`, `width`/`height`, `strength`, `seed`, `steps`, `timeoutMs` (120 s) + `validate()` |
 | Sidecar client | `ImageGenClient` — `java.net.http.HttpClient` → `/generate`, `/remix`, returns PNG `byte[]` |
@@ -34,7 +34,7 @@
       ```bash
       cd sidecars/ideogram-sidecar && CUDA_VISIBLE_DEVICES=1 ./venv/bin/uvicorn server:app --port 9200
       # point ImageGenNodeOptions host/port at it, run GENERATE on a real image asset
-      # expect: PNG under metaPath/imagegen_bin/<seg>/<sha512>.png + asset_node_result row node_kind="imagegen"
+      # expect: PNG under metaPath/imagegen_bin/<seg>/<sha512>-<digest>.png + asset_node_result row node_kind="imagegen"
       ```
       Repeat against `sidecars/mage-flow-sidecar` (its own port) to confirm the contract is
       genuinely model-agnostic.
@@ -67,4 +67,4 @@
 
 ---
 _Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Last updated: 2026-08-20 (NODE_TASKS.md Task 4 landed: options digest in path+cache key, PipelineConfigurable, nodeId() override). Earlier: 2026-08-06 (reference sweep — no content changes)_

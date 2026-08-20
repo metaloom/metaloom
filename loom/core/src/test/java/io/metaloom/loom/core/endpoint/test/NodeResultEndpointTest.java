@@ -2,6 +2,7 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.UUID;
 
@@ -10,6 +11,10 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
+import io.metaloom.loom.db.model.pipeline.Pipeline;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.noderesult.NodeResultListResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
@@ -74,6 +79,85 @@ public class NodeResultEndpointTest extends AbstractEndpointTest {
 			client.deleteAssetNodeResult(ASSET_UUID, uuid).sync().body();
 			expect(404, "Not Found", client.loadAssetNodeResult(ASSET_UUID, uuid));
 		}
+	}
+
+	/**
+	 * A row created with a run and task reference reads both back — the join that lets an operator
+	 * ask "which execution produced these values". testCreate covers the other half: a request
+	 * omitting them still succeeds, because the ad-hoc and CLI paths have no run.
+	 */
+	@Test
+	public void testRunAndTaskReferenceRoundtrip() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineNodeTask task = createRunAndTask();
+
+			NodeResultCreateRequest request = new NodeResultCreateRequest();
+			request.setNodeKind("whisper");
+			request.setState("SUCCESS");
+			request.setRunUuid(task.getRunUuid().toString());
+			request.setTaskUuid(task.getUuid().toString());
+			NodeResultResponse created = client.createAssetNodeResult(ASSET_UUID, request).sync().body();
+			assertEquals(task.getRunUuid().toString(), created.getRunUuid());
+			assertEquals(task.getUuid().toString(), created.getTaskUuid());
+
+			NodeResultResponse loaded = client.loadAssetNodeResult(ASSET_UUID, created.getUuid()).sync().body();
+			assertEquals(task.getRunUuid().toString(), loaded.getRunUuid());
+			assertEquals(task.getUuid().toString(), loaded.getTaskUuid());
+		}
+	}
+
+	/**
+	 * The run link is ON DELETE SET NULL: pruning the run must detach the ledger row, never delete
+	 * it — the ledger is permanent catalog state and outlives every run.
+	 */
+	@Test
+	public void testRunDeleteDetachesLedgerRow() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineNodeTask task = createRunAndTask();
+
+			NodeResultCreateRequest request = new NodeResultCreateRequest();
+			request.setNodeKind("whisper");
+			request.setState("SUCCESS");
+			request.setRunUuid(task.getRunUuid().toString());
+			request.setTaskUuid(task.getUuid().toString());
+			NodeResultResponse created = client.createAssetNodeResult(ASSET_UUID, request).sync().body();
+
+			daos().pipelineRunDao().delete(task.getRunUuid());
+
+			NodeResultResponse loaded = client.loadAssetNodeResult(ASSET_UUID, created.getUuid()).sync().body();
+			assertNotNull(loaded, "The ledger row must survive the run deletion");
+			assertNull(loaded.getRunUuid(), "The run reference must be detached, not cascade the row away");
+			assertNull(loaded.getTaskUuid(), "The task rows are pruned with the run, so the task reference must be detached too");
+			assertEquals("SUCCESS", loaded.getState());
+		}
+	}
+
+	@Test
+	public void testValidationRejectsMalformedRunUuid() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			NodeResultCreateRequest request = new NodeResultCreateRequest();
+			request.setNodeKind("whisper");
+			request.setState("SUCCESS");
+			request.setRunUuid("not-a-uuid");
+			expect(400, "Bad Request", client.createAssetNodeResult(ASSET_UUID, request));
+		}
+	}
+
+	/** A pipeline, a run, one item and one settled task, seeded through the DAOs. */
+	private PipelineNodeTask createRunAndTask() {
+		UUID adminUuid = adminUuid();
+		Pipeline pipeline = daos().pipelineDao().createPipeline(adminUuid, "node-result-test-" + UUID.randomUUID());
+		daos().pipelineDao().store(pipeline);
+		PipelineRun run = daos().pipelineRunDao().createPipelineRun(adminUuid, pipeline.getUuid(), 1);
+		daos().pipelineRunDao().store(run);
+		PipelineRunItem item = daos().pipelineRunItemDao().createRunItem(adminUuid, run.getUuid(), 0, "/media/example.mp4");
+		daos().pipelineRunItemDao().store(item);
+		PipelineNodeTask task = daos().pipelineNodeTaskDao().createNodeTask(adminUuid, item.getUuid(), run.getUuid(), "whisper", "whisper");
+		daos().pipelineNodeTaskDao().store(task);
+		return task;
 	}
 
 	@Test

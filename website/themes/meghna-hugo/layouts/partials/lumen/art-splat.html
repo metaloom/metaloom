@@ -1,0 +1,95 @@
+{{/* "Gaussian splat generation" art: flat frames on the left, recovered camera poses around a
+     sparse point cloud in the middle, and the optimised anisotropic Gaussians on the right with
+     the render-compare loop that trains them. Geometry here, colour + motion in lumen.css
+     (.lu-sp-*). Ids are page-prefixed "lu-sp-" — ids are document-global. */}}
+<div class="lu-art lu-art-splat">
+  <svg viewBox="0 0 460 300" class="lu-sp" role="img" aria-labelledby="lu-sp-title lu-sp-desc">
+    <title id="lu-sp-title">How a video becomes a Gaussian-splat scene</title>
+    <desc id="lu-sp-desc">Video frames on the left; structure-from-motion recovers the camera
+      pose of each frame around a sparse point cloud; a differentiable rasteriser then optimises
+      millions of anisotropic 3D Gaussians until rendering them reproduces the footage.</desc>
+
+    <defs>
+      <linearGradient id="lu-sp-frame" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1c2733"/>
+        <stop offset="100%" stop-color="#111820"/>
+      </linearGradient>
+      <radialGradient id="lu-sp-gauss" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffcf9b" stop-opacity=".85"/>
+        <stop offset="60%" stop-color="#e2a86e" stop-opacity=".38"/>
+        <stop offset="100%" stop-color="#e2a86e" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="lu-sp-gauss-dim" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#9fb4c4" stop-opacity=".6"/>
+        <stop offset="60%" stop-color="#5b7c8d" stop-opacity=".28"/>
+        <stop offset="100%" stop-color="#5b7c8d" stop-opacity="0"/>
+      </radialGradient>
+      <marker id="lu-sp-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L8 4 L0 8 Z" fill="rgba(226,168,110,.75)"/>
+      </marker>
+    </defs>
+
+    {{/* --- the footage: a short stack of frames --- */}}
+    <g class="lu-sp-frames">
+      <rect x="26" y="118" width="74" height="50" rx="6" fill="url(#lu-sp-frame)" stroke="rgba(255,255,255,.14)"/>
+      <rect x="18" y="110" width="74" height="50" rx="6" fill="url(#lu-sp-frame)" stroke="rgba(255,255,255,.18)"/>
+      <rect x="10" y="102" width="74" height="50" rx="6" fill="url(#lu-sp-frame)" stroke="rgba(255,255,255,.25)"/>
+      <polygon points="38,117 38,137 58,127" fill="rgba(226,168,110,.85)"/>
+      <text class="lu-sp-label" x="47" y="182" text-anchor="middle">video frames</text>
+    </g>
+
+    <path class="lu-sp-step" d="M104 130 C 128 130, 132 130, 152 130" fill="none" marker-end="url(#lu-sp-arrow)"/>
+
+    {{/* --- structure-from-motion: camera wedges posed around a sparse cloud --- */}}
+    <g class="lu-sp-sfm">
+      <circle cx="222" cy="128" r="52" fill="none" stroke="rgba(255,255,255,.09)" stroke-dasharray="3 6"/>
+      {{/* the sparse points the poses triangulate */}}
+      <g class="lu-sp-points" fill="#9fb4c4">
+        <circle cx="212" cy="118" r="1.7"/>
+        <circle cx="228" cy="130" r="1.7"/>
+        <circle cx="219" cy="141" r="1.7"/>
+        <circle cx="234" cy="115" r="1.7"/>
+        <circle cx="207" cy="132" r="1.7"/>
+        <circle cx="226" cy="122" r="1.7"/>
+      </g>
+      {{/* three recovered cameras: a wedge is a lens cone seen from above */}}
+      <g class="lu-sp-cam" style="--lu-delay:.2s">
+        <polygon points="222,76 214,62 230,62" fill="rgba(226,168,110,.8)"/>
+      </g>
+      <g class="lu-sp-cam" style="--lu-delay:.45s">
+        <polygon points="176,158 160,154 166,169" fill="rgba(226,168,110,.8)"/>
+      </g>
+      <g class="lu-sp-cam" style="--lu-delay:.7s">
+        <polygon points="268,158 284,154 278,169" fill="rgba(226,168,110,.8)"/>
+      </g>
+      <text class="lu-sp-label" x="222" y="204" text-anchor="middle">poses recovered</text>
+    </g>
+
+    <path class="lu-sp-step" d="M292 130 C 316 130, 320 130, 340 130" fill="none" marker-end="url(#lu-sp-arrow)"/>
+
+    {{/* --- the optimised scene: anisotropic Gaussians settling into shape --- */}}
+    <g class="lu-sp-scene">
+      <g class="lu-sp-splat" style="--lu-delay:0s">   <ellipse cx="390" cy="96"  rx="17" ry="8"  transform="rotate(-24 390 96)"  fill="url(#lu-sp-gauss)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.15s"> <ellipse cx="414" cy="112" rx="13" ry="6"  transform="rotate(18 414 112)"  fill="url(#lu-sp-gauss-dim)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.3s">  <ellipse cx="376" cy="120" rx="14" ry="7"  transform="rotate(40 376 120)"  fill="url(#lu-sp-gauss-dim)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.45s"> <ellipse cx="400" cy="132" rx="18" ry="7"  transform="rotate(-8 400 132)"  fill="url(#lu-sp-gauss)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.6s">  <ellipse cx="424" cy="142" rx="11" ry="5"  transform="rotate(28 424 142)"  fill="url(#lu-sp-gauss-dim)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.75s"> <ellipse cx="384" cy="148" rx="15" ry="6"  transform="rotate(-32 384 148)" fill="url(#lu-sp-gauss)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:.9s">  <ellipse cx="408" cy="158" rx="13" ry="5"  transform="rotate(12 408 158)"  fill="url(#lu-sp-gauss-dim)"/></g>
+      <g class="lu-sp-splat" style="--lu-delay:1.05s"><ellipse cx="396" cy="114" rx="10" ry="5"  transform="rotate(56 396 114)"  fill="url(#lu-sp-gauss)"/></g>
+      <text class="lu-sp-label" x="400" y="204" text-anchor="middle">millions of Gaussians</text>
+    </g>
+
+    {{/* --- the training loop: render, compare against the footage, adjust --- */}}
+    <g class="lu-sp-loop">
+      <path class="lu-sp-loop-path" d="M400 234 C 260 268, 190 268, 47 234" fill="none" marker-end="url(#lu-sp-arrow)"/>
+      <text class="lu-sp-loop-label" x="224" y="248" text-anchor="middle">render &#8596; compare &#8596; adjust</text>
+    </g>
+  </svg>
+
+  <div class="lu-art-strip">
+    <span class="lu-pill lu-pill-accent">{{ .readout.psnr_label }} {{ .readout.psnr_value }}</span>
+    <span class="lu-pill">{{ .readout.psnr_note }}</span>
+    <span class="lu-pill">{{ .readout.train_value }} {{ .readout.train_note }}</span>
+  </div>
+</div>

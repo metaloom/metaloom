@@ -30,7 +30,7 @@ The backend runs a tool-calling loop against a Large Language Model. On each use
 Tool failures become *error tool results* rather than aborting the run, so the model can react and
 retry — a run is resilient to a single failing tool.
 
-Built-in domain tools include `search_assets`, `get_asset`, `search_transcript`, `list_collections`,
+Built-in domain tools include `find_assets`, `search_assets`, `get_asset`, `search_transcript`, `list_collections`,
 `asset_statistics`, `list_pipelines` and `get_pipeline`. Results carry structured **references**
 (asset · collection · task · comment · pipeline · annotation), which the UI renders as clickable
 chips inside the conversation — and, for some results, a **diagram** the chat draws inline (see
@@ -51,6 +51,46 @@ link:../configuration/[Loom Configuration].
 A chat may have only one active run at a time; a concurrent request returns `409 AGENT_BUSY`.
 
 [#pipeline-diagrams]
+== Finding Assets by Asking
+
+Ask for what you are looking for in the way you would ask a colleague, and the assistant searches the
+catalogue for it:
+
+* *"Find me the assets Emily uploaded yesterday for the campaign project"*
+* *"Which videos mention the harbour?"*
+* *"Show me the images tagged approved from last week"*
+
+You do not need to know anyone's user id, any project id, or today's date. Names are looked up as
+part of the search: *"Emily"* becomes the right person, *"the campaign project"* the right project,
+*"yesterday"* the right day in your calendar. The assistant tells you what it searched for — *"created
+by Emily Editor, since yesterday, in Campaign"* — so you can see whether it understood you before you
+trust the list.
+
+A question does not need search words at all. *"Everything Emily added yesterday"* has none — it is
+made entirely of who and when — and that works exactly as well as a question with a keyword in it.
+
+What is searched is everything Loom knows about a file, not just its name: transcripts, text
+extracted from documents, captions, detected objects and tags are all included. So *"the video where
+they talk about the harbour"* finds it even though "harbour" appears nowhere in the filename.
+
+TIP: Ask for the timecode — *"where in that video?"* — and the assistant answers with the position in
+the clip rather than only the file.
+
+=== When It Cannot Find a Name
+
+If nobody matches the name you used, the assistant says so and stops. It does not quietly search
+without that part of your question, because a list of *everyone's* files presented as one person's
+would be worse than no answer. If two people match, it asks which one you meant.
+
+The same applies to an empty result: *"no assets matched"* names the filters it used, so you can tell
+"there are none" apart from "the search was narrower than you meant".
+
+=== Permissions
+
+Searching the catalogue this way needs the ordinary **Read search** and **Read assets** permissions —
+the same two that let a person use the search screen. Results are limited to what the account asking
+is allowed to see; the assistant cannot look past its own permissions.
+
 == Building a Pipeline by Asking
 
 The assistant can do more than describe a pipeline — it can build one. Ask for what you want

@@ -29,6 +29,7 @@ public class NodeResult {
 	private final ResultState state;
 	private final long durationMs;
 	private final String message;
+	private final ResultOrigin origin;
 	private final Map<String, PortOutput> outputs;
 	private final Map<String, NodePreview> previews;
 
@@ -42,7 +43,7 @@ public class NodeResult {
 	 * @param outputs    the port outputs (may be {@code null}, treated as empty)
 	 */
 	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs) {
-		this(nodeId, state, durationMs, message, outputs, null);
+		this(nodeId, state, durationMs, message, outputs, null, null);
 	}
 
 	/**
@@ -53,10 +54,22 @@ public class NodeResult {
 	 */
 	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs,
 		Map<String, NodePreview> previews) {
+		this(nodeId, state, durationMs, message, outputs, previews, null);
+	}
+
+	/**
+	 * Canonical constructor.
+	 *
+	 * @param origin where the value came from ({@code ctx.origin(...)}), or {@code null} when the node did not report - which readers treat as
+	 *               {@link ResultOrigin#COMPUTED}
+	 */
+	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs,
+		Map<String, NodePreview> previews, ResultOrigin origin) {
 		this.nodeId = nodeId;
 		this.state = state;
 		this.durationMs = durationMs;
 		this.message = message;
+		this.origin = origin;
 		this.outputs = outputs != null ? Collections.unmodifiableMap(new LinkedHashMap<>(outputs)) : Collections.emptyMap();
 		this.previews = previews != null ? Collections.unmodifiableMap(new LinkedHashMap<>(previews)) : Collections.emptyMap();
 	}
@@ -105,6 +118,16 @@ public class NodeResult {
 	}
 
 	/**
+	 * Where the value came from - computed here, served from this worker's cache ({@code LOCAL}), or fetched from Loom ({@code REMOTE}).
+	 *
+	 * @return the origin the node recorded via {@code ctx.origin(...)}, or {@code null} when it recorded nothing - readers treat that as
+	 *         {@link ResultOrigin#COMPUTED}
+	 */
+	public ResultOrigin getOrigin() {
+		return origin;
+	}
+
+	/**
 	 * The port outputs produced by the node, keyed by output port id.
 	 */
 	public Map<String, PortOutput> getOutputs() {
@@ -144,7 +167,7 @@ public class NodeResult {
 	 * attach DAG identity to a result minted by a {@code CortexNode} (which does not know its own pipeline id).
 	 */
 	public NodeResult withNode(String nodeId, long durationMs) {
-		return new NodeResult(nodeId, state, durationMs, message, outputs, previews);
+		return new NodeResult(nodeId, state, durationMs, message, outputs, previews, origin);
 	}
 
 	// --- Node-level factories (no pipeline id) ---

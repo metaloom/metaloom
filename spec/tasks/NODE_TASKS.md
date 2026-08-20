@@ -87,7 +87,14 @@ golden `NodeSpecGoldenTest` must be regenerated and pass: `mvn -pl integration-t
 
 ---
 
-## Task 3: `ScriptNode` does not override `nodeId()` and collides in the ledger
+## Task 3: `ScriptNode` does not override `nodeId()` and collides in the ledger — DONE (2026-08-20)
+
+> `ScriptNode.nodeId()` returns the configured instance id (the field already existed);
+> `ScriptNodeIntegrationTest.testTwoScriptNodesCoexistOnOneAsset` extended to assert two distinct
+> `asset_node_result` rows. The implementor audit found one more omission — `FacedetectNode`
+> implements `PipelineConfigurable` (per-instance clustering knobs) without the override; fixed the
+> same way. `MetadataNode`, `S3SinkNode`, `MoveNode`, `AssignNode` and `TagNode` were already
+> correct.
 
 **Argumentation Summary:** `ScriptNode` implements `PipelineConfigurable` but never overrides
 `AbstractMediaNode.nodeId()`, which returns `""`. `AssetNodeResultDaoImpl.java:101` upserts on
@@ -114,7 +121,14 @@ extend the integration test to assert two script instances produce two ledger ro
 
 ---
 
-## Task 4: Two `imagegen` instances in one graph overwrite each other's output
+## Task 4: Two `imagegen` instances in one graph overwrite each other's output — DONE (2026-08-20)
+
+> The output path is now `<sha512>-<digest>.png` and the in-heap cache key carries the same digest
+> (Sam2Node pattern), computed over the *effective* prompt (a wired prompt wins) plus mode, size,
+> strength, seed and steps. `ImageGenNode` implements `PipelineConfigurable` — per-instance
+> overrides are held on the node, not written into the possibly worker-shared options object — and
+> overrides `nodeId()`. `ImageGenNodeTest.testTwoInstancesDifferingOnlyByOptionsWriteDistinctFiles`
+> asserts two configured instances produce two files, two sidecar calls and two ledger ids.
 
 **Argumentation Summary:** `ImageGenNode.resolveImagePath` names the output
 `metaPath/imagegen_bin/<segment>/<sha512>.png` from the **source** asset's hash with no options

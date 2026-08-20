@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.loom.pipeline.model.DataElement;
@@ -38,7 +39,7 @@ import io.metaloom.loom.pipeline.model.PortPayload;
  * </p>
  */
 public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts,
-	boolean capturePreviews) {
+	boolean capturePreviews, UUID runUuid, UUID taskUuid) {
 
 	private static final NodeInputs EMPTY = new NodeInputs(Map.of(), Set.of(), null);
 
@@ -46,6 +47,15 @@ public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOut
 		ports = ports == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(ports));
 		demandedOutputs = demandedOutputs == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(demandedOutputs));
 		artifacts = artifacts == null ? ArtifactCache.noop() : artifacts;
+	}
+
+	/**
+	 * The form for a caller without the run identity — a node invoked outside a managed pipeline execution. {@link #runUuid()} and {@link #taskUuid()}
+	 * stay null, which the ledger writer reads as "no run to reference".
+	 */
+	public NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts,
+		boolean capturePreviews) {
+		this(ports, demandedOutputs, origin, artifacts, capturePreviews, null, null);
 	}
 
 	/**
@@ -66,7 +76,15 @@ public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOut
 	 * The same inputs, bound to an artifact scope. Used by the runner, which builds the port view per node but opens the scope once per segment.
 	 */
 	public NodeInputs withArtifacts(ArtifactCache artifacts) {
-		return new NodeInputs(ports, demandedOutputs, origin, artifacts, capturePreviews);
+		return new NodeInputs(ports, demandedOutputs, origin, artifacts, capturePreviews, runUuid, taskUuid);
+	}
+
+	/**
+	 * The same inputs, stamped with the execution identity of the task being answered. Used by the runners, which are the only callers that have a
+	 * run to name — {@code asset_node_result.run_uuid/task_uuid} is where these end up.
+	 */
+	public NodeInputs withExecution(UUID runUuid, UUID taskUuid) {
+		return new NodeInputs(ports, demandedOutputs, origin, artifacts, capturePreviews, runUuid, taskUuid);
 	}
 
 	/**

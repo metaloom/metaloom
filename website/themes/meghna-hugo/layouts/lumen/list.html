@@ -1,0 +1,190 @@
+{{/*
+  /lumen/ — MetaLoom Lumen, the spatial media engine.
+
+  Sibling of layouts/studio/list.html in shape and in colour: a dark scroller with the shared
+  reveal.js motion, and the amber accent, because Lumen — like Studio and Cloud — is a
+  commercial offering. Teal on this site means open source; Lumen is not.
+
+  Copy comes from data/en/lumen.yml; the art is inline SVG in partials/lumen/art-*.html,
+  selected per panel by its `art:` key. Styling is assets/css/lumen.css (loaded via the page's
+  `page_css` front matter), everything prefixed .lu-*. Every SVG id in the partials is
+  page-prefixed ("lu-…") — ids are document-global and would otherwise collide.
+*/}}
+{{ define "main" }}
+{{ $d := (index hugo.Data site.Language.Lang).lumen }}
+
+{{ partial "navigation.html" . }}
+
+<main class="lu-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  {{/* ---------------------------------------------------------------- hero */}}
+  {{ with $d.hero }}
+  {{ $src := resources.Get "images/scenery/grid-lights.jpg" }}
+  <section class="lu-hero" id="top">
+    {{/* Same layer order as the studio hero: photo, travelling light blended into it, veil for
+         legibility, fade so the picture dissolves into the page instead of being cut off. */}}
+    <div class="lu-hero-media">
+      <img src="{{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }}"
+           srcset="{{ ($src.Fill "900x1100 webp q62 Center").RelPermalink }} 900w, {{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }} 1920w"
+           sizes="100vw" alt="" aria-hidden="true" fetchpriority="high">
+      <div class="lu-hero-sweep" aria-hidden="true"></div>
+      <div class="lu-hero-sweep lu-hero-sweep-slow" aria-hidden="true"></div>
+      <div class="lu-hero-breathe" aria-hidden="true"></div>
+      <div class="lu-hero-veil"></div>
+      <div class="lu-hero-fade" aria-hidden="true"></div>
+    </div>
+    <div class="lu-hero-inner">
+      <p class="lu-eyebrow reveal">{{ .eyebrow }}</p>
+      <h1 class="lu-hero-title reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="lu-hero-lead reveal" data-reveal-delay="2">{{ .content }}</p>
+      {{/* An in-page target ("#contact") must stay a bare fragment — relURL would turn it
+           into "/#contact", which points at the home page. */}}
+      <div class="lu-hero-actions reveal" data-reveal-delay="3">
+        <a class="lu-btn lu-btn-primary" href="{{ if hasPrefix .primary.link "#" }}{{ .primary.link }}{{ else }}{{ .primary.link | relURL }}{{ end }}">{{ .primary.label }}</a>
+        <a class="lu-btn lu-btn-ghost" href="{{ if hasPrefix .secondary.link "#" }}{{ .secondary.link }}{{ else }}{{ .secondary.link | relURL }}{{ end }}">{{ .secondary.label }}</a>
+      </div>
+      {{ with .status }}
+      <p class="lu-status reveal" data-reveal-delay="4"><span class="lu-status-dot" aria-hidden="true"></span>{{ . }}</p>
+      {{ end }}
+    </div>
+    <a class="lu-scroll-cue" href="#generation" aria-label="{{ .scroll_hint }}">
+      <span>{{ .scroll_hint }}</span>
+      <svg viewBox="0 0 24 34" width="18" height="26" aria-hidden="true">
+        <rect x="1" y="1" width="22" height="32" rx="11" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle class="lu-scroll-dot" cx="12" cy="10" r="2.6" fill="currentColor"/>
+      </svg>
+    </a>
+  </section>
+  {{ end }}
+
+  {{/* --------------------------------------------- a) Gaussian splat generation */}}
+  {{ with $d.generation }}
+  <section class="lu-section lu-generation" id="generation">
+    <div class="lu-wrap lu-split">
+      <div class="lu-split-text">
+        <p class="lu-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="lu-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="lu-lead reveal">{{ .content }}</p>
+      </div>
+      <div class="lu-split-art reveal">
+        <div class="lu-art-frame">
+          {{ partial "lumen/art-splat.html" . }}
+        </div>
+      </div>
+    </div>
+    <div class="lu-wrap">
+      <ol class="lu-stages">
+        {{ range $i, $s := .stages }}
+        <li class="lu-stage reveal" data-reveal-delay="{{ $i }}">
+          <span class="lu-stage-index">{{ printf "%02d" (add $i 1) }}</span>
+          <h3>{{ $s.label }}</h3>
+          <p>{{ $s.note }}</p>
+        </li>
+        {{ end }}
+      </ol>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* -------------------------- b) ingestion · c) decomposition · d) storage */}}
+  <section class="lu-panels" id="pipeline">
+    {{ range $i, $p := $d.panels }}
+    <article class="lu-panel{{ if eq (mod $i 2) 1 }} lu-panel-flip{{ end }}">
+      <div class="lu-wrap lu-split">
+        <div class="lu-split-text">
+          <p class="lu-eyebrow reveal">{{ $p.eyebrow }}</p>
+          <h2 class="lu-title lu-title-sm reveal">{{ $p.title | safeHTML }}</h2>
+          <p class="lu-lead reveal">{{ $p.content }}</p>
+          <ul class="lu-chips reveal">
+            {{ range $p.chips }}<li>{{ . }}</li>{{ end }}
+          </ul>
+        </div>
+        <div class="lu-split-art reveal">
+          <div class="lu-art-frame">
+            {{ partial (printf "lumen/art-%s.html" $p.art) $p }}
+          </div>
+        </div>
+      </div>
+    </article>
+    {{ end }}
+  </section>
+
+  {{/* ----------------------------------------------------- e) key features */}}
+  {{ with $d.features }}
+  <section class="lu-section lu-features" id="features">
+    <div class="lu-wrap">
+      <div class="lu-section-head">
+        <p class="lu-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="lu-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="lu-lead reveal">{{ .content }}</p>
+      </div>
+      <div class="reveal lu-search-holder">
+        {{ partial "lumen/art-search.html" . }}
+      </div>
+      <div class="lu-cards lu-cards-4">
+        {{ range $i, $f := .items }}
+        <div class="lu-card lu-card-icon reveal" data-reveal-delay="{{ mod $i 4 }}">
+          <i class="{{ $f.icon }}" aria-hidden="true"></i>
+          <h3>{{ $f.title }}</h3>
+          <p>{{ $f.note }}</p>
+        </div>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ------------------------------------------------------------- numbers */}}
+  {{ with $d.numbers }}
+  <section class="lu-numbers">
+    <div class="lu-wrap">
+      <dl class="lu-numbers-grid">
+        {{ range $i, $n := . }}
+        <div class="lu-number reveal" data-reveal-delay="{{ $i }}">
+          <dt class="lu-number-value" data-count-up>{{ $n.value }}</dt>
+          <dd class="lu-number-label">{{ $n.label }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------- contact */}}
+  {{ with $d.contact }}
+  {{ $src := resources.Get "images/scenery/neon-lines.jpg" }}
+  <section class="lu-section lu-cta" id="contact">
+    <div class="lu-bg-media">
+      <img src="{{ ($src.Fill "1600x900 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
+      <div class="lu-bg-veil"></div>
+    </div>
+    <div class="lu-wrap lu-cta-inner">
+      <p class="lu-eyebrow reveal">{{ .eyebrow }}</p>
+      <h2 class="lu-title reveal">{{ .title | safeHTML }}</h2>
+      <p class="lu-lead reveal">{{ .content }}</p>
+      {{/* Plain facts instead of a promise — the same device /studio/ uses. */}}
+      <dl class="lu-facts reveal">
+        {{ range .facts }}
+        <div class="lu-fact">
+          <dt>{{ .label }}</dt>
+          <dd>{{ .value }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+      {{/* A mailto, not a form — same reasoning as /studio/: there is no list to subscribe
+           anyone to, and a field that collects silently would be worse than no field. */}}
+      <div class="lu-hero-actions reveal">
+        <a class="lu-btn lu-btn-primary" href="{{ .primary.link | safeURL }}">{{ .primary.label }}</a>
+        <a class="lu-btn lu-btn-ghost" href="{{ .secondary.link | relURL }}">{{ .secondary.label }}</a>
+        <a class="lu-btn lu-btn-plain" href="{{ .tertiary.link }}" rel="noopener">{{ .tertiary.label }}</a>
+      </div>
+      {{ with .note }}<p class="lu-cta-note reveal">{{ . }}</p>{{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+</main>
+
+{{ partial "reveal-script.html" . }}
+{{ end }}

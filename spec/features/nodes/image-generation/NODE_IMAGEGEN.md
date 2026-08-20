@@ -39,7 +39,7 @@
 | **What are the two modes?** | `GENERATE` text-to-image, source pixels ignored · `REMIX` image-to-image from the asset's own picture (§2) |
 | **How is the mode chosen?** | An explicit `mode` **option**, never from which ports happen to be wired |
 | **Where does the prompt come from?** | The wired `prompt` port if there is one, otherwise the `prompt` option — the edge always wins (§3.1) |
-| **Where does the image go?** | `metaPath/imagegen_bin/<segment>/<sha512>.png` on the worker — ledger only; wire `image` into `s3-sink` to keep it |
+| **Where does the image go?** | `metaPath/imagegen_bin/<segment>/<sha512>-<digest>.png` on the worker — ledger only; wire `image` into `s3-sink` to keep it |
 | **Does it need a GPU?** | For usable latency, yes. `defaultConcurrency = 1` says one request at a time |
 | **Does it write to the schema?** | No. One `asset_node_result` row, `result_ref == null`, `producer_version == null` (§4) |
 | **Which sidecar does it talk to?** | Whichever the `port` option names. There is no backend enum — the port *is* the selector (§6) |
@@ -55,7 +55,7 @@ flowchart LR
   U["upstream caption / LLM answer"] -->|"prompt (text/*)"| N
   M["the asset's own image"] -.->|"media (media/image) - declared, not read"| N
   N["ImageGenNode<br/>GENERATE | REMIX"] -->|"HTTP/1.1 JSON in, image/png out"| S["ideogram-sidecar :9200<br/>or mage-flow-sidecar :9210"]
-  N -->|"Files.write"| B["metaPath/imagegen_bin/&lt;seg&gt;/&lt;sha512&gt;.png"]
+  N -->|"Files.write"| B["metaPath/imagegen_bin/&lt;seg&gt;/&lt;sha512&gt;-&lt;digest&gt;.png"]
   N -->|"recordNodeResult"| L[("asset_node_result")]
   N -->|"image (artifact/image)"| K["S3SinkNode.IN_ARTIFACTS"]
 ```
@@ -119,22 +119,24 @@ The port is not harmless decoration: it tells a pipeline author that wiring an i
 what the node remixes, and it does not. Either consume the port or stop advertising it — tracked in
 [../../../tasks/IMAGEGEN_NODE.md](../../../tasks/IMAGEGEN_NODE.md).
 
-### 3.3 🔴 The output path carries no option digest
+### 3.3 🟢 The output path carries an option digest (fixed 2026-08-20)
 
 ```java
-Path basePath = cortexOptions.getMetaPath().resolve("imagegen_bin");
-return HashUtils.segmentPath(basePath, hash).resolve(hash + ".png");
+String fileName = hash + "-" + digest + ".png";   // digest = sha256(mode|prompt|WxH|strength|seed|steps)[0:12]
 ```
 
-The file is named after the **source asset's** SHA-512 and nothing else. The in-heap
-`LocalResultCache` is likewise keyed on the media path alone. Two `imagegen` nodes in one graph — say
-one prompted from a caption and one from an LLM answer — therefore write the *same* file and serve
-each other's cache entries; the second one's picture is the first one's picture.
+The file is named after the source asset's SHA-512 **plus** a digest of everything that changes the
+produced image — the *effective* prompt (a wired `prompt` port wins over the configured one) and
+mode, size, strength, seed and steps — following the `sam2` / `image-manipulation` pattern. The
+in-heap `LocalResultCache` key carries the same digest. Two `imagegen` nodes in one graph write two
+files and never serve each other's cache entries.
 
-`sam2` and `image-manipulation` both put an options digest in the artifact directory name for exactly
-this reason. `imagegen` does not, and compounds it: the node is **not** `PipelineConfigurable`
-([../NODES.md](../NODES.md) §6.5), so its `prompt`, `mode`, `host` and `port` are per *worker*, not per
-node instance — the `prompt` port is the only way two instances can differ at all.
+The node is also `PipelineConfigurable` now: `prompt`, `mode`, `width`, `height`, `strength`,
+`seed` and `steps` can be set per node instance, and `nodeId()` returns the graph-local id so the
+two instances keep two `asset_node_result` rows. The per-instance overrides are held on the node
+rather than written into the options object, which may be the worker-shared YAML instance
+(the `FacedetectNode` reasoning). Environmental options (`host`, `port`, endpoints, timeout) stay
+worker-scoped.
 
 ### 3.4 🟢 `ctx.failure(msg).abort()` (fixed 2026-08-18)
 
@@ -163,7 +165,7 @@ the hit through `metrics.recordAiCacheHit("imagegen")`.
 
 | What | Where |
 |---|---|
-| The generated PNG | `metaPath/imagegen_bin/<segment>/<sha512>.png` on the worker |
+| The generated PNG | `metaPath/imagegen_bin/<segment>/<sha512>-<digest>.png` on the worker |
 | The record that this node ran | one `asset_node_result` row, `result_ref == null` |
 | Which model produced it | **nothing** — `producerVersion` is `null` too |
 
@@ -229,8 +231,11 @@ and [../../../sidecars/MAGE_FLOW_SIDECAR.md](../../../sidecars/MAGE_FLOW_SIDECAR
 
 ## 7. Options
 
-All are `imagegen.*` node options ([../NODES.md](../NODES.md) §6 for how they are set). They are read
-**per worker** — this node is not `PipelineConfigurable` (§3.3).
+All are `imagegen.*` node options ([../NODES.md](../NODES.md) §6 for how they are set), which act as
+the worker-wide defaults. Since 2026-08-20 the node is `PipelineConfigurable` (§3.3): the
+result-affecting options — `mode`, `prompt`, `width`, `height`, `strength`, `seed`, `steps` — can be
+overridden per pipeline node instance (held on the node, never written back into the shared options
+object). The environmental options (`host`, `port`, endpoints, `timeoutMs`) stay worker-scoped.
 
 | Option | Type | Default | Notes |
 |---|---|---|---|

@@ -1,0 +1,64 @@
+---
+title: Running Lumen
+description: "The Lumen container image: GPU and driver requirements, the data volume, fetching the encoder weights, and serving the web console."
+---
+
+Lumen ships as a single container image that carries the server, the reconstruction pipeline and
+the web console. The only host requirements are a container engine (Docker or Podman), an NVIDIA
+GPU and the NVIDIA container toolkit.
+
+== Requirements
+
+[cols="1,3"]
+|===
+
+| GPU
+| An NVIDIA GPU with hardware video decode (NVDEC). Reconstruction quality does not depend on the
+card, but training time does — a modern high-memory card trains a full scene in minutes.
+
+| Driver
+| A CUDA 13 capable NVIDIA driver on the host, with the NVIDIA container toolkit installed. The
+image requests the driver's *video* capability, which is what makes hardware decode available
+inside the container.
+
+| Storage
+| One volume, mounted at `/opt/lumen/data`. Stores, staged clips and model weights all live under
+it; sizing depends on the corpus — budget on the order of a gigabyte per reconstructed scene.
+
+|===
+
+== First run
+
+Verify the GPU stack, fetch the encoder weights (~600 MB, one time, into the data volume), then
+serve:
+
+[source,bash]
+----
+docker run --rm --gpus all metaloom/lumen gpu-doctor
+docker run --rm --gpus all -v lumen-data:/opt/lumen/data metaloom/lumen fetch-models
+docker run -d --gpus all -p 8080:8080 -v lumen-data:/opt/lumen/data --name lumen metaloom/lumen
+----
+
+`gpu-doctor` audits every layer the pipeline depends on — driver, kernel compilation, hardware
+decode, inter-process sharing — and exits non-zero naming the first thing that failed, which is
+considerably more useful than a stack trace from the middle of an ingest.
+
+The console is then reachable on port 8080 of the host. Without the encoder weights the corpus
+still browses; the search box itself explains what is missing rather than failing silently.
+
+== Exposure and authentication
+
+The server carries **no authentication**. Outside a container it therefore binds to the local
+machine only; the container image overrides this so the published port works, and the server
+prints a warning saying so at startup. Publish the port to localhost, a private network or behind
+your own authenticating reverse proxy — never directly to the internet.
+
+== Day-to-day operation
+
+* **Ingest through the console.** The link:../web-ui[Ingest panel] accepts clips and queues them
+  behind the single GPU worker; progress streams per stage.
+* **Everything is also headless.** Every operation the console offers — reconstruction, import,
+  search, rendering, corpus audit — exists as a command inside the image, so batch work and
+  scripting need no browser session.
+* **The store survives the container.** All state lives on the data volume; the container itself
+  is disposable and upgrades are a matter of running a newer image against the same volume.

@@ -71,4 +71,20 @@ public interface NodeResultModel<T extends NodeResultModel<T>> extends MetaModel
 
 	T setResultRef(JsonObject resultRef);
 
+	/**
+	 * Return the uuid of the pipeline run this row was written by, or null when the node ran outside a pipeline (ad-hoc, CLI). The column is
+	 * {@code ON DELETE SET NULL}: pruning the run keeps the ledger row and merely detaches it.
+	 */
+	String getRunUuid();
+
+	T setRunUuid(String runUuid);
+
+	/**
+	 * Return the uuid of the pipeline node task this row was written by, or null when the node ran outside a pipeline. Like the run link, the column
+	 * is {@code ON DELETE SET NULL}.
+	 */
+	String getTaskUuid();
+
+	T setTaskUuid(String taskUuid);
+
 }

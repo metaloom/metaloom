@@ -446,6 +446,9 @@ spec/
 │                                      #   tasks/METALOOM_ARCHITECTURE_TASK.md — neither
 │                                      #   METALOOM_ARCHITECTURE_TASK.md nor the retired
 │                                      #   METALOOM_ARCHITECTURE_V2_PLAN_C.md sits under cortex/
+├── design/
+│   └── STYLE_GUIDE.md                 # NEW 2026-08-20 — frontend style guide: colours, typography,
+│                                      #   menus, component + CSS rules for loom-ui AND the website
 ├── loom/
 │   ├── BUILD.md                       # Loom build pipeline
 │   ├── CONFIGURATION.md               # LoomOptions, config file, env vars, validation
@@ -576,6 +579,7 @@ spec/
 | **What users will ask the chat, and whether Loom can answer** | [chat/CHAT_USER_REQUESTS.md](chat/CHAT_USER_REQUESTS.md) — 88 prompts, 24 open spots, ranked by what blocks the most |
 | **Getting node results (faces, captions, GPS, transcripts, detections) in front of the model** | [chat/AGENTIC_CHAT_CONTEXT_DATA.md](chat/AGENTIC_CHAT_CONTEXT_DATA.md) — render on read, do **not** materialize a markdown corpus per asset; `search_document` is already the precomputed text layer |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
+| **How things should look** — colours, tokens, typography, menu styling, CSS rules (loom-ui and the website) | [design/STYLE_GUIDE.md](design/STYLE_GUIDE.md) — tokens live in `loom-ui/src/theme/index.ts` and `custom.less`; the guide is the map, the code is the authority |
 | **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**, current state only; open work in [tasks/LOOM_UI_UPLOAD_TASKS.md](tasks/LOOM_UI_UPLOAD_TASKS.md); the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |

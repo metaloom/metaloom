@@ -42,12 +42,12 @@ coding agent that has to add or restructure site content, or fix the build/publi
   site; it used to be 0.131, which could not (see [Prerequisites](#prerequisites)).
 * Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
   → its `docs/`, served by GitHub Pages at `metaloom.io`.
-* Top-level areas besides `/docs/`: the five **product** pages `/loom/`, `/cortex/`, `/graph/`,
-  `/studio/`, `/cloud/`, plus `/tour/`, `/features/`, `/pipeline-editor/`, `/announcements/`,
-  `/blog/`, `/author/`, `/faq/`, `/team/` and the `/help/` redirector.
+* Top-level areas besides `/docs/`: the six **product** pages `/loom/`, `/cortex/`, `/graph/`,
+  `/studio/`, `/cloud/`, `/lumen/`, plus `/tour/`, `/features/`, `/pipeline-editor/`,
+  `/announcements/`, `/blog/`, `/author/`, `/faq/`, `/team/` and the `/help/` redirector.
   ⚠️ `/tour/` **used to be `/studios/`** — renamed so it could not be confused with `/studio/`; a
   Hugo alias keeps the old URL alive.
-* **The header is six entries, three of them dropdowns** — *Products* (the five product pages),
+* **The header is six entries, three of them dropdowns** — *Products* (the six product pages),
   *Tour*, *Features*, *Docs* (docs · getting started · pipeline editor), *Blog* (posts ·
   announcements) and *Team*. See [The header](#the-header-and-what-scrolling-does-to-it).
 * **Every page carries a unique `<title>` and a hand-written `<meta name="description">`.** Both are
@@ -155,8 +155,8 @@ website/
 ├── pom.xml                # Maven module registration only
 ├── content/english/       # contentDir — see the page inventory below
 ├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
-├── data/en/*.yml          # LIVE: home · tour · studio · feature · faq · team · loom · cortex · cloud.
-│                          #       The other 9 are dead Meghna copy
+├── data/en/*.yml          # LIVE: home · tour · studio · lumen · feature · faq · team · loom · cortex
+│                          #       · cloud. The other 10 are dead Meghna copy
 ├── data/en/help.json      # /help/ topic id → docs URL, the Loom UI's half in loom-ui/src/help/
 ├── i18n/en.yaml           # UI strings (menu labels, footer headings, "Read more")
 ├── static/                # verbatim → dist/: images/ · CNAME · .nojekyll
@@ -165,14 +165,14 @@ website/
 │   └── images/og-*.jpg    #   1200×630 social cards
 ├── themes/meghna-hugo/    # the only theme
 │   ├── layouts/           #   index · alias · 404 · robots.txt · _default · docs · announcements
-│   │                      #   · author · features · tour · studio · product · graph · faq · team
-│   │                      #   · help · pipeline-editor
+│   │                      #   · author · features · tour · studio · lumen · product · graph · faq
+│   │                      #   · team · help · pipeline-editor
 │   │                      #   · partials (incl. breadcrumb.html, func/page-title.html)
 │   ├── less/              #   main.less + includes/{custom,adoc,docs,toc,variables}.less → assets/css/main.css
 │   ├── assets/css/        #   main.css (compiled) · home.css (also /faq/ + /team/) · tour.css
-│   │                      #   · studio.css · product.css · pipeline-editor.css · 404.css
+│   │                      #   · studio.css · lumen.css · product.css · pipeline-editor.css · 404.css
 │   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js · docs-search.js · 404.js
-│   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/ and /studio/
+│   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/, /studio/ + /lumen/
 │   └── static/plugins/    #   15 vendored plugins incl. swagger · graphiql · nodeviz · toc
 │                          #   · ternlight (the 10 MB embedding model, committed)
 └── dist/                  # BUILD OUTPUT (git-ignored) — incl. generated search/
@@ -195,6 +195,7 @@ Every content page is a **page bundle**: a directory with `index.adoc`/`index.md
 | `/loom/` · `/cortex/` · `/cloud/` | `_index.md` (front matter only, `type: product` + `data_key:`) | `data/en/{loom,cortex,cloud}.yml` | `layouts/product/list.html` + `partials/product/art-platform.html` — see [The product pages](#the-product-pages) |
 | `/graph/` | `_index.adoc` + a reference tree (`api/`, `cypher/`, `benchmarks/`, …) | in the pages | `layouts/graph/{list,single}.html`, reusing the docs topic rail |
 | `/studio/` | `_index.md` (front matter only) | `data/en/studio.yml` | `layouts/studio/list.html` + `partials/studio/art-*.html` (7) |
+| `/lumen/` | `_index.md` (front matter only) | `data/en/lumen.yml` | `layouts/lumen/list.html` + `partials/lumen/art-*.html` (5) |
 | `/pipeline-editor/` | `_index.md` (front matter only) | — (all in JS) | `layouts/pipeline-editor/list.html` — see [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
 | `/announcements/` | `_index.adoc` + `metaloom-1-0-0/index.adoc` | in the pages | `layouts/announcements/{list,single}.html` |
 | `/blog/` | `_index.md` + 6 post bundles | in the posts | `layouts/_default/{list,article,single}.html` |
@@ -210,17 +211,21 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 
 ### The product pages
 
-**Five things are called a product** and the header's *Products* menu lists exactly those five:
-Loom, Cortex and Graph (the open source platform) and Studio and Cloud (the two commercial ways
-to get it). Three of them — `/loom/`, `/cortex/`, `/cloud/` — share **one layout and no template
-work**: a page opts in with `type: product` and names its copy with `data_key`, so adding a
-product page means adding `content/english/<name>/_index.md` and `data/en/<name>.yml`.
+**Six things are called a product** and the header's *Products* menu lists exactly those six:
+Loom, Cortex and Graph (the open source platform) and Studio, Cloud and Lumen (the three
+commercial offerings). Three of them — `/loom/`, `/cortex/`, `/cloud/` — share **one layout and
+no template work**: a page opts in with `type: product` and names its copy with `data_key`, so
+adding a product page means adding `content/english/<name>/_index.md` and `data/en/<name>.yml`.
+`/lumen/` — the spatial media engine, commercial like Studio and Cloud, amber accent — is a
+design-led scroll page of its own instead (`layouts/lumen/list.html`, `data/en/lumen.yml`,
+`partials/lumen/art-*.html`, `assets/css/lumen.css` prefixed `.lu-*`), built on the same
+reveal.js pattern as `/tour/` and `/studio/`.
 
 * **Every section of the layout is optional** (`hero`, `facts`, `summary`, `capabilities`,
   `surfaces`, `docs`, `cta`), rendered `with` its key. A product with nothing to say about its
   interfaces omits `surfaces:` rather than shipping an empty band.
 * **`partials/product/art-platform.html` is the one piece of art** and it is shared: it draws all
-  five products and highlights the one whose `key:` was passed in. The tiles are real links with
+  six products and highlights the one whose `key:` was passed in. The tiles are real links with
   real text — it is the diagram *and* the way across to the sibling products. The current page's
   tile is deliberately **not** a link.
   ⚠️ The active tile and the linked tile are written out in full rather than switching the tag
@@ -627,10 +632,12 @@ There is **one palette for the whole site** — CSS custom properties at the top
 * `assets/css/home.css` (`/` and `/features/`) defines **no colours** — its `.hm-page` block aliases
   the tokens. Change a colour once and `/`, `/features/`, `/docs/`, `/blog/`, `/announcements/`
   all follow.
-* `/tour/` (`.st-*`, teal) and `/studio/` (`.sd-*`, amber `#e2a86e`) keep page-scoped stylesheets on
-  purpose — **that is the one place the accent may differ**. Inside `studio.css` teal survives as
-  `--sd-teal` and marks exactly one thing: *what is open source*. Do not fold them into `main.css`,
-  and note both are **hand-written CSS** — `yarn build` only compiles `less/main.less`.
+* `/tour/` (`.st-*`, teal), `/studio/` (`.sd-*`, amber `#e2a86e`) and `/lumen/` (`.lu-*`, the same
+  amber — Lumen is commercial) keep page-scoped stylesheets on purpose — **that is the one place
+  the accent may differ**. Inside `studio.css` teal survives as `--sd-teal` and marks exactly one
+  thing: *what is open source*; `lumen.css` uses no teal at all, because nothing on that page is.
+  Do not fold them into `main.css`, and note all three are **hand-written CSS** — `yarn build`
+  only compiles `less/main.less`.
 * The card object (gradient surface, hairline, teal border, `--ml-lift` hover translate) is
   deliberately identical on `.hm-feature`, `.docs-card`, `.note`, `.ann-entry`, `.blog-card`.
 * Docs, `/announcements/`, `/blog/` and `/author/` share one reading system: Quattrocento Sans
@@ -682,8 +689,8 @@ they land in the docs TOC.
 Sticky, translucent, `.is-active` + `aria-current` on the current section, hamburger → X, and the
 **docs search box** pinned to the right edge of the bar ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)).
 
-**Six entries, three of them dropdowns.** *Products* (Loom · Cortex · Graph · Studio · Cloud),
-*Tour*, *Features*, *Docs* (all documentation · getting started · pipeline editor), *Blog*
+**Six entries, three of them dropdowns.** *Products* (Loom · Cortex · Graph · Studio · Cloud ·
+Lumen), *Tour*, *Features*, *Docs* (all documentation · getting started · pipeline editor), *Blog*
 (all posts · announcements) and *Team*. Everything the header reaches appears **exactly once**;
 before this, Studio, Graph, Pipeline Editor and Announcements each held a slot of their own and
 the bar ran out of room between 992 and 1200 px.
@@ -1115,7 +1122,7 @@ is restricted to `^HUGO_` and `^CI$`, so **templates can read no other env var**
 | `paginate` / `summaryLength` | `6` / `15` | Blog list page size, auto-summary words |
 | `enableRobotsTXT` / `disableLanguages` | `true` / `[]` | |
 | `Languages.en.contentDir` | `content/english` | Only language; `locale = en-us`, `label = En` |
-| `[[Languages.en.menu.main]]` | **Products 1** (Loom · Cortex · Graph · Studio · Cloud) · Tour 2 · Features 3 · **Docs 4** (docs · getting started · pipeline editor) · **Blog 5** (posts · announcements) · Team 6 | Children use `parent = "<identifier>"` + a `params.note`. All point at real pages — never a `pre = "#"` anchor. A parent carries no `url` |
+| `[[Languages.en.menu.main]]` | **Products 1** (Loom · Cortex · Graph · Studio · Cloud · Lumen) · Tour 2 · Features 3 · **Docs 4** (docs · getting started · pipeline editor) · **Blog 5** (posts · announcements) · Team 6 | Children use `parent = "<identifier>"` + a `params.note`. All point at real pages — never a `pre = "#"` anchor. A parent carries no `url` |
 | `[security.exec] allow` | includes `asciidoctor` | **Must** include it or `.adoc` renders empty |
 | `[security] enableInlineShortcodes` | `false` | Why layout uses `++++` passthrough |
 | `[security.funcs] getenv` | `['^HUGO_', '^CI$']` | |
@@ -1152,7 +1159,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a docs **section** | New folder with `_index.adoc` (**not** `index.adoc`) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Add a task-oriented guide | `docs/playbooks/<name>/index.adoc` — link from `playbooks/_index.adoc` **and** `docs/_index.adoc` |
 | Add/redraw a node diagram | The `data-nodeviz` block on the page; renderer `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` |
-| Change home / tour / studio / feature / FAQ / team copy | `website/data/en/{home,tour,studio,feature,faq,team}.yml` — **never the layout** |
+| Change home / tour / studio / lumen / feature / FAQ / team copy | `website/data/en/{home,tour,studio,lumen,feature,faq,team}.yml` — **never the layout** |
 | Change a product page's copy (`/loom/`, `/cortex/`, `/cloud/`) | `website/data/en/{loom,cortex,cloud}.yml` — one shared layout, see [The product pages](#the-product-pages) |
 | Add a product page | `content/english/<name>/_index.md` with `type: product`, `data_key`, `seo_title`, `page_css: css/product.css` + `data/en/<name>.yml` + a tile in `partials/product/art-platform.html` + a child entry under `products` in `config.toml` |
 | Add or edit an FAQ entry | `data/en/faq.yml` — it feeds the page *and* the schema.org `FAQPage` metadata |
@@ -1161,7 +1168,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Fix a duplicated or wrong `<title>` | `partials/func/page-title.html`, or `seo_title` in the page's front matter |
 | Keep a page out of search results | `noindex: true` in its front matter |
 | Change `robots.txt` | `themes/meghna-hugo/layouts/robots.txt` (Hugo's built-in is overridden) |
-| Add an illustration to `/tour/` or `/studio/` | `layouts/partials/{tour,studio}/art-<name>.html` (selected by the `art:` key in the YAML) + `assets/css/{tour,studio}.css` |
+| Add an illustration to `/tour/`, `/studio/` or `/lumen/` | `layouts/partials/{tour,studio,lumen}/art-<name>.html` (selected by the `art:` key in the YAML) + `assets/css/{tour,studio,lumen}.css` |
 | Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
 | Load a heavy plugin on one page only | Front matter `page_js:` / `page_css:` listing `plugins/<name>/…` static paths — **not** `[[params.plugins.js]]`. Order in the list is the load order |
 | Redirect an old URL | `aliases:` in the target's front matter; the stub comes from `layouts/alias.html` |
@@ -1244,9 +1251,10 @@ shared attributes come from `docs/variables.adoc-include` instead.
   into a scratch dir: `hugo -d /tmp/distcheck && node check-links.mjs /tmp/distcheck`.
 * **`build.sh` runs `yarn install`**, which rewrites `themes/meghna-hugo/yarn.lock`. Restore it;
   don't commit that churn with a content change.
-* **9 of the 15 `data/en/*.yml` files are dead.** Only `home`, `tour`, `studio`, `feature`, `faq`
-  and `team` are rendered; `about`, `service`, `skill`, `funfacts`, `pricing`, `testimonial`,
-  `portfolio`, `contact`, `banner`, `cta` are unwired legacy Meghna copy. Do not "fix" copy that
+* **10 of the 20 `data/en/*.yml` files are dead.** Only `home`, `tour`, `studio`, `lumen`,
+  `feature`, `faq`, `team`, `loom`, `cortex` and `cloud` are rendered; `about`, `service`,
+  `skill`, `funfacts`, `pricing`, `testimonial`, `portfolio`, `contact`, `banner`, `cta` are
+  unwired legacy Meghna copy. Do not "fix" copy that
   cannot appear. (`team.yml` *was* one of the dead ones and now backs `/team/`; the theme's original
   `partials/team.html` grid is still unused, because a page about one person is not a grid.)
 * **`content-off/` is parked content** — outside `contentDir`, not built. Use it to disable a page
@@ -1450,10 +1458,16 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (the recipe-harness note on `NodeContextImpl.next()` is now historical — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard. The four-way success check stays)_
+_Git HEAD revision: `daefc256`_
+_Last updated: 2026-08-20 (`/lumen/` — the spatial media engine became the sixth product: a
+design-led scroll page like `/tour/` and `/studio/` (`layouts/lumen/list.html`,
+`data/en/lumen.yml`, five `partials/lumen/art-*.html` inline-SVG illustrations, `assets/css/lumen.css`
+prefixed `.lu-*`, amber accent because it is commercial). Lumen was added as the sixth child of the
+*Products* menu and as a third small commercial tile in `partials/product/art-platform.html`; the
+product count in this file moved from five to six)_
 
-_Previously: 2026-08-17 (the header became six entries with three dropdowns — *Products*,
+_Previously: 2026-08-18 (the recipe-harness note on `NodeContextImpl.next()` is now historical — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard. The four-way success check stays)
+Earlier: 2026-08-17 (the header became six entries with three dropdowns — *Products*,
 *Docs*, *Blog* — plus *Team*, each panel opening one at a time via `.nav-js`, with the menu moved
 beside the logo and the search box left holding the right edge; and the three new product pages `/loom/`, `/cortex/` and `/cloud/` landed on one
 shared `layouts/product/list.html` driven by `data/en/*.yml`. `/cloud/` describes an offering that

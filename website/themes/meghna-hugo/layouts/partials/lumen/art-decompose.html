@@ -1,0 +1,73 @@
+{{/* "Decomposition" art: one capture pulled apart into its branches — static structure,
+     dynamic content, generated fill — drawn as three planes of an exploded view, with the
+     semantic labels a scene's primitives can carry. The planes slide apart when the panel is
+     revealed. Colour + motion in lumen.css (.lu-dc-*). Ids are page-prefixed "lu-dc-". */}}
+<div class="lu-art lu-art-decompose">
+  <svg viewBox="0 0 420 280" class="lu-dc" role="img" aria-labelledby="lu-dc-title lu-dc-desc">
+    <title id="lu-dc-title">A capture decomposed</title>
+    <desc id="lu-dc-desc">One captured scene separates into three stacked layers: the static
+      structure of the room, the dynamic content that moved through it, and generated fill where
+      nothing was observed. Primitives also carry semantic class labels, so parts of the scene —
+      a machine, the people, the room — can be addressed separately.</desc>
+
+    <defs>
+      <linearGradient id="lu-dc-plane" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(255,255,255,.07)"/>
+        <stop offset="100%" stop-color="rgba(255,255,255,.02)"/>
+      </linearGradient>
+    </defs>
+
+    {{/* --- top plane: dynamic content --- */}}
+    <g class="lu-dc-layer lu-dc-layer-dynamic">
+      <polygon points="80,58 280,28 360,66 160,96" fill="url(#lu-dc-plane)" stroke="rgba(226,168,110,.55)"/>
+      {{/* two moving figures, abstract */}}
+      <circle cx="196" cy="52" r="6" fill="rgba(226,168,110,.85)"/>
+      <path d="M188 70 C 189 58, 203 58, 204 70 Z" fill="rgba(226,168,110,.85)"/>
+      <circle cx="248" cy="56" r="5" fill="rgba(255,207,155,.7)"/>
+      <path d="M241 71 C 242 61, 254 61, 255 71 Z" fill="rgba(255,207,155,.7)"/>
+      <text class="lu-dc-tag" x="366" y="52">dynamic &#183; what moved</text>
+    </g>
+
+    {{/* --- middle plane: generated fill --- */}}
+    <g class="lu-dc-layer lu-dc-layer-fill">
+      <polygon points="80,128 280,98 360,136 160,166" fill="url(#lu-dc-plane)" stroke="rgba(255,255,255,.22)" stroke-dasharray="5 5"/>
+      {{/* the patch nothing observed, hatched in */}}
+      <polygon class="lu-dc-patch" points="196,120 252,111 282,125 226,134" fill="rgba(159,180,196,.16)" stroke="rgba(159,180,196,.5)" stroke-dasharray="3 4"/>
+      <text class="lu-dc-tag" x="366" y="122">fill &#183; generated</text>
+    </g>
+
+    {{/* --- bottom plane: static structure --- */}}
+    <g class="lu-dc-layer lu-dc-layer-static">
+      <polygon points="80,198 280,168 360,206 160,236" fill="url(#lu-dc-plane)" stroke="rgba(255,255,255,.3)"/>
+      {{/* the room as a wireframe: counter, wall corner, machine */}}
+      <polyline points="120,212 190,200 190,182 260,172" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.6"/>
+      <polyline points="230,200 300,190 300,178" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.4"/>
+      <rect class="lu-dc-machine" x="246" y="176" width="18" height="13" rx="2" fill="rgba(226,168,110,.25)" stroke="rgba(226,168,110,.8)"/>
+      <text class="lu-dc-tag" x="366" y="192">static &#183; the room</text>
+    </g>
+
+    {{/* --- the seam holding the exploded view together --- */}}
+    <line class="lu-dc-axis" x1="220" y1="18" x2="220" y2="252" stroke="rgba(255,255,255,.1)" stroke-dasharray="2 7"/>
+
+    {{/* --- semantic labels: primitives addressable by class --- */}}
+    <g class="lu-dc-classes">
+      <g class="lu-dc-class" style="--lu-delay:.9s">
+        <rect x="18" y="36" width="112" height="20" rx="10" fill="rgba(226,168,110,.12)" stroke="rgba(226,168,110,.5)"/>
+        <text class="lu-dc-class-label" x="74" y="50" text-anchor="middle">espresso machine</text>
+      </g>
+      <g class="lu-dc-class" style="--lu-delay:1.1s">
+        <rect x="18" y="106" width="70" height="20" rx="10" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.2)"/>
+        <text class="lu-dc-class-label" x="53" y="120" text-anchor="middle">people</text>
+      </g>
+      <g class="lu-dc-class" style="--lu-delay:1.3s">
+        <rect x="18" y="176" width="82" height="20" rx="10" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.2)"/>
+        <text class="lu-dc-class-label" x="59" y="190" text-anchor="middle">the room</text>
+      </g>
+      {{/* leader lines from label to layer; pathLength="1" lets lumen.css draw them with a
+           unit dash. */}}
+      <path class="lu-dc-leader" pathLength="1" style="--lu-delay:1s"   d="M130 46 C 190 46, 210 174, 246 181" fill="none"/>
+      <path class="lu-dc-leader" pathLength="1" style="--lu-delay:1.2s" d="M88 116 C 140 112, 160 62, 188 58" fill="none"/>
+      <path class="lu-dc-leader" pathLength="1" style="--lu-delay:1.4s" d="M100 186 C 120 190, 130 204, 150 206" fill="none"/>
+    </g>
+  </svg>
+</div>

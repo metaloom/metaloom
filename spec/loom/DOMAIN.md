@@ -148,6 +148,20 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 > and is pruned with the run (key `(item_uuid, node_id, element_seq)`). The node result is per
 > **asset**, is catalog state, and outlives every run. `run_uuid`/`task_uuid` are the join.
 > `result_ref` is an advisory pointer, **not** a foreign key — never build integrity on it.
+> Since the provenance completion (2026-08-20) the cortex write path fills `origin` with the value
+> the node actually determined (`LOCAL` for a cache replay, `COMPUTED` only for real work) and
+> `run_uuid`/`task_uuid` with the executing task's identity, so a row answers "which execution
+> produced this value".
+
+> **Decision — worker identity on the ledger is denormalised, never an FK.** `cortex_instance` is a
+> *registration*: workers re-register across reconnects and rows are pruned with churn, while
+> `asset_node_result` is permanent catalog state. An FK (even `SET NULL`) would lose the attribution
+> exactly when it is needed — after the worker that wrote bad data is gone — and would force every
+> ledger write to know its registry row's uuid. When per-row worker attribution is added it will be
+> **denormalised name+version columns** (the `producer_version` philosophy: a plain `WHERE`, no
+> join). Until then, attribution is `producer_version` (the model/algorithm build, per row, durable)
+> plus the `task_uuid → pipeline_node_task` join while the run is retained. Do not reopen the FK
+> option.
 
 ### 5. AI / ML
 

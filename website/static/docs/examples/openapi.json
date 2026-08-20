@@ -58,6 +58,8 @@
     "name" : "embeddings",
     "description" : "Vector embeddings and their attachments"
   }, {
+    "name" : "failure-reports"
+  }, {
     "name" : "graphql",
     "description" : "GraphQL query endpoint"
   }, {
@@ -7148,7 +7150,9 @@
                     "resultRef" : {
                       "table" : "asset_transcript_comp",
                       "uuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ]
-                    }
+                    },
+                    "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "taskUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -7228,7 +7232,9 @@
                 "resultRef" : {
                   "table" : "asset_transcript_comp",
                   "uuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ]
-                }
+                },
+                "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "taskUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
               }
             }
           }
@@ -7262,7 +7268,9 @@
                   "resultRef" : {
                     "table" : "asset_transcript_comp",
                     "uuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ]
-                  }
+                  },
+                  "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "taskUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
                 }
               }
             }
@@ -18419,6 +18427,603 @@
         }
       } ]
     },
+    "/api/v1/failure-reports" : {
+      "description" : "Submit a problem report. Requires authentication and no permission, so that a user can always report a failure",
+      "get" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Load a paged list of problem reports",
+        "description" : "Load a paged list of problem reports",
+        "operationId" : "getFailurereports",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The problem report list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "action" : "createPerson",
+                    "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                    "httpMethod" : "POST",
+                    "path" : "/api/v1/persons",
+                    "statusCode" : 500,
+                    "errorMessage" : "Internal Server Error",
+                    "route" : "/detection",
+                    "userAgent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+                    "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                    "triageStatus" : "NEW",
+                    "hasScreenshot" : true,
+                    "screenshotUrl" : "https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "action" : "createPerson",
+                    "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                    "httpMethod" : "POST",
+                    "path" : "/api/v1/persons",
+                    "statusCode" : 500,
+                    "errorMessage" : "Internal Server Error",
+                    "route" : "/detection",
+                    "userAgent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+                    "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                    "triageStatus" : "NEW",
+                    "hasScreenshot" : true,
+                    "screenshotUrl" : "https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Submit a problem report. Requires authentication and no permission, so that a user can always report a failure",
+        "description" : "Submit a problem report. Requires authentication and no permission, so that a user can always report a failure",
+        "operationId" : "postFailurereports",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "action" : "createPerson",
+                "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                "httpMethod" : "POST",
+                "path" : "/api/v1/persons",
+                "statusCode" : 500,
+                "errorMessage" : "Internal Server Error",
+                "route" : "/detection",
+                "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                "screenshot" : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "screenshotWidth" : 2560,
+                "screenshotHeight" : 1440
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The problem report response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "action" : "createPerson",
+                  "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                  "httpMethod" : "POST",
+                  "path" : "/api/v1/persons",
+                  "statusCode" : 500,
+                  "errorMessage" : "Internal Server Error",
+                  "route" : "/detection",
+                  "userAgent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+                  "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                  "triageStatus" : "NEW",
+                  "hasScreenshot" : true,
+                  "screenshotUrl" : "https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/failure-reports/{uuid}" : {
+      "description" : "Move a problem report through triage",
+      "get" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Load a problem report",
+        "description" : "Load a problem report",
+        "operationId" : "getFailurereportsByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The problem report response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "action" : "createPerson",
+                  "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                  "httpMethod" : "POST",
+                  "path" : "/api/v1/persons",
+                  "statusCode" : 500,
+                  "errorMessage" : "Internal Server Error",
+                  "route" : "/detection",
+                  "userAgent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+                  "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                  "triageStatus" : "NEW",
+                  "hasScreenshot" : true,
+                  "screenshotUrl" : "https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Move a problem report through triage",
+        "description" : "Move a problem report through triage",
+        "operationId" : "postFailurereportsByUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "triageStatus" : "ACKNOWLEDGED"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The problem report response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "action" : "createPerson",
+                  "traceId" : "9f2c41ab7d0e4c6fa1b83e5d72c09148",
+                  "httpMethod" : "POST",
+                  "path" : "/api/v1/persons",
+                  "statusCode" : 500,
+                  "errorMessage" : "Internal Server Error",
+                  "route" : "/detection",
+                  "userAgent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+                  "text" : "I filled in the name and pressed Create. The dialog closed but the person is not in the list.",
+                  "triageStatus" : "NEW",
+                  "hasScreenshot" : true,
+                  "screenshotUrl" : "https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Delete a problem report and its screenshot",
+        "description" : "Delete a problem report and its screenshot",
+        "operationId" : "deleteFailurereportsByUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/failure-reports/{uuid}/screenshot" : {
+      "description" : "Download the screenshot attached to a problem report",
+      "get" : {
+        "tags" : [ "failure-reports" ],
+        "summary" : "Download the screenshot attached to a problem report",
+        "description" : "Download the screenshot attached to a problem report",
+        "operationId" : "getFailurereportsByUuidScreenshot",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/graphql" : {
       "description" : "Execute a GraphQL query",
       "post" : {
@@ -23844,7 +24449,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "894e36cf-85ad-43b0-ab45-b80a4fec0325",
+                    "versionUuid" : "577b10c5-6ebd-43aa-861b-db5c07d0e71e",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23871,7 +24476,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "fbbad39d-3124-4441-9bef-440d6043b9be",
+                    "versionUuid" : "d05b57d5-20d7-4869-976a-cc6a95ece52a",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23978,7 +24583,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "62791d67-6330-480d-b78c-c7d37b22339c",
+                  "versionUuid" : "2c1d5872-5058-409e-a3f4-7d759c87b573",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24064,7 +24669,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "6a1df1a6-a6ab-4622-8545-93cdb9621066",
+                  "versionUuid" : "2dabd628-70ae-48b5-a1de-5f0df25f2f3c",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24171,7 +24776,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "e1f75b01-8b23-4ed4-b238-58f4fd532893",
+                  "versionUuid" : "8c366e16-b298-4a4e-93bd-99256300bf13",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24333,7 +24938,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "335e1f36-0b0a-4e7f-bd92-8139daecb193",
+                  "runUuid" : "9b66dcb3-3e41-47fe-b4a7-c772c1e8cb70",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -24459,11 +25064,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "2488d1a6-2800-46c9-ba19-9e4fb56d6330",
-                    "pipelineUuid" : "4ffba373-d976-4914-a95c-733ed506b8dd",
+                    "uuid" : "9e710a4d-72f9-4643-ba39-5283bd066ad2",
+                    "pipelineUuid" : "faa7676d-5f99-447b-b28b-9f7eeab834d2",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-16T17:18:35.405159463Z",
-                    "finished" : "2026-08-16T17:18:35.405253943Z",
+                    "started" : "2026-08-20T12:47:09.987238822Z",
+                    "finished" : "2026-08-20T12:47:09.987346132Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -24472,11 +25077,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "e0475ef0-7a13-4511-a012-09a668974f0e",
-                    "pipelineUuid" : "655b245d-dc95-426e-a6f2-c40a40629f16",
+                    "uuid" : "fcd48f4d-5f16-4fa2-bb57-a670788a7785",
+                    "pipelineUuid" : "40762a5d-0d3e-42b1-af93-97ef652df714",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-16T17:18:35.405385823Z",
-                    "finished" : "2026-08-16T17:18:35.405389953Z",
+                    "started" : "2026-08-20T12:47:09.987488642Z",
+                    "finished" : "2026-08-20T12:47:09.987492432Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -24569,11 +25174,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "12ecfdf6-c1be-4ed2-85b7-062f90be3007",
-                  "pipelineUuid" : "4b71781a-9994-4983-b7f6-ac62e296bed0",
+                  "uuid" : "d0e3672b-77ea-424c-84b9-3e8cbe4463e5",
+                  "pipelineUuid" : "f335c973-07b6-470d-a8f9-95771958235f",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-16T17:18:35.406055992Z",
-                  "finished" : "2026-08-16T17:18:35.406062282Z",
+                  "started" : "2026-08-20T12:47:09.988190122Z",
+                  "finished" : "2026-08-20T12:47:09.988196452Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -25063,16 +25668,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "90efc705-a034-480b-9ebb-e9ac563abc26",
-                    "runUuid" : "ae46f59f-2ddd-4d62-a60b-1a04883561ec",
+                    "uuid" : "5bb37000-d5da-46aa-9c66-7d2b43dcb37d",
+                    "runUuid" : "8bc955e7-7eff-450b-8b3c-2c03136dd850",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "0fec7199-ba30-4f4f-a94e-76ee3f4efdf9",
-                    "runUuid" : "8df26eff-06fb-4745-99da-d24b88b71729",
+                    "uuid" : "f3f395d8-6c66-4d40-98cc-ae7bef4b4a32",
+                    "runUuid" : "aee647e6-e499-4aec-b806-d900674e3fe0",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -25173,9 +25778,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "884a0501-4d12-4426-9804-3bc5ede9c20a",
-                    "itemUuid" : "3cd4f559-f0af-42da-9d80-00abc6d4f607",
-                    "runUuid" : "5a94f8a6-9572-4f0d-8494-1d02943aa3e3",
+                    "uuid" : "5b22fbcb-7faf-4e33-95d5-555bef97440a",
+                    "itemUuid" : "02bae27e-2fc1-47a1-a1db-d937a36b4665",
+                    "runUuid" : "6fb2401c-75b8-4183-a480-432a7a0a4a92",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -25841,7 +26446,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "d0004764-35bd-4426-b39f-ff1a3d602a55",
+                    "versionUuid" : "cc97ab4b-4b79-41f4-ba87-e67586ea2f60",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25868,7 +26473,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "f53a4a16-70db-43ba-8faf-62b096709f0b",
+                    "versionUuid" : "3a2b69d2-29e8-4122-bd98-eef5c3e65586",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25979,7 +26584,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0364fdae-2f3d-424b-8517-db0342de0b34",
+                  "versionUuid" : "c664d406-fc96-43f9-87e4-3f6dfb38d5a2",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -26104,7 +26709,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "aadfa5da-8915-45df-9cb1-3ad0bc48206c",
+                  "versionUuid" : "a270c676-4d72-4439-a274-7f8f97785cdd",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

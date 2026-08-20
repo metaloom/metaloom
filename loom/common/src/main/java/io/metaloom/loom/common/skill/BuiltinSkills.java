@@ -30,6 +30,9 @@ public final class BuiltinSkills {
 	/** How to design, validate and store a pipeline definition. */
 	public static final String PIPELINE_AUTHORING = "pipeline-authoring";
 
+	/** How to turn a question about the catalogue into a {@code find_assets} call. */
+	public static final String ASSET_SEARCH = "asset-search";
+
 	private record Definition(String name, String description, String resource) {
 	}
 
@@ -37,7 +40,12 @@ public final class BuiltinSkills {
 		new Definition(PIPELINE_AUTHORING,
 			"Design, validate and store a Loom processing pipeline: the shape of the definition JSON, how nodes are wired port-to-port, "
 				+ "and which tools to call in which order. Load this before creating or changing any pipeline.",
-			"/skills/pipeline-authoring.md"));
+			"/skills/pipeline-authoring.md"),
+		new Definition(ASSET_SEARCH,
+			"Find assets in the catalogue: which search tool to use, how to express who/when/where as filters rather than as "
+				+ "search words, and why a name is passed through rather than looked up first. Load this before answering any "
+				+ "question about which assets exist.",
+			"/skills/asset-search.md"));
 
 	/**
 	 * Loaded once on first use. A missing resource is a packaging fault, not a runtime condition, so it fails loudly here rather than leaving the agent

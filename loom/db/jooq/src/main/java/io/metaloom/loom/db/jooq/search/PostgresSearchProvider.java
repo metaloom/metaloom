@@ -39,6 +39,7 @@ import io.metaloom.loom.api.search.SearchProvider;
 import io.metaloom.loom.api.search.SearchProviderInfo;
 import io.metaloom.loom.api.search.SearchRequest;
 import io.metaloom.loom.api.search.SearchResult;
+import io.metaloom.loom.api.search.SearchSortMode;
 import io.metaloom.loom.api.search.SearchSuggestion;
 import io.metaloom.loom.api.search.TextEmbedder;
 import io.metaloom.loom.api.search.VectorHit;
@@ -169,20 +170,33 @@ public class PostgresSearchProvider implements SearchProvider {
 
 	private SearchResult lexicalSearch(SearchRequest request) {
 		long started = System.currentTimeMillis();
-		String term = request.getQuery().trim();
+		String term = request.getQuery() == null ? "" : request.getQuery().trim();
+		boolean browse = term.isEmpty();
 		List<Object> binds = new ArrayList<>();
 		StringBuilder where = new StringBuilder();
 
-		appendMatch(where, binds, term);
+		if (browse) {
+			// No term: the filters are the whole predicate. "TRUE" gives appendFilters something to
+			// append its " AND ..." clauses to, and validate() has already established that at least one
+			// of them is present - an unconditional TRUE would page the entire corpus.
+			where.append("TRUE");
+		} else {
+			appendMatch(where, binds, term);
+		}
 		appendFilters(request, where, binds);
 
-		List<Object> selectBinds = new ArrayList<>(scoreBinds(term));
+		// Ranking a termless query is meaningless, so the score column is a constant and RELEVANCE
+		// degrades to NEWEST rather than to an arbitrary but stable-looking order.
+		String scoreColumn = browse ? "0::float8" : SCORE_EXPRESSION;
+		SearchSortMode sort = browse && request.getSort() == SearchSortMode.RELEVANCE ? SearchSortMode.NEWEST : request.getSort();
+
+		List<Object> selectBinds = new ArrayList<>(browse ? List.of() : scoreBinds(term));
 		selectBinds.addAll(binds);
 
 		String sql = "SELECT entity_type, entity_uuid, asset_uuid, title, subtitle, mime_type, size,"
-			+ " time_from, sort_date, " + SCORE_EXPRESSION + " AS score, count(*) OVER () AS total_hits"
+			+ " time_from, sort_date, " + scoreColumn + " AS score, count(*) OVER () AS total_hits"
 			+ " FROM search_document WHERE " + where
-			+ " ORDER BY " + orderBy(request.getSort())
+			+ " ORDER BY " + orderBy(sort)
 			+ " LIMIT ? OFFSET ?";
 
 		selectBinds.add(effectiveLimit(request));
@@ -198,7 +212,9 @@ public class PostgresSearchProvider implements SearchProvider {
 			}
 		}
 
-		if (request.isHighlight() && options.isHighlightEnabled() && !result.getHits().isEmpty()) {
+		// Highlighting needs something to highlight; ts_headline with an empty tsquery returns the head
+		// of the document, which reads like a match and is not one.
+		if (!browse && request.isHighlight() && options.isHighlightEnabled() && !result.getHits().isEmpty()) {
 			enrich(result.getHits(), term);
 		}
 		if (!request.getFacets().isEmpty()) {
@@ -570,8 +586,21 @@ public class PostgresSearchProvider implements SearchProvider {
 	}
 
 	private void validate(SearchRequest request) {
-		if (request.getQuery() == null || request.getQuery().isBlank()) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "A search term (q) is required.");
+		boolean blank = request.getQuery() == null || request.getQuery().isBlank();
+		if (blank) {
+			// A termless request is a browse, and a browse is only meaningful when something narrows it.
+			// This is what lets "everything pete uploaded yesterday" be a query at all: that sentence has
+			// no search term, only filters, and requiring one would force a caller to invent a word.
+			// Semantic ranking has nothing to embed without a term, so it stays refused.
+			if (!hasNarrowing(request)) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
+					"A search term (q) is required, unless at least one filter narrows the search.");
+			}
+			if (request.getMode() != SearchMode.LEXICAL) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
+					"A search term (q) is required for " + request.getMode() + " mode: there is nothing to embed.");
+			}
+			return;
 		}
 		if (request.getQuery().length() > SearchRequest.MAX_QUERY_LENGTH) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
@@ -619,6 +648,28 @@ public class PostgresSearchProvider implements SearchProvider {
 		return List.of(term, options.getTsConfig(), term, options.getTrigramWeight(), term);
 	}
 
+	/**
+	 * Whether anything other than the term restricts this request.
+	 *
+	 * <p>
+	 * Mirrors {@link #appendFilters} with one deliberate exception: <b>{@code types} does not count</b>. It selects which kinds of document to look at
+	 * rather than restricting which ones qualify, and {@code SearchEndpointService.narrowTypes} populates it on every REST call with everything the
+	 * caller may read - so counting it would make every termless request "narrowed" and page the entire corpus. Every other field here restricts, and a
+	 * restricting field applied in {@code appendFilters} but not counted here would be refused as unnarrowed. Add to both or neither.
+	 * </p>
+	 */
+	private static boolean hasNarrowing(SearchRequest request) {
+		return (request.getMimeTypePrefix() != null && !request.getMimeTypePrefix().isBlank())
+			|| request.getLibraryUuid() != null
+			|| request.getSpaceUuid() != null
+			|| request.getCollectionUuid() != null
+			|| !request.getTags().isEmpty()
+			|| (request.getLang() != null && !request.getLang().isBlank())
+			|| request.getCreatedFrom() != null
+			|| request.getCreatedTo() != null
+			|| request.getCreatorUuid() != null;
+	}
+
 	private void appendFilters(SearchRequest request, StringBuilder where, List<Object> binds) {
 		if (!request.getTypes().isEmpty()) {
 			where.append(" AND entity_type = ANY(?)");
@@ -655,6 +706,17 @@ public class PostgresSearchProvider implements SearchProvider {
 		if (request.getCreatedTo() != null) {
 			where.append(" AND sort_date <= ?");
 			binds.add(Timestamp.from(request.getCreatedTo()));
+		}
+		// Creator is the one narrowing the index cannot serve: search_document has no creator
+		// projection (V2.58), and adding one means a column, a branch in every refresh function and a
+		// backfill. A correlated lookup on the asset primary key costs one index probe per surviving
+		// candidate row and is applied AFTER the text match, so it never drives the scan. It is
+		// asset-scoped by construction - a row with a null asset_uuid (a tag, a collection) cannot
+		// match, which is honest: those have creators, but not ones this index knows.
+		if (request.getCreatorUuid() != null) {
+			where.append(" AND asset_uuid IS NOT NULL AND EXISTS ("
+				+ "SELECT 1 FROM \"asset\" a WHERE a.\"uuid\" = search_document.asset_uuid AND a.\"creator_uuid\" = ?)");
+			binds.add(request.getCreatorUuid());
 		}
 		// Reserved ACL narrowing. Nothing populates these today - enforcement is a global permission
 		// gate, matching every other list route - but the index column is already here, so switching

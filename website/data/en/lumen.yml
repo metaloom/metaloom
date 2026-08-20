@@ -1,0 +1,136 @@
+############################# /lumen/ — MetaLoom Lumen, the spatial media engine ################
+# Copy only. Structure, art and motion live in themes/meghna-hugo/layouts/lumen/list.html and
+# the partials under layouts/partials/lumen/. Every `art:` key maps to a partial of the same
+# name (art: ingest -> partials/lumen/art-ingest.html), so a new panel needs a matching file.
+#
+# Lumen is a COMMERCIAL offering, like Studio and Cloud — amber accent, no download button, no
+# open source claim. It ships as a container image for the customer's own GPU hardware. Do not
+# put a price on this page; there is none to put.
+#
+# Every number below is measured, not aspirational: held-out PSNR 26.70 dB (reference
+# implementation: 27.41), ~25 minutes to train a full scene on one GPU, 27-byte quantised
+# primitives, write amplification 44x down to 1.1x, scene open 3.7 s log replay down to 103 ms,
+# zero false merges in archive clustering, zero false accepts in crowd-sourced fusion. If an
+# implementation change moves one of these, move it here in the same change.
+
+hero:
+  eyebrow: "MetaLoom // Lumen · spatial media engine"
+  status: "Commercial software — a container image for your own GPU hardware"
+  title: "Video goes in.<br>A place comes back."
+  content: "Lumen turns ordinary footage into navigable 3D Gaussian-splat scenes, stores them the way a database stores records, and makes physical places searchable — from a photo, or from a sentence."
+  primary:
+    label: "Talk to us about Lumen"
+    link: "#contact"
+  secondary:
+    label: "How it works"
+    link: "#generation"
+  scroll_hint: "Scroll"
+
+# ------------------------------------------------------------------ a) splat generation
+generation:
+  eyebrow: "Gaussian splat generation"
+  title: "From flat frames<br>to a field of light."
+  content: "Lumen recovers where the camera stood in every frame, then optimises millions of anisotropic 3D Gaussians — position, shape, colour, opacity — until rendering them reproduces the footage. What comes out is not a video of a place. It is the place, viewable from anywhere."
+  stages:
+    - label: "Recover the cameras"
+      note: "Structure-from-motion reads the parallax between frames and works out the pose of every shot — no rig metadata, no markers, just the video."
+    - label: "Optimise the scene"
+      note: "A differentiable rasteriser renders the current guess, compares it against the real frames, and nudges every Gaussian. Radiance-field training, splat speed."
+    - label: "Keep the primitives"
+      note: "A finished scene carries hundreds of thousands to millions of Gaussians — small enough to store, structured enough to query."
+  readout:
+    psnr_label: "held-out PSNR"
+    psnr_value: "26.70 dB"
+    psnr_note: "reference implementation: 27.41 dB"
+    train_label: "full scene"
+    train_value: "~25 min"
+    train_note: "on one GPU"
+
+# --------------------------------------------------------------- b) c) d) the pipeline panels
+panels:
+  - art: ingest
+    eyebrow: "Ingestion"
+    title: "A bad frame rejected early is worth many rejected late."
+    content: "Video decodes in hardware straight into GPU memory — no host round-trip. A frame gate scores blur and exposure on the decoder's own surface and rejects failures before a single byte is copied, because everything downstream is superlinear in frame count. What survives goes through pose recovery and training, then commits to the store. Captures queue behind one GPU worker."
+    chips: ["Hardware decode to GPU", "Blur & exposure gate", "No host round-trip", "One worker, queued captures"]
+
+  - art: decompose
+    eyebrow: "Decomposition"
+    title: "One capture.<br>Taken apart, cleanly."
+    content: "A scene is not one thing. Lumen separates a capture into branches — the static structure, the dynamic content that moved through it, and generated fill where nothing was seen — and can label primitives semantically by class. The espresso machine, the people and the room itself become separately addressable."
+    chips: ["Static structure", "Dynamic content", "Generated fill", "Semantic labels per class"]
+
+  - art: store
+    eyebrow: "Storage"
+    title: "Splats stored like a database,<br>not like a file."
+    content: "Every primitive is quantised to 27 bytes and appended to a write-ahead log, spatially ordered along a Hilbert curve, then compacted into immutable segments — write amplification fell from 44× to 1.1×, and opening a scene from 3.7 s of log replay to 103 ms. A level-of-detail pyramid and published quality tiers serve every reader, and read-at-sequence time travel makes any scene readable at any point in its history."
+    chips: ["27-byte primitives", "Write-ahead log", "Hilbert-ordered segments", "LOD pyramid & quality tiers", "Read at any sequence"]
+
+# ----------------------------------------------------------------------- e) key features
+features:
+  eyebrow: "Key features"
+  title: "Places you can query."
+  content: "Once a place is a scene in the store, it stops being footage and starts being an answer. Everything below runs against scenes Lumen has already built — and refuses honestly when it does not know."
+  query: "a kitchen counter with pots and pans"
+  query_hit: "kitchen · scene 41"
+  query_miss: "a pier at night"
+  refusal: "not in this archive"
+  items:
+    - icon: "ti-image"
+      title: "Find a place from a photo"
+      note: "Hand Lumen one picture and it returns the stored scene it was taken in — and where in it the camera stood."
+    - icon: "ti-comment-alt"
+      title: "Text to location"
+      note: "\"A kitchen counter with pots and pans\" finds the kitchen. A place the store has never seen gets an honest refusal, not a nearest guess."
+    - icon: "ti-reload"
+      title: "Re-find automatically"
+      note: "When a new capture arrives, Lumen recognises the places it already knows and files the footage against them — no one tags anything."
+    - icon: "ti-layout-grid2"
+      title: "Tell twins apart"
+      note: "Two near-identical hotel corridors, two branches of the same chain: geometry disambiguates places that photographs cannot."
+    - icon: "ti-search"
+      title: "Location scouting"
+      note: "Search an archive of places in words. The scout reads the answer instead of scrubbing the rushes."
+    - icon: "ti-folder"
+      title: "Archive clustering"
+      note: "Group a lifetime of footage by place — measured at zero false merges, so a cluster never has to be untangled by hand."
+    - icon: "ti-user"
+      title: "Crowd-sourced venues"
+      note: "Verified captures from many people fuse into one scene of the venue. Geometric verification gates every contribution: zero false accepts."
+    - icon: "ti-write"
+      title: "Describe a scene in words"
+      note: "Splat to text: a vision-language model looks at a stored scene and writes down what the place is and what is in it."
+
+# ---------------------------------------------------------------------------- numbers band
+numbers:
+  - value: "25 min"
+    label: "to train a full scene on one GPU"
+  - value: "103 ms"
+    label: "to open a scene that used to replay logs for 3.7 s"
+  - value: "27 B"
+    label: "per stored primitive, quantised in the write-ahead log"
+  - value: "0"
+    label: "false merges clustering an archive by place"
+
+# ----------------------------------------------------------------------------- contact CTA
+contact:
+  eyebrow: "Commercial offering"
+  title: "Lumen is commercial software."
+  content: "Like Studio and Cloud, Lumen is one of the commercial ways to get MetaLoom — it is not open source and there is nothing to download here. It ships as a container image that runs on your own GPU hardware, next to the rest of your MetaLoom installation or on its own. If you have places on film and questions about them, write to us."
+  facts:
+    - label: "Delivery"
+      value: "container image, your GPU hardware"
+    - label: "Licensing"
+      value: "commercial — like Studio & Cloud"
+    - label: "Pricing"
+      value: "not published — ask us"
+  primary:
+    label: "Email us about Lumen"
+    link: "mailto:hello@metaloom.io?subject=MetaLoom%20Lumen"
+  secondary:
+    label: "Read the docs"
+    link: "/docs/lumen/"
+  tertiary:
+    label: "Join the Discord"
+    link: "https://discord.gg/3Dy2SxKUtw"
+  note: "An email reaches a person, not a funnel. There is no mailing list to add you to, so nothing happens to your address except a reply."

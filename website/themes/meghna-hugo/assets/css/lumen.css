@@ -1,0 +1,855 @@
+/* ==========================================================================
+   /lumen/ — MetaLoom Lumen, the spatial media engine.
+
+   Loaded only on pages that carry `page_css: css/lumen.css` in front matter
+   (see partials/head.html), so none of this reaches the docs or the landing
+   page. Everything is scoped under .lu-page and prefixed .lu-*.
+
+   The warm sibling of studio.css: same dark surfaces, same rhythm, same
+   reveal vocabulary — and the same amber accent (#e2a86e), because Lumen is
+   a commercial offering like Studio and Cloud. Teal on this site means open
+   source, and nothing on this page is, so no teal appears here at all.
+
+   House rules kept from the rest of the site: motion is decoration only and
+   stops completely under prefers-reduced-motion.
+   ========================================================================== */
+
+/* In-page jumps (the hero's "How it works", the scroll cue, "Talk to us") glide, and stop
+   clear of the sticky site header instead of underneath it. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* The theme's page background (#353b43) otherwise shows through the stable scrollbar gutter
+   custom.less reserves, as a light strip down the right edge of this very dark page. */
+body { background-color: #0b0e13; }
+
+.lu-page {
+  --lu-bg: #0b0e13;
+  --lu-bg-alt: #12131a;
+  --lu-surface: rgba(255, 255, 255, .035);
+  --lu-line: rgba(255, 255, 255, .09);
+  --lu-fg: #eef2f6;
+  --lu-fg-dim: #aab6c2;
+  --lu-muted: #7d8894;
+  --lu-accent: #e2a86e;
+  --lu-accent-bright: #ffcf9b;
+  --lu-accent-soft: rgba(226, 168, 110, .14);
+  --lu-cool: #9fb4c4;          /* neutral counterweight in the art — NOT the open source teal */
+  --lu-danger: #e2756e;
+
+  background: var(--lu-bg);
+  color: var(--lu-fg-dim);
+  overflow-x: hidden;
+  font-family: "Anaheim", sans-serif;
+}
+
+/* --------------------------------------------------------------- structure */
+.lu-wrap {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 0 28px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+
+.lu-section {
+  padding: 120px 0;
+  position: relative;
+}
+
+.lu-section-head {
+  margin: 0 auto 60px;
+  max-width: 760px;
+  text-align: center;
+}
+
+.lu-split {
+  align-items: center;
+  display: grid;
+  gap: 64px;
+  grid-template-columns: 1fr 1fr;
+}
+/* A `1fr` track is minmax(min-content, 1fr); without this the art column refuses to shrink on
+   a phone and the panel is clipped by .lu-page's overflow-x (same fix as studio.css). */
+.lu-split > * { min-width: 0; }
+
+/* ------------------------------------------------------------- typography */
+.lu-eyebrow {
+  color: var(--lu-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+
+.lu-page .lu-title {
+  color: var(--lu-fg);
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.08;
+  margin: 0 0 22px;
+}
+
+.lu-page .lu-title-sm {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+}
+
+.lu-lead {
+  color: var(--lu-fg-dim);
+  font-size: clamp(1.02rem, 1.35vw, 1.22rem);
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 640px;
+}
+
+.lu-split-text .lu-lead,
+.lu-split-text .lu-eyebrow { margin-left: 0; }
+
+/* ---------------------------------------------------- buttons, links, tags */
+.lu-btn {
+  border: 1px solid transparent;
+  border-radius: 40px;
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  padding: 14px 32px;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease;
+  white-space: nowrap;
+}
+.lu-btn:hover { text-decoration: none; transform: translateY(-2px); }
+
+.lu-btn-primary {
+  background: var(--lu-accent);
+  color: #2d1a08;
+}
+.lu-btn-primary:hover { background: var(--lu-accent-bright); color: #2d1a08; }
+
+.lu-btn-ghost {
+  border-color: rgba(255, 255, 255, .28);
+  color: var(--lu-fg);
+}
+.lu-btn-ghost:hover { border-color: var(--lu-accent); color: var(--lu-accent-bright); }
+
+.lu-btn-plain {
+  color: var(--lu-fg-dim);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.lu-btn-plain:hover { color: var(--lu-accent-bright); }
+
+.lu-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  margin: 26px 0 6px;
+  padding: 0;
+}
+.lu-chips li {
+  background: var(--lu-surface);
+  border: 1px solid var(--lu-line);
+  border-radius: 20px;
+  color: var(--lu-fg-dim);
+  font-size: 13px;
+  padding: 6px 15px;
+}
+
+.lu-pill {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--lu-line);
+  border-radius: 16px;
+  color: var(--lu-fg-dim);
+  font-size: 11.5px;
+  letter-spacing: .02em;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+.lu-pill-accent {
+  background: var(--lu-accent-soft);
+  border-color: rgba(226, 168, 110, .5);
+  color: var(--lu-accent-bright);
+}
+
+/* -------------------------------------------------------------- reveal fx
+   Shared vocabulary with the other design-led pages (assets/js/reveal.js): the hidden start
+   state applies only while `.reveal-js` is set, so a reader without JavaScript gets the
+   finished page instead of an empty one. `.reveal-js` hides, `.is-visible` reveals. */
+.reveal-js .reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal-js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Shared "arrive from below, fade in" keyframes used by most of the illustrations. Each
+   element sets its own --lu-delay so a group staggers without extra classes. */
+@keyframes lu-fade-up {
+  from { opacity: 0; transform: translateY(9px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes lu-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ------------------------------------------------------------------- hero */
+.lu-hero {
+  align-items: center;
+  display: flex;
+  min-height: min(94vh, 900px);
+  overflow: hidden;
+  padding: 90px 0 120px;
+  position: relative;
+}
+.lu-hero-media {
+  inset: 0;
+  isolation: isolate; /* keeps the blended light layers from bleeding onto the page below */
+  overflow: hidden;
+  position: absolute;
+  z-index: 0;
+}
+.lu-hero-media img {
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 45%;
+  width: 100%;
+  animation: lu-hero-drift 30s ease-in-out infinite alternate;
+}
+@keyframes lu-hero-drift {
+  from { transform: scale(1.05) translate3d(0, 0, 0); }
+  to   { transform: scale(1.13) translate3d(1.6%, -1.4%, 0); }
+}
+
+/* Light travelling across the picture — the studio technique, tuned to the grid-of-lights
+   photo. Only transform and opacity animate, so this stays on the compositor. */
+.lu-hero-sweep {
+  background: linear-gradient(102deg,
+    rgba(255, 255, 255, 0) 34%,
+    rgba(255, 226, 190, .16) 46%,
+    rgba(255, 207, 155, .44) 50%,
+    rgba(255, 226, 190, .16) 54%,
+    rgba(255, 255, 255, 0) 66%);
+  inset: -45%;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  position: absolute;
+  will-change: transform;
+  animation: lu-hero-travel 10s linear infinite;
+}
+.lu-hero-sweep-slow {
+  background: linear-gradient(102deg,
+    rgba(255, 255, 255, 0) 26%,
+    rgba(226, 168, 110, .26) 50%,
+    rgba(255, 255, 255, 0) 74%);
+  animation-duration: 18s;
+  animation-delay: -7s;
+  mix-blend-mode: soft-light;
+}
+@keyframes lu-hero-travel {
+  from { transform: translate3d(-32%, -10%, 0); }
+  to   { transform: translate3d(32%, 10%, 0); }
+}
+
+/* A slow swell of warmth over the picture — opacity only, so it costs nothing. */
+.lu-hero-breathe {
+  background: radial-gradient(64% 54% at 64% 44%, rgba(226, 168, 110, .46) 0%, rgba(226, 168, 110, 0) 72%);
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  position: absolute;
+  animation: lu-hero-breathe 11s ease-in-out infinite alternate;
+}
+@keyframes lu-hero-breathe {
+  from { opacity: .38; }
+  to   { opacity: 1; }
+}
+
+.lu-hero-veil {
+  inset: 0;
+  position: absolute;
+  background:
+    radial-gradient(70% 60% at 78% 40%, rgba(226, 168, 110, .18) 0%, rgba(226, 168, 110, 0) 70%),
+    radial-gradient(120% 80% at 16% 42%, rgba(11, 14, 19, .95) 0%, rgba(11, 14, 19, .74) 42%, rgba(11, 14, 19, .34) 72%),
+    linear-gradient(180deg, rgba(11, 14, 19, .82) 0%, rgba(11, 14, 19, .1) 34%, rgba(11, 14, 19, .55) 78%);
+}
+
+/* The picture must not end on a hard edge: the bottom dissolves into the page background. */
+.lu-hero-fade {
+  background: linear-gradient(180deg,
+    rgba(11, 14, 19, 0) 0%,
+    rgba(11, 14, 19, .35) 34%,
+    rgba(11, 14, 19, .82) 68%,
+    var(--lu-bg) 100%);
+  bottom: 0;
+  height: 46%;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+.lu-hero-inner {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 0 28px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+.lu-page .lu-hero-title {
+  color: #fff;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2.6rem, 6.4vw, 5.2rem);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.02;
+  margin: 0 0 26px;
+  max-width: 15ch;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, .6);
+}
+.lu-hero-lead {
+  color: #cbd6e0;
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  line-height: 1.6;
+  margin: 0 0 38px;
+  max-width: 52ch;
+}
+.lu-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+/* The "commercial, container image" line — the delivery model is not a footnote, so it sits
+   directly under the buttons, same device as the studio hero's status line. */
+.lu-status {
+  align-items: center;
+  color: #d9c3a8;
+  display: inline-flex;
+  font-size: 13.5px;
+  gap: 10px;
+  margin: 26px 0 0;
+}
+.lu-status-dot {
+  background: var(--lu-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(226, 168, 110, .16);
+  flex: none;
+  height: 8px;
+  width: 8px;
+  animation: lu-blink 2.6s ease-in-out infinite;
+}
+@keyframes lu-blink { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+.lu-scroll-cue {
+  align-items: center;
+  bottom: 38px;
+  color: rgba(255, 255, 255, .55);
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 8px;
+  left: 50%;
+  letter-spacing: .22em;
+  position: absolute;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+.lu-scroll-cue:hover { color: var(--lu-accent-bright); text-decoration: none; }
+.lu-scroll-dot { animation: lu-scroll 1.9s ease-in-out infinite; }
+@keyframes lu-scroll {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(9px); opacity: .35; }
+}
+
+/* ------------------------------------------------------------- generation */
+.lu-generation { background: linear-gradient(180deg, var(--lu-bg) 0%, var(--lu-bg-alt) 100%); }
+
+.lu-stages {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: repeat(3, 1fr);
+  list-style: none;
+  margin: 76px 0 0;
+  padding: 0;
+}
+.lu-stage { border-top: 1px solid var(--lu-line); padding-top: 22px; }
+.lu-stage-index {
+  color: var(--lu-accent);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: .1em;
+}
+.lu-page .lu-stage h3 {
+  color: var(--lu-fg);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 8px 0 10px;
+}
+.lu-stage p { color: var(--lu-muted); font-size: 15px; line-height: 1.6; margin: 0; }
+
+/* ---------------------------------------------------------------- panels */
+.lu-panels { background: var(--lu-bg); }
+.lu-panel { padding: 110px 0; position: relative; }
+.lu-panel + .lu-panel { border-top: 1px solid rgba(255, 255, 255, .05); }
+.lu-panel-flip .lu-split-text { order: 2; }
+.lu-panel-flip .lu-split-art { order: 1; }
+
+.lu-art-frame {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012));
+  border: 1px solid var(--lu-line);
+  border-radius: 16px;
+  box-shadow: 0 40px 80px -50px rgba(0, 0, 0, .95);
+  overflow: hidden;
+  padding: 24px;
+  position: relative;
+}
+.lu-art-frame::after {
+  background: radial-gradient(60% 50% at 50% 0%, rgba(226, 168, 110, .15), transparent 70%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+.lu-art { position: relative; z-index: 1; }
+.lu-art svg { display: block; height: auto; width: 100%; }
+
+.lu-art-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* -------------------------------------------------- shared SVG vocabulary */
+.lu-page .lu-art text,
+.lu-page .lu-search text {
+  font-family: "Anaheim", sans-serif;
+  user-select: none;
+}
+
+/* ---- splat generation art (.lu-sp-*) ---- */
+.lu-sp-label {
+  fill: var(--lu-muted);
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+.lu-sp-step {
+  stroke: rgba(226, 168, 110, .55);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 6;
+}
+.is-visible .lu-sp-step { animation: lu-dash 1.4s linear infinite; }
+@keyframes lu-dash { to { stroke-dashoffset: -18; } }
+
+.lu-sp-cam { transform-box: fill-box; transform-origin: center; }
+.is-visible .lu-sp-cam {
+  animation: lu-fade-up .6s ease-out backwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+.lu-sp-points circle { opacity: .5; }
+.is-visible .lu-sp-points circle { animation: lu-twinkle 3.2s ease-in-out infinite; }
+.is-visible .lu-sp-points circle:nth-child(2n) { animation-delay: .8s; }
+.is-visible .lu-sp-points circle:nth-child(3n) { animation-delay: 1.7s; }
+@keyframes lu-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: .9; } }
+
+/* Each Gaussian settles: arrives loose and oversized, tightens into place — the optimisation,
+   in one gesture. */
+.lu-sp-splat { transform-box: fill-box; transform-origin: center; }
+.reveal-js .lu-sp-splat { opacity: 0; }
+.is-visible .lu-sp-splat {
+  animation: lu-settle 1s cubic-bezier(.2, .8, .3, 1) forwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+@keyframes lu-settle {
+  from { opacity: 0; transform: scale(1.7); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.lu-sp-loop-path {
+  stroke: rgba(226, 168, 110, .45);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 7;
+}
+.is-visible .lu-sp-loop-path { animation: lu-dash 1.8s linear infinite; }
+.lu-sp-loop-label {
+  fill: var(--lu-accent);
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+/* ---- ingestion art (.lu-in-*) ---- */
+.lu-in-lane-label {
+  fill: var(--lu-muted);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.lu-in-lane-gpu { fill: var(--lu-accent); }
+.lu-in-stage-name { fill: var(--lu-fg); font-size: 13px; font-weight: 700; }
+.lu-in-stage-commit { fill: var(--lu-accent-bright); }
+.lu-in-stage-note { fill: var(--lu-muted); font-size: 10px; }
+.lu-in-gate-crit { fill: var(--lu-muted); font-size: 10px; letter-spacing: .05em; }
+.lu-in-queue-note { fill: var(--lu-muted); font-size: 10.5px; }
+.lu-in-reject-note { fill: rgba(226, 117, 110, .8); font-size: 10px; letter-spacing: .04em; }
+.lu-in-wire { stroke: rgba(226, 168, 110, .55); stroke-width: 1.6; }
+.is-visible .lu-in-host-strike { animation: lu-fade-in .5s ease-out .8s backwards; }
+
+.lu-in-gate-bar { fill: var(--lu-accent); }
+.is-visible .lu-in-gate-bar { animation: lu-gate-pulse 3.3s ease-in-out infinite; }
+@keyframes lu-gate-pulse {
+  0%, 100% { opacity: .55; }
+  36%, 42% { opacity: 1; }   /* flares as each frame reaches it */
+}
+
+/* Frames travel the lane; the soft one is turned away at the gate. All three share one
+   keyframe budget (3.3s) so the traffic reads as a steady stream. */
+.lu-in-frame {
+  fill: rgba(255, 255, 255, .5);
+  opacity: 0;
+  transform-box: fill-box;
+}
+.is-visible .lu-in-frame {
+  animation: lu-frame-pass 3.3s linear infinite;
+  animation-delay: var(--lu-delay, 0s);
+}
+@keyframes lu-frame-pass {
+  0%   { opacity: 0; transform: translateX(-64px); }
+  8%   { opacity: 1; }
+  38%  { opacity: 1; transform: translateX(28px); }   /* through the gate */
+  70%  { opacity: 1; transform: translateX(150px); }
+  78%  { opacity: 0; transform: translateX(196px); }  /* absorbed by the store */
+  100% { opacity: 0; transform: translateX(196px); }
+}
+.lu-in-frame-bad { fill: rgba(226, 117, 110, .65); }
+.is-visible .lu-in-frame-bad { animation-name: lu-frame-reject; }
+@keyframes lu-frame-reject {
+  0%   { opacity: 0; transform: translate(-64px, 0); }
+  8%   { opacity: 1; }
+  34%  { opacity: 1; transform: translate(24px, 0); }   /* reaches the gate… */
+  52%  { opacity: 0; transform: translate(34px, 64px); } /* …and is turned away */
+  100% { opacity: 0; transform: translate(34px, 64px); }
+}
+
+.is-visible .lu-in-queue rect {
+  animation: lu-fade-up .5s ease-out backwards;
+}
+.is-visible .lu-in-queue rect:nth-of-type(2) { animation-delay: .15s; }
+.is-visible .lu-in-queue rect:nth-of-type(3) { animation-delay: .3s; }
+
+/* ---- decomposition art (.lu-dc-*) ---- */
+.lu-dc-tag {
+  fill: var(--lu-muted);
+  font-size: 10.5px;
+  letter-spacing: .05em;
+}
+.lu-dc-class-label { fill: var(--lu-fg-dim); font-size: 11px; }
+.lu-dc-leader {
+  stroke: rgba(255, 255, 255, .22);
+  stroke-width: 1.2;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.is-visible .lu-dc-leader {
+  animation: lu-draw .7s ease-out forwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+@keyframes lu-draw { to { stroke-dashoffset: 0; } }
+
+/* The exploded view: the three planes start collapsed onto the middle one and slide apart
+   when the panel is revealed. */
+.lu-dc-layer { transform-box: fill-box; }
+.reveal-js .lu-dc-layer-dynamic { transform: translateY(70px); }
+.reveal-js .lu-dc-layer-static  { transform: translateY(-70px); }
+.is-visible .lu-dc-layer-dynamic,
+.is-visible .lu-dc-layer-static {
+  animation: lu-explode .9s cubic-bezier(.2, .8, .3, 1) .25s forwards;
+}
+@keyframes lu-explode { to { transform: translateY(0); } }
+
+.lu-dc-class { transform-box: fill-box; }
+.reveal-js .lu-dc-class { opacity: 0; }
+.is-visible .lu-dc-class {
+  animation: lu-fade-up .5s ease-out forwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+.is-visible .lu-dc-patch { animation: lu-twinkle 3.6s ease-in-out infinite 1.2s; }
+.is-visible .lu-dc-machine { animation: lu-twinkle 3.6s ease-in-out infinite .4s; }
+
+/* ---- storage art (.lu-st-*) ---- */
+.lu-st-label { fill: var(--lu-muted); font-size: 11px; letter-spacing: .05em; }
+.lu-st-note { fill: var(--lu-muted); font-size: 10.5px; }
+.lu-st-seg-note { fill: var(--lu-accent); font-size: 10px; letter-spacing: .08em; }
+.lu-st-wire { stroke: rgba(226, 168, 110, .55); stroke-width: 1.6; }
+
+.lu-st-cell {
+  fill: rgba(255, 255, 255, .07);
+  stroke: rgba(255, 255, 255, .18);
+}
+.is-visible .lu-st-cell {
+  animation: lu-fade-up .4s ease-out backwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+.lu-st-cell-new { fill: var(--lu-accent-soft); stroke: rgba(226, 168, 110, .6); }
+.is-visible .lu-st-cell-new {
+  animation: lu-fade-up .4s ease-out backwards, lu-blink 2.4s ease-in-out infinite 1s;
+  animation-delay: var(--lu-delay, 0s), 1s;
+}
+
+/* The Hilbert curve draws itself once the panel is revealed — the ordering is the point. */
+.lu-st-hilbert {
+  stroke: var(--lu-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: .85;
+}
+.is-visible .lu-st-hilbert { animation: lu-draw 2.2s ease-in-out .5s forwards; }
+
+.lu-st-lod-step { transform-box: fill-box; }
+.reveal-js .lu-st-lod-step { opacity: 0; }
+.is-visible .lu-st-lod-step {
+  animation: lu-fade-up .5s ease-out forwards;
+  animation-delay: var(--lu-delay, 0s);
+}
+
+.lu-st-playhead { transform-box: fill-box; }
+.is-visible .lu-st-playhead { animation: lu-scrub 5.4s ease-in-out infinite; }
+@keyframes lu-scrub {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(-70px); }
+}
+
+/* ---- search art (.lu-se-*) ---- */
+.lu-search-holder { margin: 0 auto 64px; max-width: 980px; }
+.lu-search {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .012));
+  border: 1px solid var(--lu-line);
+  border-radius: 16px;
+  box-shadow: 0 40px 80px -50px rgba(0, 0, 0, .95);
+  margin: 0;
+  padding: 20px 24px;
+}
+.lu-search svg { display: block; height: auto; width: 100%; }
+
+.lu-se-query-text {
+  fill: var(--lu-fg-dim);
+  font-size: 13px;
+  font-style: italic;
+}
+.lu-se-store-label {
+  fill: var(--lu-muted);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.lu-se-tag-text { fill: var(--lu-muted); font-size: 11.5px; }
+.lu-se-tag-hit { fill: var(--lu-accent-bright); }
+
+.lu-se-edge {
+  stroke: rgba(255, 255, 255, .12);
+  stroke-width: 1.4;
+}
+.lu-se-flow {
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 3 10;
+  opacity: .9;
+}
+.lu-se-flow-hit { stroke: var(--lu-accent); }
+.lu-se-flow-miss { stroke: var(--lu-cool); }
+.reveal-js .lu-se-flow { opacity: 0; }
+.is-visible .lu-se-flow { animation: lu-dash 1.4s linear infinite; opacity: .9; }
+
+.lu-se-scene rect { transition: stroke .3s ease; }
+.lu-se-hit-ring { stroke: var(--lu-accent); stroke-width: 1.6; }
+.is-visible .lu-se-hit-ring { animation: lu-hit-glow 2.8s ease-in-out infinite .8s; }
+@keyframes lu-hit-glow {
+  0%, 100% { stroke: rgba(226, 168, 110, .55); }
+  50%      { stroke: #ffcf9b; }
+}
+
+.reveal-js .lu-se-hit-tag,
+.reveal-js .lu-se-refusal { opacity: 0; }
+.is-visible .lu-se-hit-tag { animation: lu-fade-in .6s ease-out .9s forwards; }
+.is-visible .lu-se-refusal { animation: lu-fade-in .6s ease-out 1.4s forwards; }
+
+/* -------------------------------------------------------------- features */
+.lu-features { background: linear-gradient(180deg, var(--lu-bg-alt) 0%, var(--lu-bg) 100%); }
+
+.lu-cards {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.lu-cards-4 { grid-template-columns: repeat(4, 1fr); }
+.lu-card {
+  backdrop-filter: blur(6px);
+  background: rgba(18, 19, 26, .72);
+  border: 1px solid var(--lu-line);
+  border-radius: 14px;
+  padding: 28px 24px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.lu-card:hover { border-color: rgba(226, 168, 110, .55); transform: translateY(-3px); }
+.lu-page .lu-card h3 { color: var(--lu-fg); font-size: 1.08rem; font-weight: 700; margin: 0 0 10px; }
+.lu-card p { color: var(--lu-muted); font-size: 13.5px; line-height: 1.6; margin: 0; }
+.lu-card-icon i {
+  color: var(--lu-accent);
+  display: block;
+  font-size: 24px;
+  margin-bottom: 14px;
+}
+
+/* --------------------------------------------------------------- numbers */
+.lu-numbers {
+  background: linear-gradient(180deg, var(--lu-bg) 0%, var(--lu-bg-alt) 100%);
+  border-top: 1px solid var(--lu-line);
+  border-bottom: 1px solid var(--lu-line);
+  padding: 76px 0;
+}
+.lu-numbers-grid {
+  display: grid;
+  gap: 34px;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 0;
+}
+.lu-number { text-align: center; }
+.lu-number-value {
+  background: linear-gradient(180deg, #fff, var(--lu-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2.4rem, 4.6vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1;
+}
+.lu-number-label {
+  color: var(--lu-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 12px auto 0;
+  max-width: 22ch;
+}
+
+/* ------------------------------------------------------------------- cta */
+.lu-cta {
+  background: var(--lu-bg);
+  overflow: hidden;
+  padding: 130px 0 140px;
+  position: relative;
+  text-align: center;
+}
+.lu-bg-media { inset: 0; position: absolute; z-index: 0; }
+.lu-bg-media img { height: 100%; object-fit: cover; opacity: .5; width: 100%; }
+.lu-cta .lu-bg-veil {
+  inset: 0;
+  position: absolute;
+  background:
+    radial-gradient(90% 70% at 50% 40%, rgba(11, 14, 19, .8) 0%, rgba(11, 14, 19, .94) 60%),
+    linear-gradient(180deg, var(--lu-bg) 0%, rgba(11, 14, 19, .5) 30%, #292F36 100%);
+}
+.lu-cta-inner { margin: 0 auto; max-width: 780px; }
+.lu-cta .lu-lead { margin-bottom: 34px; }
+
+/* The delivery readout — monospace so it reads as facts rather than as a pitch. */
+.lu-facts {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 auto 36px;
+  max-width: 620px;
+}
+.lu-fact {
+  background: rgba(0, 0, 0, .4);
+  border: 1px solid var(--lu-line);
+  border-radius: 9px;
+  padding: 14px 12px;
+}
+.lu-fact dt {
+  color: var(--lu-muted);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.lu-fact dd {
+  color: var(--lu-accent-bright);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin: 7px 0 0;
+}
+.lu-cta .lu-hero-actions { justify-content: center; }
+.lu-cta-note {
+  color: var(--lu-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 26px auto 0;
+  max-width: 52ch;
+}
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 1199px) {
+  .lu-cards-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 991px) {
+  .lu-split { gap: 44px; grid-template-columns: 1fr; }
+  .lu-panel-flip .lu-split-text,
+  .lu-panel-flip .lu-split-art { order: 0; }
+  .lu-stages { grid-template-columns: 1fr; gap: 22px; }
+  .lu-cards, .lu-cards-4 { grid-template-columns: 1fr; }
+  .lu-numbers-grid { grid-template-columns: repeat(2, 1fr); }
+  .lu-section { padding: 88px 0; }
+  .lu-panel { padding: 74px 0; }
+}
+
+@media (max-width: 575px) {
+  .lu-wrap, .lu-hero-inner { padding: 0 20px; }
+  .lu-hero { min-height: 88vh; padding-top: 60px; }
+  .lu-hero-lead { margin-bottom: 30px; }
+  .lu-art-frame { padding: 16px; }
+  .lu-search { padding: 14px; }
+  .lu-numbers-grid { grid-template-columns: 1fr; gap: 28px; }
+  .lu-btn { padding: 12px 24px; }
+  .lu-facts { grid-template-columns: 1fr; }
+}
+
+/* Motion is decoration on this page — none of it carries information, so it all goes away.
+   The states below pin every animated element to its finished frame. */
+@media (prefers-reduced-motion: reduce) {
+  .lu-page *,
+  .lu-page *::before,
+  .lu-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .lu-hero-sweep, .lu-hero-breathe { opacity: .5; }
+  .lu-sp-splat, .lu-dc-class, .lu-st-lod-step,
+  .lu-se-flow, .lu-se-hit-tag, .lu-se-refusal { opacity: 1 !important; }
+  .reveal-js .lu-dc-layer-dynamic,
+  .reveal-js .lu-dc-layer-static { transform: none; }
+  .lu-dc-leader, .lu-st-hilbert { stroke-dashoffset: 0; }
+  .lu-in-frame { opacity: 0; }
+}

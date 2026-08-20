@@ -411,7 +411,7 @@ Learned while wiring `loom-ui`; each one is a 400 or a crash if ignored.
 | Rule | Why |
 |---|---|
 | Never send a repeated scalar key | `SearchParameters.raw()` answers 400 "Parameter x was found multiple times". Use one comma-separated value for `types`/`tag`/`facets` |
-| Never send a blank `q` | 400 "A search term (q) is required." — so "no query yet" must be a client-side resting state, not a request |
+| A blank `q` needs a filter | 400 "A search term (q) is required, unless at least one filter narrows the search." A termless request is a **browse**: the filters become the whole predicate, the score column is a constant and `RELEVANCE` degrades to `NEWEST`. `types` deliberately does **not** count as narrowing — `SearchEndpointService.narrowTypes` populates it on every REST call, so counting it would page the entire corpus. `SEMANTIC`/`HYBRID` still need a term; there is nothing to embed. `hasNarrowing` mirrors `appendFilters` field for field and the two must be changed together |
 | Branch on HTTP status, not on a code | `ServerFailureHandler` **discards** `LoomRestErrorCode`; the body is only `{"message": …}` |
 | `_metainfo.perPage` echoes the *requested* limit | It is not the effective page size. Page by the local step and read `data.length` |
 | Treat `suggestions.data` as optional | `AbstractListResponse.data` is created lazily, so zero suggestions means the key is **absent**, not `[]` |

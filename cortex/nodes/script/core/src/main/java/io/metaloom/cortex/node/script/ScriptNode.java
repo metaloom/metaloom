@@ -183,6 +183,19 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 	}
 
 	/**
+	 * The graph-local instance id, which is the ledger {@code node_id}. Without this override two
+	 * {@code script} nodes in one pipeline share a single {@code asset_node_result} row (the key is
+	 * {@code (asset_uuid, node_kind, node_id)} and the default id is {@code ""}), and the second
+	 * silently overwrites the first's state, reason and producer version. The JSON component was
+	 * never affected — it is keyed per {@code variant = nodeId} — which is why only the ledger
+	 * collided.
+	 */
+	@Override
+	protected String nodeId() {
+		return nodeId;
+	}
+
+	/**
 	 * Apply the pipeline node definition and compile the script.
 	 *
 	 * <p>

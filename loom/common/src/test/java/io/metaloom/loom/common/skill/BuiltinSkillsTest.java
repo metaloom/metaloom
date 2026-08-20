@@ -45,6 +45,30 @@ public class BuiltinSkillsTest {
 	}
 
 	@Test
+	public void testAssetSearchContent() {
+		BuiltinSkill skill = BuiltinSkills.byName(BuiltinSkills.ASSET_SEARCH);
+		assertNotNull(skill);
+		// The tool name is the contract between the guide and the MCP server. A rename on either side
+		// leaves the agent following instructions for a tool that no longer exists.
+		assertTrue(skill.content().contains("find_assets"));
+		// The field names have to match the tool's schema, or the guide teaches a call that is refused.
+		for (String field : new String[] { "creator", "collection", "library", "space", "tags", "when", "mimeType", "text" }) {
+			assertTrue(skill.content().contains(field), "The guide should name the " + field + " field");
+		}
+		// The two rules the whole design rests on: filters alone are a query, and a filter that finds
+		// nothing is never widened to produce results.
+		assertTrue(skill.content().contains("no search term"));
+		assertTrue(skill.content().contains("Never widen a filter"));
+	}
+
+	@Test
+	public void testSkillNamesAreUnique() {
+		// load_skill matches on the name; two skills sharing one would make which body loads arbitrary.
+		long distinct = BuiltinSkills.list().stream().map(BuiltinSkill::name).distinct().count();
+		assertTrue(distinct == BuiltinSkills.list().size(), "Built-in skill names must be unique");
+	}
+
+	@Test
 	public void testByNameUnknown() {
 		assertNull(BuiltinSkills.byName("no-such-skill"));
 		assertNull(BuiltinSkills.byName(null));

@@ -120,4 +120,53 @@ class ImageGenNodeTest {
 		// The sidecar must be hit exactly once - the second run is served from the in-heap cache.
 		verify(client, times(1)).generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt());
 	}
+
+	/**
+	 * The cache hit must be visible as provenance: real work reports {@code COMPUTED}, the replay
+	 * reports {@code LOCAL} — the distinction the ledger records since the origin stopped being a
+	 * constant.
+	 */
+	@Test
+	void testCacheHitReportsLocalOrigin() {
+		ImageGenNode node = node(options());
+		NodeResult first = node.process(NodeContext.create(media));
+		assertEquals(io.metaloom.cortex.api.node.ResultOrigin.COMPUTED, first.getOrigin());
+
+		NodeResult second = node.process(NodeContext.create(media));
+		assertEquals(io.metaloom.cortex.api.node.ResultOrigin.LOCAL, second.getOrigin());
+	}
+
+	/**
+	 * Two instances in one graph differing only in their configuration — the obvious way to render
+	 * two prompts — must write two distinct files and carry two distinct ledger ids. Before the
+	 * options digest they wrote to the same {@code <sha512>.png} path and served each other's
+	 * cached result.
+	 */
+	@Test
+	void testTwoInstancesDifferingOnlyByOptionsWriteDistinctFiles() throws Exception {
+		ImageGenNode first = node(options());
+		first.configure(new io.vertx.core.json.JsonObject().put("id", "gen-apple").put("prompt", "a red apple"));
+		ImageGenNode second = node(options());
+		second.configure(new io.vertx.core.json.JsonObject().put("id", "gen-pear").put("prompt", "a blue pear"));
+
+		NodeResult firstResult = first.process(NodeContext.create(media));
+		NodeResult secondResult = second.process(NodeContext.create(media));
+		assertThat(firstResult).isSuccess();
+		assertThat(secondResult).isSuccess();
+
+		String firstPath = firstResult.get(ImageGenNode.OUT_IMAGE);
+		String secondPath = secondResult.get(ImageGenNode.OUT_IMAGE);
+		assertTrue(!firstPath.equals(secondPath), "Two differently configured instances must not share an output path");
+		assertTrue(Files.exists(Path.of(firstPath)));
+		assertTrue(Files.exists(Path.of(secondPath)));
+
+		// Each instance renders its own prompt - neither may be served the other's cached result.
+		verify(client).generate(eq("a red apple"), anyInt(), anyInt(), nullable(Integer.class), anyInt());
+		verify(client).generate(eq("a blue pear"), anyInt(), anyInt(), nullable(Integer.class), anyInt());
+
+		// The ledger identity is the graph-local id, so the two rows upsert side by side instead of
+		// overwriting each other on (asset_uuid, node_kind, node_id).
+		assertEquals("gen-apple", first.nodeId());
+		assertEquals("gen-pear", second.nodeId());
+	}
 }

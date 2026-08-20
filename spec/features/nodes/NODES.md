@@ -634,7 +634,9 @@ public interface PipelineConfigurable { void configure(JsonObject nodeDef); }
 ```
 
 `RegistryNodeRegistrar.adapt(...)` calls it **only** for implementors — today `ScriptNode`,
-`S3SinkNode`, `MetadataNode`, `FilterNode` and `TagNode`. (`metadata` is the first *analysis* node in the set: its privacy
+`S3SinkNode`, `MetadataNode`, `FilterNode`, `TagNode`, `MoveNode`, `AssignNode`, `FacedetectNode`
+(clustering knobs only) and, since 2026-08-20, `ImageGenNode` (its result-affecting options — the
+prompt *is* the work). (`metadata` is the first *analysis* node in the set: its privacy
 policy has to be per pipeline, because one library publishes coordinates and another must not.) Their options arrive **flattened** onto the top level of the node definition, alongside
 the adapter fields it also reads there:
 

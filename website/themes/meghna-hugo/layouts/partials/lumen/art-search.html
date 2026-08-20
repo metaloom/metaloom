@@ -1,0 +1,103 @@
+{{/* "Key features" lead art: two text queries against the scene store. The first finds its
+     place — the flow runs to one tile and it lights up. The second names a place the store has
+     never seen and gets an honest refusal instead of a nearest guess. Copy (query strings, hit
+     and refusal labels) comes from data/en/lumen.yml `features:`. Colour + motion in lumen.css
+     (.lu-se-*). Ids are page-prefixed "lu-se-". */}}
+<figure class="lu-search">
+  <svg viewBox="0 0 920 300" class="lu-se" role="img" aria-labelledby="lu-se-title lu-se-desc">
+    <title id="lu-se-title">Searching stored places</title>
+    <desc id="lu-se-desc">Two text queries run against a store of Gaussian-splat scenes. A
+      description of a kitchen counter finds the kitchen scene; a place the store does not know
+      is refused rather than answered with a nearest guess.</desc>
+
+    <defs>
+      <linearGradient id="lu-se-tile" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1c2733"/>
+        <stop offset="100%" stop-color="#121a22"/>
+      </linearGradient>
+      <radialGradient id="lu-se-blob" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#9fb4c4" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="#5b7c8d" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="lu-se-blob-hit" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffcf9b" stop-opacity=".8"/>
+        <stop offset="100%" stop-color="#e2a86e" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+
+    {{/* --- query one: it finds its place --- */}}
+    <g class="lu-se-query">
+      <rect x="18" y="64" width="268" height="40" rx="20" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.18)"/>
+      <circle cx="42" cy="84" r="7" fill="none" stroke="rgba(226,168,110,.8)" stroke-width="1.8"/>
+      <line x1="47" y1="90" x2="53" y2="96" stroke="rgba(226,168,110,.8)" stroke-width="1.8"/>
+      <text class="lu-se-query-text" x="64" y="89">&#8220;{{ .query }}&#8221;</text>
+    </g>
+
+    {{/* --- query two: the store does not know this place --- */}}
+    <g class="lu-se-query">
+      <rect x="18" y="196" width="200" height="40" rx="20" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.18)"/>
+      <circle cx="42" cy="216" r="7" fill="none" stroke="rgba(159,180,196,.7)" stroke-width="1.8"/>
+      <line x1="47" y1="222" x2="53" y2="228" stroke="rgba(159,180,196,.7)" stroke-width="1.8"/>
+      <text class="lu-se-query-text" x="64" y="221">&#8220;{{ .query_miss }}&#8221;</text>
+    </g>
+
+    {{/* --- edges: the hit travels to a tile, the miss dead-ends at the refusal --- */}}
+    <path class="lu-se-edge" d="M286 84 C 380 84, 400 96, 486 108" fill="none"/>
+    <path class="lu-se-flow lu-se-flow-hit" d="M286 84 C 380 84, 400 96, 486 108" fill="none"/>
+    <path class="lu-se-edge" d="M218 216 C 300 216, 320 230, 380 244" fill="none"/>
+    <path class="lu-se-flow lu-se-flow-miss" d="M218 216 C 300 216, 320 230, 380 244" fill="none"/>
+
+    {{/* --- the scene store: a grid of six splat tiles --- */}}
+    <g class="lu-se-store">
+      <text class="lu-se-store-label" x="622" y="34" text-anchor="middle">the scene store</text>
+
+      {{/* row one */}}
+      <g class="lu-se-scene">
+        <rect x="452" y="48" width="104" height="76" rx="9" fill="url(#lu-se-tile)" stroke="rgba(255,255,255,.14)"/>
+        <ellipse cx="492" cy="80" rx="20" ry="9" transform="rotate(-18 492 80)" fill="url(#lu-se-blob)"/>
+        <ellipse cx="516" cy="94" rx="16" ry="7" transform="rotate(24 516 94)" fill="url(#lu-se-blob)"/>
+      </g>
+      <g class="lu-se-scene lu-se-scene-hit">
+        <rect class="lu-se-hit-ring" x="568" y="48" width="104" height="76" rx="9" fill="url(#lu-se-tile)"/>
+        <ellipse cx="606" cy="78" rx="20" ry="9" transform="rotate(-12 606 78)" fill="url(#lu-se-blob-hit)"/>
+        <ellipse cx="632" cy="92" rx="17" ry="7" transform="rotate(30 632 92)" fill="url(#lu-se-blob-hit)"/>
+        <ellipse cx="614" cy="102" rx="14" ry="6" transform="rotate(-32 614 102)" fill="url(#lu-se-blob-hit)"/>
+      </g>
+      <g class="lu-se-scene">
+        <rect x="684" y="48" width="104" height="76" rx="9" fill="url(#lu-se-tile)" stroke="rgba(255,255,255,.14)"/>
+        <ellipse cx="724" cy="82" rx="19" ry="8" transform="rotate(14 724 82)" fill="url(#lu-se-blob)"/>
+        <ellipse cx="748" cy="96" rx="14" ry="6" transform="rotate(-26 748 96)" fill="url(#lu-se-blob)"/>
+      </g>
+
+      {{/* row two */}}
+      <g class="lu-se-scene">
+        <rect x="452" y="136" width="104" height="76" rx="9" fill="url(#lu-se-tile)" stroke="rgba(255,255,255,.14)"/>
+        <ellipse cx="494" cy="170" rx="18" ry="8" transform="rotate(-22 494 170)" fill="url(#lu-se-blob)"/>
+        <ellipse cx="518" cy="182" rx="15" ry="6" transform="rotate(18 518 182)" fill="url(#lu-se-blob)"/>
+      </g>
+      <g class="lu-se-scene">
+        <rect x="568" y="136" width="104" height="76" rx="9" fill="url(#lu-se-tile)" stroke="rgba(255,255,255,.14)"/>
+        <ellipse cx="608" cy="168" rx="20" ry="8" transform="rotate(8 608 168)" fill="url(#lu-se-blob)"/>
+        <ellipse cx="634" cy="184" rx="15" ry="6" transform="rotate(-30 634 184)" fill="url(#lu-se-blob)"/>
+      </g>
+      <g class="lu-se-scene">
+        <rect x="684" y="136" width="104" height="76" rx="9" fill="url(#lu-se-tile)" stroke="rgba(255,255,255,.14)"/>
+        <ellipse cx="726" cy="172" rx="18" ry="8" transform="rotate(28 726 172)" fill="url(#lu-se-blob)"/>
+        <ellipse cx="748" cy="184" rx="13" ry="6" transform="rotate(-14 748 184)" fill="url(#lu-se-blob)"/>
+      </g>
+    </g>
+
+    {{/* --- the hit's answer tag --- */}}
+    <g class="lu-se-hit-tag">
+      <rect x="800" y="72" width="106" height="24" rx="12" fill="rgba(226,168,110,.14)" stroke="rgba(226,168,110,.6)"/>
+      <text class="lu-se-tag-text lu-se-tag-hit" x="853" y="88" text-anchor="middle">{{ .query_hit }}</text>
+    </g>
+    <path class="lu-se-edge lu-se-edge-short" d="M672 86 C 720 82, 750 82, 794 84" fill="none"/>
+
+    {{/* --- the honest refusal --- */}}
+    <g class="lu-se-refusal">
+      <rect x="386" y="232" width="140" height="24" rx="12" fill="none" stroke="rgba(159,180,196,.5)" stroke-dasharray="4 4"/>
+      <text class="lu-se-tag-text" x="456" y="248" text-anchor="middle">{{ .refusal }}</text>
+    </g>
+  </svg>
+</figure>

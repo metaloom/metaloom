@@ -1,0 +1,85 @@
+{{/* "Ingestion" art: the decode lane lives entirely in GPU memory — frames travel from the
+     hardware decoder through the frame gate, where a blurred frame is rejected before anything
+     is copied; survivors go on to pose recovery and training and commit to the store. The host
+     lane above stays empty on purpose. Colour + motion in lumen.css (.lu-in-*). Ids are
+     page-prefixed "lu-in-". */}}
+<div class="lu-art lu-art-ingest">
+  <svg viewBox="0 0 420 260" class="lu-in" role="img" aria-labelledby="lu-in-title lu-in-desc">
+    <title id="lu-in-title">The ingestion path</title>
+    <desc id="lu-in-desc">Video is decoded in hardware directly into GPU memory. A frame gate
+      scores blur and exposure on the decoder's surface and rejects bad frames before they are
+      copied anywhere; surviving frames go through pose recovery and training into the store.
+      The host-memory lane above the pipeline stays empty — there is no round-trip.</desc>
+
+    <defs>
+      <linearGradient id="lu-in-box" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1c2733"/>
+        <stop offset="100%" stop-color="#121a22"/>
+      </linearGradient>
+      <marker id="lu-in-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L8 4 L0 8 Z" fill="rgba(226,168,110,.75)"/>
+      </marker>
+    </defs>
+
+    {{/* --- the host lane: present, labelled, and pointedly unused --- */}}
+    <g class="lu-in-host">
+      <rect x="88" y="18" width="322" height="34" rx="8" fill="none" stroke="rgba(255,255,255,.1)" stroke-dasharray="4 6"/>
+      <text class="lu-in-lane-label" x="100" y="39">host memory — never visited</text>
+      <line class="lu-in-host-strike" x1="366" y1="24" x2="392" y2="46" stroke="rgba(226,117,110,.7)" stroke-width="2"/>
+      <line class="lu-in-host-strike" x1="392" y1="24" x2="366" y2="46" stroke="rgba(226,117,110,.7)" stroke-width="2"/>
+    </g>
+
+    {{/* --- the GPU lane holding the whole pipeline --- */}}
+    <rect x="6" y="68" width="404" height="112" rx="12" fill="rgba(226,168,110,.05)" stroke="rgba(226,168,110,.28)"/>
+    <text class="lu-in-lane-label lu-in-lane-gpu" x="18" y="90">gpu memory</text>
+
+    {{/* decoder */}}
+    <g class="lu-in-stage">
+      <rect x="22" y="102" width="82" height="52" rx="9" fill="url(#lu-in-box)" stroke="rgba(255,255,255,.16)"/>
+      <text class="lu-in-stage-name" x="63" y="124" text-anchor="middle">decode</text>
+      <text class="lu-in-stage-note" x="63" y="140" text-anchor="middle">hardware</text>
+    </g>
+
+    {{/* the gate: a slit the frames must pass */}}
+    <g class="lu-in-gate">
+      <rect class="lu-in-gate-bar" x="148" y="94" width="6" height="68" rx="3"/>
+      <text class="lu-in-stage-note" x="151" y="86" text-anchor="middle">frame gate</text>
+      <text class="lu-in-gate-crit" x="151" y="174" text-anchor="middle">blur &#183; exposure</text>
+    </g>
+
+    {{/* pose + train */}}
+    <g class="lu-in-stage">
+      <rect x="196" y="102" width="104" height="52" rx="9" fill="url(#lu-in-box)" stroke="rgba(255,255,255,.16)"/>
+      <text class="lu-in-stage-name" x="248" y="124" text-anchor="middle">pose &#43; train</text>
+      <text class="lu-in-stage-note" x="248" y="140" text-anchor="middle">one gpu worker</text>
+    </g>
+
+    {{/* the store */}}
+    <g class="lu-in-stage">
+      <rect x="336" y="102" width="62" height="52" rx="9" fill="rgba(226,168,110,.12)" stroke="rgba(226,168,110,.5)"/>
+      <text class="lu-in-stage-name lu-in-stage-commit" x="367" y="124" text-anchor="middle">store</text>
+      <text class="lu-in-stage-note" x="367" y="140" text-anchor="middle">committed</text>
+    </g>
+
+    <path class="lu-in-wire" d="M300 128 L 330 128" fill="none" marker-end="url(#lu-in-arrow)"/>
+
+    {{/* --- frames travelling the lane; the middle one is soft and gets turned away --- */}}
+    <g class="lu-in-frames">
+      <rect class="lu-in-frame" style="--lu-delay:0s"   x="108" y="118" width="20" height="14" rx="2.5"/>
+      <rect class="lu-in-frame lu-in-frame-bad" style="--lu-delay:1.1s" x="108" y="118" width="20" height="14" rx="2.5"/>
+      <rect class="lu-in-frame" style="--lu-delay:2.2s" x="108" y="118" width="20" height="14" rx="2.5"/>
+    </g>
+    <text class="lu-in-reject-note" x="151" y="212" text-anchor="middle">rejected before the copy</text>
+
+    {{/* --- captures queueing for the single worker --- */}}
+    <g class="lu-in-queue">
+      <rect x="22" y="222" width="58" height="18" rx="9" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.14)"/>
+      <rect x="88" y="222" width="58" height="18" rx="9" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.14)"/>
+      <rect x="154" y="222" width="58" height="18" rx="9" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.14)"/>
+      <text class="lu-in-stage-note" x="51"  y="235" text-anchor="middle">capture</text>
+      <text class="lu-in-stage-note" x="117" y="235" text-anchor="middle">capture</text>
+      <text class="lu-in-stage-note" x="183" y="235" text-anchor="middle">capture</text>
+      <text class="lu-in-queue-note" x="228" y="235">queued behind the worker</text>
+    </g>
+  </svg>
+</div>

@@ -479,9 +479,16 @@ came from changes nothing about how it is disclosed.
 `loom/common/src/main/resources/skills/`. They are **always active**, have no uuid, no
 owner and no version history, and never appear in the skill CRUD surface.
 
-Today there is one: **`pipeline-authoring`** — the shape of a pipeline definition, how
-nodes are wired port to port, the rules the validator enforces, and the order to call the
-pipeline tools in.
+Today there are two:
+
+- **`pipeline-authoring`** — the shape of a pipeline definition, how nodes are wired port to
+  port, the rules the validator enforces, and the order to call the pipeline tools in.
+- **`asset-search`** — how to turn a question about the catalogue into a `find_assets` call:
+  which of `text` / `creator` / `space` / `collection` / `when` a phrase belongs in, why a
+  name is passed through rather than looked up first, and the rule that a filter which finds
+  nothing is never widened to produce results. `BuiltinSkillsTest` asserts the field names in
+  the markdown against the tool's schema, so the guide cannot drift into teaching a call that
+  would be refused. Design: [../concept/AGENTIC_SEARCH_CONCEPT.md](../concept/AGENTIC_SEARCH_CONCEPT.md).
 
 - **Why not a row.** A user skill is the right model for a house convention somebody
   wrote. It is the wrong model for the knowledge needed to use a Loom feature at all:

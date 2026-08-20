@@ -45,6 +45,7 @@ tags:
     and reviewed under their asset.
 - name: embeddings
   description: Vector embeddings and their attachments
+- name: failure-reports
 - name: graphql
   description: GraphQL query endpoint
 - name: groups
@@ -5050,6 +5051,8 @@ paths:
                     table: asset_transcript_comp
                     uuids:
                     - 86abc160-4da2-4951-a91f-da0c33fbc634
+                  runUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  taskUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -5103,6 +5106,8 @@ paths:
                 table: asset_transcript_comp
                 uuids:
                 - 86abc160-4da2-4951-a91f-da0c33fbc634
+              runUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+              taskUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
       responses:
         "200":
           description: The node result response
@@ -5130,6 +5135,8 @@ paths:
                   table: asset_transcript_comp
                   uuids:
                   - 86abc160-4da2-4951-a91f-da0c33fbc634
+                runUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                taskUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -12866,6 +12873,439 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/failure-reports:
+    description: "Submit a problem report. Requires authentication and no permission,\
+      \ so that a user can always report a failure"
+    get:
+      tags:
+      - failure-reports
+      summary: Load a paged list of problem reports
+      description: Load a paged list of problem reports
+      operationId: getFailurereports
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The problem report list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  action: createPerson
+                  traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+                  httpMethod: POST
+                  path: /api/v1/persons
+                  statusCode: 500
+                  errorMessage: Internal Server Error
+                  route: /detection
+                  userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,\
+                    \ like Gecko) Chrome/141.0 Safari/537.36"
+                  text: I filled in the name and pressed Create. The dialog closed
+                    but the person is not in the list.
+                  triageStatus: NEW
+                  hasScreenshot: true
+                  screenshotUrl: https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  action: createPerson
+                  traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+                  httpMethod: POST
+                  path: /api/v1/persons
+                  statusCode: 500
+                  errorMessage: Internal Server Error
+                  route: /detection
+                  userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,\
+                    \ like Gecko) Chrome/141.0 Safari/537.36"
+                  text: I filled in the name and pressed Create. The dialog closed
+                    but the person is not in the list.
+                  triageStatus: NEW
+                  hasScreenshot: true
+                  screenshotUrl: https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - failure-reports
+      summary: "Submit a problem report. Requires authentication and no permission,\
+        \ so that a user can always report a failure"
+      description: "Submit a problem report. Requires authentication and no permission,\
+        \ so that a user can always report a failure"
+      operationId: postFailurereports
+      requestBody:
+        content:
+          application/json:
+            example:
+              action: createPerson
+              traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+              httpMethod: POST
+              path: /api/v1/persons
+              statusCode: 500
+              errorMessage: Internal Server Error
+              route: /detection
+              text: I filled in the name and pressed Create. The dialog closed but
+                the person is not in the list.
+              screenshot: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+              screenshotWidth: 2560
+              screenshotHeight: 1440
+      responses:
+        "200":
+          description: The problem report response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                action: createPerson
+                traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+                httpMethod: POST
+                path: /api/v1/persons
+                statusCode: 500
+                errorMessage: Internal Server Error
+                route: /detection
+                userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,\
+                  \ like Gecko) Chrome/141.0 Safari/537.36"
+                text: I filled in the name and pressed Create. The dialog closed but
+                  the person is not in the list.
+                triageStatus: NEW
+                hasScreenshot: true
+                screenshotUrl: https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/failure-reports/{uuid}:
+    description: Move a problem report through triage
+    get:
+      tags:
+      - failure-reports
+      summary: Load a problem report
+      description: Load a problem report
+      operationId: getFailurereportsByUuid
+      responses:
+        "200":
+          description: The problem report response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                action: createPerson
+                traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+                httpMethod: POST
+                path: /api/v1/persons
+                statusCode: 500
+                errorMessage: Internal Server Error
+                route: /detection
+                userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,\
+                  \ like Gecko) Chrome/141.0 Safari/537.36"
+                text: I filled in the name and pressed Create. The dialog closed but
+                  the person is not in the list.
+                triageStatus: NEW
+                hasScreenshot: true
+                screenshotUrl: https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - failure-reports
+      summary: Move a problem report through triage
+      description: Move a problem report through triage
+      operationId: postFailurereportsByUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              triageStatus: ACKNOWLEDGED
+      responses:
+        "200":
+          description: The problem report response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                action: createPerson
+                traceId: 9f2c41ab7d0e4c6fa1b83e5d72c09148
+                httpMethod: POST
+                path: /api/v1/persons
+                statusCode: 500
+                errorMessage: Internal Server Error
+                route: /detection
+                userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,\
+                  \ like Gecko) Chrome/141.0 Safari/537.36"
+                text: I filled in the name and pressed Create. The dialog closed but
+                  the person is not in the list.
+                triageStatus: NEW
+                hasScreenshot: true
+                screenshotUrl: https://loom.example.com/api/v1/failure-reports/0f3332a6-e404-4777-88a9-1fa984a311bc/screenshot
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - failure-reports
+      summary: Delete a problem report and its screenshot
+      description: Delete a problem report and its screenshot
+      operationId: deleteFailurereportsByUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/failure-reports/{uuid}/screenshot:
+    description: Download the screenshot attached to a problem report
+    get:
+      tags:
+      - failure-reports
+      summary: Download the screenshot attached to a problem report
+      description: Download the screenshot attached to a problem report
+      operationId: getFailurereportsByUuidScreenshot
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/graphql:
     description: Execute a GraphQL query
     post:
@@ -16591,7 +17031,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 8d1628a2-b02a-477d-a1b1-1827dfb1e426
+                  versionUuid: 76e9db1c-cacb-4b84-ada6-5b734c463042
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16612,7 +17052,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: ec53eb8f-8c78-4c14-a805-75dcd565892d
+                  versionUuid: a70013df-972d-443a-a6fa-15b152a3ace8
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16685,7 +17125,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 78598992-2857-4921-bcd9-dd9a83f5e7bb
+                versionUuid: fca71872-55cf-42cf-9219-c448a5af0af7
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16744,7 +17184,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 7f048064-1aa0-49b5-9f6f-e86407ae88bc
+                versionUuid: c53391ae-35cc-4b0c-856e-41962d9d8da2
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16816,7 +17256,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: ab3d91f0-ddb9-44c9-af48-ec997de070e5
+                versionUuid: f2e56d12-4305-4dbe-ae50-49110eb51cef
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16925,7 +17365,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 059b8bff-f860-4877-9373-d6c4489bc743
+                runUuid: ef748a22-a77f-4bc4-aeae-8b3036aa1434
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -17013,11 +17453,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ca6e6000-69ff-4106-a7f1-a30c6b8036ee
-                  pipelineUuid: 1e7ddb53-1c86-4d26-9062-95d2d964e507
+                - uuid: e84ea669-5031-4e90-95ee-da52aac96fd0
+                  pipelineUuid: 00ab0c25-4345-4839-b468-acbca529aa76
                   pipelineVersion: 1
-                  started: 2026-08-16T17:18:35.537520364Z
-                  finished: 2026-08-16T17:18:35.537529804Z
+                  started: 2026-08-20T12:47:10.148602820Z
+                  finished: 2026-08-20T12:47:10.148613600Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17025,11 +17465,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 6d2c783d-1d8c-4234-8791-4f0c7e8ffde0
-                  pipelineUuid: 24ca00b8-520c-47fe-b8fc-ae605c15eae0
+                - uuid: 3d36701a-cdf8-43eb-8345-d9bac981bbe7
+                  pipelineUuid: 771b88b3-0128-4469-9c2d-76cc16fcde13
                   pipelineVersion: 1
-                  started: 2026-08-16T17:18:35.537555284Z
-                  finished: 2026-08-16T17:18:35.537557794Z
+                  started: 2026-08-20T12:47:10.148638530Z
+                  finished: 2026-08-20T12:47:10.148640940Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17092,11 +17532,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 5c9abe8e-f26a-4c5f-8093-d990c41a2c88
-                pipelineUuid: 89a23125-47d0-4265-a27e-02590a2c9d3c
+                uuid: 350edd17-9da7-4d97-8138-ed0949251e0d
+                pipelineUuid: b15d6a11-dbf6-4092-a317-b5509da1c9b5
                 pipelineVersion: 1
-                started: 2026-08-16T17:18:35.537602864Z
-                finished: 2026-08-16T17:18:35.537610804Z
+                started: 2026-08-20T12:47:10.148680650Z
+                finished: 2026-08-20T12:47:10.148683030Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17438,15 +17878,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: af58c256-883d-4c7c-88f1-db89d39dc69f
-                  runUuid: 389e7c73-a364-4800-8bab-4647770a2a71
+                - uuid: 777fa55f-3d3f-4fd9-b1d2-120171a7e87e
+                  runUuid: 2c43ebbe-537d-4cf1-b973-c8f72c90eb2a
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 47dec825-3622-4b41-bf63-6d1b1c0e1837
-                  runUuid: 4a44b38e-e507-431d-be7d-80391cab79ac
+                - uuid: 5844d2dd-1995-41d5-8aab-3d05432e5cea
+                  runUuid: 81a6030a-bc53-41d8-b5e5-5e0ae117b8aa
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -17518,9 +17958,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 036a9d3b-9781-4398-8d6b-e3721c7278c1
-                  itemUuid: 7faa0dfb-266a-431a-a555-68df39b8c4db
-                  runUuid: aa9be068-2954-4a12-bb9a-d8e7c0cfdb77
+                - uuid: a4144dd6-cba3-4221-a747-6c43f044b86c
+                  itemUuid: a1a6e63c-1b88-43fa-8351-71dc17eae781
+                  runUuid: c18d6b3c-23f2-483d-8777-401fd43f1e24
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -17983,7 +18423,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 753ccc03-27d4-4ead-ab87-61d5f00386a1
+                  versionUuid: d7d40b32-d3b6-4039-aa9d-77b3d63f3d20
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18004,7 +18444,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 13da540a-0cfc-40a9-a168-d68a2ef35e8f
+                  versionUuid: 72576da9-86e6-4aa8-8b20-73b298ebfb2d
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18080,7 +18520,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 8e12e6fa-7857-405f-b871-537c7bb7c7a1
+                versionUuid: 42cb2093-4d02-4167-8c37-69d550fa0159
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -18166,7 +18606,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: c588ac51-5976-4358-b125-28701f027d37
+                versionUuid: 3440091e-28b8-4e93-b144-a93d77e17bc6
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

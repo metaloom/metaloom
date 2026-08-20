@@ -18,6 +18,8 @@ public class NodeResultCreateRequest extends AbstractMetaModel<NodeResultCreateR
 	private String reason;
 	private Long durationMs;
 	private JsonObject resultRef;
+	private String runUuid;
+	private String taskUuid;
 
 	@Override
 	public String getNodeKind() {
@@ -104,6 +106,28 @@ public class NodeResultCreateRequest extends AbstractMetaModel<NodeResultCreateR
 	@Override
 	public NodeResultCreateRequest setResultRef(JsonObject resultRef) {
 		this.resultRef = resultRef;
+		return this;
+	}
+
+	@Override
+	public String getRunUuid() {
+		return runUuid;
+	}
+
+	@Override
+	public NodeResultCreateRequest setRunUuid(String runUuid) {
+		this.runUuid = runUuid;
+		return this;
+	}
+
+	@Override
+	public String getTaskUuid() {
+		return taskUuid;
+	}
+
+	@Override
+	public NodeResultCreateRequest setTaskUuid(String taskUuid) {
+		this.taskUuid = taskUuid;
 		return this;
 	}
 

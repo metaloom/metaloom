@@ -384,14 +384,12 @@ Three things the schema forced on the design, all load-bearing:
 3. **`timeoutMs` is the inherited option, not a new one** — re-defaulted to 10 s with `0` rejected,
    because a script node must never run unbounded.
 
-> 🔴 **The ledger row is *not* scoped per node instance.** `ScriptNode` never overrides
-> `AbstractMediaNode.nodeId()`, which returns `""`, so every script node writes its
-> `asset_node_result` row under `(asset, "script", "")`. `AssetNodeResultDaoImpl` upserts
-> `.onConflict(asset_uuid, node_kind, node_id)`, so on an asset processed by two script nodes the
-> second silently overwrites the first's ledger row — state, reason, `producerVersion` and all. That
-> is precisely the case `AbstractMediaNode.nodeId()`'s own javadoc says a `PipelineConfigurable` node
-> must override for; `s3-sink`, `tag`, `metadata` and the `relocate` nodes do. Only the JSON
-> component escapes it, because it keys on `variant = nodeId`. Tracked in §10.
+> 🟢 **The ledger row is scoped per node instance** (fixed 2026-08-20). `ScriptNode.nodeId()`
+> returns the configured instance id, so two script nodes on one asset write two
+> `asset_node_result` rows instead of the second silently overwriting the first on the
+> `(asset_uuid, node_kind, node_id)` upsert key. The JSON component was never affected — it keys on
+> `variant = nodeId` — which is exactly why the collision went unnoticed;
+> `ScriptNodeIntegrationTest.testTwoScriptNodesCoexistOnOneAsset` now asserts the ledger half too.
 
 **No Flyway migration was needed**, so `./setup-pool.sh` is only the normal pre-test step.
 
@@ -468,12 +466,9 @@ everywhere else in the node system.
       rendered as descriptor checkboxes, and nothing reads them (§6.3). Either implement the `http` /
       `fs` bindings behind them, or remove them from the options and the descriptor. Leaving a security
       control that does nothing on the node's configuration form is the worst of the three states.
-- [ ] 🔴 **Missing `nodeId()` override — two script nodes collide on the ledger.** `ScriptNode` is
-      `PipelineConfigurable` but leaves `AbstractMediaNode.nodeId()` at `""`, and `asset_node_result`
-      is `UNIQUE (asset_uuid, node_kind, node_id)` with an upsert on that key (§8). Override it to
-      return the configured `nodeId`, and extend
-      `ScriptNodeIntegrationTest.testTwoScriptNodesCoexistOnOneAsset` to assert two ledger rows, not
-      just two JSON comps.
+- [x] 🟢 **`nodeId()` override — fixed 2026-08-20.** `ScriptNode.nodeId()` returns the configured
+      instance id, and `ScriptNodeIntegrationTest.testTwoScriptNodesCoexistOnOneAsset` asserts two
+      ledger rows beside the two JSON comps (§8).
 - [ ] 🟡 **`maxOutputBytes` does not cover `TIMEFRAMES` or image outputs** (§6.2), and is checked only
       after the script has already built the bag in heap. Either cap the whole collected bag, or rename
       the option to say what it measures.
@@ -560,7 +555,7 @@ script` pipeline in the editor, run it, confirm the outputs land on the asset.
 | **`ScriptNode` must never be `@Singleton`** | `configure(...)` mutates it. `NodeTaskRunner` creates one per task via `Provider.get()`; a singleton would let two concurrent script nodes overwrite each other's script |
 | **`PipelineNode.timeoutMs()` is enforced by nothing** | It is parsed by `adapt()`, stored on `AbstractPipelineNode`, and never read back. That is why `configure(...)` reads the same `timeoutMs` key into the node's own option — the node owns its wall clock |
 | **`ctx.failure(cause).next()` returns SUCCESS** | Only `.abort()` reads `failureCause`. Every failure test written against `.next()` passes while asserting the wrong thing. This node uses `.abort()`; nineteen others still do not ([../NODES.md](../NODES.md) §10) |
-| **`nodeId()` is not overridden** | 🔴 The node's private `nodeId` field reaches the JSON comp's `variant` and the segment kind, but `AbstractMediaNode.nodeId()` — the one the ledger reads — still returns `""`. Two script nodes therefore upsert the same `asset_node_result` row (§8) |
+| **`nodeId()` is overridden** | 🟢 Since 2026-08-20 the private `nodeId` field reaches all three sinks: the JSON comp's `variant`, the segment kind *and* the ledger's `node_id` — two script nodes keep two `asset_node_result` rows (§8) |
 | **Compile once, execute many** | Compile in `configure(...)`, never in `compute(...)` |
 | **Undeclared output = hard failure** | Deliberate: a silently dropped typo would make the graph lie about what flows down an edge |
 | **`out.image` bytes stay on the worker** | There is no Loom byte-ingest endpoint for produced media. Downstream consumers get a **path meaningful only on that worker** — pin such graphs into one affinity group, or wire the port into `s3-sink`. See [../../rest/REST_BINARY_HANDLING.md](../../rest/REST_BINARY_HANDLING.md) |

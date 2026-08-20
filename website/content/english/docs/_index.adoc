@@ -127,6 +127,20 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			</div>
 		</div>
 	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="lumen/">Lumen</a></h2>
+				<p>The spatial media engine — a commercial offering. Turns video into navigable 3D Gaussian-splat scenes, stores them like a database, and makes physical places searchable by text, photograph or another capture.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="lumen/" class="docs-card-link">Overview</a>
+				<a href="lumen/concepts/" class="docs-card-link">Concepts</a>
+				<a href="lumen/web-ui/" class="docs-card-link">Web Console</a>
+				<a href="lumen/container/" class="docs-card-link">Running Lumen</a>
+			</div>
+		</div>
+	</div>
 	<div class="col-lg-12 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">

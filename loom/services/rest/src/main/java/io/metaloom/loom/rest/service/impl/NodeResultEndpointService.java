@@ -67,6 +67,14 @@ public class NodeResultEndpointService extends AbstractEndpointService {
 			if (request.getResultRef() != null) {
 				result.setResultRef(request.getResultRef());
 			}
+			// Both are ON DELETE SET NULL - a pruned run detaches the ledger row instead of deleting it,
+			// so storing the references costs nothing when the run is later removed.
+			if (request.getRunUuid() != null) {
+				result.setRunUuid(UUID.fromString(request.getRunUuid()));
+			}
+			if (request.getTaskUuid() != null) {
+				result.setTaskUuid(UUID.fromString(request.getTaskUuid()));
+			}
 			// Upsert on (asset_uuid, node_kind, node_id): re-running a node rewrites its single ledger row.
 			nodeResultDao.upsert(result);
 			metrics.recordAssetNodeResultWritten(

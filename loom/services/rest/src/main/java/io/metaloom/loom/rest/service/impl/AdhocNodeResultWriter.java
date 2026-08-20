@@ -93,7 +93,8 @@ public class AdhocNodeResultWriter {
 			return;
 		}
 		write(probeRunUuid, null, null, userUuid, assetUuid, nodeKind, ledgerState(result.getState()),
-			result.getDurationMs(), result.getMessage(), NodeResultRenderer.renderOutputs(result.getOutputs()));
+			ledgerOrigin(result.getOrigin()), result.getDurationMs(), result.getMessage(),
+			NodeResultRenderer.renderOutputs(result.getOutputs()));
 	}
 
 	/**
@@ -110,18 +111,18 @@ public class AdhocNodeResultWriter {
 			return;
 		}
 		write(runUuid, runUuid, task.getUuid(), userUuid, assetUuid, task.getNodeKind(), ledgerState(task.getState()),
-			task.getDurationMs(), task.getErrorMessage(), resultRef);
+			ORIGIN_COMPUTED, task.getDurationMs(), task.getErrorMessage(), resultRef);
 	}
 
 	private void write(UUID namespaceUuid, UUID runRef, UUID taskRef, UUID userUuid, UUID assetUuid, String nodeKind,
-		String state, Long durationMs, String message, JsonObject resultRef) {
+		String state, String origin, Long durationMs, String message, JsonObject resultRef) {
 		if (assetUuid == null || nodeKind == null) {
 			return;
 		}
 		try {
 			AssetNodeResult entry = dao.createNodeResult(userUuid, assetUuid, nodeKind, AdhocRuns.nodeResultId(namespaceUuid));
 			entry.setState(state);
-			entry.setOrigin(ORIGIN_COMPUTED);
+			entry.setOrigin(origin);
 			entry.setRunUuid(runRef);
 			entry.setTaskUuid(taskRef);
 			entry.setDurationMs(durationMs);
@@ -152,6 +153,26 @@ public class AdhocNodeResultWriter {
 	 *
 	 * @param state the execution state, e.g. {@code COMPLETED}
 	 */
+	/**
+	 * Translate a wire origin into a ledger origin.
+	 *
+	 * <p>
+	 * The worker reports where the value came from on {@code NodeTaskResult.origin}; an older worker
+	 * (or an engine-synthesised result) carries null, which means "computed" by convention. The CHECK
+	 * constraint accepts only the three known values, so anything unrecognised also degrades to
+	 * {@code COMPUTED} rather than losing the ledger row to a constraint violation.
+	 * </p>
+	 *
+	 * @param origin the wire origin, e.g. {@code LOCAL}, or null
+	 */
+	public static String ledgerOrigin(String origin) {
+		return switch (String.valueOf(origin)) {
+			case "LOCAL" -> "LOCAL";
+			case "REMOTE" -> "REMOTE";
+			default -> ORIGIN_COMPUTED;
+		};
+	}
+
 	public static String ledgerState(Object state) {
 		String name = String.valueOf(state);
 		return switch (name) {

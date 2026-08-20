@@ -72,8 +72,11 @@ public final class NodeResultMapper {
 
 	public static NodeTaskResult toWire(UUID taskUuid, String itemId, int elementSeq, NodeResult result) {
 		Map<String, PortPayload> outputs = toPayloads(itemId, elementSeq, result.getOutputs());
+		// The provenance flag travels as a String: null when the node reported nothing, which the
+		// read side treats as COMPUTED.
+		String origin = result.getOrigin() == null ? null : result.getOrigin().name();
 		return new NodeTaskResult(taskUuid, result.getNodeId(), elementSeq, toWireState(result.getState()),
-			result.getDurationMs(), result.getMessage(), outputs);
+			result.getDurationMs(), result.getMessage(), outputs, null, origin);
 	}
 
 	/**
@@ -114,7 +117,8 @@ public final class NodeResultMapper {
 	 */
 	public static NodeInputs toInputs(NodeTask task, ArtifactCache artifacts) {
 		return new NodeInputs(task.getInputs(), task.getDemandedOutputs(),
-			new Origin(task.getItemId(), task.getElementSeq(), null), artifacts, task.isCapturePreviews());
+			new Origin(task.getItemId(), task.getElementSeq(), null), artifacts, task.isCapturePreviews(),
+			task.getRunUuid(), task.getTaskUuid());
 	}
 
 	/**
@@ -143,7 +147,8 @@ public final class NodeResultMapper {
 	 * </p>
 	 */
 	public static NodeInputs toInputs(SegmentTask task, Map<String, PortPayload> available, ArtifactCache artifacts) {
-		return new NodeInputs(available, Set.of(), Origin.single(task.getItemId()), artifacts);
+		return new NodeInputs(available, Set.of(), Origin.single(task.getItemId()), artifacts, false,
+			task.getRunUuid(), task.getTaskUuid());
 	}
 
 	private static io.metaloom.loom.pipeline.model.NodeState toWireState(ResultState state) {

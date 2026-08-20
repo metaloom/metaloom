@@ -21,6 +21,8 @@ class NodeResultCreateRequest(MetaModel):
     reason: str | None = None
     duration_ms: int | None = None
     result_ref: dict[str, Any] | None = None
+    run_uuid: str | None = None
+    task_uuid: str | None = None
 
 
 @dataclass
@@ -44,3 +46,5 @@ class NodeResultResponse(CreatorEditorResponse):
     reason: str | None = None
     duration_ms: int | None = None
     result_ref: dict[str, Any] | None = None
+    run_uuid: str | None = None
+    task_uuid: str | None = None

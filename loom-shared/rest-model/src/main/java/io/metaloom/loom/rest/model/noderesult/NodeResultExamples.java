@@ -34,6 +34,8 @@ public interface NodeResultExamples extends ExampleValues {
 		model.setResultRef(new JsonObject()
 			.put("table", "asset_transcript_comp")
 			.put("uuids", new JsonArray().add(uuidB().toString())));
+		model.setRunUuid(uuidA().toString());
+		model.setTaskUuid(uuidB().toString());
 		setCreatorEditor(model);
 		return model;
 	}
@@ -49,6 +51,8 @@ public interface NodeResultExamples extends ExampleValues {
 		model.setResultRef(new JsonObject()
 			.put("table", "asset_transcript_comp")
 			.put("uuids", new JsonArray().add(uuidB().toString())));
+		model.setRunUuid(uuidA().toString());
+		model.setTaskUuid(uuidB().toString());
 		return model;
 	}
 

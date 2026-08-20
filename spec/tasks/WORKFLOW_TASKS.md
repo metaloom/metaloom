@@ -23,8 +23,8 @@
 >    and guarded; **Task 13 is unblocked**.
 > 2. **Task 6** — one migration comment and two DTO fields; an hour, and it stops the
 >    `detection.type` string drifting a second time.
-> 3. **Task 18** — the ledger's `origin` is a constant and a row cannot name its run. **Blocks Task 9**
->    and every "which worker wrote this?" question.
+> 3. ~~**Task 18**~~ — **DONE 2026-08-20.** The ledger carries the node's real origin and its
+>    run/task identity; **Task 9 is unblocked**.
 > 4. **Task 8** — X5/X6/X7 in one change; degrades five of the six shipped review modes.
 > 5. **Tasks 3 and 4** — finish what already shipped (dedup keeper roles + queue paging; the relocate
 >    module's demo pipeline and missing tests).
@@ -326,9 +326,9 @@ serving this workflow, metadata repair and safety triage — plus the write path
 already shows the real text.
 
 ```
-PREREQUISITE: Task 18. `result_ref` is now populated by ~20 nodes, but `origin` is the
-constant COMPUTED (AbstractMediaNode.java:149) and a ledger row cannot name its run, so a
-review keyed to a row still cannot say which execution produced the text.
+PREREQUISITE: Task 18 — SATISFIED 2026-08-20. `result_ref` is populated by ~20 nodes, `origin`
+carries the node's real answer, and a ledger row names its run and task, so a review keyed to
+a row can say which execution produced the text.
 
 1. node_result_review table (WORKFLOW_AI_REVIEW.md section 2.1) on the EXISTING
    review_status enum - do not create a second one; V2.81 renamed cluster_status to
@@ -804,7 +804,14 @@ memory spike as a regression in the class it is attributed to.
 
 ---
 
-## Task 18: Complete the ledger's provenance — real `origin`, and a row that knows its run
+## Task 18: Complete the ledger's provenance — real `origin`, and a row that knows its run — DONE (2026-08-20)
+
+> Landed as [NODE_DATA_TYPES_TASKS.md](NODE_DATA_TYPES_TASKS.md) Tasks 2 + 3 (see the DONE notes
+> there for what shipped and where the tests live), together with the `nodeId()` collision half
+> ([NODE_TASKS.md](NODE_TASKS.md) Tasks 3 + 4). Step 3's `cortex_instance` question is **decided
+> and written into [../loom/DOMAIN.md](../loom/DOMAIN.md)**: denormalised name+version when per-row
+> worker attribution is added, never an FK — the ledger outlives instance churn. **Task 9 is
+> unblocked**: a review keyed to a ledger row can now say which execution it reviewed.
 
 **Argumentation Summary:** `asset_node_result` is now written by ~20 nodes with a real `result_ref`
 (`AbstractMediaNode.resultRef(...)`, `cortex/common/.../node/AbstractMediaNode.java:163`), and two
@@ -851,4 +858,4 @@ fails with `NoSuchMethodError`.
 ---
 
 _Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (Task 17 DONE — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard; Task 13 unblocked). Earlier: 2026-08-11 (code audit)_
+_Last updated: 2026-08-20 (Task 18 DONE — real `origin`, run/task identity on the ledger, `nodeId()` collisions fixed; Task 9 unblocked). Earlier: 2026-08-18 (Task 17 DONE — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard; Task 13 unblocked); 2026-08-11 (code audit)_

@@ -106,7 +106,16 @@ port. A `PipelineSegmenterTest` case asserting the segment breaks at the `duplic
 
 ---
 
-## Task 2: `ResultOrigin` never reaches the wire
+## Task 2: `ResultOrigin` never reaches the wire — DONE (2026-08-20)
+
+> Landed together with Task 3 (same method, same request object). `NodeTaskResult` carries `origin`
+> as a String (null = `COMPUTED` for wire compatibility; steps 1–3 as written, step 4 respected —
+> no origin on the port payloads). `AdhocNodeResultWriter.writeProbe` now honours the wire origin
+> through `ledgerOrigin(...)`, which also degrades unknown values to `COMPUTED` rather than losing
+> the row to the CHECK constraint. Tests: `NodeResultMapperTest` (origin survives node → wire),
+> `RecordNodeResultTest` in cortex/common (LOCAL recorded as LOCAL, absent origin defaults to
+> COMPUTED), and `ImageGenNodeTest.testCacheHitReportsLocalOrigin` (a cheaper cache-path subject
+> than FilterNode, same assertion).
 
 **Argumentation Summary:** A dozen nodes call `ctx.origin(ResultOrigin.LOCAL)` / `.REMOTE` /
 `.COMPUTED` to say where a result came from — computed here, served from this worker's disk cache, or
@@ -152,7 +161,14 @@ subject. Run `mvn test -pl cortex/node-runtime,cortex/nodes/filter/core` and
 
 ---
 
-## Task 3: A node-result ledger row cannot be traced back to its run
+## Task 3: A node-result ledger row cannot be traced back to its run — DONE (2026-08-20)
+
+> `NodeResultCreateRequest` (and the response) carry optional `runUuid`/`taskUuid`; a malformed
+> value is a 400 out of `NodeResultModelValidator`, not a 500 out of the database. The identity
+> travels `NodeTask`/`SegmentTask` → `NodeInputs.withExecution` → `NodeContext.runUuid()/taskUuid()`
+> → `recordNodeResult`. `NodeResultEndpointTest` covers the round-trip, the omitted case and the
+> `SET NULL` detach on run deletion. Generated artifacts regenerated: openapi (loom/doc), the
+> website copies, the Python client models (parity suite green, 122 tests).
 
 **Argumentation Summary:** `asset_node_result` has `run_uuid` and `task_uuid` columns and
 `AssetNodeResult` has `setRunUuid` / `setTaskUuid` for them, but `NodeResultCreateRequest` — the only

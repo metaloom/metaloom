@@ -841,8 +841,6 @@ The historical defect audit — what the typed-port model fixed and why — live
 | # | Gap | Detail | Task |
 |---|---|---|---|
 | 1 | 🔴 **The two dedup report ports are not selective** | `hash-dedup.duplicate` and `fingerprint-dedup-apply.confirmed_dup` are documented in their own javadoc as "silence means do not act", but neither `@PortDoc` sets `selective = true`. A `move` node wired to one runs for every item with an empty required input (§4.6) | 1 |
-| 2 | 🔴 **`ResultOrigin` never reaches the wire** | `NodeTaskResult` has no origin field. `AbstractMediaNode.recordNodeResult` hardcodes `ledger.setOrigin(ResultOrigin.COMPUTED.name())` instead of reading `ctx.resultOrigin()`, so `asset_node_result.origin` is always `COMPUTED` even on a `LOCAL` cache hit | 2 |
-| 3 | 🔴 **No run/task provenance on the node-result ledger** | `AssetNodeResult` has `setRunUuid`/`setTaskUuid` and the columns exist, but `NodeResultCreateRequest` carries neither field and nothing on the Cortex write path sets them. A ledger row cannot be traced back to the run that produced it | 3 |
 | 4 | **Undeclared and non-selected-`EXCLUSIVE` ports are not rejected on emit** | The design called for both to fail the task by name (§7.4). `ValueCoercer` has neither arm | 4 |
 | 5 | **No `ValueCoercerTest`, no `PortPayload` round-trip test** | The coercer is the only thing between a node and a `ClassCastException` and has no direct test; nothing asserts `output → JSON → JSONB → input` preserves type *and* origin tags, and `PortPayloads`' lenient decode path is untested | 5 |
 | 6 | **`PipelineValidationServiceTest` barely exercises ports** | 38 test methods, one mention of `sourcePort`. The delegated §6.3 rules are almost never reached from the REST side | 6 |
@@ -854,8 +852,21 @@ The historical defect audit — what the typed-port model fixed and why — live
 | 12 | ⚠️ **No shipped kind declares a `ONE`-cardinality `detection/*` input** | So no seeded or shippable graph exercises `PER_ELEMENT` end to end. The gather path is demoed; the fan-out path is covered only by `PipelineRunEngineFanOutTest` and `PortGraphAnalyzerTest` (§8.5) | 11 |
 | 13 | **Result reuse is hard-coded to element 0** | `DaoRunStateStore`'s incremental-reuse lookup passes `elementSeq = 0`, so a `PER_ELEMENT` node re-runs in full on an unchanged asset | 12 |
 
-**Closed since the last revision of this file**, verified against the tree:
+**Closed since the last revision of this file**, verified against the tree (gap numbers are stable
+ids — 2 and 3 are retired, not renumbered):
 
+- ~~Gap 2: `ResultOrigin` never reaches the wire~~ — closed 2026-08-20. `NodeResult` and
+  `NodeTaskResult` carry an `origin` (a String on the wire, null meaning `COMPUTED` for older
+  workers), `NodeContextImpl.next()/abort()` stamp it from `ctx.origin(...)`, and
+  `AbstractMediaNode.recordNodeResult` sends the node's real origin instead of the `COMPUTED`
+  constant. `AdhocNodeResultWriter.writeProbe` honours the wire origin too.
+- ~~Gap 3: no run/task provenance on the node-result ledger~~ — closed 2026-08-20.
+  `NodeResultCreateRequest` carries optional `runUuid`/`taskUuid` (validated as uuids, 400 on
+  malformed), `NodeResultEndpointService` persists them into the `SET NULL` columns, and the task's
+  identity travels `NodeTask/SegmentTask → NodeInputs → NodeContext.runUuid()/taskUuid() →
+  recordNodeResult`. The worker-identity question is settled in
+  [../../loom/DOMAIN.md](../../loom/DOMAIN.md): denormalised name+version when it is added, never an
+  FK to `cortex_instance`.
 - ~~`facedescription` and `loom-fetch` have descriptors but no runnable binding~~ — `facedescription`
   has a `@StringKey` binding; `loom-fetch` is executed by Loom itself and is not a gap (§3.3).
 - ~~Recovery re-parses with a null registry~~ — `PipelineRunRecovery` now builds
@@ -1106,8 +1117,8 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] `DaoRunStateStore` buffers and looks up by `(item, node, elementSeq)`
 - [x] `PipelineRunRecovery` restores a `List<RestoredTask>` carrying `elementSeq` — a half-fanned item survives
 - [x] `DaoAssetSink` selects hashes by **content type**, not by port id
-- [ ] 🔴 `ResultOrigin` never reaches the wire; `asset_node_result.origin` is hardcoded `COMPUTED` (gap 2)
-- [ ] 🔴 `run_uuid` / `task_uuid` are never set on a node-result ledger row (gap 3)
+- [x] `NodeTaskResult.origin` (String, null = `COMPUTED`); `recordNodeResult` sends `ctx.resultOrigin()` (gap 2, closed 2026-08-20)
+- [x] `NodeResultCreateRequest.runUuid/taskUuid` → `SET NULL` columns; identity travels via `NodeInputs` (gap 3, closed 2026-08-20)
 - [ ] No `PortPayload` round-trip test; no `ValueCoercerTest` (gap 5)
 - [ ] Result reuse in `DaoRunStateStore` is hard-coded to `elementSeq = 0` (gap 13)
 
@@ -1147,7 +1158,8 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 
 ---
 _Git HEAD revision: `67000540`_
-_Last updated: 2026-08-16 (moved here from `features/pipeline/` and re-verified against the tree.
+_Last updated: 2026-08-20 (gaps 2 and 3 closed — `origin` on the wire and run/task identity on the
+ledger; see §9). Earlier: 2026-08-16 (moved here from `features/pipeline/` and re-verified against the tree.
 The 26 hand-written descriptor providers are gone — a node declares its contract with
 `@NodeSpec`/`@PortDoc`/`@ParamDoc` and the build-time harvest is committed and guarded by
 `NodeSpecGoldenTest` (§3.3); 45 descriptor kinds / 46 runnable; 40 content-type ids; five XOR groups,

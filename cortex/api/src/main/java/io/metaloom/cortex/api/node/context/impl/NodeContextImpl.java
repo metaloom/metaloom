@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.Element;
@@ -131,6 +132,16 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	@Override
 	public Origin origin() {
 		return inputs.origin();
+	}
+
+	@Override
+	public UUID runUuid() {
+		return inputs.runUuid();
+	}
+
+	@Override
+	public UUID taskUuid() {
+		return inputs.taskUuid();
 	}
 
 	@Override
@@ -275,19 +286,19 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 			// node, and FailurePathGuardTest (cortex/api) fails the build on the .next() shape. This
 			// branch is the fail-closed backstop for the site that guard cannot see, e.g. a failure
 			// recorded in a helper several frames above the return.
-			return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews());
+			return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews(), resultOrigin);
 		}
 		if (skipReason != null) {
 			// Outputs survive a skip on purpose. Emptying the map here used to throw away
 			// exactly the diagnostics needed to understand why the node did not finish.
-			return new NodeResult(null, ResultState.SKIPPED, duration(), skipReason, outputs(), previews());
+			return new NodeResult(null, ResultState.SKIPPED, duration(), skipReason, outputs(), previews(), resultOrigin);
 		}
-		return new NodeResult(null, ResultState.SUCCESS, duration(), null, outputs(), previews());
+		return new NodeResult(null, ResultState.SUCCESS, duration(), null, outputs(), previews(), resultOrigin);
 	}
 
 	@Override
 	public NodeResult abort() {
-		return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews());
+		return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews(), resultOrigin);
 	}
 
 	@Override

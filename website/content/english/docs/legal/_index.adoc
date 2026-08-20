@@ -1,7 +1,7 @@
 ---
 title: Legal & Licensing
 description: "MetaLoom is Apache 2.0, but a running deployment also answers to the licences of the model weights it loads. This section is where both are written down."
-weight: 11
+weight: 12
 ---
 
 MetaLoom itself is open source under the **Apache License 2.0**. What you may do with a *running*

@@ -1,0 +1,75 @@
+{{/* "Storage" art: the write-ahead log of 27-byte primitives feeding Hilbert-ordered immutable
+     segments, the level-of-detail pyramid beside them, and the read-at-sequence slider under
+     everything. The Hilbert curve draws itself when the panel is revealed. Colour + motion in
+     lumen.css (.lu-st-*). Ids are page-prefixed "lu-st-". */}}
+<div class="lu-art lu-art-store">
+  <svg viewBox="0 0 420 280" class="lu-st" role="img" aria-labelledby="lu-st-title lu-st-desc">
+    <title id="lu-st-title">The splat store</title>
+    <desc id="lu-st-desc">Quantised 27-byte primitives append to a write-ahead log, are ordered
+      along a Hilbert curve and compacted into immutable segments; a level-of-detail pyramid
+      serves published quality tiers, and a sequence slider reads the scene at any point in its
+      history.</desc>
+
+    <defs>
+      <linearGradient id="lu-st-seg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1c2733"/>
+        <stop offset="100%" stop-color="#121a22"/>
+      </linearGradient>
+      <marker id="lu-st-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L8 4 L0 8 Z" fill="rgba(226,168,110,.75)"/>
+      </marker>
+    </defs>
+
+    {{/* --- the write-ahead log: a strip of fixed-size cells --- */}}
+    <g class="lu-st-wal">
+      <text class="lu-st-label" x="18" y="30">write-ahead log &#183; 27 bytes per primitive</text>
+      <g class="lu-st-wal-cells">
+        <rect class="lu-st-cell" style="--lu-delay:0s"   x="18"  y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell" style="--lu-delay:.1s"  x="46"  y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell" style="--lu-delay:.2s"  x="74"  y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell" style="--lu-delay:.3s"  x="102" y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell" style="--lu-delay:.4s"  x="130" y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell" style="--lu-delay:.5s"  x="158" y="40" width="24" height="16" rx="3"/>
+        <rect class="lu-st-cell lu-st-cell-new" style="--lu-delay:.6s" x="186" y="40" width="24" height="16" rx="3"/>
+      </g>
+    </g>
+
+    <path class="lu-st-wire" d="M114 66 L 114 88" fill="none" marker-end="url(#lu-st-arrow)"/>
+    <text class="lu-st-note" x="126" y="82">compact</text>
+
+    {{/* --- immutable segments; the top one shows its Hilbert ordering --- */}}
+    <g class="lu-st-segments">
+      <rect x="18" y="94" width="192" height="86" rx="9" fill="url(#lu-st-seg)" stroke="rgba(226,168,110,.45)"/>
+      {{/* a second-order Hilbert curve over a 4x4 grid inside the segment */}}
+      {{/* pathLength="1" normalises the curve so lumen.css can draw it with a unit dash. */}}
+      <path class="lu-st-hilbert" pathLength="1" d="M42 162 L42 140 L64 140 L64 162 L86 162 L108 162 L108 140 L86 140 L86 118 L108 118 L108 96 L86 96 L64 96 L64 118 L42 118 L42 96"
+            transform="translate(32 14) scale(.82)" fill="none"/>
+      <text class="lu-st-seg-note" x="196" y="112" text-anchor="end">hilbert order</text>
+      <rect x="26" y="188" width="176" height="12" rx="6" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.14)"/>
+      <rect x="34" y="206" width="160" height="12" rx="6" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.1)"/>
+      <text class="lu-st-note" x="18" y="234">immutable segments</text>
+    </g>
+
+    {{/* --- the LOD pyramid and its published tiers --- */}}
+    <g class="lu-st-lod">
+      <polygon class="lu-st-lod-step" style="--lu-delay:.3s" points="300,110 356,110 348,96 308,96" fill="rgba(226,168,110,.5)"/>
+      <polygon class="lu-st-lod-step" style="--lu-delay:.45s" points="288,132 368,132 360,118 296,118" fill="rgba(226,168,110,.32)"/>
+      <polygon class="lu-st-lod-step" style="--lu-delay:.6s" points="276,154 380,154 372,140 284,140" fill="rgba(226,168,110,.18)"/>
+      <text class="lu-st-label" x="328" y="86" text-anchor="middle">lod pyramid</text>
+      <text class="lu-st-note" x="328" y="174" text-anchor="middle">published quality tiers</text>
+    </g>
+
+    {{/* --- time travel: read the scene at any sequence --- */}}
+    <g class="lu-st-time">
+      <line x1="248" y1="214" x2="398" y2="214" stroke="rgba(255,255,255,.16)" stroke-width="2"/>
+      <line x1="248" y1="214" x2="342" y2="214" stroke="rgba(226,168,110,.7)" stroke-width="2"/>
+      <circle class="lu-st-playhead" cx="342" cy="214" r="5" fill="#ffcf9b"/>
+      <text class="lu-st-note" x="248" y="236">read @ seq &#8212; any point in history</text>
+    </g>
+  </svg>
+
+  <div class="lu-art-strip">
+    <span class="lu-pill lu-pill-accent">write amp 44&times; &#8594; 1.1&times;</span>
+    <span class="lu-pill lu-pill-accent">open 3.7 s &#8594; 103 ms</span>
+  </div>
+</div>

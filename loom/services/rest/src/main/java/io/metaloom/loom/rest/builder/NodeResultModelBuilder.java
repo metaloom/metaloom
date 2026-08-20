@@ -23,6 +23,12 @@ public interface NodeResultModelBuilder extends ModelBuilder, UserModelBuilder {
 		response.setReason(result.getReason());
 		response.setDurationMs(result.getDurationMs());
 		response.setResultRef(result.getResultRef());
+		if (result.getRunUuid() != null) {
+			response.setRunUuid(result.getRunUuid().toString());
+		}
+		if (result.getTaskUuid() != null) {
+			response.setTaskUuid(result.getTaskUuid().toString());
+		}
 		setStatus(result, response);
 		return response;
 	}

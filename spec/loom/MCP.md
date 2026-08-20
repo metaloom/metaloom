@@ -36,7 +36,7 @@ flowchart TD
   reg -->|EventBus mcp.tool.name| plain["Plain tools<br/>11 x loom/services/mcp"]
   reg -->|in-process execute(args, ctx)| ident["Identity-scoped tools<br/>2 x pipeline authoring<br/>4 x memory (loom/agent/memory)"]
   plain --> dao[("DaoCollection / DAOs")]
-  plain --> srch{{"SearchProvider SPI<br/>search_assets · search_transcript"}}
+  plain --> srch{{"SearchProvider SPI<br/>search_assets · find_assets · search_transcript"}}
   plain --> auth2["PipelineAuthoringService<br/>(the one write path)"]
   ident --> auth2
   ident --> mem["MemoryService"]
@@ -238,12 +238,13 @@ bounded** (producer caps it — `GetPipelineTool.MAX_NODES`/`MAX_EDGES` — and
 
 ## 5. Registered Tools
 
-Twenty-one tool implementations in total — the seventeen core tools always, the four
+Twenty-two tool implementations in total — the eighteen core tools always, the four
 memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 
 | Tool                | Class                  | Module   | Permissions       | Identity | References | Visual |
 |---------------------|------------------------|----------|-------------------|----------|------------|--------|
 | `search_assets`     | `SearchAssetsTool`     | mcp      | `READ_ASSET`      | no       | asset      | —      |
+| `find_assets`       | `FindAssetsTool`       | mcp      | `READ_SEARCH` + `READ_ASSET` | **yes** | asset | —      |
 | `get_asset`         | `GetAssetTool`         | mcp      | `READ_ASSET`      | no       | asset      | —      |
 | `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | asset      | —      |
 | `list_collections`  | `ListCollectionsTool`  | mcp      | `READ_COLLECTION` | no       | collection | —      |
@@ -277,12 +278,21 @@ from any of them is a tool result, never a failed future.
 | Tool | Parameters | Result | Known gaps |
 |------|------------|--------|------------|
 | `search_assets` | `query` (string, **required**), `mimeType` (string, prefix — a trailing `*` is stripped), `library` (uuid), `tag` (string), `limit` (int, 25), `offset` (int, 0) | `Found N of M matching assets for 'q'.` + JSON array (uuid, title, mimeType, size, score) | Served by `SearchProvider` ([../features/search/SEARCH.md](../features/search/SEARCH.md) §2.2). No result narrowing — see the note below the table |
+| `find_assets` | `text` (string, optional), `creator` / `collection` / `library` / `space` (string — **a name or a uuid**), `tags` (array of names), `when` / `createdFrom` / `createdTo` (string — `today`, `yesterday`, `last week`, `last 7 days`, a date, or an ISO instant), `mimeType` (prefix, trailing `*` stripped), `types` (`asset` \| `transcript`), `sort`, `mode`, `highlight`, `timezone`, `limit`, `offset` | `Found N assets (creator: Pete Miller (pete), created: yesterday).` + JSON array (uuid, title, mimeType, size, created, score, optional timeFromMs/snippet) | **Names are resolved server-side**, and an unknown or ambiguous one refuses the call rather than dropping the clause. `text` is optional — filters alone are a valid query. Closed key set: an unrecognised key is refused, naming the accepted ones |
 | `get_asset` | `assetId` (string, **required**) — UUID or SHA-512 via `AssetId.assetId()` | JSON object (uuid, filename, mimeType, size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath) | Description promises media properties, geo and components; they are not returned. Missing asset → text result, not an error |
 | `search_transcript` | `query` (string, **required**), `limit` (int, 10), `offset` (int, 0) | `Found N of M transcript matches for 'q'.` + JSON array (assetUuid, title, timeFromMs, snippet, score) | `types=[TRANSCRIPT]`, `highlight=true`; `<b>` markers are stripped from the snippet — `ts_headline` output is unsanitised source text |
 | `list_collections` | `limit` (int, 25) | `Found N collections.` + JSON array (uuid, name) | No name filter, no space scoping |
 | `asset_statistics` | `collection` (string) | JSON object: totalAssets, totalStorageBytes, totalStorageMB, images, videos, audio, documents, other | `collection` is **ignored**; loads up to 10 000 assets and aggregates in memory instead of using SQL aggregates |
 
-**The two search tools go through the same `SearchProvider` the REST routes use**, so the model and
+`find_assets` is the identity-scoped one. It declares `requiresIdentity`, so it has no EventBus
+address and is dispatched in-process with a resolved `MCPCallerContext`; it sets
+`SearchRequest.userUuid` from that context and never from its arguments. Both types it will search —
+`asset` and `transcript` — require `READ_ASSET`, which its descriptor demands, so the per-type
+narrowing `SearchEndpointService` performs over REST holds here by construction rather than through a
+second copy of that logic. Design and open work:
+[../concept/AGENTIC_SEARCH_CONCEPT.md](../concept/AGENTIC_SEARCH_CONCEPT.md).
+
+**The three search tools go through the same `SearchProvider` the REST routes use**, so the model and
 the UI rank one corpus. Three consequences worth knowing:
 
 - 🔴 **No per-type narrowing, and it cannot be added here.** `SearchEndpointService` filters the

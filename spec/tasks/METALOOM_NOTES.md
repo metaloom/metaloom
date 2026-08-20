@@ -54,25 +54,16 @@ This file tracks no progress — the linked specs do.
   nothing specifies a CDN in front of the pool, pre-encoded renditions, or HLS/DASH. Attachment
   downloads (`/attachments/:uuid/data`) still ignore `Range` entirely.
 
-* **Complete the node provenance record.** The `asset_node_result` ledger already carries
-  `node_kind` + `node_id` + `producer_version`, which identifies *which node kind* wrote a value but
-  not *which worker build*. The schema is not the problem — `V2.45__add_asset_node_result.sql`
-  already has `run_uuid`, `task_uuid` and a nullable `origin` with a
-  `NULL|COMPUTED|LOCAL|REMOTE` CHECK. The write path is:
-  - `NodeResultCreateRequest` has only 8 fields and none of them are `runUuid` / `taskUuid` /
-    `cortexInstance` / `started` / `finished`, so the REST model cannot carry them even though
-    `NodeResultEndpointService` passes `origin` through faithfully;
-  - `origin` is hard-coded at both writers — `AbstractMediaNode.recordNodeResult` sets
-    `ResultOrigin.COMPUTED` and ignores `ctx.resultOrigin()`, and `AdhocNodeResultWriter` uses a
-    constant — so a `LOCAL` cache hit is indistinguishable from real work;
-  - the `cortex_instance` table (`V2.33`) exists but is written only by worker registration and is
-    never referenced from the node-result path; `V2.66` even notes that `asset_node_result.node_id`
-    and `cortex_instance.node_id` mean different things, so there is no implicit join key either.
-  Consequence: faulty data cannot be traced back to a worker. Blocks the review record in
-  [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) and is cross-referenced from
-  [WORKFLOW_AI_REVIEW.md](../workflows/WORKFLOW_AI_REVIEW.md). Line-level gaps are pinned in
-  [../features/nodes/NODE_DATA_TYPES.md](../features/nodes/NODE_DATA_TYPES.md). loom-ui would gain
-  a provenance row on `NodeResultDetail.tsx`, which today shows only the element seq.
+* ~~**Complete the node provenance record.**~~ **DONE 2026-08-20** under
+  [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) Task 18 (=
+  [NODE_DATA_TYPES_TASKS.md](NODE_DATA_TYPES_TASKS.md) Tasks 2+3).
+  `NodeResultCreateRequest` carries `runUuid`/`taskUuid`, `origin` is the node's real answer at both
+  writers (`recordNodeResult` reads `ctx.resultOrigin()`; `AdhocNodeResultWriter.writeProbe` honours
+  the wire origin), and the execution identity travels `NodeTask → NodeInputs → NodeContext`.
+  Remaining, by decision recorded in [../loom/DOMAIN.md](../loom/DOMAIN.md): per-row *worker*
+  attribution, when added, is denormalised name+version columns — never an FK to `cortex_instance`
+  (`V2.66`'s warning that the two `node_id` columns mean different things stands). loom-ui could
+  still gain a provenance row on `NodeResultDetail.tsx`, which today shows only the element seq.
 
 
 ## Unowned defects (verified 2026-08-11)

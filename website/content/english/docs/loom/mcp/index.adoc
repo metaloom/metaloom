@@ -228,7 +228,7 @@ assets are in the library?"*, which the assistant answers with `asset_statistics
 
 == What the Tools Do
 
-Twenty-one tools in total. The permission column is the one your role must grant for the call to
+Twenty-two tools in total. The permission column is the one your role must grant for the call to
 succeed; where two are listed, *both* are required. Roles are edited on the ACL screens — see
 link:../features/[Features].
 
@@ -243,6 +243,15 @@ link:../features/[Features].
   extracted document text, captions, detected labels and tags; results can be narrowed by MIME type,
   library or tag, and paged through.
 | `READ_ASSET`
+
+| `find_assets`
+| Search the library by the whole question rather than by a term alone: what the file contains, who
+  created it, when, and which project, library, collection or tags it belongs to. Names and dates are
+  given as words — *Emily*, *the campaign project*, *yesterday* — and are resolved on the server, so a
+  caller never needs an id or today's date. A name that matches nothing, or more than one thing, stops
+  the call and says so rather than silently searching wider. A search term is optional: filters on
+  their own are a valid question.
+| `READ_SEARCH` + `READ_ASSET`
 
 | `get_asset`
 | Loads one asset by UUID or SHA-512 hash: file details, hashes, origin and storage location.

@@ -48,6 +48,18 @@ public class SearchRequest {
 
 	private String lang;
 
+	/**
+	 * The user who created the entity, as a uuid.
+	 *
+	 * <p>
+	 * Unlike every other narrowing field here this one is <b>not</b> a column of {@code search_document}: the index carries no creator projection, so the
+	 * provider resolves it with a correlated lookup against {@code asset}. That restricts it to hits which carry an {@code asset_uuid} - assets and their
+	 * transcripts and segments - which is exactly the set a "who uploaded this" question is about. A tag or a collection has a creator too, and filtering
+	 * those by it is deliberately not supported rather than silently wrong.
+	 * </p>
+	 */
+	private UUID creatorUuid;
+
 	private int limit = 25;
 
 	private int offset = 0;
@@ -187,6 +199,18 @@ public class SearchRequest {
 
 	public SearchRequest setCreatedTo(Instant createdTo) {
 		this.createdTo = createdTo;
+		return this;
+	}
+
+	public UUID getCreatorUuid() {
+		return creatorUuid;
+	}
+
+	/**
+	 * @see #creatorUuid
+	 */
+	public SearchRequest setCreatorUuid(UUID creatorUuid) {
+		this.creatorUuid = creatorUuid;
 		return this;
 	}
 

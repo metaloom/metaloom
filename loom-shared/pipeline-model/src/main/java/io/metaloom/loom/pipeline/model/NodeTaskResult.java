@@ -33,6 +33,7 @@ public class NodeTaskResult {
 	private final NodeState state;
 	private final long durationMs;
 	private final String message;
+	private final String origin;
 	private final Map<String, PortPayload> outputs;
 	private final Map<String, NodePreview> previews;
 
@@ -41,15 +42,25 @@ public class NodeTaskResult {
 		@JsonProperty("elementSeq") Integer elementSeq,
 		@JsonProperty("state") NodeState state, @JsonProperty("durationMs") long durationMs,
 		@JsonProperty("message") String message, @JsonProperty("outputs") Map<String, PortPayload> outputs,
-		@JsonProperty("previews") Map<String, NodePreview> previews) {
+		@JsonProperty("previews") Map<String, NodePreview> previews, @JsonProperty("origin") String origin) {
 		this.taskUuid = taskUuid;
 		this.nodeId = Objects.requireNonNull(nodeId, "A node id must be set");
 		this.elementSeq = elementSeq == null ? 0 : elementSeq;
 		this.state = Objects.requireNonNull(state, "A node state must be set");
 		this.durationMs = durationMs;
 		this.message = message;
+		this.origin = origin;
 		this.outputs = outputs == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(outputs));
 		this.previews = previews == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(previews));
+	}
+
+	/**
+	 * Backwards-compatible overload for a result with no origin - what a worker built before the
+	 * provenance flag travelled on the wire. Read side treats the null as {@code COMPUTED}.
+	 */
+	public NodeTaskResult(UUID taskUuid, String nodeId, Integer elementSeq, NodeState state, long durationMs,
+		String message, Map<String, PortPayload> outputs, Map<String, NodePreview> previews) {
+		this(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, previews, null);
 	}
 
 	/**
@@ -58,12 +69,17 @@ public class NodeTaskResult {
 	 */
 	public NodeTaskResult(UUID taskUuid, String nodeId, Integer elementSeq, NodeState state, long durationMs,
 		String message, Map<String, PortPayload> outputs) {
-		this(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, null);
+		this(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, null, null);
 	}
 
 	/** This result with previews attached. Used at the worker's result boundary. */
 	public NodeTaskResult withPreviews(Map<String, NodePreview> previews) {
-		return new NodeTaskResult(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, previews);
+		return new NodeTaskResult(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, previews, origin);
+	}
+
+	/** This result with the provenance flag attached. Used at the worker's result boundary. */
+	public NodeTaskResult withOrigin(String origin) {
+		return new NodeTaskResult(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, previews, origin);
 	}
 
 	/**
@@ -140,6 +156,20 @@ public class NodeTaskResult {
 	/** @return failure detail or skip reason, null on success */
 	public String getMessage() {
 		return message;
+	}
+
+	/**
+	 * Where the value came from: {@code COMPUTED}, {@code LOCAL} (served from this worker's cache) or {@code REMOTE} (fetched from Loom).
+	 *
+	 * <p>
+	 * A String rather than an enum on purpose: pipeline-model must not depend on cortex/api, the same reason {@code PortPayload.cardinality} is a
+	 * String. Null means the worker predates the flag - readers must treat null as {@code COMPUTED}.
+	 * </p>
+	 *
+	 * @return the origin, or null when the producer did not report one
+	 */
+	public String getOrigin() {
+		return origin;
 	}
 
 	/** @return node outputs keyed by output port id, never null */
