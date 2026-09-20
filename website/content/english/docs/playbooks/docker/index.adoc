@@ -12,6 +12,10 @@ restart.
 For a five-minute look at the product instead, use the demo image described in
 link:../../getting-started/[Getting Started]. Everything below assumes you want to keep the data.
 
+The server image starts with an **empty** catalogue: the example space, libraries and assets you
+see in the demo image are seeded only when `LOOM_DEMO_ENABLED` is set, which that image does and
+this stack does not. Your first library is the first thing in it.
+
 == What You Will Build
 
 ++++

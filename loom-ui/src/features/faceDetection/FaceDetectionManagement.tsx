@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Box, Typography, Chip, TextField, InputAdornment, Button,
+  Box, Typography, Chip, TextField, InputAdornment, Button, Autocomplete,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, Select, MenuItem, SelectChangeEvent, CircularProgress,
+  CircularProgress, ToggleButton, ToggleButtonGroup, Tooltip,
 } from "@mui/material";
 import {
   SearchOutlined, GroupWorkOutlined, PersonOutlined, AddOutlined,
+  ViewComfyOutlined, ViewModuleOutlined, ViewQuiltOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
@@ -19,7 +20,7 @@ import {
   detachClusterPerson as apiDetachClusterPerson,
   ClusterResponse,
 } from "../../api/clusters";
-import ClustersPanel from "./ClustersPanel";
+import ClustersPanel, { ClusterCardSize } from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
 import { toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
@@ -27,10 +28,25 @@ import { ListFilterSelect } from "../../components/ListControls";
 import { useFailure } from "../../context/FailureContext";
 import LoadFailure from "../../components/LoadFailure";
 
+/** localStorage key for the cluster card size. */
+const CARD_SIZE_KEY = "loom.faceDetection.clusterCardSize";
+
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [query, setQuery] = useState("");
+  /**
+   * How large to draw the cluster cards.
+   *
+   * Remembered across visits: which size suits you is a property of the work you are doing - a
+   * sweep for duplicate people wants `small`, checking one cluster's coherence wants `large` - and
+   * having to re-pick it on every navigation is the kind of friction that makes people stop using
+   * a control. A malformed or absent value falls back to `medium`.
+   */
+  const [cardSize, setCardSize] = useState<ClusterCardSize>(() => {
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem(CARD_SIZE_KEY) : null;
+    return stored === "small" || stored === "large" || stored === "medium" ? stored : "medium";
+  });
   const [activeSection, setActiveSection] = useState<"clusters" | "persons">("clusters");
   const [assignment, setAssignment] = useState("");
   const [createPersonOpen, setCreatePersonOpen] = useState(false);
@@ -43,7 +59,16 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   /** A stack-drop waiting on a name, because neither cluster is attributed yet. */
   const [mergePending, setMergePending] = useState<{ sourceId: string; targetId: string } | null>(null);
   const [mergeName, setMergeName] = useState("");
-  const [assignPersonId, setAssignPersonId] = useState("");
+  /**
+   * What the assign dialog currently holds.
+   *
+   * A name rather than a uuid, because the dialog is a type-to-find box: the reviewer knows
+   * "Jack O'Neill", not a uuid, and the person they want may not exist yet. Resolved back to a
+   * uuid on save, and passed as an `alias` when it matches nobody — which is the same thing the
+   * stack-drop dialog does, so naming a person means one thing in this screen however you got
+   * there.
+   */
+  const [assignPersonName, setAssignPersonName] = useState("");
   // Three states, not two: loading, failed and loaded-but-empty are different things to say, and
   // this screen used to render all three identically.
   const [loading, setLoading] = useState(true);
@@ -110,6 +135,15 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     loadData();
   }, [token, reloadToken]);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CARD_SIZE_KEY, cardSize);
+    } catch {
+      // Private browsing, or a full quota. A size that does not survive a reload is a much smaller
+      // problem than a screen that throws while rendering.
+    }
+  }, [cardSize]);
+
   const filteredClusters = clusters.filter(c => {
     // Assignment is the axis review actually runs along: the work is finding the clusters that
     // still have nobody attached to them.
@@ -170,17 +204,25 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
    * transaction; local state is updated from what the server actually stored.
    */
   const handleAssignCluster = async () => {
-    if (!assignOpen || !assignPersonId || !token) return;
+    const typed = assignPersonName.trim();
+    if (!assignOpen || !typed || !token) return;
+    const existing = persons.find(p => p.name.toLowerCase() === typed.toLowerCase());
     try {
-      const confirmed = await apiConfirmCluster(token, assignOpen, { personUuid: assignPersonId });
+      // `alias` when nobody matches: the confirm route creates the person and returns its uuid,
+      // which is the only way to name somebody without a second round trip.
+      const confirmed = await apiConfirmCluster(token, assignOpen,
+        existing ? { personUuid: existing.id } : { alias: typed });
       setClusters(prev => prev.map(c => (c.id === assignOpen ? { ...c, ...toUiCluster(confirmed), faceIds: c.faceIds } : c)));
-      setPersons(prev =>
-        prev.map(p => (p.id === assignPersonId && !p.clusterIds.includes(assignOpen) 
-          ? { ...p, clusterIds: [...p.clusterIds, assignOpen] } 
-          : p)),
-      );
+      const personId = confirmed.personUuid ?? existing?.id;
+      if (personId) {
+        setPersons(prev => (prev.some(p => p.id === personId)
+          ? prev.map(p => (p.id === personId && !p.clusterIds.includes(assignOpen)
+            ? { ...p, clusterIds: [...p.clusterIds, assignOpen] }
+            : p))
+          : [...prev, { id: personId, name: typed, description: "", avatarUrl: "", clusterIds: [assignOpen], createdAt: new Date().toISOString() }]));
+      }
       setAssignOpen(null);
-      setAssignPersonId("");
+      setAssignPersonName("");
     } catch (e) {
       reportFailure("confirmCluster", e);
     }
@@ -220,6 +262,15 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       reportFailure("detachClusterPerson", e);
     }
   }, [token, reportFailure]);
+
+  /** A card dropped on a person's group: the same confirm, with the person already known. */
+  const handleAssignToPerson = useCallback(async (clusterId: string, personId: string) => {
+    try {
+      await mergeInto(personId, [clusterId]);
+    } catch (e) {
+      reportFailure("confirmCluster", e);
+    }
+  }, [mergeInto, reportFailure]);
 
   const handleMergeClusters = useCallback(async (sourceId: string, targetId: string) => {
     if (!token) return;
@@ -266,6 +317,22 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     }
   }, [token, mergePending, mergeName, mergeInto, reportFailure]);
 
+  /**
+   * Enter submits, Escape is already MUI's.
+   *
+   * Every dialog on this screen is one field and two buttons, and none of them finished on Enter
+   * — you typed a name and then had to go and find the mouse. Bound on the dialog rather than on
+   * each field so it holds however the focus got there, and guarded on `disabled` so Enter cannot
+   * do what the greyed-out button refuses to.
+   */
+  const submitOnEnter = (enabled: boolean, submit: () => void) => (e: React.KeyboardEvent) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    // An open Autocomplete popup owns Enter: it is picking an option, not ending the dialog.
+    if ((e.target as HTMLElement).getAttribute?.("aria-expanded") === "true") return;
+    e.preventDefault();
+    if (enabled) submit();
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
@@ -297,6 +364,28 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             ),
           }}
         />
+        {/* Card size. Beside the search box because it is the same kind of control: neither
+            changes what is in the list, both change what you can find in it. */}
+        {activeSection === "clusters" && (
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={cardSize}
+            onChange={(_, value: ClusterCardSize | null) => { if (value) setCardSize(value); }}
+            data-testid="facedetection-card-size"
+            sx={{ "& .MuiToggleButton-root": { px: 0.75, py: 0.25, border: `1px solid ${tokens.border.subtle}` } }}
+          >
+            <ToggleButton value="small" data-testid="facedetection-card-size-small" aria-label={t("faceDetection.size.small")}>
+              <Tooltip title={t("faceDetection.size.small")}><ViewComfyOutlined sx={{ fontSize: 16 }} /></Tooltip>
+            </ToggleButton>
+            <ToggleButton value="medium" data-testid="facedetection-card-size-medium" aria-label={t("faceDetection.size.medium")}>
+              <Tooltip title={t("faceDetection.size.medium")}><ViewModuleOutlined sx={{ fontSize: 16 }} /></Tooltip>
+            </ToggleButton>
+            <ToggleButton value="large" data-testid="facedetection-card-size-large" aria-label={t("faceDetection.size.large")}>
+              <Tooltip title={t("faceDetection.size.large")}><ViewQuiltOutlined sx={{ fontSize: 16 }} /></Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        )}
         {/* Only meaningful for clusters — a person is not assigned to anything. */}
         {activeSection === "clusters" && (
           <ListFilterSelect value={assignment} onChange={setAssignment}
@@ -375,11 +464,19 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           <ClustersPanel
             clusters={filteredClusters}
             persons={persons}
-            onAssignCluster={(clusterId) => { setAssignOpen(clusterId); setAssignPersonId(""); }}
+            onAssignCluster={(clusterId) => {
+              // Prefill with whoever the cluster already belongs to, so re-opening the dialog on an
+              // attributed card shows the attribution instead of an empty box.
+              const current = clusters.find(c => c.id === clusterId);
+              setAssignOpen(clusterId);
+              setAssignPersonName(persons.find(p => p.id === current?.personId)?.name ?? "");
+            }}
             onClusterDeleted={(id) => setClusters(prev => prev.filter(c => c.id !== id))}
             onClusterUpdated={(updated) => setClusters(prev => prev.map(c => c.id === updated.id ? updated : c))}
             onMergeClusters={handleMergeClusters}
             onDetachPerson={handleDetachPerson}
+            onAssignToPerson={handleAssignToPerson}
+            size={cardSize}
           />
         )}
         {!loading && !loadError && activeSection === "persons" && (
@@ -393,7 +490,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       </Box>
 
       {/* Create Cluster Dialog */}
-      <Dialog open={createClusterOpen} onClose={() => setCreateClusterOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={createClusterOpen} onClose={() => setCreateClusterOpen(false)} maxWidth="xs" fullWidth
+        onKeyDown={submitOnEnter(!!newClusterName.trim(), handleCreateCluster)}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.addCluster")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           <TextField
@@ -413,7 +511,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       </Dialog>
 
       {/* Create Person Dialog */}
-      <Dialog open={createPersonOpen} onClose={() => setCreatePersonOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={createPersonOpen} onClose={() => setCreatePersonOpen(false)} maxWidth="xs" fullWidth
+        onKeyDown={submitOnEnter(!!newPersonAlias.trim(), handleCreatePerson)}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.addPerson")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           <TextField
@@ -450,43 +549,56 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
       {/* Assign Cluster to Person Dialog */}
       <Dialog open={!!assignOpen} onClose={() => setAssignOpen(null)} maxWidth="xs" fullWidth
+        onKeyDown={submitOnEnter(!!assignPersonName.trim(), handleAssignCluster)}
         PaperProps={{ "data-testid": "facedetection-assign-dialog" } as React.ComponentProps<typeof Dialog>["PaperProps"]}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.assign")}</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
-          <FormControl fullWidth size="small">
-            <Select
-              value={assignPersonId}
-              onChange={(e: SelectChangeEvent) => setAssignPersonId(e.target.value)}
-              displayEmpty
-              data-testid="facedetection-assign-select"
-              sx={{ fontSize: "0.85rem" }}
-            >
-              <MenuItem value="" disabled>{t("faceDetection.dialog.selectPerson")}</MenuItem>
-              {persons.map(p => (
-                <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {/* A type-to-find box, not a dropdown. This is reached by double-clicking a card in a
+              grid of a hundred, and scrolling a select to the right name is the slow half of a
+              review pass. `freeSolo` because the person you are looking at may not exist yet, and
+              having to leave the dialog to create them is the other slow half. */}
+          <Autocomplete
+            freeSolo
+            openOnFocus
+            options={persons.map(p => p.name)}
+            inputValue={assignPersonName}
+            onInputChange={(_, value, reason) => { if (reason !== "reset") setAssignPersonName(value); }}
+            onChange={(_, value) => { if (typeof value === "string") setAssignPersonName(value); }}
+            size="small"
+            data-testid="facedetection-assign-select"
+            renderInput={params => (
+              // autoFocus, because the dialog opens on a double-click and the next thing the
+              // reviewer does is type. Landing on the Cancel button instead is the friction this
+              // whole control exists to remove.
+              <TextField {...params} autoFocus label={t("faceDetection.dialog.selectPerson")}
+                inputProps={{ ...params.inputProps, "data-testid": "facedetection-assign-input" }} />
+            )}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAssignOpen(null)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleAssignCluster} variant="contained" size="small" data-testid="facedetection-assign-save" disabled={!assignPersonId}>{t("faceDetection.button.assign")}</Button>
+          <Button onClick={handleAssignCluster} variant="contained" size="small" data-testid="facedetection-assign-save" disabled={!assignPersonName.trim()}>{t("faceDetection.button.assign")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Naming the person a stack of two unattributed clusters belongs to. */}
       <Dialog open={!!mergePending} onClose={() => setMergePending(null)} maxWidth="xs" fullWidth
+        onKeyDown={submitOnEnter(!!mergeName.trim(), handleMergeWithNewPerson)}
         PaperProps={{ "data-testid": "facedetection-merge-dialog" } as React.ComponentProps<typeof Dialog>["PaperProps"]}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.label.mergePrompt")}</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
-          <TextField
-            label={t("faceDetection.label.name")}
-            value={mergeName}
-            onChange={e => setMergeName(e.target.value)}
+          <Autocomplete
+            freeSolo
+            openOnFocus
+            options={persons.map(p => p.name)}
+            inputValue={mergeName}
+            onInputChange={(_, value, reason) => { if (reason !== "reset") setMergeName(value); }}
+            onChange={(_, value) => { if (typeof value === "string") setMergeName(value); }}
             size="small"
-            fullWidth
-            autoFocus
-            inputProps={{ "data-testid": "facedetection-merge-name" }}
+            renderInput={params => (
+              <TextField {...params} label={t("faceDetection.label.name")} autoFocus
+                inputProps={{ ...params.inputProps, "data-testid": "facedetection-merge-name" }} />
+            )}
           />
         </DialogContent>
         <DialogActions>

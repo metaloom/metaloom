@@ -11,12 +11,24 @@ export function FaceDetectionPanel({
   faces,
   clusters,
   persons,
-  onSeek,
+  timeOf,
+  onSeekToFace,
+  onHoverFace,
 }: {
   faces: DetectedFace[];
   clusters: FaceCluster[];
   persons: Person[];
-  onSeek?: (t: number) => void;
+  /**
+   * Where a face sits in the video, in seconds, or null when it cannot be placed.
+   *
+   * Supplied rather than read off `face.timestamp`, which holds the detection's frame *number*.
+   * This panel used to hand that straight to a seek, so clicking a face two thirds of the way
+   * through an episode asked the player for second 62000.
+   */
+  timeOf: (face: DetectedFace) => number | null;
+  onSeekToFace?: (face: DetectedFace) => void;
+  /** Lets the timeline light up the tick for the face under the pointer. */
+  onHoverFace?: (faceId: string | null) => void;
 }) {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   // Group faces by cluster
@@ -27,6 +39,43 @@ export function FaceDetectionPanel({
   });
 
   const unclustered = faces.filter(f => !f.clusterId || !clusters.some(c => c.id === f.clusterId));
+
+  /**
+   * One face tile.
+   *
+   * Shared by the clustered and the unclustered lists because they were not shared before: only
+   * the clustered branch had a click handler, and `cluster.faceIds` is empty for every asset
+   * loaded through this screen, so in practice *every* face landed in the branch that did
+   * nothing. Enlarging on hover is the other half — judging a 48-pixel square is guesswork.
+   */
+  const Tile = ({ face }: { face: DetectedFace }) => {
+    const at = timeOf(face);
+    const clickable = at != null && !!onSeekToFace;
+    return (
+      <Tooltip title={`${tAD("faces.confidence", { pct: (face.confidence * 100).toFixed(0) })}${at != null ? ` · ${formatDuration(Math.round(at))}` : ""}`}>
+        <Box
+          data-testid="asset-face-tile"
+          data-face-id={face.id}
+          data-face-time={at ?? ""}
+          onClick={clickable ? () => onSeekToFace!(face) : undefined}
+          onMouseEnter={() => onHoverFace?.(face.id)}
+          onMouseLeave={() => onHoverFace?.(null)}
+          sx={{
+            width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden",
+            border: `2px solid ${tokens.border.subtle}`, cursor: clickable ? "pointer" : "default",
+            "&:hover": clickable ? { borderColor: tokens.primary.main } : {},
+            transition: "border-color 120ms ease",
+          }}
+        >
+          {/* FaceCrop, not <img src>: the crop route needs an Authorization header, and
+              DetectedFace.thumbnailUrl is hardcoded to "" where these are mapped - so this
+              was an <img src=""> and every tile was a broken image. */}
+          <FaceCrop assetUuid={face.assetId} detectionUuid={face.id} size={48} rounded={false}
+            hoverZoom zoomSize={220} zoomCaption={at != null ? formatDuration(Math.round(at)) : undefined} />
+        </Box>
+      </Tooltip>
+    );
+  };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -70,24 +119,7 @@ export function FaceDetectionPanel({
           </Box>
           {/* Face thumbnails */}
           <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
-            {cFaces.map(face => (
-              <Tooltip key={face.id} title={`Confidence: ${(face.confidence * 100).toFixed(0)}%${face.timestamp != null ? ` · ${formatDuration(Math.round(face.timestamp))}` : ""}`}>
-                <Box
-                  onClick={() => face.timestamp != null && onSeek?.(face.timestamp)}
-                  sx={{
-                    width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden",
-                    border: `2px solid ${tokens.border.subtle}`, cursor: face.timestamp != null ? "pointer" : "default",
-                    "&:hover": face.timestamp != null ? { borderColor: tokens.primary.main } : {},
-                    transition: "border-color 120ms ease",
-                  }}
-                >
-                  {/* FaceCrop, not <img src>: the crop route needs an Authorization header, and
-                      DetectedFace.thumbnailUrl is hardcoded to "" where these are mapped - so this
-                      was an <img src=""> and every tile was a broken image. */}
-                  <FaceCrop assetUuid={face.assetId} detectionUuid={face.id} size={48} rounded={false} />
-                </Box>
-              </Tooltip>
-            ))}
+            {cFaces.map(face => <Tile key={face.id} face={face} />)}
           </Box>
         </Box>
       ))}
@@ -99,11 +131,7 @@ export function FaceDetectionPanel({
             <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.tertiary }}>{tAD("faces.unclustered", { count: unclustered.length })}</Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
-            {unclustered.map(face => (
-              <Box key={face.id} sx={{ width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden", border: `2px solid ${tokens.border.subtle}` }}>
-                <FaceCrop assetUuid={face.assetId} detectionUuid={face.id} size={48} rounded={false} />
-              </Box>
-            ))}
+            {unclustered.map(face => <Tile key={face.id} face={face} />)}
           </Box>
         </Box>
       )}

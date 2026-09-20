@@ -555,9 +555,21 @@ public class DemoDatabaseInitializer {
 	}
 
 	/**
-	 * Populate the database with demo data. This method is idempotent — it only inserts demo data when the database is empty of assets.
+	 * Populate the database with demo data.
+	 *
+	 * <p>
+	 * Two gates, in this order. {@code LOOM_DEMO_ENABLED} is the deliberate one: only the {@code loom-demo} image sets it, so a production server
+	 * never writes demo content even on a first boot against an empty database. The empty-asset check behind it keeps the seed idempotent for the
+	 * image that does.
+	 * </p>
 	 */
 	public void init() {
+		if (!options.getDemo().isEnabled()) {
+			// Not a warning. "Off" is the ordinary state of this switch, and a server that logged a
+			// warning every boot for behaving correctly trains its operator to ignore warnings.
+			log.debug("Demo seeding is disabled (LOOM_DEMO_ENABLED) — skipping.");
+			return;
+		}
 		// Only populate when no assets exist yet
 		if (!assetDao.loadPage(null, 1, null, null, null).isEmpty()) {
 			log.info("Demo data already present — skipping initialization.");

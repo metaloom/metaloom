@@ -404,7 +404,7 @@ Pipeline-node test patterns are in
 | Task/result wire model | `loom-shared/pipeline-model/src/main/java/io/metaloom/loom/pipeline/model/` |
 | DAO interfaces / jOOQ impls | `loom/db/api/` · `loom/db/jooq/` |
 | Flyway migrations | `loom/db/flyway/src/main/resources/db/migration/` |
-| Demo data | `loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java` |
+| Demo data | `loom/core/…/boot/DemoDatabaseInitializer.java` — **off unless `LOOM_DEMO_ENABLED=true`**, which only the `loom-demo` image sets |
 | Demo media | `demo-content/` (container: `/demo-content`, `LOOM_DEMO_CONTENT_DIR`) |
 | Agent chat / memory / sandbox | `loom/agent/{chat,memory,sandbox}/src/main/java/io/metaloom/loom/agent/` |
 | Session Runner image | `loom/agent/session-runner/{runnerd.py,Containerfile}` |

@@ -6,7 +6,7 @@ import { formatDuration } from "./helpers";
 export interface TimelineMarker {
   time: number;
   endTime?: number;
-  type: "comment" | "annotation" | "reaction" | "tag";
+  type: "comment" | "annotation" | "reaction" | "tag" | "detection";
   color: string;
   label: string;
   id: string;
@@ -224,6 +224,10 @@ export function VideoTimeline({
                 data-testid="video-timeline-marker"
                 data-marker-id={m.id}
                 data-marker-type={m.type}
+                // The hover highlight is otherwise only a few pixels of width and a glow, which is
+                // not something a test can assert on without measuring pixels. Hovering one pane to
+                // light up the other is a feature in its own right, so it gets a handle.
+                data-marker-hovered={isHovered ? "true" : "false"}
                 onClick={(e) => { e.stopPropagation(); onMarkerClick(m.id, m.type); }}
                 onMouseEnter={() => onMarkerHover(m.id)}
                 onMouseLeave={() => onMarkerHover(null)}

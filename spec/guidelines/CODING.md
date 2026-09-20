@@ -66,12 +66,17 @@ the spec in the same change (§ Spec below).
 * New features must ship meaningful default demo data — `DemoDatabaseInitializer`
   (`loom/core/src/main/java/io/metaloom/loom/core/boot/`). It seeds the demo space, collections,
   libraries, pools and pipelines the demo container starts with.
+* **The seed is off unless asked for.** `LOOM_DEMO_ENABLED` defaults to `false` and only the demo
+  `Containerfile` sets it. It used to run on every installation, guarded solely by "is the asset
+  table empty" — which a freshly installed production server *is*, so one invented a demo space,
+  three libraries, two collections, a cast of people and a wall of assets, and the operator's first
+  real library then arrived beside them with nothing to tell the two apart.
 * **Media comes from `demo-content/`**, read through `DemoMediaLibrary`. The demo `Containerfile`
-  copies that directory to `/demo-content` and sets `LOOM_DEMO_CONTENT_DIR`; the plain server image
-  ships neither, and the initializer then paints its images and creates the videos as rows without
-  bytes. Both states have to work: the seed has no flag and runs on every installation, so anything
-  new that reads a file must degrade the way `DemoMediaLibrary` does — log a warning, answer null,
-  and cost one picture rather than the rest of the seed.
+  copies that directory to `/demo-content` and sets `LOOM_DEMO_CONTENT_DIR` alongside the switch
+  above; a source checkout has the directory but not the switch. When seeding is on and the
+  directory is absent the initializer paints its images and creates the videos as rows without
+  bytes, so anything new that reads a file must degrade the way `DemoMediaLibrary` does — log a
+  warning, answer null, and cost one picture rather than the rest of the seed.
 * **Never fail the seed.** `BootstrapInitializer` swallows the exception and the guard at the top of
   `init()` never runs again once an asset exists, so a throw halfway through leaves a database that
   is permanently half-seeded.

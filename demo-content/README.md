@@ -5,10 +5,11 @@ material for the face and object detection pipelines, and a set of artistic phot
 thumbnailing and general UI demos.
 
 `DemoDatabaseInitializer` (`loom/core/src/main/java/io/metaloom/loom/core/boot/`) reads this
-directory at first boot. The demo `Containerfile` copies it to `/demo-content` and points
-`LOOM_DEMO_CONTENT_DIR` at it. When the directory is absent — which is the case for the plain server
-image, since the seed runs there too — the initializer falls back to the images it paints itself and
-to the six portraits shipped in `loom/core/src/main/resources/demo/portraits/`.
+directory at first boot — but only when `LOOM_DEMO_ENABLED=true`, which the demo `Containerfile`
+sets and nothing else does. The same file copies this directory to `/demo-content` and points
+`LOOM_DEMO_CONTENT_DIR` at it. With seeding on and the directory absent — a source checkout that
+has not got it — the initializer falls back to the images it paints itself and to the six portraits
+shipped in `loom/core/src/main/resources/demo/portraits/`.
 
 Machine-readable attribution for every file lives in [CREDITS.json](CREDITS.json).
 

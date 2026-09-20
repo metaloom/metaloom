@@ -1689,6 +1689,11 @@
       "anyAssignment": "Alle Cluster",
       "assigned": "Zugeordnet",
       "unassigned": "Nicht zugeordnet"
+    },
+    "size": {
+      "small": "Klein — nur Gesichter",
+      "medium": "Mittel",
+      "large": "Groß"
     }
   },
   "maintenance": {
@@ -1787,7 +1792,9 @@
       "assignPerson": "Person zuweisen…",
       "noClusters": "Keine Gesichts-Cluster für dieses Asset",
       "empty": "Keine Gesichts-Cluster für dieses Asset",
-      "personsFailed": "Personenliste konnte nicht geladen werden — ein Name kann weiterhin eingetippt werden"
+      "personsFailed": "Personenliste konnte nicht geladen werden — ein Name kann weiterhin eingetippt werden",
+      "markerLabel": "{{cluster}} bei {{time}}",
+      "noDuration": "Für diese Datei wurde keine Dauer ermittelt, daher lassen sich Erkennungen nicht auf einer Zeitleiste verorten."
     },
     "objectMode": {
       "detectedObjects": "Erkannte Objekte ({{count}})",
@@ -2059,7 +2066,8 @@
       "identified": "{{count}} identifiziert",
       "identifiedChip": "Identifiziert",
       "unidentifiedChip": "Nicht identifiziert",
-      "unclustered": "Nicht geclustert ({{count}})"
+      "unclustered": "Nicht geclustert ({{count}})",
+      "confidence": "Konfidenz: {{pct}} %"
     },
     "taskDetail": {
       "title": "Aufgabendetails",
@@ -2461,5 +2469,15 @@
       "ascending": "Aufsteigend",
       "descending": "Absteigend"
     }
+  },
+  "player": {
+    "play": "Abspielen",
+    "pause": "Pause",
+    "back10": "10 Sekunden zurück",
+    "forward10": "10 Sekunden vor",
+    "mute": "Stumm",
+    "unmute": "Ton an",
+    "fullscreen": "Vollbild",
+    "notStreamable": "Dieses Video kann hier nicht abgespielt werden: {{codec}} erfordert eine vollständige Transkodierung."
   }
 }

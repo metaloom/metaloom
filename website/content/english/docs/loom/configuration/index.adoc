@@ -304,23 +304,44 @@ Settings for the agent link:../chat/#memory[memory bank] (`LOOM_AGENT_MEMORY_*`)
 | `LOOM_AGENT_MEMORY_MOUNT_PATH` | `/memory` | Sandbox mount path for memory
 |===
 
-=== Demo content
+=== Playable video and poster frames
 
-A fresh, empty database is populated with example content on first start — a space, some
-collections and libraries, a few pipelines, and a set of assets to browse. This setting decides
-where the pictures and clips behind those assets come from.
+Loom stores the file you gave it and nothing else, so a thumbnail for a video and a stream a
+browser can actually play are produced on request, with `ffmpeg`. The server image ships it.
 
 [options="header",cols="2,1,2"]
 |===
 | Variable | Default | Description
+| `LOOM_MEDIA_ENABLED` | `true` | Turn the feature off entirely. The poster, stream and media-info routes then answer 503 and say so, rather than quietly showing a placeholder
+| `LOOM_MEDIA_FFMPEG_PATH` | `ffmpeg` | Where to find it. `ffprobe` is expected beside it
+| `LOOM_MEDIA_CACHE_PATH` | `media-cache` | Where extracted poster frames are kept. Relative by default, so it lands in the working directory — point it at a volume, or every container replacement re-extracts them
+| `LOOM_MEDIA_MAX_STREAMS` | `4` | How many viewers may stream at once. Each one is an `ffmpeg` process for as long as they watch; over the limit the answer is 503
+| `LOOM_MEDIA_TOKEN_TTL` | `600` | Lifetime, in seconds, of the short-lived token a video player carries in its URL
+|===
+
+Two limits worth knowing before you plan around this. Only H.264 video can be served without
+re-encoding — anything else is refused rather than silently costing minutes of CPU per viewer. And
+because the stream is produced as it is sent, the player cannot scrub inside it the way it would a
+stored file: seeking asks the server for a new stream starting at that moment, so it takes a
+moment to catch up.
+
+=== Demo content
+
+The example content — a space, some collections and libraries, a few pipelines and a set of assets
+to browse — is **off unless you ask for it**. The demo container asks for it; a server you install
+yourself does not, and starts empty.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_DEMO_ENABLED` | `false` | Populate an empty database with example content on first start
 | `LOOM_DEMO_CONTENT_DIR` | _(unset)_ | Directory holding the example media (`images/`, `videos/`, `persons/`, `users/`). When unset, `/demo-content` and `./demo-content` are tried in that order
 |===
 
-The demo container ships this material and points the setting at it, which is why its asset browser
-shows photographs and plays video. On a plain server the directory is not present and the example
-images are drawn at start-up instead, so the screens still have something in them. Either way the
-example content only ever appears in a database that was empty to begin with — it is never added to
-one that already holds assets.
+The demo container sets both, which is why its asset browser shows photographs and plays video.
+With the first set and the second missing, the example images are drawn at start-up instead, so
+the screens still have something in them. Either way the example content only ever appears in a
+database that was empty to begin with — it is never added to one that already holds assets.
 
 == CLI
 

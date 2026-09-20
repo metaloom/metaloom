@@ -17,6 +17,7 @@ ENV HOME=/loom
 # See the JVM Containerfile: the media DemoDatabaseInitializer seeds. A directory rather than a
 # classpath resource, which is also what lets it work here — the native image ships no resource
 # config for demo media.
+ENV LOOM_DEMO_ENABLED=true
 ENV LOOM_DEMO_CONTENT_DIR=/demo-content
 
 EXPOSE 8092

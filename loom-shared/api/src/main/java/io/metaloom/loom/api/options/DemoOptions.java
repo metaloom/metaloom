@@ -8,14 +8,17 @@ import java.nio.file.Paths;
  * Options which control where {@code DemoDatabaseInitializer} finds the media it seeds the demo database with.
  *
  * <p>
- * The demo seed runs on every installation — there is no demo profile and no flag — so this directory is what separates the demo container from a
- * plain server. The demo image ships {@code demo-content/} at {@code /demo-content} and points {@link #getContentDirectory()} at it; everywhere else
- * the directory is absent and the initializer falls back to the images it paints itself and to the portraits shipped inside the jar.
+ * <b>{@link #isEnabled()} is the switch, and it is off.</b> The seed used to run on every installation, with only the presence of
+ * {@code demo-content/} separating the demo container from a plain server — and that separated nothing, because the initializer paints its own
+ * images when the directory is missing. So a production server given an empty database silently invented a space, three libraries, two
+ * collections, a cast of people and a wall of assets, and the operator's first real library arrived beside them with nothing to tell the two
+ * apart.
  * </p>
  *
  * <p>
- * There is deliberately no "demo enabled" switch here. Adding one would be a second, contradictory answer to a question the presence of the media
- * already answers, and it would change what an existing installation seeds on its next empty-database boot.
+ * The demo image therefore sets {@code LOOM_DEMO_ENABLED=true} explicitly, next to the content directory it already set; nothing else does, so
+ * nothing else seeds. {@link #getContentDirectory()} still decides <em>what</em> gets seeded when it is on — the shipped media, or the images the
+ * initializer paints for itself when the directory is absent.
  * </p>
  */
 public class DemoOptions implements Option {
@@ -30,6 +33,26 @@ public class DemoOptions implements Option {
 	 * a server started straight out of the source tree seed the same content the container does.
 	 */
 	public static final String SOURCE_CONTENT_DIRECTORY = "demo-content";
+
+	/**
+	 * Whether to seed the demo database at all.
+	 *
+	 * <p>
+	 * Off, so that "is this a demo?" has exactly one answer and somebody has to say yes to it. The seed is still guarded by an empty-asset check
+	 * on top of this, so turning it on for an installation that already holds assets does nothing.
+	 * </p>
+	 */
+	@EnvironmentVariable(name = "LOOM_DEMO_ENABLED", description = "Seed the demo space, libraries, people, assets and pipelines when the database holds no assets yet. Off by default: only the loom-demo image turns it on. A server with this off never writes demo content, whatever demo media it can see.")
+	private boolean enabled = false;
+
+	public boolean isEnabled() {
+		return enabled;
+	}
+
+	public DemoOptions setEnabled(boolean enabled) {
+		this.enabled = enabled;
+		return this;
+	}
 
 	@EnvironmentVariable(name = "LOOM_DEMO_CONTENT_DIR", description = "Directory holding the media the demo database is seeded with (images/, videos/, persons/, users/). When unset, /demo-content and ./demo-content are probed in that order. When neither exists the demo images are painted at runtime instead.")
 	private String contentDirectory;

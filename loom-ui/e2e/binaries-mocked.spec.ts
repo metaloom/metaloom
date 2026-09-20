@@ -133,7 +133,10 @@ test.describe("Asset binary – mocked request mapping", () => {
 
     expect(uploadReq.method()).toBe("POST");
     expect(uploadReq.headers()["content-type"] ?? "").toContain("multipart/form-data");
-    expect(captured.binaryUploads).toBe(1);
+    // Polled, not read once: `waitForRequest` resolves when the request is *issued*, and the
+    // counter is incremented by the route handler that fulfils it. Reading it on the next line
+    // is a race that happens to win on a quiet page and loses on a busy one.
+    await expect.poll(() => captured.binaryUploads, { timeout: 5_000 }).toBe(1);
 
     // Remove the binary via the actions menu.
     await page.locator('[data-testid="MoreVertOutlinedIcon"]').click();
@@ -142,7 +145,7 @@ test.describe("Asset binary – mocked request mapping", () => {
       page.getByRole("menuitem", { name: /remove binary/i }).click(),
     ]);
 
-    expect(captured.binaryDeletes).toBe(1);
+    await expect.poll(() => captured.binaryDeletes, { timeout: 5_000 }).toBe(1);
   });
 
   test("register existing binary sends a JSON POST to /binary (no bytes)", async ({ page }) => {

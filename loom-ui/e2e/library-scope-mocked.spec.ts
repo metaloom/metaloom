@@ -102,4 +102,24 @@ test.describe("Library asset scoping – mocked", () => {
     await expect(page.getByText("0 videos")).toBeVisible();
     await expect(page.getByText("2 images")).toBeVisible();
   });
+
+  test("the library you were last looking at is the one that opens", async ({ page }) => {
+    await mockRest(page);
+    await loginAndGoToLibrary(page);
+
+    const rowBeta = page.locator(".MuiListItemButton-root").filter({ has: page.getByText("Beta", { exact: true }) });
+    await rowBeta.click();
+    await expect(page.getByText("photo.jpg")).toBeVisible({ timeout: 10_000 });
+
+    // Leave and come back. The screen used to reopen on the oldest library unconditionally, so on
+    // a server carrying seeded example content it opened on an example library with two pictures
+    // in it while the user's own library sat further down the list — which from the main pane
+    // looks exactly like the user's library having disappeared.
+    await page.getByRole("button", { name: "Assets", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: /libraries|bibliotheken/i })).toBeHidden({ timeout: 10_000 });
+    await page.getByRole("button", { name: /library|libraries|bibliothek/i }).first().click();
+
+    await expect(page.getByText("photo.jpg")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("clip.mp4")).toBeHidden();
+  });
 });

@@ -94,6 +94,17 @@ function formatBytes(bytes: number): string {
   return `${Math.round(bytes / 1024)} KB`;
 }
 
+/** localStorage key for the library the user was last looking at. */
+const LAST_LIBRARY_KEY = "loom.library.lastSelected";
+
+function readLastLibrary(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_LIBRARY_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export default function LibraryView() {
   const { activeSpace } = useSpace();
   const { showToast } = useToast();
@@ -175,7 +186,16 @@ export default function LibraryView() {
         createdAt: lib.status?.created ?? new Date().toISOString(),
       }));
       setLibraries(libs);
-      setSelectedLib(prev => libs.find(l => l.id === prev?.id) ?? libs[0] ?? null);
+      // Order of preference: what is already selected, then what was selected last visit, then
+      // the first one. `libs[0]` alone meant the screen always opened on the oldest library —
+      // which on a server that had seeded itself example content was an example library with two
+      // pictures in it, while the user's own twenty-two-asset library sat further down the list
+      // looking, from the main pane, as though it had gone.
+      setSelectedLib(prev =>
+        libs.find(l => l.id === prev?.id)
+        ?? libs.find(l => l.id === readLastLibrary())
+        ?? libs[0]
+        ?? null);
       setLoadError(null);
     }).catch(e => {
       // This used to `setLibraries([])`, which rendered a failed load as "no libraries" - a
@@ -183,6 +203,16 @@ export default function LibraryView() {
       setLoadError(reportFailure("loadLibraries", e).message);
     });
   }, [reportFailure, token]);
+
+  useEffect(() => {
+    if (!selectedLib) return;
+    try {
+      window.localStorage.setItem(LAST_LIBRARY_KEY, selectedLib.id);
+    } catch {
+      // Private browsing or a full quota. Losing the memory of a selection is not worth throwing
+      // while rendering a screen over.
+    }
+  }, [selectedLib]);
 
   // A navigation — the back button, or a link into a filtered library — puts a term in the URL that
   // this component did not type. Adopt it. Our own writes are skipped: they land while the user may

@@ -16,4 +16,19 @@ public interface MediaExamples extends ExampleValues {
 		// somebody to try it.
 		return new MediaTokenResponse().setToken("<signed media token>").setExpiresIn(600);
 	}
+
+	default Example mediaInfoResponseExample() {
+		return new ExampleImpl(mediaInfoResponse(), "What the decoder reports about a video", HttpResponseStatus.OK);
+	}
+
+	default MediaInfoResponse mediaInfoResponse() {
+		return new MediaInfoResponse()
+			.setDuration(2580.4d)
+			.setFrameRate(23.976d)
+			.setWidth(1920)
+			.setHeight(1080)
+			.setVideoCodec("h264")
+			.setAudioCodec("ac3")
+			.setStreamable(true);
+	}
 }

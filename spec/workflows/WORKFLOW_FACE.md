@@ -240,6 +240,46 @@ order of how badly each one bites:
 A structural merge is still worth building for *within-asset* splits at an uncalibrated `eps`, but
 only after `unlinkAll` is scoped to `origin='AUTO'`.
 
+#### 2.2.1.1 Reading the grid (2026-09-20)
+
+Two reading aids, because judging coherence is the whole job of this screen and the screen was not
+built for it:
+
+* **Hover zoom.** `FaceCrop` takes `hoverZoom` and opens an enlarged copy of the crop in a
+  `Popper`. Deliberately part of `FaceCrop` rather than a wrapper: the enlarged copy is the *same*
+  object URL at a different CSS size, so a grid of two hundred faces holds two hundred blobs, not
+  four hundred. Off by default — on a card that is already large it is a panel in the way.
+* **Card size.** A `Small / Medium / Large` toggle beside the search field, remembered in
+  `localStorage`. `Small` drops the header entirely — name, count, review date, buttons — because
+  a reviewer sweeping for two clusters that are one person is reading pictures, and that chrome is
+  three lines between every two rows of the thing being compared. The card stays a drop target at
+  every size, and the person, which cannot be read off the faces, survives as a coloured dot.
+
+### 2.2.2 Reviewing a cluster against the video it came from (2026-09-20)
+
+The Workflow `faces` mode is where a whole library is worked through, and it showed a **single
+poster frame with every bounding box in the file drawn on it at once** — for a 43-minute episode
+that is a dozen overlapping rectangles belonging to a dozen different moments. There was no player,
+no timeline, and nothing connecting a crop in the cluster list to the moment it was cut from.
+
+What it does now, and what each part depends on:
+
+| | Mechanism | Depends on |
+|---|---|---|
+| Plays the video | `AssetVideoPlayer` — the shared player, native controls off | `/stream` + `/media-token` |
+| A timeline under it | `VideoTimeline`, one `detection` marker per face | `media-info.duration` (§7.3.2 of REST_BINARY_HANDLING) |
+| Boxes that make sense | only detections within ±2.5 s of the playhead are drawn | `media-info.frameRate`, to turn `frame_number` into a time |
+| Click a crop → seek there | `seekToFace` pins that face and re-requests the stream at its offset | both of the above |
+| Hover a crop → light up its tick | shared `hoveredFaceId` between the crop strip and the timeline | — |
+
+±2.5 s rather than one frame because a seek lands on the nearest preceding keyframe, not on the
+requested frame; narrower than a GOP and the reviewer would click a face and get no box. The
+clicked face is also pinned, so the answer to "where is this face?" is never an empty frame.
+
+With no probe the pane **says so** (`workflow.faceMode.noDuration`) instead of drawing a
+zero-length bar. A bar that spans nothing stacks every detection at position zero, which reads as
+"the detections are wrong" rather than "nothing measured this file".
+
 ### 2.3 Distance metric
 
 Cosine distance over L2-normalised embeddings, per the industry-standard pipeline documented in

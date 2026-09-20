@@ -23,8 +23,14 @@ import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { listAssets, loadAsset, assetBinaryUrl, assetStreamUrl, AssetResponse } from "../../api/assets";
+import { listAssets, loadAsset, assetBinaryUrl, assetStreamUrl, AssetResponse, MediaInfoResponse } from "../../api/assets";
 import { useMediaToken } from "../../hooks/useMediaToken";
+import { useMediaInfo } from "../../hooks/useMediaInfo";
+import { AssetVideoPlayer, AssetVideoPlayerHandle } from "../../components/AssetVideoPlayer";
+import { FaceBoxes, FACE_FLASH_MS, visibleFacesAt } from "../../components/FaceBoxes";
+import { useFaceFlash } from "../../hooks/useFaceFlash";
+import { VideoTimeline, TimelineMarker } from "../assetDetail/VideoTimeline";
+import { formatDuration } from "../assetDetail/helpers";
 import {
   bulkReviewDetections, listAssetDetections, confirmDetection, rejectDetection,
   type DetectionResponse,
@@ -114,14 +120,14 @@ function assetTypeOf(asset?: AssetResponse): AssetType {
 /**
  * Preview URL for an asset, or "" when it has none.
  *
- * Images and videos are both previewed from the stored binary — `AssetThumbnail` puts one in an
- * `<img>` and decodes a frame of the other in a muted `<video>`. Audio and documents have no
- * browser-renderable preview and get the type placeholder, which is the honest result rather than a
- * broken image.
+ * **Images only.** A video's preview is a server-rendered poster frame that `AssetThumbnail` asks
+ * for itself, from the asset uuid — so handing one the binary URL would be inert at best and, if
+ * anything ever put it in an `<img>`, a multi-gigabyte fetch to draw a thumbnail. That is the
+ * mistake the poster route exists to undo; it should not survive here as a value nobody reads.
+ * Audio and documents have no browser-renderable preview and get the type placeholder.
  */
 function previewUrlOf(asset?: AssetResponse): string {
-  const type = asset ? assetTypeOf(asset) : "unknown";
-  return asset && (type === "image" || type === "video") ? assetBinaryUrl(asset.uuid) : "";
+  return asset && assetTypeOf(asset) === "image" ? assetBinaryUrl(asset.uuid) : "";
 }
 
 /**
@@ -596,13 +602,14 @@ function DeduplicationMode({
   );
 }
 
-// ── Face Detection Mode ───────────────────────────────────────────────────
+// ── Face Detection Mode ───────────────────────────────────────
+
 function FaceDetectionMode({
   asset, faces, clusters, persons,
   selectedClusterIdx, onSelectCluster,
   clusterDecisions, onConfirmCluster, onDenyCluster,
   clusterPersonAssignments, onAssignPerson,
-  personInputRef,
+  personInputRef, mediaInfo,
 }: {
   asset: Asset;
   faces: DetectedFace[];
@@ -616,37 +623,128 @@ function FaceDetectionMode({
   clusterPersonAssignments: Record<string, string>;
   onAssignPerson: (clusterId: string, personName: string) => void;
   personInputRef: React.RefObject<HTMLInputElement | null>;
+  /** The probe: duration for the timeline, frame rate to turn a detection's frame into a time. */
+  mediaInfo: MediaInfoResponse | null;
 }) {
   const selectedCluster = clusters[selectedClusterIdx];
   const { t } = useTranslation();
+  const playerRef = useRef<AssetVideoPlayerHandle>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  /** The crop the pointer is over, highlighted on the timeline. */
+  const [hoveredFaceId, setHoveredFaceId] = useState<string | null>(null);
+  /**
+   * The face the reviewer jumped to.
+   *
+   * Kept visible regardless of the window above until playback moves on, because the click is a
+   * question — "where is this face?" — and answering it with an empty frame is the failure the
+   * window would otherwise introduce.
+   */
+  const [pinnedFaceId, setPinnedFaceId] = useState<string | null>(null);
+  /** Which box to light up, and when. Shared with the asset viewer: see {@link useFaceFlash}. */
+  const { flash: faceFlash, armFlash } = useFaceFlash();
+
+  const isVideo = asset.type === "video";
+  const frameRate = mediaInfo?.frameRate ?? 0;
+  const duration = asset.duration || mediaInfo?.duration || 0;
+
+  /**
+   * Where a detection sits in the video, in seconds.
+   *
+   * `DetectedFace.timestamp` is the detection's `frame_number` - the field is misnamed and the
+   * column is what it is - so this needs the frame rate, and there is nowhere else to get one:
+   * `asset_video_comp` has no producer, so the probe is it. Null when unknown, and every caller
+   * treats null as "cannot place this on a timeline" rather than as zero.
+   */
+  const timeOf = useCallback((face: DetectedFace): number | null => {
+    if (!isVideo || frameRate <= 0 || face.timestamp == null) {
+      return null;
+    }
+    return face.timestamp / frameRate;
+  }, [isVideo, frameRate]);
+
+  const seekToFace = useCallback((face: DetectedFace) => {
+    const at = timeOf(face);
+    if (at == null) return;
+    // A quarter-second before the detection, so the box lights up as the face comes round rather
+    // than on a moment already gone. The same gesture as in the asset viewer, deliberately.
+    const landing = Math.max(0, at - FACE_FLASH_MS / 1000);
+    setPinnedFaceId(face.id);
+    setCurrentTime(landing);
+    playerRef.current?.seekTo(landing);
+    armFlash(face.id);
+  }, [timeOf, armFlash]);
+
+  const visibleFaces = visibleFacesAt(faces, currentTime, timeOf, { isVideo, pinnedFaceId });
+
+  const markers: TimelineMarker[] = faces.flatMap(f => {
+    const at = timeOf(f);
+    if (at == null) return [];
+    const inSelected = !!selectedCluster && f.clusterId === selectedCluster.cluster.id;
+    return [{
+      id: f.id,
+      time: at,
+      type: "detection" as const,
+      color: inSelected ? tokens.primary.main : tokens.accent.amber,
+      label: t("workflow.faceMode.markerLabel", {
+        cluster: clusters.find(c => c.cluster.id === f.clusterId)?.cluster.label ?? t("faceDetection.label.unnamedCluster"),
+        time: formatDuration(Math.round(at)),
+      }),
+    }];
+  });
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
-      {/* Asset preview with face bboxes */}
-      <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
-        <WorkflowPreview asset={asset} block />
-        {faces.map(f => {
-          const clusterDec = clusterDecisions[f.clusterId ?? ""];
-          return (
-          <Box key={f.id} sx={{
-            position: "absolute",
-            left: `${f.boundingBox.x * 100}%`, top: `${f.boundingBox.y * 100}%`,
-            width: `${f.boundingBox.width * 100}%`, height: `${f.boundingBox.height * 100}%`,
-            border: `2px solid ${selectedCluster && f.clusterId === selectedCluster.cluster.id ? tokens.primary.main : tokens.accent.amber}`,
-            borderRadius: tokens.radius.sm, pointerEvents: "none",
-          }}>
-            {/* Status icon */}
-            <Box sx={{ position: "absolute", top: -16, right: 0 }}>
-              {clusterDec === "confirmed" ? (
-                <CheckCircleOutlineOutlined sx={{ fontSize: 12, color: tokens.accent.green }} />
-              ) : (
-                <HelpOutlineOutlined sx={{ fontSize: 12, color: clusterDec === "denied" ? tokens.accent.red : tokens.accent.amber }} />
-              )}
-            </Box>
+      {/* The media, with the boxes that belong to the moment on screen. */}
+      <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden" }}>
+        {isVideo ? (
+          <AssetVideoPlayer
+            ref={playerRef}
+            assetUuid={asset.id}
+            duration={duration}
+            onTimeUpdate={setCurrentTime}
+            testId="workflow-face-video"
+            sx={{ width: "100%", aspectRatio: "16 / 9", maxHeight: "min(44vh, 420px)" }}
+            overlay={<FaceBoxes faces={visibleFaces} selectedClusterId={selectedCluster?.cluster.id}
+              clusterDecisions={clusterDecisions} hoveredFaceId={hoveredFaceId} flash={faceFlash}
+              testId="workflow-face-box" />}
+          />
+        ) : (
+          <Box sx={{ position: "relative" }}>
+            <WorkflowPreview asset={asset} block />
+            <FaceBoxes faces={visibleFaces} selectedClusterId={selectedCluster?.cluster.id}
+              clusterDecisions={clusterDecisions} hoveredFaceId={hoveredFaceId} flash={faceFlash}
+              testId="workflow-face-box" />
           </Box>
-          );
-        })}
+        )}
       </Box>
+
+      {/* The timeline. Every detection is a tick, so where the faces are in an episode is
+          readable before anything is clicked - and hovering a crop below lights up its tick,
+          which is the mapping between the two panes that was missing entirely. */}
+      {isVideo && duration > 0 && (
+        <Box data-testid="workflow-face-timeline" sx={{ px: 1 }}>
+          <VideoTimeline
+            duration={duration}
+            currentTime={currentTime}
+            markers={markers}
+            hoveredMarkerId={hoveredFaceId}
+            onSeek={time => { setPinnedFaceId(null); setCurrentTime(time); playerRef.current?.seekTo(time); }}
+            onMarkerClick={id => {
+              const face = faces.find(f => f.id === id);
+              if (face) seekToFace(face);
+            }}
+            onMarkerHover={setHoveredFaceId}
+          />
+        </Box>
+      )}
+      {isVideo && duration <= 0 && (
+        // Said out loud rather than drawn as an empty bar. Without a probe there is no way to
+        // place a detection in time, and a timeline that silently spans nothing invites the
+        // reviewer to conclude the detections are wrong.
+        <Typography variant="caption" data-testid="workflow-face-no-duration" sx={{ px: 1, color: tokens.text.tertiary }}>
+          {t("workflow.faceMode.noDuration")}
+        </Typography>
+      )}
 
       <Typography variant="body2" fontWeight={700} sx={{ px: 1 }}>{asset.name}</Typography>
 
@@ -696,10 +794,22 @@ function FaceDetectionMode({
                     screen to judge a cluster's coherence by. A crop needs an Authorization header,
                     so it cannot be a plain src at all; FaceCrop is the component that fetches it
                     and revokes the object URL, and it is what ClustersPanel already uses. */}
+                {/* Clicking a crop seeks to the frame it was cut from, and hovering it lights up
+                    that frame's tick on the timeline above. Those two were the missing link: the
+                    crops and the video were the same evidence with no way to get from one to the
+                    other. The enlarged hover copy is the third: judging whether a cluster is one
+                    person is not a thing a 36-pixel square supports. */}
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                  {c.faces.map(f => (
-                    <FaceCrop key={f.id} assetUuid={f.assetId} detectionUuid={f.id} size={36} rounded={false} />
-                  ))}
+                  {c.faces.map(f => {
+                    const at = timeOf(f);
+                    return (
+                      <FaceCrop key={f.id} assetUuid={f.assetId} detectionUuid={f.id} size={36} rounded={false}
+                        hoverZoom zoomSize={260}
+                        zoomCaption={at != null ? formatDuration(Math.round(at)) : undefined}
+                        onHoverChange={hovering => setHoveredFaceId(hovering ? f.id : null)}
+                        onClick={at != null ? () => seekToFace(f) : undefined} />
+                    );
+                  })}
                 </Box>
                 {isSelected && !decision && (
                   <Box sx={{ display: "flex", gap: 1, mt: 1.5, alignItems: "center", flexWrap: "wrap" }}>
@@ -1191,6 +1301,14 @@ export default function WorkflowView() {
       });
     return () => { cancelled = true; };
   }, [token, currentGroup, dedupAssets]);
+
+  /**
+   * The probe for the asset under review: how long it is, and how many frames a second.
+   *
+   * Only for video, and only for the face queue's needs - the detections carry a frame number and
+   * nothing in the database can turn one into a time, because `asset_video_comp` has no producer.
+   */
+  const currentMediaInfo = useMediaInfo(currentAsset?.type === "video" ? currentAsset?.id : null);
 
   const [currentFaces, setCurrentFaces] = useState<DetectedFace[]>([]);
   const [currentObjects, setCurrentObjects] = useState<DetectedObject[]>([]);
@@ -1735,7 +1853,7 @@ export default function WorkflowView() {
             </Box>
           )}
           {mode === "facedetection" && currentAsset && (
-            <FaceDetectionMode asset={currentAsset} faces={currentFaces} clusters={currentFaceClusters}
+            <FaceDetectionMode asset={currentAsset} faces={currentFaces} clusters={currentFaceClusters} mediaInfo={currentMediaInfo}
               persons={persons} selectedClusterIdx={selectedClusterIdx} onSelectCluster={setSelectedClusterIdx}
               clusterDecisions={clusterDecisions} onConfirmCluster={handleConfirmCluster}
               onDenyCluster={handleDenyCluster} clusterPersonAssignments={clusterPersonAssignments}

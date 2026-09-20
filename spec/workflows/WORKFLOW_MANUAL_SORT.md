@@ -406,7 +406,7 @@ programmatically built filter resolved no bucket ports at all. Half of task 14 i
 |---|---|---|
 | `WorkflowView` | `loom-ui/src/features/workflow/WorkflowView.tsx` | `TagEditor`, `RatingMode`, `TaggingMode`, and the three handlers |
 | `ratingPersistence` | same directory | `RATING_REACTION_TYPE`, `persistAssetRating`, `hydrateAssetRatings` |
-| `tagPersistence` | same directory | `WorkflowTag`, `addAssetTag`, `removeAssetTag`, `loadTagVocabulary`, `isCurated`, `isPending` |
+| `tagPersistence` | same directory | `WorkflowTag`, `addAssetTag`, `removeAssetTag`, `isCurated`, `isPending`. `loadTagVocabulary` **moved to `src/api/tags.ts`** on 2026-09-20 and is re-exported here — the asset detail tag field now uses it too, and a feature importing another feature's persistence module to get it was the wrong seam |
 | `tags.ts` | `loom-ui/src/api/tags.ts` | `listTags`, `tagAsset`, `untagAsset`, `DEFAULT_TAG_COLLECTION` |
 | `reactions.ts` | `loom-ui/src/api/reactions.ts` | `createAssetReaction`, `updateAssetReaction`, `listAssetReactions`, the hand-mirrored `TaskReactionType` union |
 | `ReactionType` | `io.metaloom.loom.api.reaction` (`loom-shared/api`) | Carries `RATING`; `reaction.type` is read back with `valueOf` |

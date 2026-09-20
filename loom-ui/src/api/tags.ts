@@ -170,3 +170,17 @@ export async function untagAsset(token: string, assetUuid: string, tagUuid: stri
     throw new Error(`API error ${res.status}: ${text}`);
   }
 }
+
+/**
+ * The tag names anyone coining a tag can pick from, for an autocomplete.
+ *
+ * Deliberately unscoped. `listTags` has no collection filter, and `tag.collection` is a free-text
+ * namespace rather than an asset collection, so there is nothing here to scope *to*. The input
+ * that uses this stays `freeSolo`, so a word missing from the list is still typeable — the list
+ * is there to stop three people coining "interview", "Interview" and "interviews" for one thing.
+ */
+export async function loadTagVocabulary(token: string, limit = 200): Promise<string[]> {
+  const res = await listTags(token, { limit });
+  const names = new Set((res.data ?? []).map(t => t.name).filter(Boolean));
+  return [...names].sort((a, b) => a.localeCompare(b));
+}

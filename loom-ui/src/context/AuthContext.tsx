@@ -25,11 +25,51 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+/**
+ * Where the session survives a reload.
+ *
+ * <p>Not a cookie, though the server does set one. `AuthenticationEndpointService` issues
+ * `__Host-loom_token`, and `__Host-` implies `Secure`, so a browser talking to a deployment over
+ * plain HTTP drops it on arrival — and even over TLS it is `HttpOnly`, which is the point of it:
+ * script cannot read it, so it can authenticate an `<img>` but it can never tell this provider
+ * who is signed in. Before this, the JWT lived in React state alone and F5 was indistinguishable
+ * from signing out.</p>
+ *
+ * <p>`sessionStorage` rather than `localStorage`: per tab, and gone when the tab closes, which is
+ * the same lifetime the user already believes a session has. A shared machine does not keep
+ * somebody signed in overnight because they reloaded a page once.</p>
+ */
+const TOKEN_KEY = "loom.auth.token";
+
+function readStoredToken(): string | null {
+  try {
+    const stored = window.sessionStorage.getItem(TOKEN_KEY);
+    // An expired token is worse than none: it would render the app shell and then 401 on every
+    // request in it, which is exactly the confusing state the focus check below exists to avoid.
+    if (!stored || isJwtExpired(stored)) return null;
+    return stored;
+  } catch {
+    // Private browsing, or storage disabled. Falls back to the old in-memory behaviour.
+    return null;
+  }
+}
+
+function writeStoredToken(token: string | null) {
+  try {
+    if (token) window.sessionStorage.setItem(TOKEN_KEY, token);
+    else window.sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* see readStoredToken */
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Read synchronously in the initialiser, not in an effect: an effect runs after the first
+  // render, and AuthGate would have already answered that first render with the login page.
+  const [token, setToken] = useState<string | null>(readStoredToken);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => token !== null);
   const [username, setUsername] = useState<string | null>(null);
-  const [userUuid, setUserUuid] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [userUuid, setUserUuid] = useState<string | null>(() => (token ? decodeJwt(token)?.uuid ?? null : null));
   const { showToast } = useToast();
 
   // The 401 listener and the focus check are registered once and must read the CURRENT token, not
@@ -41,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await apiLogin(user, pass);
       setToken(response.token);
+      writeStoredToken(response.token);
       setIsAuthenticated(true);
       setUsername(user);
       // Immediately derive the uuid from the JWT so the UI can gate authored
@@ -64,7 +105,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsername(null);
     setUserUuid(null);
     setToken(null);
+    writeStoredToken(null);
   }, []);
+
+  /**
+   * Put a name and an authoritative uuid back on a session restored from storage.
+   *
+   * The JWT carries the uuid but not the username, so a reloaded tab would otherwise show an
+   * empty account menu. A failure here is a dead token, and saying so once is better than letting
+   * the next thing the user clicks answer 401.
+   */
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !token || username) return;
+    restored.current = true;
+    let cancelled = false;
+    getMe(token)
+      .then(me => {
+        if (cancelled) return;
+        setUserUuid(me.uuid);
+        setUsername(me.username ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) logout();
+      });
+    return () => { cancelled = true; };
+  }, [token, username, logout]);
 
   // --- The global 401 path ---
   //

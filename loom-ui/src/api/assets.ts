@@ -256,6 +256,41 @@ export async function mintMediaToken(token: string, uuid: string): Promise<Media
 }
 
 /**
+ * What the decoder reports about a video file.
+ *
+ * Every field is optional because a probe that could not run answers an empty object rather than
+ * an error — a missing duration must degrade to "we do not know", never take a screen down.
+ */
+export interface MediaInfoResponse {
+  duration?: number;
+  /** Frames per second. Needed to turn a detection's `frameNumber` into a position on a timeline. */
+  frameRate?: number;
+  width?: number;
+  height?: number;
+  videoCodec?: string;
+  audioCodec?: string;
+  /** False when the stream route would answer 415 — say so before rendering a player that never starts. */
+  streamable?: boolean;
+}
+
+/**
+ * Measure a video: duration, frame rate, dimensions, codecs.
+ *
+ * This is the only source of a video's length in this deployment. `asset_video_comp` has existed
+ * since V1 and no node writes it, so `asset.duration` is empty for everything that was ingested
+ * rather than seeded — and the media element cannot supply it either, because a remuxed stream
+ * arrives over a pipe and reports only what has already been received. A 43-minute episode drew a
+ * five-second timeline, so there was nowhere to click to reach minute twenty.
+ */
+export async function loadMediaInfo(token: string, uuid: string): Promise<MediaInfoResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/media-info`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<MediaInfoResponse>(res);
+}
+
+/**
  * URL of a poster frame for a video asset.
  *
  * Unlike {@link assetBinaryUrl} this is a few kilobytes rather than the whole file — pointing an

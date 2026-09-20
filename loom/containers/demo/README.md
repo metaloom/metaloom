@@ -11,11 +11,16 @@ seeded with.
 | `/loom/ui` | the built `loom-ui` bundle, served at `/ui/` |
 | `/demo-content` | the checked-in `demo-content/` directory — sixteen photographs, five clips, ten portraits |
 
-`ENV LOOM_DEMO_CONTENT_DIR=/demo-content` is what makes `DemoDatabaseInitializer` seed real bytes.
-The seed itself is **not** demo-only: it runs on every installation, including the server image,
-because there is no flag for it. The server image simply has no such directory, so the initializer
-paints its images instead and creates the video assets as rows without binaries. Both states are
-supported; only this one has photographs in it.
+Two environment variables, and the distinction between them matters:
+
+* `ENV LOOM_DEMO_ENABLED=true` is what makes `DemoDatabaseInitializer` run **at all**. It is off
+  everywhere else. The seed used to run on every installation, guarded only by "is the asset table
+  empty", so a fresh production server quietly invented a demo space, libraries, collections and
+  people for itself, and the operator could not tell them from their own.
+* `ENV LOOM_DEMO_CONTENT_DIR=/demo-content` is what makes it seed **real bytes**. With seeding on
+  and no such directory — a source checkout without `demo-content/`, say — the initializer paints
+  its images instead and creates the video assets as rows without binaries. Both states are
+  supported; only this one has photographs in it.
 
 Because the media is copied in rather than mounted, a reader who pulls the image gets the pictures
 the documentation shows. `/uploads` — where the seeder writes the content-addressed copies it makes

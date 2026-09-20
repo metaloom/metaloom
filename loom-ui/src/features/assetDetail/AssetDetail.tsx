@@ -5,7 +5,7 @@ import AddToRemixDialog from "../remix/AddToRemixDialog";
 import { listAssetRemixes, type RemixResponse } from "../../api/remixes";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Box, Typography, Chip, IconButton, Tab, Tabs,
+  Box, Typography, Chip, IconButton, Tab, Tabs, Autocomplete,
   Tooltip, LinearProgress, TextField, InputAdornment,
   Menu, MenuItem, ListItemIcon, ListItemText,
   Button, CircularProgress,
@@ -25,12 +25,15 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, assetStreamUrl, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
-import { useMediaToken } from "../../hooks/useMediaToken";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
+import { useMediaInfo } from "../../hooks/useMediaInfo";
+import { AssetVideoPlayer, AssetVideoPlayerHandle } from "../../components/AssetVideoPlayer";
+import { FaceBoxes, FACE_FLASH_MS, visibleFacesAt } from "../../components/FaceBoxes";
+import { useFaceFlash } from "../../hooks/useFaceFlash";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
-import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, DEFAULT_TAG_COLLECTION } from "../../api/tags";
+import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, loadTagVocabulary, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { toUiPerson } from "../faceDetection/personMapping";
@@ -55,6 +58,9 @@ import { TranscriptPanel } from "./TranscriptPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
+
+/** See {@link labelsHidden}. Roughly the width of the icon strip plus its gutters. */
+const SIDEBAR_ICON_ONLY_PX = 420;
 
 // Map a REST comment response onto the local Comment view model.
 function commentResponseToComment(c: CommentResponse, assetId: string): Comment {
@@ -145,7 +151,6 @@ export default function AssetDetail() {
   const [currentTime, setCurrentTime] = useState(0);
   // What the <video> element reports once it has its metadata. Preferred over the asset's own
   // duration, which is a seeded or probed number and can disagree with the file by a frame.
-  const [playedDuration, setPlayedDuration] = useState(0);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
@@ -161,6 +166,15 @@ export default function AssetDetail() {
   const [taskDueDate, setTaskDueDate] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  /**
+   * Existing tag names, for the suggestion list.
+   *
+   * Loaded once per view rather than queried per keystroke: `listTags` has no search parameter, so
+   * a per-keystroke call would fetch the same page each time and filter it client-side anyway. The
+   * input stays free-form, so a new word is still one Enter away - the list exists to stop the
+   * same idea being coined three times as "interview", "Interview" and "interviews".
+   */
+  const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [postingComment, setPostingComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -187,11 +201,27 @@ export default function AssetDetail() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pipelines, setPipelines] = useState<PipelineResponse[]>([]);
-  // Draggable left/right split (percentage)
-  const [leftPct, setLeftPct] = useState(60);
+  /**
+   * Where the split between media and sidebar sits, as a percentage of the body.
+   *
+   * 74 rather than 60: the sidebar is a column of short rows — comments, tags, faces — and at 40%
+   * of a wide window it was mostly whitespace while the video it discusses was cramped. The lower
+   * clamp is 55 rather than 25 for the same reason in the other direction; the sidebar earns its
+   * width by being narrow, and {@link SIDEBAR_ICON_ONLY_PX} lets it go narrower still than the
+   * tab labels would otherwise allow.
+   */
+  const [leftPct, setLeftPct] = useState(74);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  /**
+   * The sidebar's measured width, so the tab strip can drop its labels.
+   *
+   * Measured rather than derived from `leftPct`: the percentage says nothing about how wide the
+   * window is, and the question the tab strip is asking is whether six labels fit in the pixels
+   * it actually has.
+   */
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [sidebarPx, setSidebarPx] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
   const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
@@ -551,7 +581,7 @@ export default function AssetDetail() {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      setLeftPct(Math.min(Math.max(pct, 25), 75));
+      setLeftPct(Math.min(Math.max(pct, 30), 88));
     };
     const onUp = () => { isDragging.current = false; window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
     window.addEventListener("mousemove", onMove);
@@ -559,23 +589,54 @@ export default function AssetDetail() {
   }, []);
 
   /**
-   * Where the stream currently starts, in seconds.
+   * The player, which owns the stream offset and the transport.
    *
-   * The video is remuxed on the fly into a fragmented MP4 and delivered over a pipe, and a pipe
-   * carries no index — so the browser cannot seek within it at all. Seeking is therefore a new
-   * request with a different `t`, and this is the offset that request carries. Everything the
-   * player reports is relative to it, which is why `displayTime` below adds it back.
+   * Seeking a remuxed stream means re-requesting it at a different offset — a pipe has no index —
+   * and that bookkeeping lives in {@link AssetVideoPlayer} rather than here, because the workflow
+   * review queue needs exactly the same behaviour and had none of it.
    */
-  const [streamOffset, setStreamOffset] = useState(0);
+  const playerRef = useRef<AssetVideoPlayerHandle>(null);
 
   /**
-   * A media token for the player, or null while it is in flight.
+   * What the decoder says about this file, above all how long it is.
    *
-   * A `<video src>` cannot carry an Authorization header, so the credential rides in the query
-   * string instead. Declared up here with the other hooks - `isVideo` is only computed after the
-   * loading early-return below, and a hook cannot live behind that.
+   * Nothing else knows. `asset_video_comp` has no producer, so `asset.duration` is empty for every
+   * ingested video, and the element cannot answer either: it is being fed a pipe and reports only
+   * what has arrived. Without this the timeline was a few seconds wide and there was nowhere to
+   * click to reach the middle of an episode.
    */
-  const mediaToken = useMediaToken(asset?.type === "video" ? asset?.id : null);
+  const mediaInfo = useMediaInfo(asset?.type === "video" ? asset?.id : null);
+
+  // Above the early return below: every hook in this component has to run on every render, and
+  // the natural home for this - beside reloadTags - is past it.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    loadTagVocabulary(token)
+      .then(names => { if (!cancelled) setTagVocabulary(names); })
+      .catch(() => { /* suggestions are an aid; typing still works without them */ });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Watch the sidebar rather than the window: the divider changes its width without the window
+  // changing at all, and a resize listener would miss every drag.
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width;
+      if (width != null) setSidebarPx(width);
+    });
+    observer.observe(el);
+    setSidebarPx(el.getBoundingClientRect().width);
+    return () => observer.disconnect();
+  }, []);
+
+  /** The bounding box to light up, and when. See {@link useFaceFlash}. */
+  const { flash: faceFlash, armFlash } = useFaceFlash();
+  /** The face a click jumped to, kept on screen even once the playhead has drifted off it. */
+  const [pinnedFaceId, setPinnedFaceId] = useState<string | null>(null);
+
 
   // Seek the player. Everything that puts a time on the timeline — a marker, a transcript line, a
   // detection — goes through here, so the picture follows the click rather than only the playhead.
@@ -584,21 +645,37 @@ export default function AssetDetail() {
       return;
     }
     setCurrentTime(time);
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-    // A seek inside what the browser has already buffered is free; only leaving it costs a new
-    // remux. `seekable` is empty for a fragmented stream, so fall back to re-requesting.
-    const withinBuffer = video.seekable.length > 0
-      && time - streamOffset >= video.seekable.start(0)
-      && time - streamOffset <= video.seekable.end(video.seekable.length - 1);
-    if (withinBuffer) {
-      video.currentTime = time - streamOffset;
-      return;
-    }
-    setStreamOffset(Math.max(0, Math.floor(time)));
-  }, [streamOffset]);
+    playerRef.current?.seekTo(time);
+  }, []);
+
+  /**
+   * Where a face detection sits in the video, in seconds.
+   *
+   * `DetectedFace.timestamp` carries the detection's `frame_number` — the field is misnamed and
+   * the column is what it is — so this needs a frame rate, and the probe is the only place one
+   * comes from: `asset_video_comp` has no producer. Null means "cannot be placed in time", which
+   * every caller treats as "not clickable" rather than as second zero. Clicking a face used to
+   * seek to its frame *number* read as seconds, which put frame 24000 two thirds of a day in.
+   */
+  const faceTimeOf = useCallback((face: DetectedFace): number | null => {
+    const fps = mediaInfo?.frameRate ?? 0;
+    if (asset?.type !== "video" || fps <= 0 || face.timestamp == null) return null;
+    return face.timestamp / fps;
+  }, [asset?.type, mediaInfo?.frameRate]);
+
+  /**
+   * Jump to a face and light its box up as we arrive.
+   *
+   * The lead-in is deliberate: landing on the detection's own frame puts the moment in the past
+   * before the picture has settled. See {@link FACE_FLASH_MS}.
+   */
+  const seekToFace = useCallback((face: DetectedFace) => {
+    const at = faceTimeOf(face);
+    if (at == null) return;
+    setPinnedFaceId(face.id);
+    seekTo(Math.max(0, at - FACE_FLASH_MS / 1000));
+    armFlash(face.id);
+  }, [faceTimeOf, seekTo, armFlash]);
 
   if (!asset) {
     return (
@@ -609,12 +686,11 @@ export default function AssetDetail() {
   }
 
   const isVideo = asset.type === "video";
-  /** The playable URL, or null until the token arrives. See `streamOffset` for why `t` is on it. */
-  const streamUrl = isVideo && mediaToken ? assetStreamUrl(asset.id, mediaToken, streamOffset) : null;
-  // The asset's own duration wins for a video: the player is fed a remuxed stream whose element
-  // duration describes the pipe, not the clip. `playedDuration` remains the fallback for an asset
-  // with no metadata, and the only source for anything that is not streamed.
-  const duration = asset.duration || playedDuration || 0;
+  // Where a video's length comes from: the component row if a node ever wrote one, otherwise the
+  // ffprobe measurement. The media element is deliberately not a third fallback - for a remuxed
+  // stream it describes the pipe rather than the clip, which is what made a 43-minute episode's
+  // timeline read "0:05".
+  const duration = asset.duration || mediaInfo?.duration || 0;
 
   // ── Asset metadata edit / delete / process ──────────────────────────────
   const nameDirty = editName.trim() !== "" && editName.trim() !== asset.name;
@@ -811,6 +887,15 @@ export default function AssetDetail() {
     ...(detectedFaces.length > 0 ? [{ label: tAD("tab.faces", { count: detectedFaces.length }), icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
   ];
 
+  /**
+   * Below this many pixels the tab strip drops its labels and keeps the icons.
+   *
+   * Without it the labels are the floor on how narrow the sidebar can be: six words of tab text
+   * is around 420px, and the divider simply stopped there however far you dragged. The icons
+   * alone need about a third of that, and the label survives as the `title`.
+   */
+  const labelsHidden = sidebarPx > 0 && sidebarPx < SIDEBAR_ICON_ONLY_PX;
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
@@ -973,41 +1058,25 @@ export default function AssetDetail() {
         <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
           <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {isVideo && streamUrl ? (
-              // The browser's own player, pointed at the *remuxed* stream rather than the stored
-              // binary. Pointing it at the binary is what it used to do, and for the Matroska
-              // files this deployment holds that is a black box: no browser decodes the container,
-              // whatever the range support on /assets/:uuid/binary/data can do. The stream route
-              // copies the H.264 video into a fragmented MP4 and re-encodes only the audio.
-              //
-              // `key` is load-bearing: a seek changes the src, and without it React reuses the
-              // element and the browser keeps playing the old response.
-              <Box
-                component="video"
-                key={streamUrl}
-                ref={videoRef}
-                data-testid="asset-video"
-                src={streamUrl}
-                controls
-                autoPlay={streamOffset > 0}
-                playsInline
-                preload="metadata"
-                onLoadedMetadata={e => {
-                  const el = e.currentTarget as HTMLVideoElement;
-                  // The element's duration is not to be trusted here. A fragmented MP4 arriving over
-                  // a pipe has no total length - browsers report whatever has arrived so far, which
-                  // made a 43-minute episode's timeline read "0:05" - and a stream started at an
-                  // offset only covers the remainder. The asset's own metadata is authoritative;
-                  // the element is a fallback for an asset the metadata node has never seen.
-                  if (!asset.duration && streamOffset === 0 && Number.isFinite(el.duration)) {
-                    setPlayedDuration(el.duration);
-                  }
-                }}
-                onTimeUpdate={e => setCurrentTime(streamOffset + (e.currentTarget as HTMLVideoElement).currentTime)}
-                sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block", bgcolor: "#000" }}
+            {isVideo ? (
+              // The remuxed stream, not the stored binary: no browser decodes the Matroska files
+              // this deployment holds, whatever range support /assets/:uuid/binary/data offers.
+              // Native controls are deliberately absent - see AssetVideoPlayer, which owns the
+              // transport because a piped fragmented MP4 gives the native bar nothing to scrub.
+              <AssetVideoPlayer
+                ref={playerRef}
+                assetUuid={asset.id}
+                duration={duration}
+                onTimeUpdate={setCurrentTime}
+                sx={{ width: "100%", height: "100%" }}
+                // Only the faces belonging to the moment on screen, plus whichever one was
+                // clicked. Drawing all of them at once is every detection in a 43-minute episode
+                // stacked on one frame, which is not a picture of anything.
+                overlay={<FaceBoxes
+                  faces={visibleFacesAt(detectedFaces, currentTime, faceTimeOf, { isVideo: true, pinnedFaceId })}
+                  hoveredFaceId={hoveredMarkerId}
+                  flash={faceFlash} />}
               />
-            ) : isVideo ? (
-              <MediaPlaceholder type="video" iconSize={48} />
             ) : !isVideo && asset.url ? (
               <ZoomableImage
                 src={asset.url}
@@ -1137,21 +1206,34 @@ export default function AssetDetail() {
                 {pendingArea ? tAD("tag.regionCaptured") : (isVideo ? tAD("tag.regionHintVideo") : tAD("tag.regionHintImage"))}
               </Typography>
             )}
-            <TextField
-              inputRef={tagInputRef}
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && tagInput.trim()) {
-                  e.preventDefault();
-                  handleAddTag(tagInput);
-                }
-              }}
-              placeholder={tAD("tag.addPlaceholder")}
-              size="small"
-              variant="standard"
-              inputProps={{ "data-testid": "tag-input" }}
-              sx={{ minWidth: 80, maxWidth: 140, "& .MuiInput-root": { fontSize: "0.75rem" }, "& .MuiInput-underline:before": { borderBottom: "none" }, "& .MuiInput-underline:hover:before": { borderBottom: `1px solid ${tokens.border.default}` } }}
+            {/* freeSolo: the suggestions are a spelling aid, not a vocabulary. Tags already on
+                this asset are filtered out - offering one that is a no-op is worse than offering
+                nothing. `clearOnBlur={false}` keeps a half-typed word while the reviewer looks
+                back at the picture. */}
+            <Autocomplete
+              freeSolo
+              options={tagVocabulary.filter(name => !assetTags.some(t => t.name.toLowerCase() === name.toLowerCase()))}
+              inputValue={tagInput}
+              onInputChange={(_, value, reason) => { if (reason !== "reset") setTagInput(value); }}
+              // Both Enter-on-a-typed-word and picking from the list arrive here — freeSolo
+              // reports the first as `createOption`. A second Enter handler on the TextField
+              // would fire alongside this one and tag the asset twice.
+              onChange={(_, value) => { if (typeof value === "string" && value.trim()) handleAddTag(value); }}
+              clearOnBlur={false}
+              selectOnFocus
+              handleHomeEndKeys
+              sx={{ minWidth: 120, maxWidth: 180 }}
+              renderInput={params => (
+                <TextField
+                  {...params}
+                  inputRef={tagInputRef}
+                  placeholder={tAD("tag.addPlaceholder")}
+                  size="small"
+                  variant="standard"
+                  inputProps={{ ...params.inputProps, "data-testid": "tag-input" }}
+                  sx={{ "& .MuiInput-root": { fontSize: "0.75rem" }, "& .MuiInput-underline:before": { borderBottom: "none" }, "& .MuiInput-underline:hover:before": { borderBottom: `1px solid ${tokens.border.default}` } }}
+                />
+              )}
             />
           </Box>
 
@@ -1415,10 +1497,21 @@ export default function AssetDetail() {
         </Box>
 
         {/* Right: discussion tabs */}
-        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: tokens.bg.surface }}>
-          <Tabs value={tab} onChange={(_, v) => { setTab(v); setSidebarQuery(""); }} sx={{ px: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, minHeight: 40 }}>
+        <Box ref={sidebarRef} data-testid="asset-sidebar" data-compact={labelsHidden ? "true" : "false"}
+          sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: tokens.bg.surface }}>
+          {/* Below SIDEBAR_ICON_ONLY_PX the labels go and the icons stay, which is what lets the
+              divider keep going past the width six words need. `scrollButtons` because the strip
+              is then narrow enough that even icons can outrun it. */}
+          <Tabs value={tab} onChange={(_, v) => { setTab(v); setSidebarQuery(""); }}
+            variant="scrollable" scrollButtons={false}
+            sx={{ px: labelsHidden ? 0.5 : 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, minHeight: 40 }}>
             {tabs.map((t, i) => (
-              <Tab key={i} label={t.label} iconPosition="start" icon={t.icon} sx={{ minHeight: 40, fontSize: "0.75rem", px: 1.5 }} />
+              <Tab key={i}
+                label={labelsHidden ? undefined : t.label}
+                aria-label={typeof t.label === "string" ? t.label : undefined}
+                title={labelsHidden && typeof t.label === "string" ? t.label : undefined}
+                iconPosition="start" icon={t.icon}
+                sx={{ minHeight: 40, fontSize: "0.75rem", px: labelsHidden ? 1 : 1.5, minWidth: labelsHidden ? 40 : undefined }} />
             ))}
           </Tabs>
 
@@ -1632,7 +1725,9 @@ export default function AssetDetail() {
                 faces={detectedFaces}
                 clusters={faceClusters}
                 persons={persons}
-                onSeek={isVideo ? seekTo : undefined}
+                timeOf={faceTimeOf}
+                onSeekToFace={isVideo ? seekToFace : undefined}
+                onHoverFace={setHoveredMarkerId}
               />
             )}
           </Box>

@@ -850,7 +850,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | SQL migrations | `loom/db/flyway/src/main/resources/db/migration/` |
 | Test DB pool setup | `./setup-pool.sh`, `loom-test-env/`, `loom/fixture/`, `loom/DEVELOPMENT.md` |
 | Demo data | `loom/core/.../boot/DemoDatabaseInitializer.java` |
-| Demo media | `demo-content/` — container `/demo-content`, `LOOM_DEMO_CONTENT_DIR` |
+| Demo media | `demo-content/` — container `/demo-content`, `LOOM_DEMO_CONTENT_DIR`. Seeding itself needs `LOOM_DEMO_ENABLED=true`, set only by the `loom-demo` image |
 | **Loom-side pipeline engine & graph** | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/{engine,graph}/` |
 | Pipeline REST endpoints & services | `loom/services/rest/.../endpoint/impl/Pipeline*.java`, `.../service/impl/` |
 | Pipeline dispatch protocol model | `loom-shared/pipeline-model/` (`NodeTask`, `NodeTaskResult`) |

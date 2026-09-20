@@ -16,9 +16,12 @@ ENV LOOM_AGENT_MEMORY_ENABLED=true
 # Reindex button is the repair.
 ENV LOOM_VECTOR_INDEX_PROVIDER=lucene
 ENV LOOM_SIMILARITY_ENABLED=true
-# The media DemoDatabaseInitializer seeds. Only this image carries it: the seed itself runs
-# everywhere (there is no demo flag), and a missing directory is what makes the plain server image
-# fall back to the images the initializer paints for itself.
+# Demo seeding is off everywhere else. It used to run on every installation, guarded only by
+# "is the asset table empty", which meant a fresh production server invented a space, libraries,
+# collections and a cast of people for itself. This image is the one that wants them.
+ENV LOOM_DEMO_ENABLED=true
+# The media the seed uses. Only this image carries it; without it the initializer paints its own
+# images instead, which is what a source checkout gets.
 ENV LOOM_DEMO_CONTENT_DIR=/demo-content
 # Semantic search stays off: it needs an embeddings host the demo container cannot reach, and a
 # row that reports "disabled, and here is why" is a more honest demo than one that errors.

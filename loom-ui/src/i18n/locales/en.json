@@ -1698,6 +1698,11 @@
       "anyAssignment": "All clusters",
       "assigned": "Assigned",
       "unassigned": "Unassigned"
+    },
+    "size": {
+      "small": "Small — faces only",
+      "medium": "Medium",
+      "large": "Large"
     }
   },
   "maintenance": {
@@ -1796,7 +1801,9 @@
       "assignPerson": "Assign person…",
       "noClusters": "No face clusters for this asset",
       "empty": "No face clusters for this asset",
-      "personsFailed": "Failed to load the person list — you can still type a name"
+      "personsFailed": "Failed to load the person list — you can still type a name",
+      "markerLabel": "{{cluster}} at {{time}}",
+      "noDuration": "No duration measured for this file, so detections cannot be placed on a timeline."
     },
     "objectMode": {
       "detectedObjects": "Detected Objects ({{count}})",
@@ -2068,7 +2075,8 @@
       "identified": "{{count}} identified",
       "identifiedChip": "Identified",
       "unidentifiedChip": "Unidentified",
-      "unclustered": "Unclustered ({{count}})"
+      "unclustered": "Unclustered ({{count}})",
+      "confidence": "Confidence: {{pct}}%"
     },
     "taskDetail": {
       "title": "Task Detail",
@@ -2470,5 +2478,15 @@
       "ascending": "Ascending",
       "descending": "Descending"
     }
+  },
+  "player": {
+    "play": "Play",
+    "pause": "Pause",
+    "back10": "Back 10 seconds",
+    "forward10": "Forward 10 seconds",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "fullscreen": "Fullscreen",
+    "notStreamable": "This video cannot be played here: {{codec}} needs a full transcode."
   }
 }

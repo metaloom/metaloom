@@ -336,4 +336,55 @@ test.describe("Face cluster review – mocked e2e", () => {
 
     await expect.poll(() => rec.detaches.length, { timeout: 10_000 }).toBe(1);
   });
+
+  // ── Reading the grid ───────────────────────────────────────────────────
+
+  test("hovering a crop opens an enlarged copy, and leaving closes it", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect.poll(() => rec.cropRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+    const crop = page.getByTestId("face-crop").first();
+    await expect(page.getByTestId("face-crop-zoom")).toHaveCount(0);
+
+    await crop.hover();
+    await expect(page.getByTestId("face-crop-zoom")).toBeVisible({ timeout: 5_000 });
+
+    // The zoom must not need a second fetch: it is the same object URL at a different CSS size.
+    // A wrapper component that re-fetched would hold a duplicate blob per face in the grid.
+    const afterHover = rec.cropRequests.length;
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId("face-crop-zoom")).toBeHidden({ timeout: 5_000 });
+    expect(rec.cropRequests.length).toBe(afterHover);
+  });
+
+  test("the small size drops the card chrome and keeps the faces", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.getByTestId("cluster-name").first()).toBeVisible();
+
+    await page.getByTestId("facedetection-card-size-small").click();
+
+    // The point of the size: the name, count, review date and buttons are three lines of chrome
+    // between every two rows of the thing the reviewer is actually comparing.
+    await expect(page.getByTestId("cluster-name")).toHaveCount(0);
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "small");
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2);
+    await expect(page.getByTestId("face-crop").first()).toBeVisible();
+  });
+
+  test("the chosen size survives leaving the screen and coming back", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await page.getByTestId("facedetection-card-size-large").click();
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "large");
+
+    // Which size suits you is a property of the work, not of the visit. Re-picking it on every
+    // navigation is the kind of friction that stops a control being used at all.
+    await page.getByRole("button", { name: "Tags", exact: true }).first().click();
+    await expect(page.getByTestId("clusters-grid")).toHaveCount(0, { timeout: 10_000 });
+    await page.getByRole("button", { name: "Detection", exact: true }).first().click();
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "large", { timeout: 10_000 });
+  });
 });

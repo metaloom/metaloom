@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -32,6 +34,7 @@ import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
+import io.metaloom.loom.rest.model.media.MediaInfoResponse;
 import io.metaloom.loom.rest.model.media.MediaTokenResponse;
 import io.metaloom.loom.rest.service.AbstractEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
@@ -94,6 +97,20 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	/** Bounds concurrent ffmpeg stream processes; see {@link MediaOptions#getMaxConcurrentStreams()}. */
 	private final Semaphore streamSlots;
 
+	/**
+	 * Probe results, keyed by the binary's SHA-512.
+	 *
+	 * <p>
+	 * A probe is an ffprobe process, and every video screen asks for one before it can draw a timeline. Keyed by content rather than by asset
+	 * uuid, so two assets over the same bytes share the answer and a re-ingest under a new uuid does not re-probe. Bounded, because an
+	 * unbounded map keyed by user input is a leak: a library of a million videos would otherwise be a million entries of permanent heap.
+	 * </p>
+	 */
+	private final Map<String, MediaInfoResponse> probeCache = new ConcurrentHashMap<>();
+
+	/** Above this the probe cache is cleared rather than grown. Entries are cheap to recompute; a leak is not. */
+	private static final int PROBE_CACHE_LIMIT = 10_000;
+
 	@Inject
 	public AssetMediaEndpointService(AssetDao assetDao, AssetBinaryDao binaryDao, BinaryStorageResolver storageResolver,
 		AuthenticationService authService, LoomOptions options, Vertx vertx, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
@@ -131,6 +148,148 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 			String token = authService.generate(claims, media.getTokenTtl());
 			lrc.send(new MediaTokenResponse().setToken(token).setExpiresIn(media.getTokenTtl()));
 		});
+	}
+
+	// ── Media info ───────────────────────────────────────────────────────
+
+	/**
+	 * What the decoder says about a video: duration, dimensions, frame rate, codecs.
+	 *
+	 * <p>
+	 * A read of the file, not of the database, and that is the point. {@code asset_video_comp} would be the natural home for this and has been
+	 * there since V1, but nothing writes it - so every video in this deployment reports no duration, and a player with no duration cannot draw a
+	 * timeline longer than the few seconds of pipe it has received. Until a node measures files at ingest, this is where a timeline gets its
+	 * length and where a detection's {@code frameNumber} gets the frame rate it needs to become a point in time.
+	 * </p>
+	 *
+	 * <p>
+	 * Session-authenticated only. The media token deliberately opens the two routes a media element has to reach on its own; this is an ordinary
+	 * JSON call from application code, which can send a header like anything else.
+	 * </p>
+	 */
+	public void mediaInfo(LoomRoutingContext lrc, UUID assetUuid) {
+		checkPerm(lrc, READ_ASSET_BINARY, () -> {
+			MediaOptions media = requireMedia();
+			Asset asset = assetDao.load(assetUuid);
+			Path source = requireLocalSource(assetUuid);
+			String key = asset != null && asset.getSHA512() != null ? asset.getSHA512().toString() : null;
+
+			MediaInfoResponse cached = key == null ? null : probeCache.get(key);
+			if (cached != null) {
+				lrc.send(cached);
+				return;
+			}
+
+			vertx.executeBlocking(() -> probeMedia(media, source), false)
+				.onSuccess(info -> {
+					if (key != null) {
+						if (probeCache.size() >= PROBE_CACHE_LIMIT) {
+							probeCache.clear();
+						}
+						probeCache.put(key, info);
+					}
+					lrc.send(info);
+				})
+				.onFailure(err -> {
+					// A probe that could not run is not an error the caller can act on, and a 502 here
+					// would take a video screen down over a missing duration. The empty answer says
+					// "nothing measured", which is exactly what the client falls back on.
+					log.warn("Media probe failed for asset {}: {}", assetUuid, err.getMessage());
+					lrc.send(new MediaInfoResponse());
+				});
+		});
+	}
+
+	/**
+	 * One ffprobe call for every field.
+	 *
+	 * <p>
+	 * A field that cannot be read stays null rather than becoming a zero. Zero is a duration a timeline will happily render, and a viewer cannot
+	 * tell it apart from a genuinely empty file; null lets the caller fall back to what the media element reports.
+	 * </p>
+	 */
+	private MediaInfoResponse probeMedia(MediaOptions media, Path source) throws IOException, InterruptedException {
+		MediaInfoResponse info = new MediaInfoResponse();
+		JsonObject probed = runProbe(media, source);
+		if (probed == null) {
+			return info;
+		}
+		io.vertx.core.json.JsonObject format = probed.getJsonObject("format");
+		if (format != null) {
+			info.setDuration(parseDouble(format.getString("duration")));
+		}
+		io.vertx.core.json.JsonArray streams = probed.getJsonArray("streams");
+		if (streams != null) {
+			for (int i = 0; i < streams.size(); i++) {
+				JsonObject stream = streams.getJsonObject(i);
+				String type = stream.getString("codec_type");
+				if ("video".equals(type) && info.getVideoCodec() == null) {
+					info.setVideoCodec(stream.getString("codec_name"));
+					info.setWidth(stream.getInteger("width"));
+					info.setHeight(stream.getInteger("height"));
+					info.setFrameRate(parseRational(stream.getString("avg_frame_rate")));
+					// A Matroska stream often carries no duration of its own; the container's does.
+					if (info.getDuration() == null) {
+						info.setDuration(parseDouble(stream.getString("duration")));
+					}
+				} else if ("audio".equals(type) && info.getAudioCodec() == null) {
+					info.setAudioCodec(stream.getString("codec_name"));
+				}
+			}
+		}
+		info.setStreamable(info.getVideoCodec() == null || REMUXABLE_VIDEO_CODECS.contains(info.getVideoCodec()));
+		return info;
+	}
+
+	/** ffprobe as JSON, or null when it is missing or says nothing usable. */
+	private JsonObject runProbe(MediaOptions media, Path source) {
+		try {
+			Process probe = new ProcessBuilder(ffprobePath(media),
+				"-v", "error",
+				"-show_entries", "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate,duration",
+				"-of", "json",
+				source.toString()).start();
+			String out = drain(probe.getInputStream());
+			if (!probe.waitFor(POSTER_TIMEOUT_SECONDS, TimeUnit.SECONDS) || probe.exitValue() != 0) {
+				return null;
+			}
+			return out.isBlank() ? null : new JsonObject(out);
+		} catch (IOException | InterruptedException | io.vertx.core.json.DecodeException e) {
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
+			log.debug("Could not probe {}", source, e);
+			return null;
+		}
+	}
+
+	private static Double parseDouble(String raw) {
+		if (raw == null || raw.isBlank() || "N/A".equals(raw)) {
+			return null;
+		}
+		try {
+			double value = Double.parseDouble(raw.strip());
+			return Double.isFinite(value) && value > 0 ? value : null;
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	/** ffprobe reports a frame rate as "24000/1001", not as a decimal. */
+	private static Double parseRational(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		int slash = raw.indexOf('/');
+		if (slash < 0) {
+			return parseDouble(raw);
+		}
+		Double numerator = parseDouble(raw.substring(0, slash));
+		Double denominator = parseDouble(raw.substring(slash + 1));
+		if (numerator == null || denominator == null) {
+			return null;
+		}
+		return numerator / denominator;
 	}
 
 	// ── Poster ───────────────────────────────────────────────────────────
@@ -381,11 +540,8 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	 * </p>
 	 */
 	private String probeVideoCodec(MediaOptions media, Path source) {
-		String ffprobe = media.getFfmpegPath().endsWith("ffmpeg")
-			? media.getFfmpegPath().substring(0, media.getFfmpegPath().length() - "ffmpeg".length()) + "ffprobe"
-			: "ffprobe";
 		try {
-			Process probe = new ProcessBuilder(ffprobe,
+			Process probe = new ProcessBuilder(ffprobePath(media),
 				"-v", "error",
 				"-select_streams", "v:0",
 				"-show_entries", "stream=codec_name",
@@ -404,6 +560,14 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 			log.debug("Could not probe the video codec of {}", source, e);
 			return null;
 		}
+	}
+
+	/** ffprobe lives beside ffmpeg; only the configured ffmpeg path is an option, because they ship together. */
+	private static String ffprobePath(MediaOptions media) {
+		String ffmpeg = media.getFfmpegPath();
+		return ffmpeg.endsWith("ffmpeg")
+			? ffmpeg.substring(0, ffmpeg.length() - "ffmpeg".length()) + "ffprobe"
+			: "ffprobe";
 	}
 
 	private boolean ffmpegAvailable(MediaOptions media) {

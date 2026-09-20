@@ -17,10 +17,12 @@ import { test, expect, Page, Route } from "@playwright/test";
  *    drops the timestamps, so a REST comment can never produce one. Seeding comments here would
  *    assert nothing; that gap belongs to the comment mapper, not to the timeline.
  *
- * There is no `<video>` element to read `currentTime` back from: the media column renders a
- * placeholder and a simulated clock (`AssetDetail` advances `currentTime` on an interval), so a
- * seek is observable through the playhead and the time readout — which is exactly what a user
- * sees — rather than through a media element.
+ * There is no `<video>` element to read `currentTime` back from, and that is a property of this
+ * fixture rather than of the screen: `AssetVideoPlayer` needs a media token, and the catch-all
+ * mock answers `/media-token` with an empty collection, so the player renders its placeholder. A
+ * seek is therefore observable through the playhead and the time readout — which is what a user
+ * sees anyway. `asset-player-mocked.spec.ts` is the file that mocks the media routes and asserts
+ * the player itself.
  */
 
 const ME_UUID = "11111111-1111-1111-1111-111111111111";

@@ -1,4 +1,4 @@
-import { DEFAULT_TAG_COLLECTION, listTags, tagAsset, untagAsset } from "../../api/tags";
+import { DEFAULT_TAG_COLLECTION, tagAsset, untagAsset } from "../../api/tags";
 import type { TagReference } from "../../api/assets";
 
 /**
@@ -92,17 +92,4 @@ export async function removeAssetTag(token: string, assetUuid: string, tagUuid: 
   await untagAsset(token, assetUuid, tagUuid);
 }
 
-/**
- * The tag names a reviewer can pick from, for the autocomplete.
- *
- * Deliberately unscoped. `listTags` has no collection filter, and `tag.collection` is a free-text
- * namespace rather than an asset collection, so there is nothing here to scope *to*: the review
- * queue is "the first page of assets", not a collection. Scoping the vocabulary needs a queue that
- * carries a collection first. The input stays `freeSolo`, so a word missing from this list is
- * still typeable.
- */
-export async function loadTagVocabulary(token: string, limit = 200): Promise<string[]> {
-  const res = await listTags(token, { limit });
-  const names = new Set((res.data ?? []).map(t => t.name).filter(Boolean));
-  return [...names].sort((a, b) => a.localeCompare(b));
-}
+export { loadTagVocabulary } from "../../api/tags";

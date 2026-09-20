@@ -152,4 +152,5 @@ assetGraph:
   syncBatchSize: 1000
   enabled: false
 demo:
+  enabled: false
   contentDirectory: null

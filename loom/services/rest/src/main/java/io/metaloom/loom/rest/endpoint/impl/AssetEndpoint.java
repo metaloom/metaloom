@@ -765,6 +765,16 @@ public class AssetEndpoint extends AbstractEndpoint {
 				mediaService.mintToken(lrc, lrc.pathParamUUID("uuid"));
 			});
 
+		addRoute(basePath() + "/:uuid/media-info", GET,
+			"What the decoder reports about a video: duration, frame rate, dimensions and codecs. Measured with ffprobe and cached per "
+				+ "binary. This is where a player gets the length of its timeline - a remuxed stream reports only what has arrived so far - "
+				+ "and where a detection's frameNumber gets the frame rate that turns it into a point in time. Requires READ_ASSET_BINARY.",
+			null,
+			examples.mediaInfoResponseExample(),
+			lrc -> {
+				mediaService.mediaInfo(lrc, lrc.pathParamUUID("uuid"));
+			});
+
 		addDownloadRoute(basePath() + "/:uuid/poster",
 			"A single frame of a video as a JPEG, extracted on demand and cached. 't' selects the offset in seconds and 'w' the width. "
 				+ "Answers 503 when no ffmpeg is configured - deliberately, rather than a placeholder that hides the missing capability.",

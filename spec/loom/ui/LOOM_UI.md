@@ -383,27 +383,38 @@ binary itself (`GET /assets/:uuid/binary/data`), which only resolves for assets 
 The share viewer's grid follows the same rule against `sharedBinaryUrl` (`ShareTile`), so the
 customer-facing tiles and the internal ones agree.
 
-### 7.2.1 The asset detail player
+### 7.2.1 The player — `components/AssetVideoPlayer.tsx`
 
-`features/assetDetail/AssetDetail.tsx` renders a real `<video controls preload="metadata">` for a
-video asset, and `VideoTimeline` is driven off it: `onTimeUpdate` feeds `currentTime`, and every
-seek in the screen — the timeline bar, a marker, a transcript line, a detection — goes through one
-`seekTo`.
+One component, used by `AssetDetail` and by the Workflow faces queue. It owns the media token, the
+stream offset and the transport; the **timeline stays outside it**, because the detail view needs
+markers, range selection and draggable handles while the review queue needs detection ticks and a
+hover highlight, and neither should inherit the other's controls. Both drive it through a ref
+(`AssetVideoPlayerHandle.seekTo`).
 
 **The source is `/assets/:uuid/stream`, not the binary.** It used to be `assetBinaryUrl(asset.id)`,
 which is a black box for any container a browser cannot decode — exactly the Matroska files this
 was meant to play. The stream route remuxes on demand: the H.264 video is stream-copied and only
 the audio is re-encoded to AAC.
 
+**The native control bar is off, deliberately.** A fragmented MP4 over a pipe has no index, so
+`seekable` is empty and the browser's own scrubber has nothing to scrub — and it reports the pipe's
+length as the file's, so it drew a few seconds of an hour-long episode and refused to move past
+them. A control that cannot do the thing it depicts is worse than no control, so the transport is
+ours: play/pause, ±10 s, a clock, mute, fullscreen, and the app's `VideoTimeline` as the only
+scrubber.
+
 Two consequences the player has to carry:
 
-* **Seeking is a re-request.** A fragmented MP4 over a pipe has no index, so `video.currentTime`
-  cannot leave what is buffered. `seekTo` uses `video.seekable` when the target is inside it and
-  otherwise sets `streamOffset`, which re-requests with `?t=`; `key={streamUrl}` forces a fresh
-  element, and `onTimeUpdate` adds the offset back so the timeline reads absolute time.
-* **The element's duration is not the clip's.** A pipe reports whatever has arrived, which made a
-  43-minute episode's timeline read `0:05`. `asset.duration` (from `asset_video_comp`) wins, and
-  the element is the fallback only for an asset the metadata node has never seen.
+* **Seeking is a re-request.** `seekTo` writes `currentTime` when the target is inside
+  `video.seekable` and otherwise sets `streamOffset`, which re-requests with `?t=`;
+  `key={streamUrl}` forces a fresh element, and `onTimeUpdate` adds the offset back so everything
+  outside the component talks in absolute asset time.
+* **The duration has to be supplied.** The element cannot answer — a pipe reports whatever has
+  arrived, which made a 43-minute episode's timeline read `0:05`. Nor can the asset:
+  **`asset_video_comp` has no producer**, so `asset.duration` is empty for every ingested file.
+  `useMediaInfo` (`GET /assets/:uuid/media-info`, one cached ffprobe) is where the number comes
+  from in practice; the component takes it as a prop and renders `--:--` rather than `0:00` when
+  there is none.
 
 It replaced a `MediaPlaceholder` with a fake play button over a `setInterval` that advanced a
 counter by 0.25 s. That is worth recording because it looked like a player in every screenshot: the
@@ -915,10 +926,12 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `DbIntegrityAdmin` | `src/features/admin/DbIntegrityAdmin.tsx` | `/admin/db-integrity`. Runs the integrity checks on demand — deliberately **not** polled, unlike the index screen next door: there is no background job to watch and a sweep is real database work. Lists the **whole catalogue** grouped by category — every check by name and code, with a status of Passed, its severity, or "Did not run" — because "what was looked at" is half the answer to "is anything broken". A *Findings only* toggle narrows to the failures; a check that threw is never rendered as a pass |
 | `StorageAdmin` | `src/features/admin/StorageAdmin.tsx` | `/admin/storage`. What is stored and how much room is left. Two byte columns per kind of content, because neither alone is the truth — "claimed" overstates what deleting would free on a deduplicated install, "on disk" gives no sense of how much material there is. A backend that reports no capacity renders as *Not measurable* with **no bar at all**; an empty bar would read as plenty of room. Backends sort worst-first with unmeasurable last. Not polled, like the integrity screen next door |
 | `SearchIndicesAdmin` | `src/features/admin/SearchIndicesAdmin.tsx` | `/admin/indices`. Groups indices under their storage backend (size is per backend — Lucene segments interleave the vector spaces, so there is no per-index byte figure). Action buttons are driven by each index's `supportedActions`, never hardcoded. Polls at 2 s while a job runs and 15 s otherwise, keeping the last good snapshot on a failed poll |
-| `SharePage` / `ShareGate` / `ShareViewer` | `src/features/share/` | The customer-facing area. `ShareMedia.tsx` holds a plain `<video controls>` — **the first real player in this application**; `AssetDetail`'s `videoRef` is unattached and its playback is a `setInterval` simulation. Seeking works because the share binary route inherits `Range`/206 from `AssetBinaryEndpointService` |
+| `SharePage` / `ShareGate` / `ShareViewer` | `src/features/share/` | The customer-facing area. `ShareMedia.tsx` holds a plain `<video controls>` pointed at the share binary route, which inherits `Range`/206 from `AssetBinaryEndpointService` — so native seeking works there and does not inside the app, where the source is a remux over a pipe (§7.2.1) |
 | `ShareDialog` | `src/features/share/ShareDialog.tsx` | Creates the link when it **opens**, not on save — the point of the dialog is the URL. First `navigator.clipboard` use in the app; a Playwright spec asserting on it needs `permissions: ["clipboard-read","clipboard-write"]` |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
 | `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
+| `AssetVideoPlayer` | `src/components/` | The player (§7.2.1). Media token, stream offset and transport; native controls deliberately off. Shared by asset detail and the Workflow faces queue |
+| `useMediaToken` / `useMediaInfo` | `src/hooks/` | The `?mt=` credential a media element cannot send as a header · the ffprobe measurement nothing in the database holds |
 | `PipelineEditor` | `src/features/pipeline/PipelineEditor.tsx` | ~3.7k lines — see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) |
 | `ChatWorkspace` / `ChatGreeting` | `src/features/chat/` | Chat shell + split (§7.6) — see [CHAT.md](CHAT.md) |
 
@@ -955,6 +968,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Never match on an error's message | Branch on `ApiError.status`. `DbIntegrityAdmin` tested `message.startsWith("API error 403")` and broke the moment the shared handler started surfacing the server's own message |
 | Global 401 handling exists now | `src/api/http.ts` dispatches `loom:session-expired`; `AuthProvider` logs out and raises exactly **one** toast however many requests failed. The six modules with their own typed error class call `noteUnauthorized` to join in — except `shares.ts`, deliberately: a 401 there is a lapsed *share* session, not a Loom one |
 | Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
+| Two view preferences **are** persisted | `LibraryView`'s selected library (`loom.library.lastSelected`) and the Detection → Faces card size (`loom.faceDetection.clusterCardSize`). Both wrap the `localStorage` call in try/catch — private browsing throws, and losing a preference must never throw while rendering. `LibraryView` used to open on `libs[0]` unconditionally, which on a server that had seeded itself example content meant opening on an example library while the user's own sat further down the list, reading from the main pane as though it had gone |
+| A tag field suggests, it does not constrain | `AssetDetail` and the workflow tag editors use a `freeSolo` `Autocomplete` over `loadTagVocabulary` (`src/api/tags.ts`, unscoped `listTags`). **Do not add a second `onKeyDown` Enter handler** to the `TextField` — freeSolo already reports Enter-on-a-typed-word through `onChange` as `createOption`, and both firing tags the asset twice |
 | ACL nav is nested | Open `sidebar-group-acl` before asserting on Users/Groups/Permissions/API-Keys/Blacklist |
 | Deep-link 404 on reload | Keep `base`, `basename` and the `UIService` fallback in sync (§7.3) |
 | Empty views drop their table | `TasksView` / `SkillManagementView` render no `<Table>` when empty (§7.5) |

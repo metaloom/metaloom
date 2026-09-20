@@ -181,6 +181,55 @@ public class AssetMediaEndpointTest extends AbstractEndpointTest implements Test
 		}
 	}
 
+	// ── Media info ───────────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("Media info reports the duration and frame rate a timeline needs")
+	public void shouldReportMediaInfo() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+
+			HttpResponse<String> resp = http.send(HttpRequest.newBuilder()
+				.uri(URI.create(url("/api/v1/assets/" + asset.getUuid() + "/media-info")))
+				.header("Authorization", "Bearer " + client.getToken())
+				.GET().build(), BodyHandlers.ofString());
+
+			assertEquals(200, resp.statusCode());
+			io.vertx.core.json.JsonObject body = new io.vertx.core.json.JsonObject(resp.body());
+			// The fixture is eight seconds at ten frames a second, 320x240, H.264. Asserted with a
+			// tolerance rather than exactly: a container rounds, and pinning 8.0 would make this
+			// test about ffmpeg's arithmetic rather than about the route reporting what it read.
+			assertThat(body.getDouble("duration")).isNotNull().isBetween(7.0d, 9.0d);
+			assertThat(body.getDouble("frameRate")).isNotNull().isBetween(9.5d, 10.5d);
+			assertEquals(320, body.getInteger("width"));
+			assertEquals(240, body.getInteger("height"));
+			assertEquals("h264", body.getString("videoCodec"));
+			// The whole reason the field exists: the UI must be able to say "this will not play"
+			// before it renders a player that never starts.
+			assertThat(body.getBoolean("streamable")).isTrue();
+		}
+	}
+
+	@Test
+	@DisplayName("Media info is not reachable with a media token")
+	public void shouldRefuseAMediaTokenOnMediaInfo() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			// Media info is an ordinary JSON call from application code, which can send a header.
+			// Only the two routes a media element has to reach on its own accept mt, and widening
+			// that set is how a narrowly scoped credential stops being narrow.
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/media-info?mt=" + mt));
+
+			assertEquals(401, resp.statusCode(), "mt opens the poster and stream routes and nothing else");
+		}
+	}
+
 	// ── What the token may not do ────────────────────────────────────────
 
 	@Test

@@ -72,6 +72,7 @@ tags:
   description: Persons known to the face recognition model
 - name: pipeline
   description: Pipeline node descriptors and content types
+- name: pipeline-runs
 - name: pipelines
   description: "Pipeline definitions, versions, runs and the event stream"
 - name: pools
@@ -5015,6 +5016,139 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/media-info:
+    description: "What the decoder reports about a video: duration, frame rate, dimensions\
+      \ and codecs. Measured with ffprobe and cached per binary. This is where a player\
+      \ gets the length of its timeline - a remuxed stream reports only what has arrived\
+      \ so far - and where a detection's frameNumber gets the frame rate that turns\
+      \ it into a point in time. Requires READ_ASSET_BINARY."
+    get:
+      tags:
+      - assets
+      summary: "What the decoder reports about a video: duration, frame rate, dimensions\
+        \ and codecs. Measured with ffprobe and cached per binary. This is where a\
+        \ player gets the length of its timeline - a remuxed stream reports only what\
+        \ has arrived so far - and where a detection's frameNumber gets the frame\
+        \ rate that turns it into a point in time. Requires READ_ASSET_BINARY."
+      description: "What the decoder reports about a video: duration, frame rate,\
+        \ dimensions and codecs. Measured with ffprobe and cached per binary. This\
+        \ is where a player gets the length of its timeline - a remuxed stream reports\
+        \ only what has arrived so far - and where a detection's frameNumber gets\
+        \ the frame rate that turns it into a point in time. Requires READ_ASSET_BINARY."
+      operationId: getAssetsByUuidMediainfo
+      responses:
+        "200":
+          description: What the decoder reports about a video
+          content:
+            application/json:
+              example:
+                duration: 2580.4
+                frameRate: 23.976
+                width: 1920
+                height: 1080
+                videoCodec: h264
+                audioCodec: ac3
+                streamable: true
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/media-token:
+    description: "Mint a short-lived, asset-scoped token for the poster and stream\
+      \ routes. An <img> or <video> element cannot send an Authorization header, so\
+      \ the client appends the token as the 'mt' query parameter instead. Requires\
+      \ READ_ASSET_BINARY."
+    post:
+      tags:
+      - assets
+      summary: "Mint a short-lived, asset-scoped token for the poster and stream routes.\
+        \ An <img> or <video> element cannot send an Authorization header, so the\
+        \ client appends the token as the 'mt' query parameter instead. Requires READ_ASSET_BINARY."
+      description: "Mint a short-lived, asset-scoped token for the poster and stream\
+        \ routes. An <img> or <video> element cannot send an Authorization header,\
+        \ so the client appends the token as the 'mt' query parameter instead. Requires\
+        \ READ_ASSET_BINARY."
+      operationId: postAssetsByUuidMediatoken
+      responses:
+        "200":
+          description: The media token response
+          content:
+            application/json:
+              example:
+                token: <signed media token>
+                expiresIn: 600
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/node-results:
     description: Record (upsert) a node processing result for an asset
     get:
@@ -5264,6 +5398,62 @@ paths:
     - name: nodeResultUuid
       in: path
       description: UUID of the referenced nodeResult
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/poster:
+    description: "A single frame of a video as a JPEG, extracted on demand and cached.\
+      \ 't' selects the offset in seconds and 'w' the width. Answers 503 when no ffmpeg\
+      \ is configured - deliberately, rather than a placeholder that hides the missing\
+      \ capability."
+    get:
+      tags:
+      - assets
+      summary: "A single frame of a video as a JPEG, extracted on demand and cached.\
+        \ 't' selects the offset in seconds and 'w' the width. Answers 503 when no\
+        \ ffmpeg is configured - deliberately, rather than a placeholder that hides\
+        \ the missing capability."
+      description: "A single frame of a video as a JPEG, extracted on demand and cached.\
+        \ 't' selects the offset in seconds and 'w' the width. Answers 503 when no\
+        \ ffmpeg is configured - deliberately, rather than a placeholder that hides\
+        \ the missing capability."
+      operationId: getAssetsByUuidPoster
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
       required: true
       schema:
         type: string
@@ -6009,6 +6199,65 @@ paths:
       description: Find near-duplicate assets by perceptual fingerprint similarity.
         Excludes the asset itself.
       operationId: getAssetsByUuidSimilarassets
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/stream:
+    description: "The video remuxed into a fragmented MP4 a browser can play, with\
+      \ the video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
+      \ so the response is not seekable: a player seeks by re-requesting with a different\
+      \ 't'. Answers 415 for a codec that cannot be remuxed and 503 when too many\
+      \ streams are already in flight."
+    get:
+      tags:
+      - assets
+      summary: "The video remuxed into a fragmented MP4 a browser can play, with the\
+        \ video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
+        \ so the response is not seekable: a player seeks by re-requesting with a\
+        \ different 't'. Answers 415 for a codec that cannot be remuxed and 503 when\
+        \ too many streams are already in flight."
+      description: "The video remuxed into a fragmented MP4 a browser can play, with\
+        \ the video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
+        \ so the response is not seekable: a player seeks by re-requesting with a\
+        \ different 't'. Answers 415 for a codec that cannot be remuxed and 503 when\
+        \ too many streams are already in flight."
+      operationId: getAssetsByUuidStream
       responses:
         "400":
           description: Bad request - validation error or malformed path/query parameter
@@ -10474,6 +10723,91 @@ paths:
                   confidence: 0.97
                   origin: AUTO
                 total: 2
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/clusters/{uuid}/person:
+    description: "Remove the person from a cluster and return it to the review queue.\
+      \ The inverse of confirm: `update` writes only name/type/meta, and `reject`\
+      \ says the cluster is not a real subject, which is a different claim from 'that\
+      \ is somebody else'. The person row is left alone - it may hold other clusters."
+    delete:
+      tags:
+      - clusters
+      summary: "Remove the person from a cluster and return it to the review queue.\
+        \ The inverse of confirm: `update` writes only name/type/meta, and `reject`\
+        \ says the cluster is not a real subject, which is a different claim from\
+        \ 'that is somebody else'. The person row is left alone - it may hold other\
+        \ clusters."
+      description: "Remove the person from a cluster and return it to the review queue.\
+        \ The inverse of confirm: `update` writes only name/type/meta, and `reject`\
+        \ says the cluster is not a real subject, which is a different claim from\
+        \ 'that is somebody else'. The person row is left alone - it may hold other\
+        \ clusters."
+      operationId: deleteClustersByUuidPerson
+      responses:
+        "200":
+          description: The reviewed cluster response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Anna Meyer
+                type: face
+                reviewStatus: CONFIRMED
+                personUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                reviewedAt: 2026-08-09T10:15:30Z
+                reviewerUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                clusterIndex: 0
+                score: 0.92
+                memberCount: 4
+                nodeKind: facedetect
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16828,6 +17162,70 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/pipeline-runs/{runUuid}:
+    description: "Load a single pipeline run by its uuid, without knowing its pipeline"
+    get:
+      tags:
+      - pipeline-runs
+      summary: "Load a single pipeline run by its uuid, without knowing its pipeline"
+      description: "Load a single pipeline run by its uuid, without knowing its pipeline"
+      operationId: getPipelinerunsByRunUuid
+      responses:
+        "200":
+          description: The pipeline run detail response
+          content:
+            application/json:
+              example:
+                uuid: 9a4922cc-779c-46d9-a19a-6e4a4fab6d0d
+                pipelineUuid: 8a582845-3991-495f-8447-875ebb2d9945
+                pipelineVersion: 1
+                started: 2026-09-20T16:02:36.295073909Z
+                finished: 2026-09-20T16:02:36.295076179Z
+                status: SUCCESS
+                mediaCount: 100
+                successCount: 95
+                failureCount: 3
+                skippedCount: 2
+                dryRun: false
+                durationMs: 45000
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/pipeline/content-types:
     description: Load all pipeline content types
     get:
@@ -17031,7 +17429,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 76e9db1c-cacb-4b84-ada6-5b734c463042
+                  versionUuid: 6358de18-80af-4eab-b7a9-e8899ac6465d
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17052,7 +17450,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: a70013df-972d-443a-a6fa-15b152a3ace8
+                  versionUuid: c24694b1-269f-41a9-a045-3721ba59eff5
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17125,7 +17523,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: fca71872-55cf-42cf-9219-c448a5af0af7
+                versionUuid: cf1eebc4-e4f9-4183-8a01-99613038c68b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17184,7 +17582,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: c53391ae-35cc-4b0c-856e-41962d9d8da2
+                versionUuid: 7a6b2bb7-cbc6-4124-9b69-8a7b5161024b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17256,7 +17654,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: f2e56d12-4305-4dbe-ae50-49110eb51cef
+                versionUuid: 58cae639-4847-4ad2-a34a-45331d0da246
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17365,7 +17763,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: ef748a22-a77f-4bc4-aeae-8b3036aa1434
+                runUuid: 670642f0-224e-4fe5-a3db-a301b3540efe
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -17453,11 +17851,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: e84ea669-5031-4e90-95ee-da52aac96fd0
-                  pipelineUuid: 00ab0c25-4345-4839-b468-acbca529aa76
+                - uuid: ff243e28-2de7-43ed-8e33-462f79b8fffa
+                  pipelineUuid: 013b2f90-4034-4c5d-afaa-b604c143a5f6
                   pipelineVersion: 1
-                  started: 2026-08-20T12:47:10.148602820Z
-                  finished: 2026-08-20T12:47:10.148613600Z
+                  started: 2026-09-20T16:02:36.294948349Z
+                  finished: 2026-09-20T16:02:36.294964019Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17465,11 +17863,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 3d36701a-cdf8-43eb-8345-d9bac981bbe7
-                  pipelineUuid: 771b88b3-0128-4469-9c2d-76cc16fcde13
+                - uuid: da260999-9ead-4e4b-b0d8-4d4b71f62e1e
+                  pipelineUuid: 4f1a8ec6-fdcc-4cc6-bc18-0f0bee9ef871
                   pipelineVersion: 1
-                  started: 2026-08-20T12:47:10.148638530Z
-                  finished: 2026-08-20T12:47:10.148640940Z
+                  started: 2026-09-20T16:02:36.294981139Z
+                  finished: 2026-09-20T16:02:36.294983519Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17532,11 +17930,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 350edd17-9da7-4d97-8138-ed0949251e0d
-                pipelineUuid: b15d6a11-dbf6-4092-a317-b5509da1c9b5
+                uuid: 79384a33-de86-4cac-8783-29ea56e6894b
+                pipelineUuid: 8400e8ce-6f14-4796-8b53-65dc708cedac
                 pipelineVersion: 1
-                started: 2026-08-20T12:47:10.148680650Z
-                finished: 2026-08-20T12:47:10.148683030Z
+                started: 2026-09-20T16:02:36.295041869Z
+                finished: 2026-09-20T16:02:36.295044479Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17878,15 +18276,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 777fa55f-3d3f-4fd9-b1d2-120171a7e87e
-                  runUuid: 2c43ebbe-537d-4cf1-b973-c8f72c90eb2a
+                - uuid: 7979c2d1-1423-454c-86df-693cfc749f1f
+                  runUuid: 05e810f6-02d6-4817-a4aa-f920122cd089
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 5844d2dd-1995-41d5-8aab-3d05432e5cea
-                  runUuid: 81a6030a-bc53-41d8-b5e5-5e0ae117b8aa
+                - uuid: 21af042d-11ee-4b68-afde-3cd8253f36ed
+                  runUuid: 271a9c11-d6d3-466c-86a7-fa721e1e62a2
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -17958,9 +18356,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: a4144dd6-cba3-4221-a747-6c43f044b86c
-                  itemUuid: a1a6e63c-1b88-43fa-8351-71dc17eae781
-                  runUuid: c18d6b3c-23f2-483d-8777-401fd43f1e24
+                - uuid: 56892301-819b-4d0c-bb50-7ec64d2f2ed9
+                  itemUuid: af0f3374-c605-46b0-a057-5fe71092d901
+                  runUuid: 03672883-826a-439b-82c9-c89c4cd15d60
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -18423,7 +18821,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: d7d40b32-d3b6-4039-aa9d-77b3d63f3d20
+                  versionUuid: 5095b2ce-4cc8-4f9a-b730-2ba8eb822002
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18444,7 +18842,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 72576da9-86e6-4aa8-8b20-73b298ebfb2d
+                  versionUuid: a419c46a-5df1-4e85-9eb3-8572d774891b
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18520,7 +18918,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 42cb2093-4d02-4167-8c37-69d550fa0159
+                versionUuid: db7bbdfa-5d14-4c05-998c-aa72ca91d274
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -18606,7 +19004,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 3440091e-28b8-4e93-b144-a93d77e17bc6
+                versionUuid: 8418282f-423c-4c1b-8e65-559d926e9c1c
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

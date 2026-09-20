@@ -40,24 +40,34 @@ interface Recorder {
   /** Off-origin image requests. Must stay empty: a face crop is biometric data. */
   offOriginImages: string[];
   confirms: { clusterUuid: string; alias?: string }[];
+  /** Every stream URL the player asked for. A seek past the buffer is a *new* one, carrying `t`. */
+  streamRequests: string[];
 }
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function detection(uuid: string, x: number) {
+/** Frame rate the probe reports, so a frame number has a time. */
+const FPS = 24;
+/** Duration the probe reports, in seconds - a 43-minute episode. */
+const DURATION = 2580;
+/** Frames the two detections sit on: 5s and 1000s apart, so no window holds both. */
+const FRAME_A = 5 * FPS;
+const FRAME_B = 1000 * FPS;
+
+function detection(uuid: string, x: number, frameNumber: number) {
   return {
     uuid,
     assetUuid: ASSET_UUID,
     type: "face",
     confidence: 0.95,
-    frameNumber: 120,
+    frameNumber,
     bboxX: x, bboxY: 0.2, bboxWidth: 0.1, bboxHeight: 0.15,
   };
 }
 
-async function installMocks(page: Page, recorder: Recorder, opts: { clusterName?: string | null } = {}) {
+async function installMocks(page: Page, recorder: Recorder, opts: { clusterName?: string | null; probe?: null } = {}) {
   const clusterName = opts.clusterName === undefined ? null : opts.clusterName;
   let reviewStatus = "PENDING";
 
@@ -114,7 +124,7 @@ async function installMocks(page: Page, recorder: Recorder, opts: { clusterName?
   );
 
   await page.route(/\/api\/v1\/assets\/[^/]+\/detections(\?|$)/, route =>
-    json(route, { data: [detection(DETECTION_A, 0.1), detection(DETECTION_B, 0.5)] })
+    json(route, { data: [detection(DETECTION_A, 0.1, FRAME_A), detection(DETECTION_B, 0.5, FRAME_B)] })
   );
 
   await page.route(/\/api\/v1\/assets\/([^/]+)\/clusters(\?|$)/, route => {
@@ -160,6 +170,26 @@ async function installMocks(page: Page, recorder: Recorder, opts: { clusterName?
     });
   });
 
+  // The probe. Without it nothing can place a detection on a timeline: the detection carries a
+  // frame number, and `asset_video_comp` - which would carry the frame rate - has no producer.
+  await page.route(/\/api\/v1\/assets\/[^/]+\/media-info$/, route =>
+    json(route, opts.probe === null
+      ? {}
+      : { duration: DURATION, frameRate: FPS, width: 1920, height: 1080, videoCodec: "h264", audioCodec: "ac3", streamable: true })
+  );
+  await page.route(/\/api\/v1\/assets\/[^/]+\/media-token$/, route =>
+    json(route, { token: "fake-media-token", expiresIn: 600 })
+  );
+  await page.route(/\/api\/v1\/assets\/[^/]+\/poster/, route =>
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
+  );
+  // Not a real MP4: the element will fail to decode it, which is fine. What is under test is
+  // *which URL was requested*, because a seek outside the buffer is a fresh request carrying `t`.
+  await page.route(/\/api\/v1\/assets\/[^/]+\/stream/, route => {
+    recorder.streamRequests.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: "video/mp4", body: Buffer.from("") });
+  });
+
   await page.route(/\/api\/v1\/assets\/[^/]+\/detections\/[^/]+\/crop/, route => {
     recorder.cropRequests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG });
@@ -167,7 +197,7 @@ async function installMocks(page: Page, recorder: Recorder, opts: { clusterName?
 }
 
 function recorder(): Recorder {
-  return { cropRequests: [], offOriginImages: [], confirms: [] };
+  return { cropRequests: [], offOriginImages: [], confirms: [], streamRequests: [] };
 }
 
 async function openFaceMode(page: Page) {
@@ -253,5 +283,93 @@ test.describe("Workflow face review – mocked e2e", () => {
     await expect(page.getByText("episode.mkv")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("street-crossing.jpg")).toHaveCount(0);
     await expect(page.getByTestId("workflow-cluster")).toHaveCount(1);
+  });
+
+  // ── The video, the timeline, and the link between the two ──────────────
+
+  test("the video and a full-length timeline are on screen, one tick per detection", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec);
+    await page.goto("/");
+    await openFaceMode(page);
+
+    // There was no player here at all: the pane showed one poster frame with every bounding box in
+    // the episode drawn on it, which is why the boxes "made no sense".
+    await expect(page.getByTestId("workflow-face-video")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("workflow-face-timeline")).toBeVisible();
+
+    const markers = page.getByTestId("video-timeline-marker");
+    await expect(markers).toHaveCount(2);
+
+    // Position is the assertion, not just presence: a marker placed by frame number rather than by
+    // time would sit at 24x the offset and be off the end of the bar.
+    const bar = (await page.getByTestId("video-timeline-bar").boundingBox())!;
+    const first = (await markers.first().boundingBox())!;
+    const fraction = (first.x + first.width / 2 - bar.x) / bar.width;
+    expect(fraction).toBeCloseTo(FRAME_A / FPS / DURATION, 2);
+  });
+
+  test("only the faces near the playhead have boxes drawn", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec);
+    await page.goto("/");
+    await openFaceMode(page);
+    await expect(page.getByTestId("workflow-face-video")).toBeVisible({ timeout: 10_000 });
+
+    // The complaint was "the bounding boxes are just overlapped and make no sense": every
+    // detection in a 43-minute episode drawn on one frame at once. These two are 995 seconds
+    // apart, so at the start of the file neither belongs on screen.
+    await expect(page.getByTestId("workflow-face-box")).toHaveCount(0);
+  });
+
+  test("clicking a crop seeks the player to the frame it was cut from", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec);
+    await page.goto("/");
+    await openFaceMode(page);
+    await expect(page.getByTestId("workflow-face-video")).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => rec.streamRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+    // The second crop, the one a thousand seconds in: a long jump is the case that cannot be
+    // served from the buffer, which is what makes this a test of the re-request rather than of a
+    // currentTime write.
+    await page.getByTestId("workflow-cluster").first().getByTestId("face-crop").nth(1).click();
+
+    // A piped fragmented MP4 has no index, so seeking is a new request at a new offset. That the
+    // request carries t=1000 is the whole mechanism - the clicked crop is at frame 24000.
+    await expect.poll(() => rec.streamRequests.some(u => u.includes("t=1000")), { timeout: 10_000 }).toBe(true);
+
+    // And the box for that face is now drawn, which is what makes the seek legible.
+    await expect(page.getByTestId("workflow-face-box")).toHaveCount(1);
+    await expect(page.getByTestId("workflow-face-box")).toHaveAttribute("data-face-id", DETECTION_B);
+  });
+
+  test("hovering a crop highlights its moment on the timeline", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec);
+    await page.goto("/");
+    await openFaceMode(page);
+    await expect(page.getByTestId("workflow-face-timeline")).toBeVisible({ timeout: 10_000 });
+
+    const marker = page.locator(`[data-testid="video-timeline-marker"][data-marker-id="${DETECTION_A}"]`);
+    await expect(marker).toHaveAttribute("data-marker-hovered", "false");
+
+    await page.getByTestId("workflow-cluster").first().getByTestId("face-crop").first().hover();
+
+    // The two panes were unrelated: a strip of crops and a still frame, with nothing saying which
+    // crop came from where. This is the mapping.
+    await expect(marker).toHaveAttribute("data-marker-hovered", "true", { timeout: 5_000 });
+  });
+
+  test("without a probe the pane says so rather than drawing an empty timeline", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec, { probe: null });
+    await page.goto("/");
+    await openFaceMode(page);
+
+    // A zero-length timeline would put every detection at position zero and invite the reviewer to
+    // conclude the detections are wrong, rather than that nothing measured the file.
+    await expect(page.getByTestId("workflow-face-timeline")).toHaveCount(0);
+    await expect(page.getByTestId("workflow-face-no-duration")).toBeVisible({ timeout: 10_000 });
   });
 });

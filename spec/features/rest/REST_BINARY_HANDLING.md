@@ -436,6 +436,38 @@ becoming a key to the library, and all three are tested in `AssetMediaEndpointTe
 
 The handler never rejects on its own: it calls `next()` and lets the ordinary auth handler own the
 401, so a missing or bad `mt` is indistinguishable from not having tried one.
+
+#### 7.3.2 Measuring a file — `GET /assets/:uuid/media-info`
+
+Added 2026-09-20, and it exists because of a second producer gap of exactly the same shape as §7.2.
+**`asset_video_comp` has carried `media_duration`, dimensions and frame rate since V1 and nothing
+writes it.** `MetadataNode` says so explicitly — measuring the media "comes from the decoder, in the
+`quality` node" — and the `quality` node does not write the component either. So every ingested
+video reports no duration at all, and on `metaloom.sky` all 22 episodes report none.
+
+Two things break on that, and neither of them looks like a missing-metadata bug:
+
+* **The timeline collapses.** With no `asset.duration`, the player fell back to the media element —
+  which is being fed a fragmented MP4 over a pipe and reports only what has arrived. A 43-minute
+  episode drew a five-second bar, so there was nowhere to click to reach minute twenty. The user
+  report was "I can only see a short time section upfront".
+* **A detection cannot be placed in time.** `detection.frame_number` is a frame index. Turning one
+  into a position needs a frame rate, and there was none — so a face found at frame 54757 could be
+  listed but never located.
+
+`GET /assets/:uuid/media-info` (perm `READ_ASSET_BINARY`) runs one `ffprobe` and answers
+`duration`, `frameRate`, `width`, `height`, `videoCodec`, `audioCodec`, `streamable`. Cached in
+memory by the binary's SHA-512, bounded at 10 000 entries. Deliberately **session-authenticated
+only**: this is an ordinary JSON call from application code, which can send a header, and widening
+the set of routes that honour `mt` is how a narrowly scoped credential stops being narrow.
+
+Every field is nullable and a failed probe answers `{}` rather than an error. A zero duration is a
+length a timeline will happily render and a viewer cannot tell apart from a real one; null lets the
+caller say "not measured" — which `WorkflowView` does, in words, rather than drawing an empty bar.
+
+**This is a workaround and should be read as one.** The durable fix is a node that measures a file
+once at ingest and writes `asset_video_comp`, at which point search, filtering and every screen get
+the duration for free instead of one route having it. Tracked in §8.2.
 The one exception is `s3-sink`, which uploads to a bucket named in the pipeline definition and
 registers the artefact as a new asset — see that plan's §7 B5.
 
@@ -469,6 +501,7 @@ registers the artefact as a new asset — see that plan's §7 B5.
 | **G13** | Attachment bytes and cascade-deleted asset bytes are not reclaimed | §3.3/§3.4. Now **visible** rather than merely true: `GET /storage` reports `orphanObjects`/`orphanBytes`, the storage screen surfaces it, and the customer docs say plainly that the space is reclaimed separately. Fixing it needs a reference count spanning `attachment_binary` and `asset_location` and is its own change |
 | **G14** | Attachment provenance (V2.44) is invisible to REST | `node_kind`, `variant`, `run_uuid` … exist in the DB and are not mapped. Plan Phase A |
 | **G15** | Pool edits need a restart | `BinaryStorageResolver` caches one backend per pool uuid and never evicts |
+| **G18** | **`asset_video_comp` has no producer.** Duration, dimensions and frame rate exist as columns since V1 and nothing writes them, so every ingested video reports no length. `MetadataNode` defers measurement to the `quality` node; the `quality` node does not write the component either | A video timeline had nothing to span and a detection's `frame_number` could not become a time. Worked around per-request by `GET /assets/:uuid/media-info` (§7.3.2), which is an ffprobe on the read path rather than a measurement stored once |
 
 ### 8.3 Missing use cases (nothing built)
 
@@ -476,6 +509,11 @@ registers the artefact as a new asset — see that plan's §7 B5.
   V2.44 with no producer (G2/G14). A **poster frame** and a playable stream are now derived on
   demand instead (§7.3); storing them as attachments would turn a per-request cost into a one-off
   and remains the better answer.
+- **Seek natively inside a video.** A piped fragmented MP4 carries no index, so `seekable` is empty
+  and the browser's own control bar can reach only what has buffered. The client turns a seek into
+  a fresh request at a new `t` (§7.3, and `AssetVideoPlayer` in the UI, which replaces the native
+  controls precisely because they cannot do this). A stored `PROXY` written with `+faststart`
+  would be range-seekable and is the same one-off that closes the point above.
 - Resumable or chunked upload (single-shot multipart only, one file part per request).
 - Server-side mime sniffing — the mime type is taken verbatim from the multipart part, or guessed from
   the file extension in `DaoAssetSink.mimeTypeOf`.
@@ -581,6 +619,11 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `LOOM_S3_ACCESS_KEY` | — | Sensitive. Unset ⇒ AWS default credential chain (IRSA, instance role, `~/.aws`) |
 | `LOOM_S3_SECRET_KEY` | — | Sensitive. Must be set together with the access key, or startup validation fails |
 | `LOOM_S3_PATH_STYLE` | on whenever an endpoint is set | MinIO and most gateways need path-style; real AWS does not |
+| `LOOM_MEDIA_ENABLED` | `true` | The derived-media capability (§7.3). Off answers **503 with the reason** on `/poster`, `/stream` and `/media-info` — never a placeholder |
+| `LOOM_MEDIA_FFMPEG_PATH` | `ffmpeg` | `ffprobe` is resolved beside it; they ship together. A path that is not a working ffmpeg is also a 503 |
+| `LOOM_MEDIA_CACHE_PATH` | `media-cache` | Poster frames, keyed `sha512+t+w`. Relative by default, so it lands in the working directory and is lost on a container recreate — point it at a volume |
+| `LOOM_MEDIA_MAX_STREAMS` | `4` | Concurrent `/stream` ffmpeg processes; over that is a 503. A media server that forks per request is a denial-of-service with extra steps |
+| `LOOM_MEDIA_TOKEN_TTL` | `600` (s) | Lifetime of a `?mt=` token (§7.3.1) |
 | Cortex `metaPath` | see [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) | Where worker-local artefacts (`thumbnail_bin`, `imagegen_bin`, …) are cached |
 
 Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC mounted at `/uploads`;
