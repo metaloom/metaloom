@@ -181,6 +181,10 @@ async function installMocks(page: Page, rec: Recorder, opts: MockOptions = {}) {
 }
 
 async function login(page: Page) {
+  // A session now survives a reload (LOOM_UI.md §7.1), so a test that reloads mid-way reaches
+  // here already signed in and there is no form to fill. Idempotent rather than removed from
+  // those call sites: "make sure we are signed in" is what every caller meant all along.
+  if (await page.getByPlaceholder("Username").count() === 0) return;
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
   await page.getByRole("button", { name: /sign in/i }).click();
@@ -300,10 +304,10 @@ test.describe("Detection review on asset detail – mocked e2e", () => {
     expect(rec.updates[0].body.meta).toMatchObject({ label: "dog", confirmed: true });
     await expect(row).toHaveAttribute("data-confirmed", "true");
 
-    // Auth is in-memory, so a reload logs us out. Signing back in and still finding the verdict is
-    // what proves it was read back from the store rather than kept in React state.
+    // A reload is what proves the verdict was read back from the store rather than kept in React
+    // state. It no longer signs us out on the way — the session is in `sessionStorage` since
+    // 2026-09-20 (LOOM_UI.md §7.1) — which makes this a cleaner test of the same thing.
     await page.reload();
-    await login(page);
     await openDetectionPanel(page);
 
     await expect(page.getByTestId("detection-row")).toHaveAttribute("data-confirmed", "true", { timeout: 10_000 });
@@ -339,9 +343,9 @@ test.describe("Detection review on asset detail – mocked e2e", () => {
     expect(rec.singleCreates).toEqual([]);
     await expect(row).toHaveCount(1);
 
-    // The new geometry survives the round-trip: the overlay is drawn from the stored bbox.
+    // The new geometry survives the round-trip: the overlay is drawn from the stored bbox. The
+    // reload keeps the session now (LOOM_UI.md §7.1), so there is no sign-in step in the middle.
     await page.reload();
-    await login(page);
     await openDetectionPanel(page);
 
     const image = page.getByTestId("zoomable-image");

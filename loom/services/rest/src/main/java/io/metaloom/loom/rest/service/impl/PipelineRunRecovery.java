@@ -67,6 +67,7 @@ public class PipelineRunRecovery {
 	private final PipelineRunTracker tracker;
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 	private final PipelineGraphParser parser;
+	private final NodeDescriptorRegistry nodeDescriptors;
 
 	@Inject
 	public PipelineRunRecovery(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
@@ -81,6 +82,7 @@ public class PipelineRunRecovery {
 		this.dispatcher = dispatcher;
 		this.tracker = tracker;
 		this.metrics = metrics;
+		this.nodeDescriptors = nodeDescriptorRegistry;
 		// Registry-backed on purpose: a parser without one skips port checking and classifies every
 		// node as ExecutionMode.SINGLE, so a recovered run would silently lose the fan-out the same
 		// graph had before the restart.
@@ -160,6 +162,9 @@ public class PipelineRunRecovery {
 
 		RunStateStore store = new DaoRunStateStore(runDao, itemDao, taskDao, runUuid, run.getCreatorUuid());
 		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, runUuid, store);
+		// The same per-kind ceilings a fresh run gets. A recovered whisper run without them
+		// dispatches every restored item at once and takes the worker's GPU out.
+		io.metaloom.loom.pipeline.engine.NodeKindConcurrency.apply(graph, engine, nodeDescriptors);
 		// A resumed run reports exactly as a fresh one does; a restart must not create a blind spot
 		// in the very numbers an operator is watching while the fleet catches up.
 		engine.setMetrics(metrics);

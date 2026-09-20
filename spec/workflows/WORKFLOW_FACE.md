@@ -255,6 +255,41 @@ built for it:
   three lines between every two rows of the thing being compared. The card stays a drop target at
   every size, and the person, which cannot be read off the faces, survives as a coloured dot.
 
+#### 2.2.1.2 Getting around the grid (2026-09-20)
+
+The drag gesture was the only way to attribute a card without going through a dropdown, and a
+hundred-card grid needs more than one. Four additions, each aimed at a different way of working:
+
+* **The person group is a drop target, not only the cards in it.** Each person's run of cards sits
+  in a bordered region that lights up on drag-over and absorbs the drop; aiming at one particular
+  tile of somebody's stack is a precision the statement "this is the same person" does not need.
+  The card's own drop handler calls `stopPropagation` — a card is *inside* its group, so without
+  that the drop fires twice and writes the attribution twice.
+* **Double-click opens a type-to-find picker.** A `freeSolo` `Autocomplete` over the person names,
+  focused on open, so the gesture that opened it flows straight into typing. `freeSolo` because
+  the person on screen may not exist yet, and leaving the dialog to create one is the slow half of
+  a review pass; a typed name that matches nobody is sent as `alias` and the confirm route creates
+  the person. Double-click rather than single: a single click on a card is how you pick it up to
+  drag.
+* **Arrow keys walk the grid**, with a dotted outline on the focused card and Enter opening the
+  same picker. Real DOM focus and a roving `tabIndex`, not a painted selection — Enter has to
+  reach the card the user is looking at, and a component that draws its own highlight while the
+  browser's focus is in the search box is the classic way to get those two out of step. Up/down is
+  resolved by **geometry** (nearest card in x on the closest row in that direction) rather than by
+  a column count: the grid is `auto-fill` and each person's group starts a fresh row, so there is
+  no column count to do arithmetic with.
+* **Enter finishes every dialog on the screen.** They are all one field and two buttons, and none
+  of them committed on Enter. Bound at the dialog, guarded on the same condition that disables the
+  button, and skipped while an `Autocomplete` popup is open — there, Enter is picking an option.
+
+> **The naming dialog is a plain field on purpose.** It only opens when *neither* dropped cluster
+> is attributed, so there is by definition nobody to suggest, and an `Autocomplete` popup in a
+> dialog that short opens straight over the Save button under it.
+
+`small` draws its crops at **60px**, not the 40 it shipped with. The mode exists for comparing
+faces, and 40 is below what a face is recognisable at — so the size that dropped the chrome to
+make room for faces was the one you could see them worst in.
+
 ### 2.2.2 Reviewing a cluster against the video it came from (2026-09-20)
 
 The Workflow `faces` mode is where a whole library is worked through, and it showed a **single
@@ -271,10 +306,19 @@ What it does now, and what each part depends on:
 | Boxes that make sense | only detections within ±2.5 s of the playhead are drawn | `media-info.frameRate`, to turn `frame_number` into a time |
 | Click a crop → seek there | `seekToFace` pins that face and re-requests the stream at its offset | both of the above |
 | Hover a crop → light up its tick | shared `hoveredFaceId` between the crop strip and the timeline | — |
+| The box flashes as you arrive | `useFaceFlash`, armed by the click | — |
 
 ±2.5 s rather than one frame because a seek lands on the nearest preceding keyframe, not on the
 requested frame; narrower than a GOP and the reviewer would click a face and get no box. The
 clicked face is also pinned, so the answer to "where is this face?" is never an empty frame.
+
+Since 2026-09-20 this is **shared with the asset viewer**, which had none of it: `FaceBoxes`,
+`visibleFacesAt` and `useFaceFlash` live in `components/` and `hooks/` and both screens use them,
+so a face behaves the same whichever one you clicked it in. A click seeks `FACE_FLASH_MS` (250 ms)
+*before* the detection and the box lights up on arrival, decaying over the same 250 ms — landing
+on the detection's own frame arrives with the moment already past. The flash is on a timer rather
+than on a `timeupdate` crossing, because a remuxed seek lands on a keyframe seconds early and a
+paused player never crosses anything at all. See LOOM_UI.md §7.2.2.
 
 With no probe the pane **says so** (`workflow.faceMode.noDuration`) instead of drawing a
 zero-length bar. A bar that spans nothing stacks every detection at position zero, which reads as

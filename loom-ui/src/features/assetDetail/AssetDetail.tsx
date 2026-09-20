@@ -48,6 +48,7 @@ import { listAssetReactions, createAssetReaction, deleteAssetReaction, ReactionR
 import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComment, CommentResponse } from "../../api/comments";
 import { listAssetTasks, assignTaskToAsset, createTask, TaskResponse } from "../../api/tasks";
 import { apiToAsset, formatDuration, formatBytes, userName, tagBreadcrumb } from "./helpers";
+import { asrSegmentsToSections } from "./transcriptMapping";
 import { VideoTimeline, TimelineMarker } from "./VideoTimeline";
 import { ZoomableImage } from "./ZoomableImage";
 import { CommentItem } from "./CommentItem";
@@ -59,8 +60,15 @@ import { FaceDetectionPanel } from "./FaceDetectionPanel";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
 
-/** See {@link labelsHidden}. Roughly the width of the icon strip plus its gutters. */
-const SIDEBAR_ICON_ONLY_PX = 420;
+/**
+ * Below this many pixels the tab strip drops its labels and keeps the icons.
+ *
+ * Narrow enough that a comfortable sidebar keeps its words, wide enough that the strip turns to
+ * icons before the tabs start scrolling in earnest. It is not a hard floor on the sidebar: the
+ * strip is `scrollable`, so labels never actually block a drag — this is about what is worth
+ * reading in a column this thin.
+ */
+const SIDEBAR_ICON_ONLY_PX = 300;
 
 // Map a REST comment response onto the local Comment view model.
 function commentResponseToComment(c: CommentResponse, assetId: string): Comment {
@@ -105,22 +113,24 @@ interface TranscriptGroup {
 
 // Map a REST transcript response onto a local TranscriptGroup view model.
 function transcriptResponseToGroup(tr: TranscriptResponse): TranscriptGroup {
+  const authored = (tr.transcriptJson?.sections ?? []).map(s => ({
+    id: s.id,
+    title: s.title,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    words: (s.words ?? []).map(w => ({
+      word: w.word,
+      startTime: w.startTime,
+      endTime: w.endTime,
+      confidence: w.confidence,
+    })),
+  }));
   return {
     uuid: tr.uuid,
     source: tr.source,
     lang: tr.lang,
-    sections: (tr.transcriptJson?.sections ?? []).map(s => ({
-      id: s.id,
-      title: s.title,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      words: (s.words ?? []).map(w => ({
-        word: w.word,
-        startTime: w.startTime,
-        endTime: w.endTime,
-        confidence: w.confidence,
-      })),
-    })),
+    // Authored sections win where both are present: somebody edited those on purpose.
+    sections: authored.length > 0 ? authored : asrSegmentsToSections(tr.transcriptJson?.segments),
   };
 }
 
@@ -204,13 +214,12 @@ export default function AssetDetail() {
   /**
    * Where the split between media and sidebar sits, as a percentage of the body.
    *
-   * 74 rather than 60: the sidebar is a column of short rows — comments, tags, faces — and at 40%
-   * of a wide window it was mostly whitespace while the video it discusses was cramped. The lower
-   * clamp is 55 rather than 25 for the same reason in the other direction; the sidebar earns its
-   * width by being narrow, and {@link SIDEBAR_ICON_ONLY_PX} lets it go narrower still than the
-   * tab labels would otherwise allow.
+   * 70 rather than 60: the sidebar is a column of short rows — comments, tags, faces — and at 40%
+   * of a wide window it was mostly whitespace while the video it discusses was cramped. The upper
+   * clamp went to 88 for the same reason; a sidebar can be pushed down to a strip of icons now
+   * that {@link SIDEBAR_ICON_ONLY_PX} drops the tab labels, and the labels used to be the floor.
    */
-  const [leftPct, setLeftPct] = useState(74);
+  const [leftPct, setLeftPct] = useState(70);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   /**
@@ -220,8 +229,22 @@ export default function AssetDetail() {
    * window is, and the question the tab strip is asking is whether six labels fit in the pixels
    * it actually has.
    */
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const [sidebarPx, setSidebarPx] = useState(0);
+  const sidebarObserver = useRef<ResizeObserver | null>(null);
+  const sidebarRef = useCallback((node: HTMLDivElement | null) => {
+    sidebarObserver.current?.disconnect();
+    sidebarObserver.current = null;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    // Watch the element, not the window: the divider changes this width without the window
+    // changing at all, so a resize listener would miss every drag.
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width;
+      if (width != null) setSidebarPx(width);
+    });
+    observer.observe(node);
+    sidebarObserver.current = observer;
+    setSidebarPx(node.getBoundingClientRect().width);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
   const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
@@ -618,20 +641,6 @@ export default function AssetDetail() {
     return () => { cancelled = true; };
   }, [token]);
 
-  // Watch the sidebar rather than the window: the divider changes its width without the window
-  // changing at all, and a resize listener would miss every drag.
-  useEffect(() => {
-    const el = sidebarRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(entries => {
-      const width = entries[0]?.contentRect.width;
-      if (width != null) setSidebarPx(width);
-    });
-    observer.observe(el);
-    setSidebarPx(el.getBoundingClientRect().width);
-    return () => observer.disconnect();
-  }, []);
-
   /** The bounding box to light up, and when. See {@link useFaceFlash}. */
   const { flash: faceFlash, armFlash } = useFaceFlash();
   /** The face a click jumped to, kept on screen even once the playhead has drifted off it. */
@@ -887,13 +896,7 @@ export default function AssetDetail() {
     ...(detectedFaces.length > 0 ? [{ label: tAD("tab.faces", { count: detectedFaces.length }), icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
   ];
 
-  /**
-   * Below this many pixels the tab strip drops its labels and keeps the icons.
-   *
-   * Without it the labels are the floor on how narrow the sidebar can be: six words of tab text
-   * is around 420px, and the divider simply stopped there however far you dragged. The icons
-   * alone need about a third of that, and the label survives as the `title`.
-   */
+  /** See {@link SIDEBAR_ICON_ONLY_PX}. Zero means "not measured yet", not "zero wide". */
   const labelsHidden = sidebarPx > 0 && sidebarPx < SIDEBAR_ICON_ONLY_PX;
 
   return (
@@ -1057,7 +1060,14 @@ export default function AssetDetail() {
         {/* Left: media */}
         <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
-          <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* `flexShrink: 0`, or the column below squashes this to nothing.
+              The media area is a flex item in a column whose other children — timeline, tags,
+              description, metadata, transcript — routinely overrun the pane. With the default
+              `flex: 0 1 auto` the shrink came out of the picture first: the player computed a
+              correct 966x380 and was then handed a 0px slot, so it overflowed upward out of an
+              `overflow: hidden` parent and the page showed a timeline with no video above it.
+              The old `aspectRatio` here hid the same bug behind a definite basis. */}
+          <Box data-testid="asset-media-area" sx={{ position: "relative", flexShrink: 0, bgcolor: "#000", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isVideo ? (
               // The remuxed stream, not the stored binary: no browser decodes the Matroska files
               // this deployment holds, whatever range support /assets/:uuid/binary/data offers.
@@ -1068,7 +1078,10 @@ export default function AssetDetail() {
                 assetUuid={asset.id}
                 duration={duration}
                 onTimeUpdate={setCurrentTime}
-                sx={{ width: "100%", height: "100%" }}
+                // The player sizes itself: 16:9 capped at the same height the slot is capped at, so
+                // the aspect ratio yields to the cap rather than overflowing it. Handing it
+                // `height: 100%` against an aspect-ratio'd parent is what collapsed the picture.
+                sx={{ width: "100%", aspectRatio: "16/9", maxHeight: { xs: 240, lg: 380 } }}
                 // Only the faces belonging to the moment on screen, plus whichever one was
                 // clicked. Drawing all of them at once is every detection in a 43-minute episode
                 // stacked on one frame, which is not a picture of anything.
@@ -1109,7 +1122,7 @@ export default function AssetDetail() {
 
           {/* Timeline (video only) */}
           {isVideo && (
-            <Box sx={{ px: 2.5, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
+            <Box sx={{ flexShrink: 0, px: 2.5, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
               <VideoTimeline
                 duration={duration}
                 currentTime={currentTime}
@@ -1158,7 +1171,7 @@ export default function AssetDetail() {
 
           {/* Annotation overlay for images */}
           {!isVideo && annotations.filter(a => a.region).length > 0 && (
-            <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
+            <Box sx={{ flexShrink: 0, px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("annotations.label")}</Typography>
               {annotations.filter(a => a.region).map(a => (
                 <Chip key={a.id} label={a.title} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${a.color}22`, color: a.color }} />
@@ -1167,7 +1180,7 @@ export default function AssetDetail() {
           )}
 
           {/* Tags — editable (persisted via the /assets/:uuid/tags endpoint) */}
-          <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-tags">
+          <Box sx={{ flexShrink: 0, px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-tags">
             {assetTags.map(t => {
               const region = !!t.area && (isSpatial(t.area) || isTemporal(t.area));
               const bc = tagBreadcrumb(t.name);
@@ -1340,7 +1353,8 @@ export default function AssetDetail() {
           </Box>
 
           {/* Metadata */}
-          <Box sx={{ px: 2, py: 2, flex: 1, overflow: "auto" }}>
+          {/* The one part of this column that scrolls, so it is the one that takes what is left. */}
+          <Box sx={{ px: 2, py: 2, flex: 1, minHeight: 0, overflow: "auto" }}>
             <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
               {tAD("meta.title")}
             </Typography>

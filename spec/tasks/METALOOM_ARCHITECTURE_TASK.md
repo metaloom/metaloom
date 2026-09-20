@@ -639,20 +639,38 @@ production**. `PipelineRunEngine#maxInFlight` (`loom/pipeline/.../engine/Pipelin
 initialises to `DEFAULT_MAX_IN_FLIGHT = 256` (`:85`) and `setMaxInFlight` (`:2348`) has no production
 caller at all — every reference is a test (`PipelineRunEngineFlowControlTest`,
 `PipelineRunEngineBackpressureTest`, …), and `PipelineRunEngineFactory#assemble` (`:109`) never sets
-it. The same holds for the per-kind ceiling: `setMaxInFlightForKind` (`:2197`) is only ever called
-from `PipelineRunEngineBulkheadTest`. So a run against a one-worker fleet and a run against a
+it. ~~The same holds for the per-kind ceiling: `setMaxInFlightForKind` (`:2197`) is only ever called
+from `PipelineRunEngineBulkheadTest`.~~ **Half done, 2026-09-20** — see the note below. So a run against a one-worker fleet and a run against a
 forty-worker fleet both push up to 256 outstanding tasks, and an operator has no knob. The blocker
 that justified deferring this is gone: `SystemLoadProbe`
 (`cortex/core/.../impl/loom/SystemLoadProbe.java`) produces real `cpuLoad`/`ioLoad`, and
 `ProcessorRegistry` already consumes them — but only as a **tie-break between workers of equal
 priority** (`ProcessorRegistry.java:486`), never to decide *how much* work to have outstanding.
 
+> **The per-kind half shipped on 2026-09-20, and it was not a theoretical problem.**
+> `NodeKindConcurrency.apply` (`loom/pipeline/.../engine/NodeKindConcurrency.java`) reads each
+> kind's `NodeSpec.defaultConcurrency` out of the `NodeDescriptorRegistry` and sets the ceiling;
+> `PipelineRunEngineFactory#assemble` and `PipelineRunRecovery` both call it, so a recovered run
+> carries the same ceilings as a fresh one. `NodeKindConcurrencyTest` covers it.
+>
+> Why it mattered: a differential filesystem source enumerates one changed file per run, so an
+> unchanged library exercises a concurrency of one whether or not anything enforces it — the gap is
+> invisible indefinitely. The first source batch carrying 23 items dispatched 23 `whisper` tasks at
+> once; the worker built a 1.55 GB CUDA context per task and the sixth exhausted an 8 GB card. ggml
+> answers a failed `cudaMalloc` with `GGML_ASSERT` → `abort()`, so the **whole worker process** died
+> mid-run and docker restarted it, repeatedly. `CortexOptions.maxConcurrentMedia` looks like the
+> guard for this and is read by nothing at all; it did not help.
+>
+> **Still open:** the global `maxInFlight` remains unreachable (step 1 below), and nothing is
+> load-derived (step 2). The per-kind ceiling is also per *run*: two concurrent runs of the same GPU
+> pipeline would each be allowed their own whisper task.
+
 **Improvement Summary:** Make the in-flight ceiling a function of the fleet — configurable at
 minimum, load-derived at best — instead of a constant nobody can reach.
 
 ```
-1. Make the ceiling reachable before making it clever. Set maxInFlight (and, where the definition
-   asks for it, setMaxInFlightForKind) from PipelineRunEngineFactory#assemble
+1. Make the GLOBAL ceiling reachable before making it clever - the per-kind one is done, see above.
+   Set maxInFlight from PipelineRunEngineFactory#assemble
    (loom/services/rest/.../PipelineRunEngineFactory.java:109), fed by a LOOM_* configuration key
    with 256 as the documented default. Add the key to the env table in
    ../loom/CONFIGURATION.md and ../cortex/METALOOM_ARCHITECTURE.md. This step alone is shippable

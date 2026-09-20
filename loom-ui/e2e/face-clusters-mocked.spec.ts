@@ -374,6 +374,87 @@ test.describe("Face cluster review – mocked e2e", () => {
     await expect(page.getByTestId("face-crop").first()).toBeVisible();
   });
 
+  test("the small size draws the faces large enough to compare", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect.poll(() => rec.cropRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+    await page.getByTestId("facedetection-card-size-small").click();
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "small");
+
+    // The mode exists for looking at faces, and it used to draw them at 40px — below what a face
+    // is recognisable at, so the size that dropped the chrome to make room for faces was the one
+    // you could see them worst in.
+    const box = await page.getByTestId("face-crop").first().boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(56);
+  });
+
+  // ── Getting around the grid ─────────────────────────────────
+
+  test("double-clicking a card opens the person picker with the caret in it", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    await page.getByTestId("cluster-card").first().dblclick();
+
+    const dialog = page.getByTestId("facedetection-assign-dialog");
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    // The caret has to be in the box already: the gesture that opened the dialog was a double
+    // click, and the next thing the reviewer does is type a name.
+    await expect(page.getByTestId("facedetection-assign-input")).toBeFocused();
+
+    await page.getByTestId("facedetection-assign-input").fill("Anna");
+    await page.getByRole("option", { name: /anna meyer/i }).click();
+    await page.getByTestId("facedetection-assign-save").click();
+
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
+    expect(rec.confirms[0].body.personUuid).toBe(PERSON_UUID);
+  });
+
+  test("the arrow keys walk the cards and Enter opens the picker", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    const cards = page.getByTestId("cluster-card");
+    await expect(cards).toHaveCount(2, { timeout: 10_000 });
+
+    await cards.first().focus();
+    await expect(cards.first()).toHaveAttribute("data-focused", "true");
+
+    await page.keyboard.press("ArrowRight");
+    await expect(cards.nth(1)).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(cards.nth(0)).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("facedetection-assign-dialog")).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("a card dropped on a person's group joins that person", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    const cards = page.getByTestId("cluster-card");
+    await expect(cards).toHaveCount(2, { timeout: 10_000 });
+
+    // Attribute one card first, so there is a group to aim at.
+    await cards.first().dblclick();
+    await page.getByTestId("facedetection-assign-input").fill("Anna");
+    await page.getByRole("option", { name: /anna meyer/i }).click();
+    await page.getByTestId("facedetection-assign-save").click();
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
+
+    // The group is the drop target, not only the card inside it: aiming at a particular tile of
+    // somebody's stack is a precision the statement "this is the same person" does not need.
+    const group = page.getByTestId("cluster-person-group");
+    await expect(group).toHaveCount(1, { timeout: 10_000 });
+    await page.getByTestId("cluster-card").nth(1).dragTo(group);
+
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(2);
+    expect(rec.confirms[1].body.personUuid).toBe(PERSON_UUID);
+    // No dialog: the person is already known, so there is nothing to ask.
+    await expect(page.getByTestId("facedetection-merge-dialog")).toBeHidden();
+  });
+
   test("the chosen size survives leaving the screen and coming back", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);

@@ -12,6 +12,10 @@ import { test, expect, Page } from "@playwright/test";
 
 async function login(page: Page) {
   await page.goto("/");
+  // A session now survives a reload (LOOM_UI.md §7.1), so a test that reloads mid-way reaches
+  // here already signed in and there is no form to fill. Idempotent rather than removed from
+  // those call sites: "make sure we are signed in" is what every caller meant all along.
+  if (await page.getByPlaceholder("Username").count() === 0) return;
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
   await page.getByRole("button", { name: /sign in/i }).click();
@@ -99,7 +103,9 @@ test.describe("Clusters - backend e2e", () => {
     // Assign.
     await clusterCard.getByTestId("cluster-assign").click();
     await expect(page.getByTestId("facedetection-assign-dialog")).toBeVisible({ timeout: 5_000 });
-    await page.getByTestId("facedetection-assign-select").click();
+    // A type-to-find box since 2026-09-20, not a dropdown: this grid runs to a hundred
+    // cards and scrolling a select to the right name is the slow half of a review pass.
+    await page.getByTestId("facedetection-assign-input").click();
     await page.getByRole("option", { name: personName }).click();
     await page.getByTestId("facedetection-assign-save").click();
 

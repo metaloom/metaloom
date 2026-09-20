@@ -22,6 +22,9 @@ public class WhisperMediaProcessor {
 
 	public static final Logger log = LoggerFactory.getLogger(WhisperMediaProcessor.class);
 
+	/** whisper.cpp timestamps are in centiseconds: {@code whisper_full_get_segment_t0} counts 10ms ticks. */
+	private static final long MS_PER_WHISPER_TICK = 10;
+
 	private WhisperOptions options;
 
 	@Inject
@@ -61,8 +64,16 @@ public class WhisperMediaProcessor {
 				try {
 					List<WhisperSegment> whisperSegmentList = whisper.fullTranscribeWithTime(whisperParams, ac.getAudio());
 					for (WhisperSegment whisperSegment : whisperSegmentList) {
-						long start = whisperSegment.getStart();
-						long end = whisperSegment.getEnd();
+						// Two conversions, and both were missing.
+						//
+						// whisper.cpp reports segment bounds in units of 10ms, not milliseconds - so
+						// every timecode was a tenth of what it should be. And it reports them relative
+						// to the buffer it was handed, while the extractor hands it one run of speech at
+						// a time and drops the silence between runs, so every chunk restarted at zero.
+						// Together those made a 43-minute episode's transcript claim to be 90 seconds
+						// long with several segments at 0:00, which is unplaceable on a timeline.
+						long start = ac.getOffsetMs() + whisperSegment.getStart() * MS_PER_WHISPER_TICK;
+						long end = ac.getOffsetMs() + whisperSegment.getEnd() * MS_PER_WHISPER_TICK;
 						String text = whisperSegment.getSentence();
 
 						if (log.isDebugEnabled()) {

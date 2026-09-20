@@ -25,6 +25,12 @@ const ASSET_UUID = "22222222-2222-2222-2222-222222222222";
 /** What the probe reports, in seconds. Deliberately long: the bug only shows on a long file. */
 const PROBE_DURATION = 2580;
 
+/** A 1x1 JPEG: the crop route has to answer with image bytes, not with what is in them. */
+const TINY_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "base64",
+);
+
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
@@ -46,9 +52,51 @@ function asset() {
   };
 }
 
+const DETECTION_A = "33333333-3333-3333-3333-333333333333";
+const DETECTION_B = "44444444-4444-4444-4444-444444444444";
+
+/** 23.976fps, so frame 24000 is second 1001 — a face two thirds of the way into the episode. */
+const FRAME_A = 240;
+const FRAME_B = 24_000;
+
 interface Recorder {
   streamRequests: string[];
   tagPosts: { name: string }[];
+}
+
+/**
+ * Two face detections, carrying a frame *number* in `frameNumber`.
+ *
+ * That is the column, and it is why the probe's frame rate matters: the panel used to hand the
+ * frame number to a seek as if it were seconds, which asked for second 24000 of a 43-minute file.
+ */
+function detections() {
+  return [
+    { uuid: DETECTION_A, assetUuid: ASSET_UUID, type: "face", frameNumber: FRAME_A, confidence: 0.9,
+      bboxX: 0.1, bboxY: 0.1, bboxWidth: 0.2, bboxHeight: 0.3 },
+    { uuid: DETECTION_B, assetUuid: ASSET_UUID, type: "face", frameNumber: FRAME_B, confidence: 0.8,
+      bboxX: 0.5, bboxY: 0.2, bboxWidth: 0.2, bboxHeight: 0.3 },
+  ];
+}
+
+/** What the whisper node actually writes: `segments`, in milliseconds, with no `sections`. */
+function transcript() {
+  return {
+    uuid: "55555555-5555-5555-5555-555555555555",
+    assetUuid: ASSET_UUID,
+    source: "whisper",
+    lang: "en",
+    model: "ggml-large-v3-turbo.bin",
+    transcriptText: "Good afternoon. Jim Menard, Director of Photography.",
+    transcriptJson: {
+      segments: [
+        { from: 0, to: 7000, text: " Good afternoon." },
+        { from: 7000, to: 9400, text: " Jim Menard, Director of Photography." },
+        { from: 125_000, to: 127_000, text: " So here we have the Pegasus." },
+      ],
+    },
+    status: { creator: { uuid: ME_UUID }, created: "2026-09-19T23:48:05Z" },
+  };
 }
 
 async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = {}) {
@@ -91,6 +139,16 @@ async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = 
     rec.streamRequests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: "video/mp4", body: Buffer.from("") });
   });
+
+  await page.route(/\/api\/v1\/assets\/[^/]+\/detections(\?|$)/, route =>
+    json(route, { data: detections(), _metainfo: { totalCount: 2 } })
+  );
+  await page.route(/\/api\/v1\/assets\/[^/]+\/transcripts(\?|$)/, route =>
+    json(route, { data: [transcript()], _metainfo: { totalCount: 1 } })
+  );
+  await page.route(/\/api\/v1\/assets\/[^/]+\/detections\/[^/]+\/crop/, route =>
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
+  );
 
   await page.route(/\/api\/v1\/assets(\?|$)/, route =>
     json(route, { data: [asset()], _metainfo: { totalCount: 1 } })
@@ -168,7 +226,133 @@ test.describe("Asset detail player – mocked e2e", () => {
     await expect(page.getByTestId("asset-video-time")).toContainText("--:--");
   });
 
-  // ── Tagging ────────────────────────────────────────────────────────────
+  // ── Layout ─────────────────────────────────────────────────
+
+  test("the transport is inside the media area, not clipped off the bottom of it", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    const slot = page.getByTestId("asset-media-area");
+    const container = page.getByTestId("asset-video-container");
+    const controls = page.getByTestId("asset-video-controls");
+    await expect(controls).toBeVisible({ timeout: 10_000 });
+
+    // The slot itself has to have a height. It is a flex item in a column whose other children —
+    // timeline, tags, metadata, transcript — routinely overrun the pane, and the scroller below
+    // has `flex-basis: 0`, so it has a scaled shrink factor of zero and never gives up any space:
+    // all of it comes out of its siblings. On the deployment that squashed the media area to 0px,
+    // and the player, having computed a perfectly correct 966x380, overflowed upward out of an
+    // `overflow: hidden` parent. The page showed a timeline with no video above it.
+    const slotBox = await slot.boundingBox();
+    expect(slotBox!.height).toBeGreaterThan(150);
+
+    // And the player is inside the slot, not hanging out of the top of it.
+    const inner = await container.boundingBox();
+    expect(inner!.y).toBeGreaterThanOrEqual(slotBox!.y - 1);
+    expect(inner!.y + inner!.height).toBeLessThanOrEqual(slotBox!.y + slotBox!.height + 1);
+
+    // The `sx` a caller passes sizes the *player*, and it used to size only the picture — so the
+    // picture filled the slot on its own and the control bar was pushed past the bottom edge of
+    // an `overflow: hidden` parent. Visible is not enough to catch that: a partly clipped bar
+    // still reports visible. The bar has to be inside the box.
+    const outer = await container.boundingBox();
+    const bar = await controls.boundingBox();
+    expect(outer).not.toBeNull();
+    expect(bar).not.toBeNull();
+    expect(bar!.y + bar!.height).toBeLessThanOrEqual(outer!.y + outer!.height + 1);
+    expect(bar!.height).toBeGreaterThan(20);
+
+    // And the picture is not taller than the box that clips it, which is what cut the top off it.
+    const video = await page.getByTestId("asset-video").boundingBox();
+    expect(video!.height).toBeLessThanOrEqual(outer!.height + 1);
+  });
+
+  test("dragging the divider past the tab labels leaves the icons", async ({ page }) => {
+    // Pinned, because what is under test is a pixel threshold: at the project's default viewport
+    // the sidebar is already close to it and the test would be measuring the viewport.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const rec = recorder();
+    await open(page, rec);
+
+    const sidebar = page.getByTestId("asset-sidebar");
+    await expect(sidebar).toBeVisible({ timeout: 10_000 });
+    const wide = await sidebar.boundingBox();
+
+    // The labels used to be the floor on how narrow the sidebar could go: six words of tab text
+    // is around 420px, and the divider simply stopped there however far it was dragged.
+    await expect(sidebar).toHaveAttribute("data-compact", "false");
+    await expect(page.getByRole("tab", { name: /overview/i })).toContainText(/overview/i);
+
+    const body = await page.getByTestId("asset-video-container").boundingBox();
+    await page.mouse.move(wide!.x - 3, wide!.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(body!.x + body!.width * 2, wide!.y + 100, { steps: 10 });
+    await page.mouse.up();
+
+    await expect(sidebar).toHaveAttribute("data-compact", "true", { timeout: 5_000 });
+    const narrow = await sidebar.boundingBox();
+    expect(narrow!.width).toBeLessThan(wide!.width);
+    // The label is gone but the tab is still identifiable and still reachable.
+    await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible();
+  });
+
+  // ── Faces ──────────────────────────────────────────────────
+
+  async function openFacesTab(page: Page) {
+    await page.getByRole("tab", { name: /faces/i }).click();
+    await expect(page.getByTestId("asset-face-tile").first()).toBeVisible({ timeout: 10_000 });
+  }
+
+  test("clicking a face seeks to where it appears, a beat early", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    await openFacesTab(page);
+
+    await page.getByTestId("asset-face-tile").nth(1).click();
+
+    // Frame 24000 at 23.976fps is second 1001, and the request asks for 1000: a click lands a
+    // quarter second early so the box lights up as the face comes round. Before this the panel
+    // handed the frame *number* to the seek, which asked for second 24000 of a 43-minute file.
+    await expect.poll(() => {
+      const last = rec.streamRequests[rec.streamRequests.length - 1] ?? "";
+      return Number(new URL(last, "http://x").searchParams.get("t") ?? "-1");
+    }, { timeout: 10_000 }).toBe(1000);
+  });
+
+  test("the face that was clicked gets a box, and it flashes once", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    await openFacesTab(page);
+
+    // Nothing is drawn at the start. Both faces are more than the window away from second zero,
+    // and drawing them anyway is what "the boxes are just overlapped and make no sense" was.
+    await expect(page.getByTestId("face-box")).toHaveCount(0);
+
+    await page.getByTestId("asset-face-tile").nth(1).click();
+
+    const box = page.getByTestId("face-box");
+    await expect(box).toHaveCount(1, { timeout: 5_000 });
+    await expect(box).toHaveAttribute("data-face-id", DETECTION_B);
+    // Lit up on arrival, and dark again a quarter of a second later. A highlight that never
+    // decays is just a second selection colour.
+    await expect(box).toHaveAttribute("data-flashing", "true", { timeout: 2_000 });
+    await expect(box).toHaveAttribute("data-flashing", "false", { timeout: 2_000 });
+  });
+
+  // ── Transcript ──────────────────────────────────────────
+
+  test("a whisper transcript renders, though it carries segments rather than sections", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    // Nothing read `transcriptJson.segments`, so every machine transcript on the deployment drew
+    // an empty panel while its text sat in the database.
+    await expect(page.getByText("Jim Menard, Director of Photography.")).toBeVisible({ timeout: 10_000 });
+    // Two chapters: the 125s line is more than a minute past the first, so it starts its own.
+    await expect(page.getByTestId("transcript-search")).toBeVisible();
+  });
+
+  // ── Tagging ─────────────────────────────────────────────
 
   test("typing in the tag field suggests existing tag names", async ({ page }) => {
     const rec = recorder();

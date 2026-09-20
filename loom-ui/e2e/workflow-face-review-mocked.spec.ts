@@ -335,13 +335,21 @@ test.describe("Workflow face review – mocked e2e", () => {
     // currentTime write.
     await page.getByTestId("workflow-cluster").first().getByTestId("face-crop").nth(1).click();
 
-    // A piped fragmented MP4 has no index, so seeking is a new request at a new offset. That the
-    // request carries t=1000 is the whole mechanism - the clicked crop is at frame 24000.
-    await expect.poll(() => rec.streamRequests.some(u => u.includes("t=1000")), { timeout: 10_000 }).toBe(true);
+    // A piped fragmented MP4 has no index, so seeking is a new request at a new offset. The
+    // clicked crop is at frame 24000, so second 1000 — and the request asks for 999, because a
+    // click lands a quarter of a second early so the bounding box can light up as the face comes
+    // round rather than on a moment already gone. See FACE_FLASH_MS.
+    await expect.poll(() => rec.streamRequests.some(u => u.includes("t=999")), { timeout: 10_000 }).toBe(true);
 
     // And the box for that face is now drawn, which is what makes the seek legible.
     await expect(page.getByTestId("workflow-face-box")).toHaveCount(1);
     await expect(page.getByTestId("workflow-face-box")).toHaveAttribute("data-face-id", DETECTION_B);
+
+    // The flash: armed by the click, it lands once the lead-in has elapsed and is gone again a
+    // quarter of a second later. Both halves matter — a highlight that never decays is just a
+    // second selection colour.
+    await expect(page.getByTestId("workflow-face-box")).toHaveAttribute("data-flashing", "true", { timeout: 2_000 });
+    await expect(page.getByTestId("workflow-face-box")).toHaveAttribute("data-flashing", "false", { timeout: 2_000 });
   });
 
   test("hovering a crop highlights its moment on the timeline", async ({ page }) => {

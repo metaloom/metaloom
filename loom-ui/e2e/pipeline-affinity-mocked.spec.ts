@@ -155,6 +155,10 @@ async function mockBackend(page: Page): Promise<MockState> {
 
 async function login(page: Page) {
   await page.goto("/");
+  // A session now survives a reload (LOOM_UI.md §7.1), so a test that reloads mid-way reaches
+  // here already signed in and there is no form to fill. Idempotent rather than removed from
+  // those call sites: "make sure we are signed in" is what every caller meant all along.
+  if (await page.getByPlaceholder("Username").count() === 0) return;
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
   await page.getByRole("button", { name: /sign in/i }).click();

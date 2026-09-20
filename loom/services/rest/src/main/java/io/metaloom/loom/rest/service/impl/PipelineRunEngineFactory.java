@@ -13,9 +13,11 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker;
+import io.metaloom.loom.pipeline.engine.NodeKindConcurrency;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
+import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventType;
 import io.vertx.core.Vertx;
@@ -52,16 +54,18 @@ public class PipelineRunEngineFactory {
 	private final PipelineRunTracker tracker;
 	private final PipelineEventBroadcaster broadcaster;
 	private final NodeKindCircuitBreaker circuitBreaker;
+	private final NodeDescriptorRegistry descriptors;
 	private final Vertx vertx;
 
 	@Inject
 	public PipelineRunEngineFactory(WebSocketNodeDispatcher dispatcher, LoomMetrics metrics, DaoCollection daos,
-		PipelineRunTracker tracker, PipelineEventBroadcaster broadcaster, Vertx vertx) {
+		PipelineRunTracker tracker, PipelineEventBroadcaster broadcaster, NodeDescriptorRegistry descriptors, Vertx vertx) {
 		this.dispatcher = dispatcher;
 		this.metrics = metrics;
 		this.daos = daos;
 		this.tracker = tracker;
 		this.broadcaster = broadcaster;
+		this.descriptors = descriptors;
 		this.vertx = vertx;
 		// One breaker for the whole process, so its per-kind trip counter and state gauge describe the
 		// fleet rather than whichever run happened to notice first.
@@ -109,6 +113,8 @@ public class PipelineRunEngineFactory {
 	public PipelineRunEngine assemble(PipelineGraph graph, UUID runUuid, UUID userUuid, RunStateStore store,
 		EngineConfig config) {
 		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, runUuid, store);
+		// Each kind's declared ceiling. See NodeKindConcurrency for what its absence cost.
+		NodeKindConcurrency.apply(graph, engine, descriptors);
 
 		// Dispatch-to-result latency, retries and dead-letters are only knowable here: the engine is
 		// the one party that sees a task leave and its result come back.

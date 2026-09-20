@@ -323,7 +323,7 @@ export const API_BASE_URL =
 
 | Context | File | Value | Persisted |
 |---------|------|-------|-----------|
-| `AuthContext` | `context/AuthContext.tsx` | `isAuthenticated`, `username`, `userUuid`, `token`, `login`, `logout` | **No** — in-memory only |
+| `AuthContext` | `context/AuthContext.tsx` | `isAuthenticated`, `username`, `userUuid`, `token`, `login`, `logout` | `sessionStorage` key `loom.auth.token` (§7.1) |
 | `SpaceContext` | `context/SpaceContext.tsx` | `spaces[]`, `activeSpace`, `setActiveSpace` | No |
 | `NodeRegistryContext` | `context/NodeRegistryContext.tsx` | `descriptors[]`, `contentTypes[]`, `loading`, `error`, lookup helpers | No |
 | `SearchContext` | `context/SearchContext.tsx` | `available`, `provider`, `capabilities`, `reason`, `loading`, `has(cap)`, `markUnavailable`, `refresh` — one `/search/status` call per login. **Fails closed**: any failure (403, network) means `available:false` | No |
@@ -346,14 +346,18 @@ Everything else is feature-local `useState`, loaded by `useEffect([token, …]) 
 
 ```
 LoginPage → AuthProvider.login() → POST /login
-  → setToken(jwt); setUserUuid(decodeJwt(jwt).uuid)   ← immediate, no round-trip
+  → setToken(jwt); sessionStorage[loom.auth.token] = jwt
+  → setUserUuid(decodeJwt(jwt).uuid)                  ← immediate, no round-trip
   → GET /me → setUserUuid(me.uuid)                    ← authoritative; failure is non-fatal
   → AuthGate swaps LoginPage for the provider stack + AppShell
 ```
 
 | Aspect | Implementation |
 |--------|----------------|
-| Storage | In-memory React state — a reload always returns to the login form |
+| Storage | `sessionStorage` under `loom.auth.token`, read **synchronously in the state initialiser** — an effect runs after the first render, by which point `AuthGate` has already answered it with the login page. Until 2026-09-20 the JWT lived in React state alone and F5 was indistinguishable from signing out |
+| Why not the cookie | The backend's `__Host-loom_token` is `HttpOnly` by design, so script cannot read it: it can authenticate an `<img>` and it can never tell the provider who is signed in. `__Host-` also implies `Secure`, so a plain-HTTP deployment never receives it at all |
+| Why not `localStorage` | `sessionStorage` is per tab and gone when the tab closes, which is the lifetime a user already believes a session has. A shared machine does not stay signed in overnight because somebody reloaded a page |
+| Restore | A token whose `exp` has passed is discarded on read, rather than rendering the shell and then answering 401 to everything in it. The JWT carries the uuid but not the username, so a restored session calls `/me` once; a failure there is a dead token and logs out |
 | Header | `Authorization: Bearer <token>` on every REST call |
 | Cookie | The backend *also* sets an HttpOnly `__Host-loom_token` cookie; this is what authenticates `<img src>` binary requests (§7.2) |
 | `userUuid` | Used to gate authored-content actions (edit/delete own comment, reaction) |
@@ -416,6 +420,19 @@ Two consequences the player has to carry:
   from in practice; the component takes it as a prop and renders `--:--` rather than `0:00` when
   there is none.
 
+**The `sx` prop sizes the whole player, picture and transport together.** It used to land on the
+picture box alone, so a caller asking for `height: 100%` got a picture as tall as the slot and a
+control bar pushed out of the bottom of it — the bar was gone and the picture was clipped top and
+bottom. The picture is now `flex: 1` with `minHeight: 0` (a flex item's `min-height: auto` is what
+lets an oversized video push its siblings out) and the transport is `flexShrink: 0`.
+
+A caller must give the player a **definite** height, and must not do it with a percentage against
+a parent whose own height comes from `aspect-ratio`: percentages do not resolve against that, the
+declaration degrades to `auto`, the picture collapses to nothing and only the control bar is left.
+Both call sites put the aspect ratio on the player itself — `{ width: "100%", aspectRatio: "16/9",
+maxHeight: … }` — with the same cap on the player as on the slot that clips it, so the ratio yields
+to the cap instead of overflowing it.
+
 It replaced a `MediaPlaceholder` with a fake play button over a `setInterval` that advanced a
 counter by 0.25 s. That is worth recording because it looked like a player in every screenshot: the
 timeline moved, the timecode counted up, and nothing was ever decoded.
@@ -425,6 +442,53 @@ column and the REST layer passes it through unchanged, while `formatDuration`, `
 `HTMLMediaElement.currentTime` all count in seconds. `assetMapping.durationSeconds` converts at the
 boundary, in `toAsset`, `hitToCard` and `apiToAsset`; `api/shares.ts` does the same for the customer
 projection. Read raw, a 28 second clip renders as "7:51:07".
+
+### 7.2.2 Face boxes — `components/FaceBoxes.tsx`, `hooks/useFaceFlash.ts`
+
+The bounding boxes drawn over the picture, shared by `AssetDetail` and the Workflow faces queue so
+that clicking a face behaves the same in both. Three rules, each of which was a bug first:
+
+* **A detection carries a frame number, not a time.** `DetectedFace.timestamp` holds
+  `detection.frame_number` — the field is misnamed and the column is what it is. Turning it into
+  seconds needs a frame rate, and `useMediaInfo` is the only source of one, because
+  `asset_video_comp` has no producer. Both views pass a `timeOf(face)` that returns `null` when
+  there is no frame rate, and `null` means "not placeable", never zero. Handed straight to a seek,
+  frame 24000 asks for second 24000 — two thirds of a day into a 43-minute file.
+* **Only the faces near the playhead are drawn.** `visibleFacesAt` keeps detections within
+  `FACE_BOX_WINDOW_SECONDS` (2.5 s — wider than a GOP, so a seek that lands on the preceding
+  keyframe still shows the box) plus whichever face was clicked, which is pinned. Without the
+  window, every detection in an episode is drawn on one frame at once, which is what "the bounding
+  boxes are just overlapped and make no sense" was.
+* **A click seeks a beat early and the box flashes on arrival.** `FACE_FLASH_MS` (250 ms) is both
+  the lead-in and the decay: seeking to the detection's own frame arrives with the moment already
+  past. `useFaceFlash` arms the highlight on a timer rather than watching `timeupdate` cross the
+  frame — a remuxed seek lands on a keyframe some seconds early, and with the player paused (the
+  usual case while picking through a cluster) the crossing never happens at all. The animation is
+  keyed on a nonce so clicking the same crop twice flashes twice.
+
+### 7.2.3 The asset-detail sidebar
+
+The split defaults to **70/30** and clamps to 30–88. The tab strip drops its labels below
+`SIDEBAR_ICON_ONLY_PX` (300) and keeps the icons, with the label surviving as the `title` and
+`aria-label`; `data-compact` on `[data-testid=asset-sidebar]` is what a test reads. The strip is
+`variant="scrollable"`, so the labels are no longer a floor on how far the divider can travel.
+
+The width is measured with a `ResizeObserver` attached through a **callback ref**, not an effect:
+the sidebar renders past `if (!asset) return …`, so on the render an empty-dependency effect would
+have run on, there is no node to observe and it never runs again.
+
+### 7.2.4 Transcripts: two shapes, one panel
+
+`TranscriptPanel` renders **sections of timed words** — the shape a person authoring a transcript
+produces. The `whisper` node writes something else: `transcriptJson.segments`, one entry per
+utterance with millisecond `from`/`to` and no word boundaries at all. Nothing read `segments`, so
+every machine transcript on the deployment drew an empty panel while its text sat in the database.
+
+`asrSegmentsToSections` (`features/assetDetail/transcriptMapping.ts`) folds segments into sections
+of `ASR_SECTION_SECONDS` (60) and makes each utterance one "word" entry. One section per utterance
+would give the section bar 900 slivers for an episode; splitting a sentence into per-word times
+would invent timing nothing measured. Authored `sections` win where a transcript has both —
+somebody edited those on purpose.
 
 ### 7.3 Serving under `/ui/` (base path)
 

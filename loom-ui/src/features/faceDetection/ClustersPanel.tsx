@@ -289,12 +289,16 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
       const dragging = dragIdRef.current;
       if (!onMergeClusters || !dragging || dragging === selfId) return;
       e.preventDefault();
+      // A card sits inside its person's group and both are drop targets, so without this the
+      // group lights up instead of the card — and the drop below writes the attribution twice.
+      e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
       setDropTargetId(targetKey);
     },
     onDragLeave: () => setDropTargetId(prev => (prev === targetKey ? null : prev)),
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       // The ref first: `getData` is only readable during the drop, and the ref is what survived
       // the dragover gating above.
       const sourceId = dragIdRef.current ?? e.dataTransfer.getData("text/plain");
@@ -317,7 +321,9 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
         return (
           <Box
             key={group.key}
-            data-testid={group.label ? "cluster-person-group" : "cluster-loose-group"}
+            // Keyed on the person, not on the label: the unassigned band has a heading too, and
+            // calling that a person group made "how many people are on screen" read one too high.
+            data-testid={group.personId ? "cluster-person-group" : "cluster-loose-group"}
             data-person-name={group.label ?? ""}
             data-person-id={group.personId ?? ""}
             data-drop-target={isDropTarget ? "true" : "false"}

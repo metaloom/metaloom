@@ -27,6 +27,15 @@ export interface TranscriptResponse {
   model?: string;
   transcriptJson?: {
     sections?: TranscriptSectionResponse[];
+    /**
+     * What the whisper node writes: one entry per utterance, with absolute millisecond bounds.
+     *
+     * A second shape rather than the node being made to emit `sections`, because the two are not
+     * the same thing. A section is an editable chapter with per-word timing, which is what a human
+     * or a forced aligner produces; whisper produces sentences with a start and an end and no word
+     * boundaries at all. The UI folds these into sections for display — see AssetDetail.
+     */
+    segments?: TranscriptSegmentResponse[];
   };
   status?: {
     creator?: { uuid: string; name?: string };
@@ -34,6 +43,13 @@ export interface TranscriptResponse {
     editor?: { uuid: string; name?: string };
     edited?: string;
   };
+}
+
+/** One utterance from an ASR node. `from`/`to` are milliseconds into the asset. */
+export interface TranscriptSegmentResponse {
+  text?: string;
+  from?: number;
+  to?: number;
 }
 
 export interface TranscriptListResponse {

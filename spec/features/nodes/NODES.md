@@ -136,7 +136,7 @@ shadows the base method — do not copy it.
 | `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (window 0) | `createAssetFingerprintComp` |
 | `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=face`), then `…/embeddings/bulk` → `embedding`, then `…/clusters/bulk` → `cluster` + `embedding_cluster`, plus one `FACE_CROP` `attachment` per face | `bulkCreateAssetDetections`, `bulkCreateAssetEmbeddings`, `bulkCreateAssetClusters`, `uploadFaceCrop` |
 | `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
-| `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
+| `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) — `transcriptJson.segments`, **absolute milliseconds**; see below | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
 | `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `guard`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
 | `metadata` | `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=metadata`) **+** `assets/:uuid/components` → `asset_geo_comp`, one row per reading (`method` = `exif`/`xmp`/`sidecar`) | `createAssetJsonComp`, `createAssetComponent` |
@@ -147,6 +147,25 @@ shadows the base method — do not copy it.
 | `move` | `binaries/:uuid` update → `asset_location` (path, and `library_uuid`/`pool_uuid` when the target names one) **+** `assets/:uuid` update → `asset.filename` for filesystem destinations | `updateBinary`, `updateAsset` |
 | `assign` | `collections/:uuid/assets` or `libraries/:uuid/assets` → `collection_asset` / `library_asset` | `addCollectionAsset`, `addLibraryAsset` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `sam2`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
+
+> **`whisper` timestamps: absolute milliseconds, and neither used to be true.** Two bugs, both
+> fixed 2026-09-20 after every transcript on metaloom.sky came out unplaceable in time:
+>
+> * whisper.cpp reports segment bounds in **centiseconds** (`whisper_full_get_segment_t0` counts
+>   10 ms ticks). `WhisperMediaProcessor` stored them unscaled, so every timecode was a tenth of
+>   what it should be and `TranscriptCreateRequest.duration` — taken from the last segment — said a
+>   43-minute episode was 90 seconds long.
+> * `AudioExtractor.decodeAudioToPCM` hands the model **one run of speech at a time** and discards
+>   the long silences between runs, and whisper times each buffer from zero. The offsets were
+>   therefore per chunk, not per file: an episode came back with several segments starting at
+>   0:00 and none past the length of its longest unbroken stretch of speech. The chunk's position
+>   cannot be recovered downstream by counting samples, because the dropped silence is real
+>   elapsed time that no sample count accounts for — so `PCMAudioChunk` now carries an `offsetMs`
+>   taken from the media timestamp of its first frame, and the node adds it to every segment.
+>
+> A re-run rewrites in place: `createAssetTranscript` upserts on `(asset, streamIndex, lang)`, so
+> fixing this needed no deletion pass. The in-heap `LocalResultCache` is per worker lifetime and a
+> restarted worker re-transcribes; there is no whisper xattr, so nothing else skips.
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
 `quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,

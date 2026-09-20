@@ -292,6 +292,33 @@ tabs for comments, annotations and reactions.
 
 image::asset-detail.png[Asset detail view,role=img-fluid]
 
+==== Watching a video
+
+Loom keeps your original files, and a browser cannot play most of the containers a camera or a
+delivery house produces. So the player is fed a copy the server converts as you watch, and the
+transport below the picture — play, ten seconds back and forward, the clock, mute, fullscreen — is
+Loom's own rather than the browser's. Scrubbing is the *timeline* under it: click anywhere on it to
+jump there, including the far end of a long file.
+
+The panel on the right can be made as narrow as you like by dragging the divider between it and the
+media. Past a point the tab names step aside and leave their icons, so a sidebar you only need for
+reference can be a thin strip.
+
+==== Faces in a video
+
+When link:../nodes/facedetect/[Face Detection] has run, the *Faces* tab lists every face it found.
+Clicking one jumps the video to the moment it appears and outlines it on the picture — the outline
+flashes as the moment arrives and then settles, so you can see which of several faces on screen was
+the one you clicked. Only the faces belonging to the moment you are looking at are outlined; a
+43-minute episode's worth of boxes drawn on one frame would tell you nothing.
+
+==== Reading a transcript
+
+A transcript produced by link:../nodes/whisper/[Speech-to-Text] appears under the metadata, split
+into chapters with a bar above them showing where each one sits in the file. Clicking any line
+jumps the player to it, and *Find in transcript* marks every match in place rather than hiding the
+rest, so the bar above stays true to the whole recording.
+
 === Uploads
 
 The *Uploads* screen is the place to bring media into Loom. Drag a whole selection of files onto the
@@ -432,6 +459,24 @@ or reject it if it is not a person worth keeping.
 Confirming is a real, saved decision, not a view setting: it survives reloading the page, and it
 survives the asset being processed again. Re-running face detection updates the boxes and vectors and
 leaves your verdicts untouched, so a group you confirmed last month is still confirmed afterwards.
+
+==== Working through a wall of groups
+
+A library of any size produces hundreds of groups, so the grid is built to be swept rather than
+clicked through one card at a time.
+
+* *Three card sizes* sit beside the search box. *Small* hides the name, count and buttons and shows
+  nothing but the faces, which is the size to use when you are looking for two groups that are the
+  same person. Your choice is remembered.
+* *Hovering a face* opens an enlarged copy of it. Deciding whether two groups match is not something
+  a thumbnail supports.
+* *Double-clicking a card* opens a box you type a name into, with the cursor already in it; matching
+  people appear as you type, and a name that matches nobody creates that person.
+* *The arrow keys* move between cards — the one you are on is outlined — and Enter opens the same
+  box.
+* *Dragging one card onto another* says the two are the same person. You can also drop a card onto a
+  person's whole group rather than onto one particular card in it; the group lights up as you drag
+  over it. Removing the name again is the cross on the person chip.
 
 ==== What the grouping does and does not mean
 

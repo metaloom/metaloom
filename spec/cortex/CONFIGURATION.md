@@ -466,6 +466,12 @@ Entrypoint: `java … -Duser.dir=/cortex -jar cortex-cli.jar` — no arguments. 
 - **`CORTEX_S3_PATH_STYLE` defaults are conditional**: unset means "on when `CORTEX_S3_ENDPOINT` is set". Setting it to `false` explicitly against MinIO will break addressing.
 - **Meta path is load-bearing beyond metadata**: S3 cache (`s3_bin`), S3 index (`s3-index`) and the filesystem-source differential index are all derived from it when not set explicitly.
 - **`dryrun` and `maxConcurrentMedia` have no env var** — they exist on `CortexOptions` and can only be set from `cortex.yml` or programmatically. `dryrun` is honoured only by `HashDedupNode` and `FingerprintDedupApplyNode`; other nodes ignore it.
+- ⚠️ **`maxConcurrentMedia` is read by nothing.** Setting it to 1 does not serialise anything, and a
+  `cortex.yml` comment on a GPU worker saying it does is the kind of note that gets believed for
+  months. The worker dispatches each task it is handed onto `Schedulers.io()` with no cap, so how
+  many run at once is decided entirely by how many Loom sends. **The control that works is
+  `NodeSpec.defaultConcurrency`** on the node, enforced per run by
+  `NodeKindConcurrency.apply` — `whisper` declares 1. See METALOOM_ARCHITECTURE_TASK.md Task 13.
 - **`drainTimeoutMs` is clamped** to `>= 0` by the setter; negative input becomes `0`.
 - **Injected options bypass both layers.** A component built with a non-null `@Named("default-options")` (tests, embedders) sees neither `cortex.yml` nor the environment.
 

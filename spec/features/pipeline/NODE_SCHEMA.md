@@ -118,7 +118,7 @@ is the REST response, the announcement payload, the committed resource and the v
 | `inputGroups`, `outputGroups` | `PortGroup` lists — XOR alternatives and EXCLUSIVE selections |
 | `dynamicPorts` | This type derives its real ports from its options through a `NodePortResolver` (§7) |
 | `parameters` | `NodeParameter` list — drives the edit form |
-| `defaultConcurrency`, `defaultMode`, `defaultBlocking`, `events` | Execution defaults and the event surface the editor can visualise |
+| `defaultConcurrency`, `defaultMode`, `defaultBlocking`, `events` | Execution defaults and the event surface the editor can visualise. **`defaultConcurrency` is enforced** since 2026-09-20: `NodeKindConcurrency.apply` caps how many tasks of that kind a run may have outstanding. Until then it was carried all the way into the descriptor JSON and read by nobody, and a source batch of 23 items put 23 simultaneous whisper contexts on one GPU and aborted the worker |
 
 **There is no runtime fleet state on the descriptor.** Whether a worker offering the node is online is
 served in a sibling block keyed by `nodeId` (§6.2). Spec knowledge is durable; worker presence is

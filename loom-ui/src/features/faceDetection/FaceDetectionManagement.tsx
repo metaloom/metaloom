@@ -559,13 +559,11 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
               having to leave the dialog to create them is the other slow half. */}
           <Autocomplete
             freeSolo
-            openOnFocus
             options={persons.map(p => p.name)}
             inputValue={assignPersonName}
             onInputChange={(_, value, reason) => { if (reason !== "reset") setAssignPersonName(value); }}
             onChange={(_, value) => { if (typeof value === "string") setAssignPersonName(value); }}
             size="small"
-            data-testid="facedetection-assign-select"
             renderInput={params => (
               // autoFocus, because the dialog opens on a double-click and the next thing the
               // reviewer does is type. Landing on the Cancel button instead is the friction this
@@ -587,18 +585,18 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         PaperProps={{ "data-testid": "facedetection-merge-dialog" } as React.ComponentProps<typeof Dialog>["PaperProps"]}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.label.mergePrompt")}</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
-          <Autocomplete
-            freeSolo
-            openOnFocus
-            options={persons.map(p => p.name)}
-            inputValue={mergeName}
-            onInputChange={(_, value, reason) => { if (reason !== "reset") setMergeName(value); }}
-            onChange={(_, value) => { if (typeof value === "string") setMergeName(value); }}
+          {/* A plain field, deliberately. This dialog only opens when *neither* cluster is
+              attributed, so there is by definition nobody to suggest; and an Autocomplete popup
+              in a dialog this short opens straight over the Save button underneath it. Picking an
+              existing person is what the assign dialog above is for. */}
+          <TextField
+            label={t("faceDetection.label.name")}
+            value={mergeName}
+            onChange={e => setMergeName(e.target.value)}
             size="small"
-            renderInput={params => (
-              <TextField {...params} label={t("faceDetection.label.name")} autoFocus
-                inputProps={{ ...params.inputProps, "data-testid": "facedetection-merge-name" }} />
-            )}
+            fullWidth
+            autoFocus
+            inputProps={{ "data-testid": "facedetection-merge-name" }}
           />
         </DialogContent>
         <DialogActions>

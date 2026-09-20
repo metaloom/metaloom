@@ -126,8 +126,14 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 						.map(TranscriptionSegment::getText)
 						.collect(Collectors.joining(" ")));
 					if (!result.segments().isEmpty()) {
-						// Segment offsets are already milliseconds, which is what the field now holds.
-						request.setDuration(result.segments().get(result.segments().size() - 1).getTo());
+						// How far into the media the transcript reaches, in milliseconds. The last
+						// segment's end, not the media length - nothing here measures the file - and the
+						// last segment is the last one that *ends* latest only once the offsets are
+						// absolute, which they now are. See WhisperMediaProcessor.
+						request.setDuration(result.segments().stream()
+							.mapToLong(TranscriptionSegment::getTo)
+							.max()
+							.orElse(0L));
 					}
 					request.setTranscriptJson(new JsonObject(json));
 					UUID assetUuid = asset.getUuid();
