@@ -400,4 +400,59 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     await page.getByTestId("pipeline-switch-confirm").click();
     await expect(canvas).toBeHidden({ timeout: 10_000 });
   });
+
+  /**
+   * The negative case, and the reason the discard guard regressed unnoticed: the two specs above
+   * both edit something before asserting, so they passed just as happily when *every* load marked
+   * the editor dirty. Opening the view was enough to arm the guard, because `handleGraphChange`
+   * called `setDirty(true)` with no comparison and the canvas emits on mount and on every
+   * decoration pass.
+   */
+  test("a freshly loaded editor is not dirty and navigates without a discard prompt", async ({ page }) => {
+    await mockBackend(page);
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    // Nothing has been touched, so the sidebar must take us straight out.
+    await page.getByTestId("sidebar-item-/assets").click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("selecting a node does not mark the editor dirty", async ({ page }) => {
+    await mockBackend(page);
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    // Clicking a node runs the selection effect, which rebuilds the whole node array and so
+    // re-emits the graph. Inspecting a node is not an edit.
+    await page.getByTestId("pipeline-node-sha512").click();
+    await expect(page.getByTestId("pipeline-node-param-chunkSize")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByTestId("sidebar-item-/assets").click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("switching pipelines without editing does not prompt", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.pipelines.push(pipelineResponse("33333333-3333-3333-3333-333333333333", "Beta", { nodes: [], edges: [] }));
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    await page.getByRole("button", { name: "Beta" }).click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
+
+    // And back again: the second load must re-baseline rather than compare against Beta's graph.
+    await page.getByRole("button", { name: "Quick Hash" }).click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+  });
 });

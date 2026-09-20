@@ -17,6 +17,7 @@ import { test, expect, Page, Route } from "@playwright/test";
 const ME_UUID = "11111111-1111-1111-1111-111111111111";
 const ASSET_UUID = "22222222-2222-2222-2222-222222222222";
 const CLUSTER_UUID = "33333333-3333-3333-3333-333333333333";
+const CLUSTER_B_UUID = "77777777-7777-7777-7777-777777777777";
 const PERSON_UUID = "44444444-4444-4444-4444-444444444444";
 const DETECTION_A = "55555555-5555-5555-5555-555555555555";
 const DETECTION_B = "66666666-6666-6666-6666-666666666666";
@@ -39,6 +40,8 @@ interface Confirmed {
 /** Records what the UI actually sent to /confirm, so the test can assert it rather than infer it. */
 interface Recorder {
   confirms: { clusterUuid: string; body: Confirmed }[];
+  /** Clusters whose person was taken back off. */
+  detaches: string[];
   cropRequests: string[];
   /**
    * Off-origin *image* requests. Must stay empty.
@@ -55,6 +58,8 @@ async function installMocks(page: Page, recorder: Recorder, opts: { memberCount?
   const memberCount = opts.memberCount ?? 2;
   let reviewStatus = "PENDING";
   let personUuid: string | undefined;
+  let reviewStatusB = "PENDING";
+  let personUuidB: string | undefined;
 
   // An off-origin image is a bug, not a fixture: recorded and aborted so a reintroduced third-party
   // avatar host fails this test instead of silently working. Non-image requests are let through —
@@ -83,7 +88,8 @@ async function installMocks(page: Page, recorder: Recorder, opts: { memberCount?
   );
   await page.route(/\/api\/v1\/persons\/[^/]+\/clusters$/, route => json(route, { data: [] }));
 
-  // The review queue.
+  // The review queue. Two clusters, from two different assets - which is the normal case in a
+  // global list, and the reason a merge cannot be a structural one.
   await page.route(/\/api\/v1\/clusters(\?|$)/, route =>
     json(route, {
       data: [
@@ -100,8 +106,21 @@ async function installMocks(page: Page, recorder: Recorder, opts: { memberCount?
           nodeKind: "facedetect",
           status: { creator: { uuid: ME_UUID } },
         },
+        {
+          uuid: CLUSTER_B_UUID,
+          name: "",
+          type: "face",
+          reviewStatus: reviewStatusB,
+          personUuid: personUuidB,
+          assetUuid: "99999999-9999-9999-9999-999999999999",
+          clusterIndex: 0,
+          score: 0.88,
+          memberCount,
+          nodeKind: "facedetect",
+          status: { creator: { uuid: ME_UUID } },
+        },
       ],
-      _metainfo: { totalCount: 1 },
+      _metainfo: { totalCount: 2 },
     })
   );
 
@@ -119,17 +138,41 @@ async function installMocks(page: Page, recorder: Recorder, opts: { memberCount?
     const clusterUuid = route.request().url().split("/clusters/")[1].split("/confirm")[0];
     const body = JSON.parse(route.request().postData() || "{}") as Confirmed;
     recorder.confirms.push({ clusterUuid, body });
-    reviewStatus = "CONFIRMED";
-    personUuid = body.personUuid ?? PERSON_UUID;
+    // An alias creates the person; a personUuid links to one that exists. Modelled here because
+    // the merge flow depends on the difference: it must not send the alias twice.
+    const resolved = body.personUuid ?? PERSON_UUID;
+    if (clusterUuid === CLUSTER_B_UUID) {
+      reviewStatusB = "CONFIRMED";
+      personUuidB = resolved;
+    } else {
+      reviewStatus = "CONFIRMED";
+      personUuid = resolved;
+    }
     return json(route, {
-      uuid: CLUSTER_UUID,
+      uuid: clusterUuid,
       name: "",
       type: "face",
-      reviewStatus,
-      personUuid,
+      reviewStatus: "CONFIRMED",
+      personUuid: resolved,
       assetUuid: ASSET_UUID,
       memberCount,
       status: { creator: { uuid: ME_UUID } },
+    });
+  });
+
+  await page.route(/\/api\/v1\/clusters\/[^/]+\/person$/, route => {
+    const clusterUuid = route.request().url().split("/clusters/")[1].split("/person")[0];
+    recorder.detaches.push(clusterUuid);
+    if (clusterUuid === CLUSTER_B_UUID) {
+      reviewStatusB = "PENDING";
+      personUuidB = undefined;
+    } else {
+      reviewStatus = "PENDING";
+      personUuid = undefined;
+    }
+    return json(route, {
+      uuid: clusterUuid, name: "", type: "face", reviewStatus: "PENDING",
+      assetUuid: ASSET_UUID, memberCount, status: { creator: { uuid: ME_UUID } },
     });
   });
 
@@ -153,7 +196,7 @@ async function openFaces(page: Page, recorder: Recorder, opts: { memberCount?: n
 }
 
 function recorder(): Recorder {
-  return { confirms: [], cropRequests: [], offOriginImages: [] };
+  return { confirms: [], detaches: [], cropRequests: [], offOriginImages: [] };
 }
 
 test.describe("Face cluster review – mocked e2e", () => {
@@ -193,5 +236,104 @@ test.describe("Face cluster review – mocked e2e", () => {
     await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
     expect(rec.confirms[0].clusterUuid).toBe(CLUSTER_UUID);
     expect(rec.confirms[0].body.personUuid).toBe(PERSON_UUID);
+  });
+
+  /**
+   * Dragging one cluster onto another says "these are the same person".
+   *
+   * Not a structural merge, and the schema is the reason: `cluster.asset_uuid` is scalar, this
+   * grid is global, and the two cards in this fixture come from different assets - so no single
+   * row could hold both. "Several clusters, one subject" is already expressible as
+   * `cluster.person_uuid`, and it is the only form the facedetect node cannot undo, because its
+   * upsert preserves the review columns.
+   */
+  test("dropping one cluster on another attributes both to one person", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+
+    const cards = page.getByTestId("cluster-card");
+    await expect(cards).toHaveCount(2, { timeout: 10_000 });
+    const source = cards.nth(1);
+    const target = cards.nth(0);
+
+    await source.dragTo(target);
+
+    // Neither was attributed, so the merge has to name somebody.
+    const dialog = page.getByTestId("facedetection-merge-dialog");
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId("facedetection-merge-name").fill("Anna Meyer");
+    await page.getByTestId("facedetection-merge-save").click();
+
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(2);
+    // The first confirm creates the person by alias; the second links to the uuid it returned.
+    // Sending the alias twice would either make two people of the same name or hit the unique
+    // index on (type, name).
+    expect(rec.confirms[0].body.alias).toBe("Anna Meyer");
+    expect(rec.confirms[1].body.alias).toBeUndefined();
+    expect(rec.confirms[1].body.personUuid).toBe(PERSON_UUID);
+    expect(new Set(rec.confirms.map(c => c.clusterUuid)).size).toBe(2);
+  });
+
+  test("dropping onto an already attributed cluster joins that person without asking", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    // Attribute the first card through the existing dialog, so the second drop has a person to join.
+    await page.locator("svg[data-testid='LinkOutlinedIcon']").first().click();
+    const assign = page.getByTestId("facedetection-assign-dialog");
+    await expect(assign).toBeVisible({ timeout: 5_000 });
+    await assign.getByRole("combobox").click();
+    await page.getByRole("option", { name: /anna meyer/i }).click();
+    await page.getByTestId("facedetection-assign-save").click();
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
+
+    // The grid regroups once a cluster is attributed: the confirmed card moves under its person's
+    // heading and the unattributed one sits below. So index 0 is now the assigned card.
+    const cards = page.getByTestId("cluster-card");
+    await expect(cards.nth(0)).toHaveAttribute("data-assigned", "true", { timeout: 10_000 });
+    await expect(cards.nth(1)).toHaveAttribute("data-assigned", "false");
+
+    // Stack the unattributed one onto it. No dialog: the person is already known.
+    await cards.nth(1).dragTo(cards.nth(0));
+
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(2);
+    await expect(page.getByTestId("facedetection-merge-dialog")).toBeHidden();
+    expect(rec.confirms[1].body.personUuid).toBe(PERSON_UUID);
+  });
+
+  test("clusters of one person are grouped under a heading", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    await page.getByTestId("cluster-card").nth(1).dragTo(page.getByTestId("cluster-card").nth(0));
+    await page.getByTestId("facedetection-merge-name").fill("Anna Meyer");
+    await page.getByTestId("facedetection-merge-save").click();
+
+    // Per-asset clustering means one person is many cards; scattered through the grid there is no
+    // way to see that the attribution work is done.
+    const heading = page.getByTestId("cluster-person-group");
+    await expect(heading).toHaveCount(1, { timeout: 10_000 });
+    await expect(heading).toHaveAttribute("data-person-name", "Anna Meyer");
+  });
+
+  test("a wrong stack can be taken back off the person", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    await page.getByTestId("cluster-card").nth(1).dragTo(page.getByTestId("cluster-card").nth(0));
+    await page.getByTestId("facedetection-merge-name").fill("Anna Meyer");
+    await page.getByTestId("facedetection-merge-save").click();
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(2);
+
+    // Dragging onto the wrong card is the obvious way to get this wrong, and `reject` is not the
+    // way back - it would record that somebody's face is not a real subject.
+    const chip = page.getByTestId("cluster-person-chip").first();
+    await expect(chip).toBeVisible();
+    await chip.locator("svg").last().click();
+
+    await expect.poll(() => rec.detaches.length, { timeout: 10_000 }).toBe(1);
   });
 });

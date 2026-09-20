@@ -96,6 +96,15 @@ class ClusterMethods:
         """
         return self._post(f"clusters/{self._uuid(cluster_uuid)}/reject", None, ClusterResponse)
 
+    def detach_cluster_person(self, cluster_uuid: _uuid_mod.UUID | str) -> LoomRequest[ClusterResponse]:
+        """Remove the person from a cluster, returning it to the review queue.
+
+        The inverse of ``confirm_cluster``. Not ``reject_cluster``, which records that the
+        cluster is not a real subject - a different and heavier claim than "that is somebody
+        else". The person row itself is untouched; it may hold other clusters.
+        """
+        return self._delete(f"clusters/{self._uuid(cluster_uuid)}/person", ClusterResponse)
+
     def list_asset_clusters(
         self, asset_id: AssetId | _uuid_mod.UUID | str
     ) -> LoomRequest[ClusterListResponse]:

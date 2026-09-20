@@ -266,6 +266,24 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 	}
 
 	@Override
+	public Cluster detachPerson(UUID clusterUuid, UUID editorUuid) {
+		LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+		// Everything the review left behind goes, so PENDING means what it has always meant: nobody
+		// has decided. updateStatus cannot do this - it skips a null person on purpose, so that a
+		// rejection keeps an earlier attribution readable.
+		ctx().update(CLUSTER)
+			.set(CLUSTER.STATUS, status(Cluster.STATUS_PENDING))
+			.setNull(CLUSTER.PERSON_UUID)
+			.setNull(CLUSTER.REVIEWED_AT)
+			.setNull(CLUSTER.REVIEWER_UUID)
+			.set(CLUSTER.EDITED, now)
+			.set(CLUSTER.EDITOR_UUID, editorUuid)
+			.where(CLUSTER.UUID.eq(clusterUuid))
+			.execute();
+		return load(clusterUuid);
+	}
+
+	@Override
 	public Cluster confirm(UUID clusterUuid, UUID personUuid, PersonDraft draft, UUID reviewerUuid) {
 		// One transaction: a person created without its cluster pointer is an orphan, and a CONFIRMED cluster without a person is a verdict with no
 		// subject. Every statement below runs on DSL.using(cfg) - ctx() would take its own connection and fall outside the transaction.

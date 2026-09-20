@@ -197,6 +197,52 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 	}
 
 	/**
+	 * Detaching is the inverse of confirming, and the only way back from a wrong attribution.
+	 *
+	 * <p>
+	 * Reviewers stack clusters onto a person by dragging one card onto another, and they will
+	 * sometimes stack the wrong one. Before this route the only ways out were {@code update} - which
+	 * writes name/type/meta and cannot clear the person - and {@code reject}, which records that the
+	 * cluster is not a real subject. Recording "this is not a face worth keeping" because it was
+	 * attributed to the wrong person would be a false statement about somebody's face.
+	 * </p>
+	 */
+	@Test
+	public void testDetachPersonReturnsTheClusterToTheQueue() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PersonResponse person = client.createPerson(new PersonCreateRequest().setAlias("Wrongly Attributed")).sync().body();
+			ClusterResponse proposed = client.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.9f)).sync().body().getClusters().get(0);
+			ClusterResponse confirmed = client.confirmCluster(proposed.getUuid(),
+				new ClusterConfirmRequest().setPersonUuid(person.getUuid().toString())).sync().body();
+			assertEquals(person.getUuid().toString(), confirmed.getPersonUuid());
+
+			ClusterResponse detached = client.detachClusterPerson(proposed.getUuid()).sync().body();
+
+			assertNull(detached.getPersonUuid(), "the attribution is gone");
+			// Back in the queue, not left CONFIRMED-with-nobody: a verdict about no subject would
+			// never be shown for review again.
+			assertEquals("PENDING", detached.getReviewStatus());
+			// The person survives - it may hold other clusters, and deleting a directory entry is a
+			// much larger action than undoing one attribution.
+			assertNotNull(client.loadPerson(person.getUuid()).sync().body(), "the person is not deleted");
+		}
+	}
+
+	@Test
+	public void testDetachPersonRequiresUpdatePermission() throws Exception {
+		ClusterResponse proposed;
+		try (LoomHttpClient admin = loom.httpClient()) {
+			loginAdmin(admin);
+			proposed = admin.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.9f)).sync().body().getClusters().get(0);
+		}
+		// READ_CLUSTER only: seeing a cluster must not carry the right to change its attribution.
+		try (LoomHttpClient reader = loginClientWith("cluster-reader", Permission.READ_CLUSTER)) {
+			expect(403, "Forbidden", reader.detachClusterPerson(proposed.getUuid()));
+		}
+	}
+
+	/**
 	 * Rejecting records the verdict without deleting the record of it.
 	 */
 	@Test

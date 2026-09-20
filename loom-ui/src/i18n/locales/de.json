@@ -1422,7 +1422,12 @@
       "title": "Lauf-Detail",
       "items": "Einträge",
       "noItems": "Keine Einträge für diesen Lauf aufgezeichnet",
-      "loading": "Einträge werden geladen…"
+      "loading": "Einträge werden geladen…",
+      "nodeExecutions": "Node-Ausführungen",
+      "noNodeTasks": "Keine Node-Ausführungen für dieses Element aufgezeichnet",
+      "loadingTasks": "Node-Ausführungen werden geladen…",
+      "selectItem": "Wähle ein Element, um zu sehen, was die einzelnen Nodes getan haben",
+      "attempt": "Versuch {{attempt}} von {{max}}"
     },
     "inspector": {
       "empty": "Wählen Sie eine Pipeline zur Inspektion",
@@ -1660,7 +1665,9 @@
       "name": "Name",
       "reviewedOn": "geprüft am {{date}}",
       "since": "seit {{date}}",
-      "unnamedCluster": "Unbenanntes Cluster"
+      "unnamedCluster": "Unbenanntes Cluster",
+      "unassigned": "Nicht zugeordnet",
+      "mergePrompt": "Name der Person, zu der diese Cluster gehören"
     },
     "tooltip": {
       "assign": "Person zuweisen",

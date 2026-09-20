@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, Typography, Paper, Avatar, Chip, IconButton, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, Button, TextField,
@@ -24,14 +24,39 @@ interface ClustersPanelProps {
   onAssignCluster: (clusterId: string) => void;
   onClusterDeleted?: (id: string) => void;
   onClusterUpdated?: (cluster: FaceCluster) => void;
+  /**
+   * Two clusters were dropped onto each other: the reviewer is saying they are the same person.
+   *
+   * Deliberately not a structural merge. `cluster.asset_uuid` is scalar, and this is a global list,
+   * so two cards the reviewer stacks usually come from different assets and no single row could
+   * hold both. What "same subject" means in this schema is already a person - `cluster.person_uuid`
+   * is many-to-one - and it is the one statement the facedetect node cannot undo, because
+   * `person_uuid` is among the review columns its upsert preserves. A structural merge would be
+   * wiped by the next pipeline pass over that asset.
+   */
+  onMergeClusters?: (sourceId: string, targetId: string) => void;
+  /** Take the person back off a cluster - the way out of a wrong stack. */
+  onDetachPerson?: (clusterId: string) => void;
 }
 
-export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated }: ClustersPanelProps) {
+export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated, onMergeClusters, onDetachPerson }: ClustersPanelProps) {
   const { t } = useTranslation();
   const { token } = useAuth();
   const { reportFailure } = useFailure();
   const [editCluster, setEditCluster] = useState<FaceCluster | null>(null);
   const [editName, setEditName] = useState("");
+  /**
+   * The card being dragged, and the one it is currently over.
+   *
+   * `dragId` is a ref as well as state, and the ref is the one that matters: `onDragOver` has to
+   * call `preventDefault()` to allow a drop, and it needs to know *now* whether a drag is in
+   * flight. Reading React state there means the first few `dragover` events see the value from
+   * before `onDragStart` re-rendered, the drop is refused, and the merge silently does nothing.
+   * The state copy exists only so the cards can show it.
+   */
+  const dragIdRef = useRef<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   /**
    * Detection uuids per cluster, fetched once the cards are on screen.
@@ -99,9 +124,67 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
     }
   };
 
+  /**
+   * The cards in display order, with a heading before each person's run of them.
+   *
+   * Clustering is per asset, so one person in twenty episodes is twenty cards. Left in the
+   * server's order they are scattered through the grid and the reviewer has no way to see that the
+   * work of attributing them is done. Grouping is what makes a stack a stack.
+   */
+  const ordered = useMemo(() => {
+    const byPerson = new Map<string, FaceCluster[]>();
+    const loose: FaceCluster[] = [];
+    for (const cluster of clusters) {
+      if (cluster.personId) {
+        const bucket = byPerson.get(cluster.personId);
+        if (bucket) bucket.push(cluster);
+        else byPerson.set(cluster.personId, [cluster]);
+      } else {
+        loose.push(cluster);
+      }
+    }
+    const rows: Array<{ kind: "heading"; key: string; label: string; count: number } | { kind: "card"; cluster: FaceCluster }> = [];
+    for (const [personId, group] of byPerson) {
+      const person = persons.find(p => p.id === personId);
+      rows.push({
+        kind: "heading",
+        key: `h-${personId}`,
+        label: person?.name ?? personId,
+        count: group.reduce((sum, c) => sum + c.faceCount, 0),
+      });
+      group.forEach(cluster => rows.push({ kind: "card", cluster }));
+    }
+    if (loose.length > 0) {
+      if (byPerson.size > 0) {
+        rows.push({
+          kind: "heading",
+          key: "h-unassigned",
+          label: t("faceDetection.label.unassigned"),
+          count: loose.reduce((sum, c) => sum + c.faceCount, 0),
+        });
+      }
+      loose.forEach(cluster => rows.push({ kind: "card", cluster }));
+    }
+    return rows;
+  }, [clusters, persons, t]);
+
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 2 }}>
-      {clusters.map(cluster => {
+      {ordered.map(row => {
+        if (row.kind === "heading") {
+          return (
+            <Box key={row.key} data-testid="cluster-person-group" data-person-name={row.label}
+              sx={{ gridColumn: "1 / -1", display: "flex", alignItems: "baseline", gap: 1, mt: 1 }}>
+              <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.7rem", color: tokens.text.secondary }}>
+                {row.label}
+              </Typography>
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+                {t("faceDetection.count.faces", { count: row.count })}
+              </Typography>
+            </Box>
+          );
+        }
+        const cluster = row.cluster;
         const person = cluster.personId ? persons.find(p => p.id === cluster.personId) : undefined;
         return (
           <Paper
@@ -111,11 +194,49 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
             // The assign affordance is replaced by the person chip once a cluster is confirmed, so
             // "is this one still unassigned?" is otherwise only answerable by probing for a button.
             data-assigned={person ? "true" : "false"}
+            data-cluster-id={cluster.id}
+            data-person-id={person?.id ?? ""}
+            data-drop-target={dropTargetId === cluster.id ? "true" : "false"}
+            // Native HTML5 drag and drop, following TagsView: the repo carries no DnD library and
+            // MUI ships none, and reactflow is a graph canvas rather than a list primitive.
+            draggable={!!onMergeClusters}
+            onDragStart={e => {
+              dragIdRef.current = cluster.id;
+              setDragId(cluster.id);
+              e.dataTransfer.effectAllowed = "move";
+              // Firefox ignores a drag that sets no data.
+              e.dataTransfer.setData("text/plain", cluster.id);
+            }}
+            onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDropTargetId(null); }}
+            onDragOver={e => {
+              const dragging = dragIdRef.current;
+              if (!onMergeClusters || !dragging || dragging === cluster.id) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDropTargetId(cluster.id);
+            }}
+            onDragLeave={() => setDropTargetId(prev => (prev === cluster.id ? null : prev))}
+            onDrop={e => {
+              e.preventDefault();
+              const sourceId = dragIdRef.current ?? e.dataTransfer.getData("text/plain");
+              dragIdRef.current = null;
+              setDragId(null);
+              setDropTargetId(null);
+              if (sourceId && sourceId !== cluster.id) {
+                // Nothing is moved optimistically. A card that showed itself merged after a failed
+                // write would be lying about a biometric attribution.
+                onMergeClusters?.(sourceId, cluster.id);
+              }
+            }}
             sx={{
               bgcolor: tokens.bg.elevated,
-              border: `1px solid ${tokens.border.subtle}`,
+              border: `1px solid ${dropTargetId === cluster.id ? tokens.primary.main : tokens.border.subtle}`,
               borderRadius: tokens.radius.lg,
               overflow: "hidden",
+              cursor: onMergeClusters ? "grab" : "default",
+              opacity: dragId === cluster.id ? 0.45 : 1,
+              boxShadow: dropTargetId === cluster.id ? `0 0 0 2px ${tokens.primary.main}55` : "none",
+              transition: "border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease",
             }}
           >
             {/* Cluster header */}
@@ -145,7 +266,12 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                 )}
               </Box>
               {person ? (
-                <Chip label={person.name} size="small" data-testid="cluster-person-chip" avatar={<Avatar src={person.avatarUrl} />} sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />
+                <Chip label={person.name} size="small" data-testid="cluster-person-chip"
+                  avatar={<Avatar src={person.avatarUrl} />}
+                  // Deletable, because a drag onto the wrong card is the obvious way to get this
+                  // wrong and there was no way back from it.
+                  onDelete={onDetachPerson ? () => onDetachPerson(cluster.id) : undefined}
+                  sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />
               ) : (
                 <Tooltip title={t("faceDetection.tooltip.assign")}>
                   <IconButton size="small" data-testid="cluster-assign" onClick={() => onAssignCluster(cluster.id)}>

@@ -213,7 +213,9 @@ export default function RemixDialog({ remixUuid, onClose, onChanged }: RemixDial
                   <AssetThumbnail
                     type={type}
                     src={type === "image" ? assetBinaryUrl(member.assetUuid) : ""}
+                    assetUuid={member.assetUuid}
                     iconSize={32}
+                    posterWidth={160}
                     alt={member.filename ?? ""}
                   />
                 </Box>

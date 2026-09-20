@@ -624,6 +624,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<ClusterResponse> detachClusterPerson(UUID clusterUuid) {
+		return deleteRequest("clusters/" + clusterUuid + "/person", ClusterResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<ClusterListResponse> listAssetClusters(AssetId assetId) {
 		return getRequest(assetPath(assetId) + "/clusters", ClusterListResponse.class);
 	}
@@ -900,6 +905,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PipelineRunRecord> loadPipelineRun(UUID pipelineUuid, UUID runUuid) {
 		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid, PipelineRunRecord.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineRunRecord> loadPipelineRun(UUID runUuid) {
+		return getRequest("pipeline-runs/" + runUuid, PipelineRunRecord.class);
 	}
 
 	@Override

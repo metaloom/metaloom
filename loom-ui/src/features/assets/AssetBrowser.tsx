@@ -147,7 +147,7 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
       )}
       {/* Thumbnail */}
       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
-        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={40} alt={asset.name} />
+        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} assetUuid={asset.id} iconSize={40} alt={asset.name} />
         <Box sx={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>
           <Box sx={{ color: "#fff", display: "flex" }}>{typeIcon[asset.type]}</Box>
           {asset.duration && <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", fontWeight: 600 }}>{formatDuration(asset.duration)}</Typography>}
@@ -238,7 +238,7 @@ function AssetRow({ asset, selectionMode = false, selected = false, onToggleSele
         />
       )}
       <Box sx={{ position: "relative", width: 48, height: 32, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
-        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={18} alt={asset.name} />
+        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} assetUuid={asset.id} iconSize={18} alt={asset.name} posterWidth={96} />
       </Box>
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem", color: tokens.text.primary }}>

@@ -53,6 +53,8 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
 		secure(basePath() + "/:uuid/runs/:runUuid");
+		// Not under basePath(): a run is addressable by its own uuid alone, see the route below.
+		secure(API_V1_PATH + "/pipeline-runs/:runUuid");
 		secure(basePath() + "/:uuid/runs/:runUuid/items");
 		secure(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks");
 		secure(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks/:taskUuid/previews/:portId");
@@ -154,6 +156,22 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineRunRecordExample(),
 			lrc -> {
 				service.loadRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// Resolve a run by its own uuid, without knowing which pipeline it belongs to.
+		//
+		// Every other run route is nested under /pipelines/:uuid/, which is fine for the editor
+		// (it always has a pipeline selected) and useless for anything holding only a run uuid.
+		// A PIPELINE_RUN_FAILED notification is exactly that: notification.pipeline_run_uuid is
+		// the only subject it carries, so clicking one could not open the run that failed and
+		// dropped the user on aggregate monitoring statistics instead. This route is what lets a
+		// caller turn a run uuid into its pipeline and then use the nested routes.
+		addRoute(API_V1_PATH + "/pipeline-runs/:runUuid", GET,
+			"Load a single pipeline run by its uuid, without knowing its pipeline",
+			null,
+			examples.pipelineRunRecordExample(),
+			lrc -> {
+				service.loadRunByUuid(lrc, lrc.pathParamUUID("runUuid"));
 			});
 
 		// List the items of a single pipeline run

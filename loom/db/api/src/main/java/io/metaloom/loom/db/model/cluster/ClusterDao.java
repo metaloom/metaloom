@@ -116,6 +116,27 @@ public interface ClusterDao extends CRUDDao<Cluster> {
 	Cluster updateStatus(UUID clusterUuid, String status, UUID personUuid, UUID reviewerUuid);
 
 	/**
+	 * Clear a cluster's person and return it to the review queue.
+	 *
+	 * <p>
+	 * Not expressible through {@link #updateStatus}: that method skips a null {@code personUuid} on purpose, so that rejecting a cluster leaves an
+	 * earlier attribution readable. Detaching has the opposite requirement - the pointer is exactly what has to go.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code reviewed_at} and {@code reviewer_uuid} are cleared along with it, so a PENDING cluster means the same thing it has always meant:
+	 * nobody has decided. Who performed the detach is left in {@code edited}/{@code editor_uuid}.
+	 * </p>
+	 *
+	 * @param clusterUuid
+	 *            the cluster to detach
+	 * @param editorUuid
+	 *            the user performing the detach
+	 * @return the cluster as it now stands
+	 */
+	Cluster detachPerson(UUID clusterUuid, UUID editorUuid);
+
+	/**
 	 * Confirm the cluster, linking it to an existing person or creating one, atomically.
 	 *
 	 * <p>

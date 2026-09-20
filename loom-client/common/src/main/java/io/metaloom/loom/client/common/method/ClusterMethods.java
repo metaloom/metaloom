@@ -45,6 +45,16 @@ public interface ClusterMethods {
 	/** Reject a cluster: it is not a subject worth keeping. */
 	LoomClientRequest<ClusterResponse> rejectCluster(UUID clusterUuid);
 
+	/**
+	 * Remove the person from a cluster, returning it to the review queue.
+	 *
+	 * <p>
+	 * The inverse of {@code confirmCluster}. Not {@code rejectCluster}, which records that the cluster is not a real subject - a different and
+	 * heavier claim than "that is somebody else".
+	 * </p>
+	 */
+	LoomClientRequest<ClusterResponse> detachClusterPerson(UUID clusterUuid);
+
 	/** The clusters computed within one asset. */
 	LoomClientRequest<ClusterListResponse> listAssetClusters(AssetId assetId);
 

@@ -52,6 +52,16 @@ public interface PipelineMethods {
 
 	LoomClientRequest<PipelineRunRecord> loadPipelineRun(UUID pipelineUuid, UUID runUuid);
 
+	/**
+	 * Load a run addressed by its own uuid, for callers that do not know which pipeline it belongs to.
+	 *
+	 * <p>
+	 * The response carries {@code pipelineUuid}, so this is the way in to the pipeline-scoped routes from a bare run uuid - which is all a
+	 * {@code PIPELINE_RUN_FAILED} notification carries.
+	 * </p>
+	 */
+	LoomClientRequest<PipelineRunRecord> loadPipelineRun(UUID runUuid);
+
 	LoomClientRequest<PipelineRunItemListResponse> listPipelineRunItems(UUID pipelineUuid, UUID runUuid);
 
 	/**

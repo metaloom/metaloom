@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position,
   NodeProps, ReactFlowProvider, useNodesState, useEdgesState,
@@ -46,7 +47,7 @@ import {
   listPipelineRuns, type PipelineUpdateRequest,
   createPipeline, deletePipeline, type PipelineCreateRequest,
   type PipelineRunRecord, type PipelineRunStatus,
-  listPipelineRunItems, type PipelineRunItemRecord, type PipelineRunItemState,
+  listPipelineRunItems, resolvePipelineRun, type PipelineRunItemRecord, type PipelineRunItemState,
   listPipelineRunItemTasks, type PipelineNodeTaskRecord, type PipelineNodeTaskState, type PortPayload,
   listPipelineVersions, restorePipelineVersion,
   loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
@@ -685,14 +686,19 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
   // Build a lookup map once
   const descMap = new Map(descriptors.map(d => [d.kind, d]));
 
-  return pnodes.map(n => {
+  return pnodes.map((n, idx) => {
     const desc = descMap.get(n.type);
     const connectors = nodeConnectors(desc, pipelineNodeOptions(n));
     const category: NodeCategory = desc?.category ?? "ANALYSIS";
     return {
       id: n.id,
       type: "pipelineNode",
-      position: n.position,
+      // `position` is optional in a definition and absent from every pipeline authored over REST
+      // rather than drawn - the editor is not the only client. React Flow reads `position.x`
+      // unconditionally, so an undefined one threw inside its layout pass and took the whole
+      // /pipelines route down with it, which is a blank error page rather than a broken node.
+      // A simple cascade is enough: the author can drag them, and Auto-arrange fixes it properly.
+      position: n.position ?? { x: 80 + (idx % 4) * 260, y: 80 + Math.floor(idx / 4) * 170 },
       selected: n.id === selectedId,
       data: {
         // Options first: everything below is editor state and must win over a same-named option.
@@ -928,7 +934,7 @@ function runItemStateColor(state: PipelineRunStatus | PipelineRunItemState | Pip
   }
 }
 
-function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedItemUuid }: {
+function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedItemUuid, nodeTasks, nodeTasksLoading }: {
   run: PipelineRunRecord | null;
   items: PipelineRunItemRecord[];
   loading?: boolean;
@@ -936,6 +942,15 @@ function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedI
   /** Inspect one item: loads its node executions and paints them onto the canvas. */
   onSelectItem?: (item: PipelineRunItemRecord) => void;
   selectedItemUuid?: string | null;
+  /**
+   * Node executions of the inspected item.
+   *
+   * Shown here as well as on the canvas because this drawer is where a failure is read, and the
+   * answer to "why did this run fail?" is a `pipeline_node_task` row: which node, which attempt,
+   * and its `error_message`. Painting them only onto the graph meant the text was nowhere.
+   */
+  nodeTasks?: PipelineNodeTaskRecord[];
+  nodeTasksLoading?: boolean;
 }) {
   const { t } = useTranslation();
   const open = !!run;
@@ -1032,6 +1047,67 @@ function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedI
                 </Paper>
               );
             })
+          )}
+
+          {/* What each node did for the inspected item. Failures first: this drawer is opened
+              from a failure notification, and the reviewer should not have to hunt for the row
+              that explains it. */}
+          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mt: 1.5 }}>
+            {t("pipeline.runDetail.nodeExecutions")}
+          </Typography>
+          {nodeTasksLoading ? (
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="pipeline-run-tasks-loading">
+              {t("pipeline.runDetail.loadingTasks")}
+            </Typography>
+          ) : !selectedItemUuid ? (
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="pipeline-run-tasks-hint">
+              {t("pipeline.runDetail.selectItem")}
+            </Typography>
+          ) : (nodeTasks ?? []).length === 0 ? (
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="pipeline-run-tasks-empty">
+              {t("pipeline.runDetail.noNodeTasks")}
+            </Typography>
+          ) : (
+            [...(nodeTasks ?? [])]
+              .sort((a, b) => Number(b.state === "FAILED" || b.state === "DEAD_LETTER") - Number(a.state === "FAILED" || a.state === "DEAD_LETTER"))
+              .map(task => {
+                const c = runItemStateColor(task.state);
+                return (
+                  <Paper key={task.uuid} elevation={0}
+                    data-testid="pipeline-run-node-task"
+                    data-node-id={task.nodeId}
+                    data-state={task.state}
+                    sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                      <Chip label={task.state} size="small"
+                        sx={{ height: 18, fontSize: "0.6rem", bgcolor: `${c}22`, color: c, border: `1px solid ${c}44`, fontWeight: 700 }} />
+                      <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.72rem" }}>
+                        {task.nodeId}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+                        {task.nodeKind}
+                      </Typography>
+                      {typeof task.durationMs === "number" && (
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
+                          {task.durationMs} ms
+                        </Typography>
+                      )}
+                    </Box>
+                    {task.maxAttempts > 1 && (
+                      <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", display: "block" }}>
+                        {t("pipeline.runDetail.attempt", { attempt: task.attempt, max: task.maxAttempts })}
+                      </Typography>
+                    )}
+                    {task.errorMessage && (
+                      <Typography variant="caption"
+                        data-testid="pipeline-run-node-task-error"
+                        sx={{ color: tokens.accent.red, fontSize: "0.65rem", display: "block", mt: 0.5, fontFamily: "monospace", wordBreak: "break-all" }}>
+                        {task.errorMessage}
+                      </Typography>
+                    )}
+                  </Paper>
+                );
+              })
           )}
         </Box>
       </Box>
@@ -1546,7 +1622,14 @@ function NodeDetailSidebar({
                     setAffinity(v);
                     if (onAffinityChange && nodeId) onAffinityChange(nodeId, v);
                   }}
-                  onInputChange={(_, val) => {
+                  onInputChange={(_, val, reason) => {
+                    // MUI fires this with reason "reset" whenever it syncs the `value` prop - which
+                    // happens every time this sidebar opens on a node. Treating that as typing wrote
+                    // the affinity back into the definition and marked the editor dirty, so merely
+                    // clicking a node to look at it raised the unsaved-changes guard.
+                    if (reason === "reset") {
+                      return;
+                    }
                     const v = val.trim() || DEFAULT_AFFINITY;
                     setAffinity(v);
                     if (onAffinityChange && nodeId) onAffinityChange(nodeId, v);
@@ -1998,7 +2081,7 @@ function PipelineCanvas({
   onSelectPort?: (task: PipelineNodeTaskRecord, portId: string, payload: PortPayload) => void;
   /** Armed breakpoints, held nodes and the toggle callback. Only meaningful in debug mode. */
   debugState?: NodeDebugState;
-  onGraphChange?: (json: any) => void;
+  onGraphChange?: (json: any, pipelineId?: string) => void;
   removalTrigger?: { nodeId: string; key: number } | null;
   autoArrangeTrigger?: number;
   onEdgeTypeChange?: (edgeId: string, edgeType: EdgeKind) => void;
@@ -2461,10 +2544,27 @@ function PipelineCanvas({
     return { nodes: nodeData, edges: edgeData };
   }, [nodes, edges]);
 
-  // Notify parent of graph changes for JSON tab
+  // Notify parent of graph changes for JSON tab.
+  //
+  // Two guards, both load-bearing. The parent treats the first emit after a load as its clean
+  // baseline, so an emit that does not describe the loaded pipeline makes the editor dirty before
+  // anybody has touched it:
+  //
+  //  - The canvas lags the `pipeline` prop by one commit - on mount `nodes` is still `[]`, and on a
+  //    switch it still holds the previous pipeline's graph until the load effect's `setNodes` lands.
+  //    Comparing the node count against the definition skips exactly those in-between renders.
+  //  - The pipeline id rides along so the parent can drop an emit that belongs to a pipeline it is
+  //    no longer showing.
   useEffect(() => {
-    if (onGraphChange) onGraphChange(getGraphJson());
-  }, [nodes, edges, getGraphJson, onGraphChange]);
+    if (!onGraphChange) {
+      return;
+    }
+    const expected = pipeline?.definition?.nodes?.length ?? 0;
+    if (nodes.length !== expected) {
+      return;
+    }
+    onGraphChange(getGraphJson(), pipeline?.id);
+  }, [nodes, edges, getGraphJson, onGraphChange, pipeline]);
 
   if (!pipeline) {
     return (
@@ -2863,6 +2963,36 @@ async function validateWithServer(token: string, definition: any): Promise<Valid
 }
 
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
+/**
+ * A stable string for a canvas graph, so "has the author changed anything?" can be answered by
+ * comparing two of them.
+ *
+ * Plain `JSON.stringify` will not do: the objects `getGraphJson` builds have their keys in
+ * insertion order, and a node whose options were rebuilt in a different order would compare as
+ * changed. Keys are therefore sorted at every level.
+ *
+ * Note this is a comparison against a *previous emit*, never against `pipeline.definition` - the
+ * two shapes differ on purpose (`getGraphJson` rewrites `type`, folds unreserved keys into
+ * `options`, renames handles to `sourcePort`/`targetPort` and defaults `branch`), so a definition
+ * that has never been through the canvas would always look edited.
+ */
+function canonicalGraph(json: unknown): string {
+  const sort = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.map(sort);
+    }
+    if (value && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      return Object.keys(obj).sort().reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = sort(obj[key]);
+        return acc;
+      }, {});
+    }
+    return value;
+  };
+  return JSON.stringify(sort(json));
+}
+
 export default function PipelineEditor() {
   const { activeSpace } = useSpace();
   const { t } = useTranslation();
@@ -2995,6 +3125,17 @@ export default function PipelineEditor() {
 
   // Save / Run state
   const [dirty, setDirty] = useState(false);
+  /**
+   * Canonical form of the graph as it was when the current pipeline finished loading, or `null`
+   * while we are waiting for that first emit. `handleGraphChange` compares against this to tell an
+   * edit from the canvas simply re-publishing what it already had.
+   *
+   * A ref rather than state: it is read inside a callback that must not be re-created when it
+   * changes, and nothing renders from it.
+   */
+  const graphBaselineRef = useRef<string | null>(null);
+  /** Which pipeline the canvas emits are expected to describe; see `handleGraphChange`. */
+  const selectedIdRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   /**
@@ -3024,14 +3165,41 @@ export default function PipelineEditor() {
     setSnack({ open: true, severity, message });
   }, []);
 
+  /**
+   * The run a `?run=<uuid>` deep link asks for, resolved to its pipeline.
+   *
+   * A PIPELINE_RUN_FAILED notification carries only the run uuid, so the run has to be resolved
+   * before we know which pipeline to select - hence `resolvePipelineRun`, which is the only route
+   * that answers a bare run uuid.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkRunUuid = searchParams.get("run");
+  const [deepLinkRun, setDeepLinkRun] = useState<PipelineRunRecord | null>(null);
+  /** Guards against re-opening the drawer after the user has closed it on the same URL. */
+  const deepLinkHandledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!token || !deepLinkRunUuid || deepLinkHandledRef.current === deepLinkRunUuid) return;
+    let cancelled = false;
+    resolvePipelineRun(token, deepLinkRunUuid)
+      .then(run => { if (!cancelled) setDeepLinkRun(run); })
+      .catch(() => { if (!cancelled) setDeepLinkRun(null); });
+    return () => { cancelled = true; };
+  }, [token, deepLinkRunUuid]);
+
   useEffect(() => {
     if (!token) return;
     listPipelines(token).then(resp => {
       const ps: Pipeline[] = (resp.data ?? []).map(toPipeline);
       setPipelines(ps);
-      setSelected(ps[0] ?? null);
+      // A deep link names the pipeline to open; otherwise the first one, as before.
+      const wanted = deepLinkRun ? ps.find(p => p.id === String(deepLinkRun.pipelineUuid)) : undefined;
+      setSelected(wanted ?? ps[0] ?? null);
       setLoading(false);
     }).catch(() => setLoading(false));
+    // deepLinkRun is deliberately out of the dependency list: it arrives asynchronously and the
+    // effect below handles the late case by selecting the pipeline then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Load run history for the selected pipeline. Extracted into a callback so live
@@ -3101,10 +3269,23 @@ export default function PipelineEditor() {
     if (!token || !selected) { setRunItems([]); return; }
     setRunItemsLoading(true);
     listPipelineRunItems(token, selected.id, run.uuid)
-      .then(items => setRunItems(items))
+      .then(items => {
+        setRunItems(items);
+        // Land on the failure. The node executions - and with them the error message that says
+        // which node broke and why - only load for an inspected item, so opening the drawer on a
+        // failed run and showing nothing but a list of paths made the reviewer click around to
+        // find what the notification was already about.
+        //
+        // Only for a failure. A healthy run has nothing to explain, and pre-fetching its tasks
+        // would spend a request per drawer open for a pane nobody came here to read.
+        const failed = items.find(i => i.state === "FAILED");
+        if (failed) {
+          inspectItem(failed);
+        }
+      })
       .catch(() => setRunItems([]))
       .finally(() => setRunItemsLoading(false));
-  }, [token, selected?.id]);
+  }, [token, selected?.id, inspectItem]);
 
   const closeRunDetail = useCallback(() => {
     setSelectedRun(null);
@@ -3298,6 +3479,8 @@ export default function PipelineEditor() {
       setNodeDetailOpen(false);
       setValidationErrors([]);
       setDirty(false);
+      // Same pipeline id, different graph: the selection-keyed reset does not fire here.
+      graphBaselineRef.current = null;
       setCanvasReloadKey(k => k + 1);
       notify("success", t("pipeline.version.restoreOk", { from: versionNumber, to: restored.versionNumber }));
     } catch (err) {
@@ -3352,6 +3535,11 @@ export default function PipelineEditor() {
     if (!selected) return;
     const node = selected.definition.nodes.find(n => n.id === nodeId);
     if (node) {
+      // Writing back the value the node already carries is not an edit. `affinity` is absent on a
+      // node that has never been moved out of the default group, so compare normalised.
+      if ((node.affinity || DEFAULT_AFFINITY) === (value || DEFAULT_AFFINITY)) {
+        return;
+      }
       node.affinity = value;
       setSelected({ ...selected });
       setNodeAffinities(prev => ({ ...prev, [nodeId]: value }));
@@ -3431,8 +3619,39 @@ export default function PipelineEditor() {
     setDeleteConfirm(null);
   }, [deleteConfirm, selected, selectedNodeId]);
 
-  const handleGraphChange = useCallback((json: any) => {
+  /**
+   * The canvas published a graph. Decide whether that is an edit.
+   *
+   * This used to be an unconditional `setDirty(true)`, with no comparison anywhere in the editor.
+   * The canvas emits on mount and again on every decoration pass - a run event arriving over the
+   * socket, a node being selected - so opening the Pipelines view was enough to arm the
+   * unsaved-changes guard, and the next sidebar click raised a discard dialog over nothing.
+   *
+   * The first emit for a pipeline is its baseline. Everything after that is an edit only if the
+   * canonical form actually differs.
+   */
+  // The selection drives both refs: a new pipeline means the next emit is a baseline, not an edit.
+  useEffect(() => {
+    if (selectedIdRef.current !== (selected?.id ?? null)) {
+      selectedIdRef.current = selected?.id ?? null;
+      graphBaselineRef.current = null;
+    }
+  }, [selected?.id]);
+
+  const handleGraphChange = useCallback((json: any, pipelineId?: string) => {
+    // An emit from a pipeline we are no longer showing: the canvas is one commit behind a switch.
+    if (pipelineId && selectedIdRef.current && pipelineId !== selectedIdRef.current) {
+      return;
+    }
     setGraphJson(json);
+    const canonical = canonicalGraph(json);
+    if (graphBaselineRef.current === null) {
+      graphBaselineRef.current = canonical;
+      return;
+    }
+    if (canonical === graphBaselineRef.current) {
+      return;
+    }
     setDirty(true);
     setValidationErrors([]); // clear stale validation on graph change
   }, []);
@@ -3494,6 +3713,9 @@ export default function PipelineEditor() {
       setSelected(versioned);
       setPipelines(prev => prev.map(p => (p.id === versioned.id ? versioned : p)));
       setDirty(false);
+      // The canvas is deliberately left alone by a save, so it will not emit again. Adopt what we
+      // just persisted as the baseline; leaving it stale would report the next edit as clean.
+      graphBaselineRef.current = canonicalGraph(definition);
       notify("success", t("pipeline.editor.saveOk"));
       return true;
     } catch (err) {
@@ -3521,6 +3743,30 @@ export default function PipelineEditor() {
     setNodeAffinities({});
     setDirty(false);
   }, []);
+
+  /**
+   * Finish a `?run=` deep link: select the owning pipeline if the list arrived first, then open
+   * the drawer on that run.
+   *
+   * The query parameter is cleared once handled, so a reload or a Back does not re-open a drawer
+   * the user has since closed, and the URL stops advertising a run that is already on screen.
+   */
+  useEffect(() => {
+    if (!deepLinkRun || !deepLinkRunUuid || deepLinkHandledRef.current === deepLinkRunUuid) return;
+    const owner = pipelines.find(p => p.id === String(deepLinkRun.pipelineUuid));
+    if (!owner) return;
+    if (selected?.id !== owner.id) {
+      applySelect(owner);
+      return;
+    }
+    deepLinkHandledRef.current = deepLinkRunUuid;
+    openRunDetail(deepLinkRun);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete("run");
+      return next;
+    }, { replace: true });
+  }, [deepLinkRun, deepLinkRunUuid, pipelines, selected?.id, applySelect, openRunDetail, setSearchParams]);
 
   // Clicking a pipeline in the list. When there are unsaved edits, defer the
   // switch behind a discard-confirm instead of silently dropping them.
@@ -4615,6 +4861,8 @@ export default function PipelineEditor() {
         onClose={closeRunDetail}
         onSelectItem={inspectItem}
         selectedItemUuid={inspectedItem?.uuid ?? null}
+        nodeTasks={nodeTasks}
+        nodeTasksLoading={nodeTasksLoading}
       />
 
       {/* Version diff — compare a previous version with the current one */}

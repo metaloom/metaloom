@@ -1,0 +1,257 @@
+package io.metaloom.loom.core.endpoint.test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
+import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.test.data.TestValues;
+
+/**
+ * The derived-media routes and the token that lets a browser media element reach them.
+ *
+ * <p>
+ * The security argument here is the whole point of the feature, so most of these tests are about
+ * what the token <b>cannot</b> do. An {@code <img>} or {@code <video>} cannot send an
+ * {@code Authorization} header and the session cookie is {@code Secure}/{@code __Host-} - dropped
+ * by every browser on a plain-HTTP deployment - so media URLs had no way to authenticate at all
+ * and every preview in the UI answered 401. The fix puts a credential in a query string, which is
+ * a place credentials leak from, so it is scoped to one asset, expires in minutes, and is refused
+ * everywhere except the two routes that need it.
+ * </p>
+ *
+ * <p>
+ * The tests that need real bytes are skipped when there is no ffmpeg, because the capability is
+ * optional by design. The authorization tests are not: they run everywhere, since a 401 is decided
+ * before ffmpeg is ever consulted.
+ * </p>
+ */
+public class AssetMediaEndpointTest extends AbstractEndpointTest implements TestValues {
+
+	private final java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient();
+
+	private final Path storageDir;
+
+	public AssetMediaEndpointTest() throws IOException {
+		this.storageDir = Files.createTempDirectory("loom-media-test");
+		loom.withOptions(o -> {
+			o.getStorage().setUploadDirectory(storageDir.toString());
+			o.getMedia().setCachePath(storageDir.resolve("media-cache").toString());
+		});
+	}
+
+	private int port() {
+		return loom.internal().boot().getRestService().getServer().actualPort();
+	}
+
+	private String url(String path) {
+		return "http://localhost:" + port() + path;
+	}
+
+	/**
+	 * Upload a short H.264 clip, so the poster and stream routes have something real to chew on.
+	 *
+	 * <p>
+	 * The pattern varies per call because an asset is identified by the SHA-512 of its content:
+	 * uploading the same bytes twice yields <b>one</b> asset, which silently turns any "these are
+	 * two different assets" test into a tautology.
+	 * </p>
+	 */
+	private AssetResponse uploadClip(LoomHttpClient client, String pattern) throws Exception {
+		Path clip = Files.createTempFile("clip-", ".mp4");
+		Files.delete(clip);
+		Process ffmpeg = new ProcessBuilder("ffmpeg", "-v", "error", "-y",
+			"-f", "lavfi", "-i", pattern + "=size=320x240:rate=10:duration=8",
+			"-c:v", "libx264", "-pix_fmt", "yuv420p", clip.toString())
+			.redirectErrorStream(true).start();
+		assertThat(ffmpeg.waitFor(60, TimeUnit.SECONDS)).as("ffmpeg produced a fixture clip").isTrue();
+		assertEquals(0, ffmpeg.exitValue(), "ffmpeg must produce the fixture clip");
+		return client.uploadAsset(clip.toFile(), LIBRARY_UUID, "video/mp4").sync().body();
+	}
+
+	private AssetResponse uploadClip(LoomHttpClient client) throws Exception {
+		return uploadClip(client, "testsrc");
+	}
+
+	private static boolean ffmpegPresent() {
+		try {
+			Process p = new ProcessBuilder("ffmpeg", "-version")
+				.redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectErrorStream(true).start();
+			return p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0;
+		} catch (IOException | InterruptedException e) {
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
+			return false;
+		}
+	}
+
+	/** A raw request with no cookie and no Authorization header - what a browser media element is. */
+	private HttpResponse<byte[]> getAnonymously(String url) throws Exception {
+		return http.send(HttpRequest.newBuilder().uri(URI.create(url)).GET().build(), BodyHandlers.ofByteArray());
+	}
+
+	private String mintToken(LoomHttpClient client, UUID assetUuid) throws Exception {
+		HttpResponse<String> resp = http.send(HttpRequest.newBuilder()
+			.uri(URI.create(url("/api/v1/assets/" + assetUuid + "/media-token")))
+			.header("Authorization", "Bearer " + client.getToken())
+			.POST(HttpRequest.BodyPublishers.noBody())
+			.build(), BodyHandlers.ofString());
+		assertEquals(200, resp.statusCode(), "minting a media token");
+		return new io.vertx.core.json.JsonObject(resp.body()).getString("token");
+	}
+
+	// ── The token itself ─────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("A media token is minted with a lifetime")
+	public void shouldMintAToken() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+
+			HttpResponse<String> resp = http.send(HttpRequest.newBuilder()
+				.uri(URI.create(url("/api/v1/assets/" + asset.getUuid() + "/media-token")))
+				.header("Authorization", "Bearer " + client.getToken())
+				.POST(HttpRequest.BodyPublishers.noBody())
+				.build(), BodyHandlers.ofString());
+
+			assertEquals(200, resp.statusCode());
+			io.vertx.core.json.JsonObject body = new io.vertx.core.json.JsonObject(resp.body());
+			assertThat(body.getString("token")).isNotBlank();
+			assertThat(body.getInteger("expiresIn")).isPositive();
+		}
+	}
+
+	// ── What the token may do ────────────────────────────────────────────
+
+	@Test
+	@DisplayName("A poster frame is served to a caller holding only a media token")
+	public void shouldServeAPosterToAMediaToken() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required for poster extraction");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			// No cookie, no header - exactly what an <img src> sends.
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/poster?t=1&w=160&mt=" + mt));
+
+			assertEquals(200, resp.statusCode(), "an <img> must be able to load a poster");
+			assertThat(resp.headers().firstValue("content-type").orElse("")).isEqualTo("image/jpeg");
+			// JPEG's magic number. A zero-length 200 would pass a status check and render nothing.
+			assertThat(resp.body().length).isGreaterThan(100);
+			assertThat(resp.body()[0] & 0xFF).isEqualTo(0xFF);
+			assertThat(resp.body()[1] & 0xFF).isEqualTo(0xD8);
+		}
+	}
+
+	@Test
+	@DisplayName("The stream is served as MP4 to a caller holding only a media token")
+	public void shouldServeAStreamToAMediaToken() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required for remuxing");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/stream?mt=" + mt));
+
+			assertEquals(200, resp.statusCode());
+			assertThat(resp.headers().firstValue("content-type").orElse("")).isEqualTo("video/mp4");
+			// "inline", or the browser downloads it instead of playing it.
+			assertThat(resp.headers().firstValue("content-disposition").orElse("")).contains("inline");
+			assertThat(resp.body().length).isGreaterThan(1000);
+		}
+	}
+
+	// ── What the token may not do ────────────────────────────────────────
+
+	@Test
+	@DisplayName("Without any credential the poster route is 401")
+	public void shouldRejectAnAnonymousPosterRequest() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/poster"));
+
+			assertEquals(401, resp.statusCode(), "the media routes are not public");
+		}
+	}
+
+	@Test
+	@DisplayName("A media token minted for one asset does not open another")
+	public void shouldRefuseATokenMintedForAnotherAsset() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clips");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse first = uploadClip(client, "testsrc");
+			AssetResponse second = uploadClip(client, "smptebars");
+			assertThat(second.getUuid()).as("the fixtures must be two distinct assets").isNotEqualTo(first.getUuid());
+			String mtForFirst = mintToken(client, first.getUuid());
+
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + second.getUuid() + "/poster?mt=" + mtForFirst));
+
+			// The whole reason the asset is a claim rather than an afterthought: one leaked poster
+			// URL must not become a key to the library.
+			assertEquals(401, resp.statusCode(), "a media token is scoped to the asset it names");
+		}
+	}
+
+	@Test
+	@DisplayName("A media token is not a session: it opens no other route")
+	public void shouldRefuseAMediaTokenAsASessionCredential() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			// As a bearer header on an ordinary route.
+			HttpResponse<String> asHeader = http.send(HttpRequest.newBuilder()
+				.uri(URI.create(url("/api/v1/assets/" + asset.getUuid())))
+				.header("Authorization", "Bearer " + mt)
+				.GET().build(), BodyHandlers.ofString());
+			assertEquals(401, asHeader.statusCode(), "a media token must not authenticate the JSON API");
+
+			// And as ?mt= on a route that does not accept media tokens at all.
+			HttpResponse<byte[]> asQuery = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "?mt=" + mt));
+			assertEquals(401, asQuery.statusCode(), "only the poster and stream routes look at mt");
+		}
+	}
+
+	@Test
+	@DisplayName("A session token presented as a media token is refused")
+	public void shouldRefuseASessionTokenInTheMediaParameter() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadClip(client);
+
+			// The session token is far longer-lived than a media token; honouring it here would let
+			// a UI hand a full session to anything that can read a URL.
+			HttpResponse<byte[]> resp = getAnonymously(
+				url("/api/v1/assets/" + asset.getUuid() + "/poster?mt=" + client.getToken()));
+
+			assertEquals(401, resp.statusCode(), "only a media-scoped token is accepted as mt");
+		}
+	}
+}

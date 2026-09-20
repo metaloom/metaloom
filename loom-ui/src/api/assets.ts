@@ -233,6 +233,57 @@ export function assetBinaryUrl(uuid: string): string {
   return `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/binary/data`;
 }
 
+/** A short-lived token authorising the media routes of one asset. */
+export interface MediaTokenResponse {
+  token: string;
+  expiresIn: number;
+}
+
+/**
+ * Mint a media token for one asset.
+ *
+ * `<img>` and `<video>` cannot send an `Authorization` header, and the session cookie is `Secure`
+ * so a browser drops it on a plain-HTTP deployment — which is why previews used to 401 and render
+ * as placeholders. The poster and stream routes therefore also accept this token as `?mt=`, and
+ * only for the asset it names.
+ */
+export async function mintMediaToken(token: string, uuid: string): Promise<MediaTokenResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/media-token`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse<MediaTokenResponse>(res);
+}
+
+/**
+ * URL of a poster frame for a video asset.
+ *
+ * Unlike {@link assetBinaryUrl} this is a few kilobytes rather than the whole file — pointing an
+ * `<img>` at a 4.5 GB Matroska original is what the grid used to do.
+ *
+ * @param mediaToken the `?mt=` credential; without it the browser has nothing to authenticate with
+ * @param second offset to sample; the server defaults it
+ * @param width target width, so a grid tile does not fetch a 1080p frame
+ */
+export function assetPosterUrl(uuid: string, mediaToken: string, second?: number, width?: number): string {
+  const params = new URLSearchParams({ mt: mediaToken });
+  if (second !== undefined) params.set("t", String(second));
+  if (width !== undefined) params.set("w", String(width));
+  return `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/poster?${params.toString()}`;
+}
+
+/**
+ * URL of the asset remuxed into a playable MP4.
+ *
+ * The response is a pipe and therefore has no index, so the player cannot seek within it: seeking
+ * means requesting this again with a different `second`.
+ */
+export function assetStreamUrl(uuid: string, mediaToken: string, second?: number): string {
+  const params = new URLSearchParams({ mt: mediaToken });
+  if (second !== undefined && second > 0) params.set("t", String(second));
+  return `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/stream?${params.toString()}`;
+}
+
 // ── CRUD API ──────────────────────────────────────────────────────────
 
 export async function listAssets(token: string, paging?: PagingParams): Promise<AssetListResponse> {

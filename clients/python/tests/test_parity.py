@@ -39,7 +39,11 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: against ``LoomHttpClientImpl``, which implements exactly these.
 #: Counted by distinct method *name*, so a set of overloads contributes one - which is
 #: why ``tools/generate_models.py`` reports a different number and this one wins.
-#: Last raised from 334 by ``FailureReportMethods`` (+5): five CRUD calls on
+#: Last raised from 339 by ``ClusterMethods.detachClusterPerson`` (+1): ``DELETE
+#: /clusters/{uuid}/person``, the inverse of ``confirm``, so a reviewer who stacked two clusters
+#: onto the wrong person can take it back. ``PipelineMethods.loadPipelineRun(UUID)`` landed in the
+#: same change and added nothing here, being an overload of a name that already counted.
+#: Before that, 334 -> 339 by ``FailureReportMethods`` (+5): five CRUD calls on
 #: ``/failure-reports``. The screenshot download route has no client method on either
 #: side - it answers raw bytes and the UI reaches it with a plain ``<img src>``.
 #: Before that, 324 -> 334 by ``RemixMethods`` (+10): five CRUD calls on ``/remixes``,
@@ -47,7 +51,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: ``listAssetRemixes`` on ``/assets/{uuid}/remixes``. Before that, 301 -> 324 by
 #: ``ShareMethods`` (+23): eight owner-side calls on ``/share-links`` and fifteen
 #: customer-side ones on ``/shares/{slug}``.
-EXPECTED_JAVA_METHOD_COUNT = 339
+EXPECTED_JAVA_METHOD_COUNT = 340
 
 #: Paths this client builds that the generated API description does not list.
 #:

@@ -26,6 +26,8 @@ public class LoomOptions implements Option {
 
 	private SimilarityOptions similarity = new SimilarityOptions();
 
+	private MediaOptions media = new MediaOptions();
+
 	private VectorIndexOptions vectorIndex = new VectorIndexOptions();
 
 	private AssetGraphOptions assetGraph = new AssetGraphOptions();
@@ -148,6 +150,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public MediaOptions getMedia() {
+		return media;
+	}
+
+	public LoomOptions setMedia(MediaOptions media) {
+		this.media = media;
+		return this;
+	}
+
 	public VectorIndexOptions getVectorIndex() {
 		return vectorIndex;
 	}
@@ -188,6 +199,7 @@ public class LoomOptions implements Option {
 			.nested("nodeExec", nodeExec)
 			.nested("search", search)
 			.nested("similarity", similarity)
+			.nested("media", media)
 			.nested("vectorIndex", vectorIndex)
 			.nested("assetGraph", assetGraph)
 			.nested("demo", demo);

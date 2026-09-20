@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.dedup.FingerprintDedupDiscoverOptions;
 import io.metaloom.cortex.node.dedup.FingerprintDedupNode;
@@ -220,5 +221,74 @@ class FingerprintDedupNodeTest {
 			.hasMessageContaining("loom unreachable");
 
 		verify(client).createAssetNodeResult(any(), any());
+	}
+
+	/**
+	 * The fingerprint comes in on the declared input port, and the node must work on an asset whose
+	 * legacy {@code AssetResponse.fingerprint} is null - which is every asset in a real deployment.
+	 *
+	 * <p>
+	 * The gate read {@code asset.getFingerprint().getFingerprintV1()} and nothing else. No writer has
+	 * ever populated that field: {@code FingerprintNode} persists to {@code asset_fingerprint_comp},
+	 * the asset table has no fingerprint column, and Loom's asset assembler never sets it. Only the
+	 * other tests in this class did - by construction - which is why a node that skipped every single
+	 * item in production had a green suite. Hence this test builds the asset the way Loom really
+	 * returns one: with no FingerprintInfo at all.
+	 * </p>
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void testUsesTheFingerprintFromTheInputPort() throws Exception {
+		AssetResponse query = asset(queryUuid, 2000L, 0L);
+		org.assertj.core.api.Assertions.assertThat(query.getFingerprint())
+			.as("Loom returns no fingerprint field; the port is the source").isNull();
+
+		LoomClientRequest<AssetResponse> queryReq = request(query);
+		LoomClientRequest<AssetResponse> hitReq = request(asset(hitUuid, 1000L, 0L));
+		SimilarAssetListResponse hits = new SimilarAssetListResponse();
+		hits.add(new SimilarAssetResponse().setAssetUuid(hitUuid.toString()).setScore(0.9f).setSha512("hitsha"));
+		LoomClientRequest<SimilarAssetListResponse> hitsReq = request(hits);
+		LoomClientRequest<DedupGroupResponse> groupReq = request(new DedupGroupResponse().setUuid(UUID.randomUUID().toString()));
+
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+		when(client.loadAsset(eq(hitUuid))).thenReturn(hitReq);
+		when(client.listSimilarAssets(eq(queryUuid), any(), anyInt(), anyFloat())).thenReturn(hitsReq);
+		when(client.createDedupGroup(any())).thenReturn(groupReq);
+
+		NodeInputs inputs = NodeInputs.builder().input(FingerprintDedupNode.IN_FINGERPRINT, "deadbeef").build();
+		assertThat(node().process(NodeContext.create(media, inputs))).isSuccess();
+
+		verify(client).createDedupGroup(any());
+	}
+
+	/**
+	 * {@code FingerprintNode} emits the literal string {@code "NULL"} on its output port when the
+	 * fingerprinter returns nothing for a file. That is the absence of a fingerprint, not one whose
+	 * value happens to be "NULL", and querying the similarity index for it is meaningless.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void testSkipsWhenThePortCarriesTheNullSentinel() throws Exception {
+		LoomClientRequest<AssetResponse> queryReq = request(asset(queryUuid, 2000L, 0L));
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+
+		NodeInputs inputs = NodeInputs.builder().input(FingerprintDedupNode.IN_FINGERPRINT, "NULL").build();
+		assertThat(node().process(NodeContext.create(media, inputs))).isSkipped();
+
+		verify(client, never()).listSimilarAssets(any(), any(), anyInt(), anyFloat());
+		verify(client, never()).createDedupGroup(any());
+	}
+
+	/** No fingerprint anywhere - neither on the port nor on the legacy field - is still a skip. */
+	@Test
+	@SuppressWarnings("unchecked")
+	void testSkipsWhenNoFingerprintIsAvailableAtAll() throws Exception {
+		LoomClientRequest<AssetResponse> queryReq = request(asset(queryUuid, 2000L, 0L));
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+
+		assertThat(node().process(NodeContext.create(media))).isSkipped();
+
+		verify(client, never()).listSimilarAssets(any(), any(), anyInt(), anyFloat());
+		verify(client, never()).createDedupGroup(any());
 	}
 }

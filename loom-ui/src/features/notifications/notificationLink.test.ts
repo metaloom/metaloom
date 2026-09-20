@@ -19,8 +19,10 @@ describe("notificationLink", () => {
     expect(notificationLink(base({ taskUuid: "t1" }))).toBe("/tasks?task=t1");
   });
 
-  it("routes a run notification to monitoring", () => {
-    expect(notificationLink(base({ type: "PIPELINE_RUN_FAILED", pipelineRunUuid: "r1" }))).toBe("/monitoring?run=r1");
+  it("routes a run notification to the pipeline editor, not to monitoring", () => {
+    // Monitoring reads no query parameter, so `/monitoring?run=r1` dropped the run and showed
+    // aggregate statistics. The editor is the only screen with a run detail view.
+    expect(notificationLink(base({ type: "PIPELINE_RUN_FAILED", pipelineRunUuid: "r1" }))).toBe("/pipelines?run=r1");
   });
 
   it("prefers the most specific subject when several are set", () => {

@@ -1431,7 +1431,12 @@
       "title": "Run Detail",
       "items": "Items",
       "noItems": "No items recorded for this run",
-      "loading": "Loading items…"
+      "loading": "Loading items…",
+      "nodeExecutions": "Node executions",
+      "noNodeTasks": "No node executions recorded for this item",
+      "loadingTasks": "Loading node executions…",
+      "selectItem": "Select an item to see what each node did",
+      "attempt": "attempt {{attempt}} of {{max}}"
     },
     "inspector": {
       "empty": "Select a pipeline to inspect",
@@ -1669,7 +1674,9 @@
       "firstname": "First Name",
       "lastname": "Last Name",
       "unnamedCluster": "Unnamed cluster",
-      "reviewedOn": "reviewed {{date}}"
+      "reviewedOn": "reviewed {{date}}",
+      "unassigned": "Unassigned",
+      "mergePrompt": "Name the person these clusters belong to"
     },
     "tooltip": {
       "assign": "Assign to person",

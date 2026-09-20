@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Avatar, Box, Chip, Tooltip, Typography } from "@mui/material";
 import { FaceOutlined, GroupWorkOutlined, PersonOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import { FaceCrop } from "../faceDetection/FaceCrop";
 import { DetectedFace, FaceCluster, Person } from "../../types";
 import { formatDuration } from "./helpers";
 
@@ -80,7 +81,10 @@ export function FaceDetectionPanel({
                     transition: "border-color 120ms ease",
                   }}
                 >
-                  <img src={face.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {/* FaceCrop, not <img src>: the crop route needs an Authorization header, and
+                      DetectedFace.thumbnailUrl is hardcoded to "" where these are mapped - so this
+                      was an <img src=""> and every tile was a broken image. */}
+                  <FaceCrop assetUuid={face.assetId} detectionUuid={face.id} size={48} rounded={false} />
                 </Box>
               </Tooltip>
             ))}
@@ -97,7 +101,7 @@ export function FaceDetectionPanel({
           <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
             {unclustered.map(face => (
               <Box key={face.id} sx={{ width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden", border: `2px solid ${tokens.border.subtle}` }}>
-                <img src={face.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <FaceCrop assetUuid={face.assetId} detectionUuid={face.id} size={48} rounded={false} />
               </Box>
             ))}
           </Box>

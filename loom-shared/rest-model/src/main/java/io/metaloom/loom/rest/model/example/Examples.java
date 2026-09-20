@@ -37,6 +37,7 @@ import io.metaloom.loom.rest.model.share.ShareExamples;
 import io.metaloom.loom.rest.model.space.SpaceExamples;
 import io.metaloom.loom.rest.model.reaction.ReactionExamples;
 import io.metaloom.loom.rest.model.role.RoleExamples;
+import io.metaloom.loom.rest.model.media.MediaExamples;
 import io.metaloom.loom.rest.model.search.SearchExamples;
 import io.metaloom.loom.rest.model.searchindex.SearchIndexExamples;
 import io.metaloom.loom.rest.model.storage.StorageExamples;
@@ -88,6 +89,7 @@ public interface Examples extends
 	JsonCompExamples,
 	FingerprintCompExamples,
 	SegmentCompExamples,
+	MediaExamples,
 	SearchExamples,
 	SearchIndexExamples,
 	StorageExamples,

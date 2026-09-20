@@ -90,9 +90,24 @@ class PipelineMethods:
         return self._post(f"pipelines/{self._uuid(pipeline_uuid)}/run", request, PipelineRunResponse)
 
     def load_pipeline_run(
-        self, pipeline_uuid: _uuid_mod.UUID | str, run_uuid: _uuid_mod.UUID | str
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str | None = None,
     ) -> LoomRequest[PipelineRunRecord]:
-        """Load a single run."""
+        """Load a single run, in either of the Java client's two overloaded forms.
+
+        ``load_pipeline_run(pipeline_uuid, run_uuid)`` uses the pipeline-scoped route.
+
+        ``load_pipeline_run(run_uuid)`` resolves a run by its own uuid, for callers that do not
+        know which pipeline it belongs to - a PIPELINE_RUN_FAILED notification carries only
+        ``pipeline_run_uuid``. The response carries ``pipelineUuid``, so it is the way in to the
+        pipeline-scoped routes from there.
+
+        One name rather than two because the parity test matches Python methods against Java
+        method *names*, and Java expresses this as an overload.
+        """
+        if run_uuid is None:
+            return self._get(f"pipeline-runs/{self._uuid(pipeline_uuid)}", PipelineRunRecord)
         return self._get(
             f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}", PipelineRunRecord
         )

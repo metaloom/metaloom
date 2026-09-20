@@ -246,4 +246,38 @@ test.describe("Workflow deduplication – mocked e2e", () => {
     await expect(page.getByTestId("dedup-empty")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("dedup-group")).toHaveCount(0);
   });
+  /**
+   * The reviewer's job is to compare the keep against each candidate, which they cannot do while
+   * the two are a scroll apart. `DedupPreview` used to be a bare `paddingTop: "56.25%"` - 16:9 of
+   * the full content width, about 620px of picture per member with no cap - inside a second
+   * `overflow: auto` nested in the page scroller. A keep plus one candidate ran past 1400px.
+   */
+  test("the keep and every candidate fit on screen together", async ({ page }) => {
+    await installMocks(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await login(page);
+    await openDedupMode(page);
+
+    const keep = page.getByTestId("dedup-keep");
+    const dup = page.getByTestId(`dedup-member-${DUP_UUID}`);
+    await expect(keep).toBeVisible({ timeout: 10_000 });
+    await expect(dup).toBeVisible();
+
+    const keepBox = await keep.boundingBox();
+    const dupBox = await dup.boundingBox();
+    expect(keepBox).toBeTruthy();
+    expect(dupBox).toBeTruthy();
+
+    // Both cards start inside the viewport and the candidate's bottom edge is reachable without
+    // scrolling the group. 800px of viewport, minus the toolbar, is the budget.
+    expect(keepBox!.y).toBeGreaterThanOrEqual(0);
+    expect(dupBox!.y + dupBox!.height).toBeLessThanOrEqual(800);
+
+    // And the group itself is not its own scroller any more - only the page scrolls.
+    const groupScrolls = await page.getByTestId("dedup-group").evaluate(
+      el => el.scrollHeight > el.clientHeight + 1,
+    );
+    expect(groupScrolls).toBe(false);
+  });
 });

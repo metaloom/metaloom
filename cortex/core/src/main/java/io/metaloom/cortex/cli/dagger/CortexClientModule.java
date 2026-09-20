@@ -12,6 +12,7 @@ import dagger.Provides;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
 import io.metaloom.cortex.common.option.CortexOptionsLoader;
+import io.metaloom.cortex.impl.loom.LoomControlChannel;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.http.LoomHttpClient;
 
@@ -73,6 +74,18 @@ public class CortexClientModule {
 			.setHostname(host)
 			.setPort(port)
 			.build();
+
+		// Authenticate exactly as the control channel does. Without this every node call -
+		// loadAsset, createAssetJsonComp, the node-result ledger - goes out unauthenticated and
+		// comes back 401. Nodes read that as "Loom does not know this asset" and skip persisting,
+		// so runs go green while nothing is written: the worker looks healthy, tasks COMPLETE with
+		// real outputs, and the asset has no components.
+		String token = LoomControlChannel.resolveToken(loom);
+		if (token != null) {
+			client.setToken(token);
+		} else {
+			log.warn("No Loom token configured. Node results will not be persisted to Loom.");
+		}
 		return client;
 
 	}

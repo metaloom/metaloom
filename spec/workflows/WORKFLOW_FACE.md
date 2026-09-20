@@ -45,7 +45,7 @@ Status legend: 🟢 built · 🟡 partly built · 🔵 plan/concept · 🔴 defe
 | **Can a Cortex worker create a cluster?** | Yes, since `V2.79` made the audit columns nullable — the relaxation `V2.47` applied to every other producer table. |
 | **Is `cluster` linked to `person`?** | Yes: `cluster.person_uuid`, `ON DELETE SET NULL`, set by `POST /clusters/:uuid/confirm`. |
 | **What does the UI show?** | A review queue with real member crops served from this deployment, and confirm/reject that persists. |
-| **What is still missing?** | Cross-asset identity. The same person in two videos is still two unrelated clusters (§2.2). |
+| **What is still missing?** | *Automatic* cross-asset identity. The same person in two videos is still two unrelated clusters (§2.2) — a reviewer can now stack them onto one person by hand (§2.2.1), which is durable, but nothing proposes it. |
 
 ---
 
@@ -206,6 +206,39 @@ Cross-asset identity is **phase 2** and needs a library-wide pass plus a vector 
 pass reuses the same tables: `cluster.asset_uuid` is **nullable** precisely so a library-wide cluster
 can exist alongside per-asset ones, distinguished by `node_kind`, without a second destructive
 migration.
+
+### 2.2.1 What a reviewer can do about it today: stack the cards
+
+Automatic cross-asset identity is phase 2. The *manual* answer shipped 2026-09-20 and needed no new
+concept, because the schema already had one: **`cluster.person_uuid` is many-to-one**, so "these N
+clusters are one subject" is a statement it can already hold, and `GET /persons/:uuid/clusters`
+reads it back.
+
+Dragging one cluster card onto another in `ClustersPanel` therefore attributes both to the same
+person — the target's if it has one, otherwise a name the reviewer is prompted for — through the
+existing `POST /clusters/:uuid/confirm`. The grid then groups cards under a person heading, which
+is what makes twenty cards for one actor legible as one subject. `DELETE /clusters/:uuid/person`
+is the way back out.
+
+**Why not a structural merge**, which is what the gesture visually suggests? Three reasons, in
+order of how badly each one bites:
+
+1. **The next pipeline run would erase it.** `ClusterEndpointService.bulkCreateAssetClusters` calls
+   an unqualified `dao().unlinkAll(cluster)` before re-linking what DBSCAN found, so moved
+   `embedding_cluster` rows — `origin='MANUAL'` included — are deleted on the next pass over that
+   asset. `spec/tasks/WORKFLOW_FACE_TASKS.md` §3 says it outright: *do not ship a correction that
+   reverts.* Person assignment has the opposite property — `person_uuid` is in
+   `ClusterDaoImpl.REVIEW_COLUMNS`, which `upsertCluster` preserves on conflict, and a re-run over
+   a merged asset was verified to leave the attribution standing.
+2. **It cannot express the common case.** The review grid is global, so two cards a reviewer stacks
+   usually come from *different assets*, and `cluster.asset_uuid` is scalar: no single row can hold
+   both. Nulling it to make a library-wide cluster is phase 2's move, not a reviewer gesture's.
+3. **It says something different.** A structural merge asserts the clusterer got the grouping
+   wrong. Two clusters sharing a person asserts only that both are the same subject — which is what
+   the reviewer actually knows, and what a persons database needs.
+
+A structural merge is still worth building for *within-asset* splits at an uncalibrated `eps`, but
+only after `unlinkAll` is scoped to `origin='AUTO'`.
 
 ### 2.3 Distance metric
 
@@ -443,6 +476,17 @@ hold, and a card that fails to render for the very people who operate it would b
 The inverse lookup is `GET /persons/:uuid/clusters` rather than a `clusterUuids` field on
 `PersonResponse`: a person can appear in arbitrarily many assets, and that does not belong inline on
 every person in a list page.
+
+> 🔴 **Fixed 2026-09-20: the Workflow → Faces pane showed no faces.** Each member rendered as
+> `<Avatar src={f.thumbnailUrl}/>`, and `DetectedFace.thumbnailUrl` is hardcoded to `""` where the
+> detections are mapped — so every cluster card in `WorkflowView.tsx` was a row of blank grey
+> silhouettes while `ClustersPanel.tsx`, three clicks away, showed the same clusters with real crops.
+> A crop needs an `Authorization` header and therefore **cannot be a plain `src` at all**; `FaceCrop`
+> is the component that fetches it and revokes the object URL, and it is what the pane uses now.
+> Judging the coherence of a proposed cluster is the entire purpose of that screen, and there was
+> nothing on it to judge. The same change gave an unnamed proposal its "Unnamed cluster" title —
+> `cluster.name` is nullable by design (`V2.79`) and the mapping fell back to `""`, so the card
+> header was blank. Pinned by `loom-ui/e2e/workflow-face-review-mocked.spec.ts`.
 
 ### 4.1 Permissions that depend on the request
 

@@ -3,10 +3,13 @@ import { test, expect, Page } from "@playwright/test";
 /**
  * Mocked test for the asset previews in the library grid.
  *
- * No running Loom backend is required: all REST calls are intercepted with `page.route`, and the
- * binary endpoint serves a 1x1 PNG. Asserts that an image asset renders an `<img>` pointing at its
- * binary, while a video keeps the type placeholder — the browser cannot decode a video into an
- * `<img>`, so a preview there would only ever be a broken image.
+ * No running Loom backend is required: all REST calls are intercepted with `page.route`.
+ *
+ * An image renders an `<img>` pointing at its binary. A video renders an `<img>` pointing at a
+ * server-rendered **poster frame** — and, crucially, still never fetches the binary. It used to
+ * show the type placeholder instead, on the grounds that a browser cannot decode a video into an
+ * `<img>`; that was true, and it left a library of videos as a wall of grey icons. The poster
+ * route is a few KB of JPEG, so the tile is real without the grid pulling gigabytes.
  */
 
 const LIB_UUID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -30,6 +33,7 @@ function asset(uuid: string, filename: string, mimeType: string) {
 
 async function mockRest(page: Page) {
   const binaryRequests: string[] = [];
+  const posterRequests: string[] = [];
 
   await page.route("**/api/v1/**", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) })
@@ -67,7 +71,16 @@ async function mockRest(page: Page) {
     route.fulfill({ status: 200, contentType: "image/png", body: PNG });
   });
 
-  return binaryRequests;
+  // A video tile mints a short-lived token and then loads a poster with it.
+  await page.route(/\/api\/v1\/assets\/[0-9a-f-]+\/media-token$/, route =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "fake-mt", expiresIn: 600 }) })
+  );
+  await page.route(/\/api\/v1\/assets\/[0-9a-f-]+\/poster/, route => {
+    posterRequests.push(route.request().url());
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: PNG });
+  });
+
+  return { binaryRequests, posterRequests };
 }
 
 async function loginAndGoToLibrary(page: Page) {
@@ -83,7 +96,7 @@ async function loginAndGoToLibrary(page: Page) {
 
 test.describe("Library asset previews – mocked", () => {
   test("an image asset renders its binary as a thumbnail", async ({ page }) => {
-    const binaryRequests = await mockRest(page);
+    const { binaryRequests } = await mockRest(page);
     await loginAndGoToLibrary(page);
 
     const thumb = page.locator(`img[src*="${IMAGE_UUID}/binary/data"]`);
@@ -93,12 +106,31 @@ test.describe("Library asset previews – mocked", () => {
     await expect.poll(() => binaryRequests.filter(u => u.includes(IMAGE_UUID)).length).toBeGreaterThan(0);
   });
 
-  test("a video asset keeps the placeholder and fetches no binary", async ({ page }) => {
-    const binaryRequests = await mockRest(page);
+  test("a video asset renders a poster frame and still fetches no binary", async ({ page }) => {
+    const { binaryRequests, posterRequests } = await mockRest(page);
     await loginAndGoToLibrary(page);
 
-    await expect(page.locator(`img[src*="${IMAGE_UUID}/binary/data"]`)).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator(`img[src*="${VIDEO_UUID}/binary/data"]`)).toHaveCount(0);
+    const poster = page.locator(`img[src*="${VIDEO_UUID}/poster"]`);
+    await expect(poster).toBeVisible({ timeout: 10_000 });
+
+    // The load-bearing half of the original test, kept: the grid must not pull the video itself.
     expect(binaryRequests.filter(u => u.includes(VIDEO_UUID))).toHaveLength(0);
+    await expect.poll(() => posterRequests.length).toBeGreaterThan(0);
+  });
+
+  test("the poster is requested at a tile-sized width, with a media token", async ({ page }) => {
+    const { posterRequests } = await mockRest(page);
+    await loginAndGoToLibrary(page);
+
+    await expect(page.locator(`img[src*="${VIDEO_UUID}/poster"]`)).toBeVisible({ timeout: 10_000 });
+    // Poll for the request rather than trusting visibility: an <img> is laid out, and therefore
+    // "visible", before its bytes have been asked for.
+    await expect.poll(() => posterRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+    const url = new URL(posterRequests[0]);
+    // `mt`, because an <img> cannot send an Authorization header and the session cookie is
+    // Secure-flagged, so it is absent on every plain-HTTP deployment.
+    expect(url.searchParams.get("mt")).toBe("fake-mt");
+    // And a width, so a 180px tile does not decode a 1080p frame.
+    expect(Number(url.searchParams.get("w"))).toBeGreaterThan(0);
   });
 });

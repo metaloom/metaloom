@@ -118,11 +118,26 @@ docker network create metaloom
 
 docker run -d --name postgres --network metaloom \
   -e POSTGRES_DB=loom \
-  -e POSTGRES_USER=loom \
+  -e POSTGRES_USER=loomapp \
   -e POSTGRES_PASSWORD='change-me' \
-  -v loom-pgdata:/var/lib/postgresql/data \
+  -v loom-pgdata:/var/lib/postgresql \
   postgres:18.6-trixie
 ----
+
+WARNING: Do not name the DB user `loom`. Postgres resolves an unqualified schema via
+`search_path = "$user", public`, and Loom's first migration creates a schema literally named
+`loom`. A DB user also named `loom` doesn't collide on the first boot (the `loom` schema doesn't
+exist yet, so Flyway migrates into `public`) but does on every boot after — Flyway now targets the
+`loom` schema, finds an empty migration history there, and re-runs every migration into it, which
+dies partway through on a duplicate enum label. The symptom is a Loom container that boots cleanly
+once and then never becomes ready again after any restart. Use any other username, such as
+`loomapp` above.
+
+NOTE: The Postgres 18 image changed where it expects its volume: a single mount at
+`/var/lib/postgresql` (letting it manage `18/docker/` underneath), not
+`/var/lib/postgresql/data`. Mounting at the old `.../data` path makes the container refuse to
+start with "these Docker images are configured to store database data in a format which is
+compatible with pg_ctlcluster".
 
 == Step 2 — Start the Loom Server
 
@@ -132,7 +147,7 @@ docker run -d --name loom --network metaloom \
   -p 8092:8092 \
   -e LOOM_DB_HOST=postgres \
   -e LOOM_DB_NAME=loom \
-  -e LOOM_DB_USERNAME=loom \
+  -e LOOM_DB_USERNAME=loomapp \
   -e LOOM_DB_PASSWORD='change-me' \
   -e LOOM_INITIAL_PASSWORD='first-login-password' \
   -v loom-config:/config \
@@ -247,10 +262,10 @@ services:
     image: postgres:18.6-trixie
     environment:
       POSTGRES_DB: loom
-      POSTGRES_USER: loom
+      POSTGRES_USER: loomapp   # not "loom" - see the WARNING in Step 1
       POSTGRES_PASSWORD: change-me
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
 
   loom:
     image: metaloom/loom-server:latest
@@ -261,9 +276,23 @@ services:
     environment:
       LOOM_DB_HOST: postgres
       LOOM_DB_NAME: loom
-      LOOM_DB_USERNAME: loom
+      LOOM_DB_USERNAME: loomapp
       LOOM_DB_PASSWORD: change-me
       LOOM_INITIAL_PASSWORD: first-login-password
+      # Perceptual near-duplicate detection. Off by default; without it the
+      # `fingerprint-dedup` node has nothing to query and proposes no candidates.
+      LOOM_SIMILARITY_ENABLED: "true"
+      # The default is a relative path, which lands inside the container and is
+      # lost on every recreate. Point it at a mounted directory to keep it.
+      LOOM_SIMILARITY_INDEX_PATH: /config/similarity-index
+      # Poster frames and browser-playable video. The image ships ffmpeg, so this
+      # works out of the box; set LOOM_MEDIA_ENABLED=false to turn it off. Without
+      # it, video assets have no thumbnail and cannot be played in the browser --
+      # the routes then answer 503 with that reason rather than showing a
+      # placeholder. Raise LOOM_MEDIA_MAX_STREAMS only if the host has the CPU:
+      # each concurrent viewer is one ffmpeg process for as long as they watch.
+      LOOM_MEDIA_MAX_STREAMS: "4"
+      LOOM_MEDIA_CACHE_PATH: /config/media-cache
     volumes:
       - config:/config
       - uploads:/uploads
@@ -364,7 +393,7 @@ different processes.
 [options="header",cols="1,1,3"]
 |===
 | Container | Path | Why it matters
-| postgres | `/var/lib/postgresql/data` | All assets, users, pipelines and run history.
+| postgres | `/var/lib/postgresql` | All assets, users, pipelines and run history.
 | loom | `/config` | `loom.yml` with the generated keystore password, plus `keystore.jceks` — the JWT signing key. Losing it invalidates every issued token.
 | loom | `/uploads` | Uploaded asset binaries and generated binaries such as thumbnails.
 | cortex | `/meta` (`CORTEX_META_PATH`) | Sidecar metadata and the filesystem-source index. Losing it is not fatal — the next run re-scans.

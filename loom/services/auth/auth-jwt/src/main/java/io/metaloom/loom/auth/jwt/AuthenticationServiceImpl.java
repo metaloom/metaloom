@@ -47,6 +47,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	}
 
 	@Override
+	public String generate(JsonObject claims, int expiresInSeconds) {
+		return authProvider.generateToken(claims, new JWTOptions().setExpiresInSeconds(expiresInSeconds));
+	}
+
+	@Override
 	public String encodePassword(String password) {
 		return passwordEncoder.encode(password);
 	}

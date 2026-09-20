@@ -49,11 +49,13 @@ interface LibraryCard {
 }
 
 /**
- * Only images get a preview here.
+ * The `<img src>` for a tile — images only.
  *
- * `AssetThumbnail` can also seek a frame out of a video, but doing that in the library grid would
- * pull a whole video binary per tile for a panel that is mostly scrolled past — see
- * `library-thumbnails-mocked.spec.ts`, which pins that a video fetches no binary.
+ * Video is not handled here any more: `AssetThumbnail` fetches a server-rendered poster frame for
+ * it from `/assets/:uuid/poster`. Returning the binary URL for a video was the thing this grid
+ * deliberately avoided — it would pull a whole video per tile for a panel that is mostly scrolled
+ * past — and the poster is a few KB, so the reason for the exclusion is gone while the reason for
+ * not using `assetBinaryUrl` stands.
  */
 function previewFor(type: AssetType, uuid: string): string {
   return type === "image" ? assetBinaryUrl(uuid) : "";
@@ -550,8 +552,10 @@ export default function LibraryView() {
                         <AssetThumbnail
                           type={a.type}
                           src={a.previewUrl}
+                          assetUuid={a.id}
                           iconSize={28}
                           alt={a.name}
+                          posterWidth={360}
                         />
                       </Box>
                       <Box sx={{ px: 1.25, py: 1 }}>

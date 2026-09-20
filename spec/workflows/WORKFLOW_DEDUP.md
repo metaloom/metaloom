@@ -36,6 +36,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | **Can a human make the decision?** | 🟢 **Yes.** `DeduplicationMode` loads `GET /dedup-groups?status=PENDING`, `Y`/`N` PATCH the group, and a failed PATCH reverts the chip and toasts. |
 | **Is the API missing anything?** | No. Six routes, keyset paged, in `openapi.json`, mirrored in both clients. |
 | **What stops a silent no-op?** | The decision is server state: the chip renders `group.status` from the response, never a local map. A write that fails visibly rolls back — `workflow-dedup-mocked.spec.ts` pins exactly that. |
+| **Did discovery ever reach the queue?** | 🔴 **Not before 2026-09-20.** `fingerprint-dedup` gated on a legacy asset field no writer populates, so it skipped every item and the queue was always empty however many near-duplicates the corpus held. It reads the `fingerprint` input port now — [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) §3. |
 | **Biggest remaining sharp edge** | ⚠️ `PATCH keepAssetUuid` does **not** rewrite `dedup_group_member.role`, so after a reassignment the pointer and the roles disagree. Readers must prefer `keepAssetUuid` (§10). |
 
 ---
@@ -65,6 +66,14 @@ sequenceDiagram
     A->>A: re-verify KEEP live, then move DUP into dupFolder
 ```
 
+**Keep and candidates share one grid.** They were two stacked full-width sections with uncapped
+16:9 previews — about 620px of picture per member — inside a second `overflow: auto` nested in the
+page scroller, so a keep plus two candidates ran past 2000px and the reviewer could never see a
+keep and a candidate at the same time. Comparing them is the decision. The grid is
+`repeat(auto-fit, minmax(260px, 1fr))` with each preview capped at `min(32vh, 320px)`, and
+`workflow-dedup-mocked.spec.ts` pins that both fit in a 1280×800 viewport with the group itself no
+longer scrolling.
+
 **The asymmetry that defines this workflow**: discovery is cheap, idempotent and reversible; apply
 moves bytes. The human sits exactly at that seam, and the `status` column is the only thing that
 crosses it.
@@ -83,7 +92,7 @@ designed around that:
 | **Completeness** | `dedup_group_member.zero_chunk_count` | 🟢 An "Incomplete" chip; an *absent* count counts as complete, not as truncated |
 | **Similarity score** | `dedup_group.score` = the **minimum** member score | 🟢 Group header + per-member score |
 | **Algorithm** | `dedup_group.algorithm` | 🟢 Group header |
-| **A visual** | `GET /assets/:uuid/binary/data` via `AssetThumbnail` | 🟡 **Images only** — there is no thumbnail service and no poster frames, so a video member shows `MediaPlaceholder`. Deliberate: a placeholder is honest, a broken `<img>` is not |
+| **A visual** | `GET /assets/:uuid/poster` via `AssetThumbnail`, and click-to-play via `GET /assets/:uuid/stream` | 🟢 **Both, since 2026-09-20.** Video members used to show `MediaPlaceholder` — honest, but a dedup decision is a judgement about pictures and there were none. Loom derives a poster frame and a playable MP4 on demand ([REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §7.3) |
 
 ⚠️ The snapshots are **hints for the reviewer, not authority**. `fingerprint-dedup-apply` re-verifies
 existence, completeness, size and folder against the live file before it moves anything.
@@ -293,7 +302,7 @@ nodes decide and emit ports, and a downstream `move` node acts — see
 | **Always pass `status`** | ⚠️ The unfiltered list is now one ordered, paged query — but the review queue is `PENDING`, and asking for everything wastes a page on decided history |
 | **PATCH needs a status** | ⚠️ There is no status-less "just move the keep". Reassigning repeats the current status or it decides the group by accident |
 | **Optimistic decisions must roll back** | 🔴 A confirmed-looking row that was never PATCHed is the failure mode this workflow used to have. `applyDedupDecision` is the only write path; keep it that way |
-| **Previews are images only** | ⚠️ There is no thumbnail service and no poster frames, so video members show `MediaPlaceholder`. Do not "fix" this with a bare `<img>` |
+| **Previews come from the poster route** | A video member renders `/assets/:uuid/poster` and plays `/assets/:uuid/stream` on click. Do not point either at `/binary/data`: that is the original, which for a 4.5 GB Matroska file is both a 4.5 GB fetch and undecodable |
 | **`sha512-dedup` has no descriptor** | ⚠️ Runnable but not placeable from the palette. `hash-dedup` is a deliberate alias onto the same class |
 | **Never `System.in.read()` in a node** | 🔴 It hung a headless worker forever. `HashDedupNodeTest`'s `@Timeout` exists to stop it coming back |
 

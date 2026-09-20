@@ -183,7 +183,7 @@ public class LoomOpenAPI {
 			HttpServer server = vertx.createHttpServer();
 			LoomOptions options = new LoomOptions();
 			ApiRouter router = ApiRouter.create(vertx);
-			EndpointDependencies deps = new EndpointDependencies(vertx, router, null, null);
+			EndpointDependencies deps = new EndpointDependencies(vertx, router, null, null, null);
 			Set<RESTEndpoint> endpoints = endpoints(deps);
 			endpoints.addAll(extraEndpoints.apply(deps));
 			ServerFailureHandler failureHandler = null;
@@ -245,8 +245,8 @@ public class LoomOpenAPI {
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(
-			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
-				examples));
+			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+				deps, examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));
 		endpoints.add(new BlacklistEndpoint(null, deps, examples));

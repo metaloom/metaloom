@@ -305,7 +305,16 @@ public class LoomControlChannel {
 		connectionError = null;
 	}
 
-	private static String resolveToken(LoomClientOptions loom) {
+	/**
+	 * Resolve the worker's Loom credential: the configured token, else {@code LOOM_TOKEN}.
+	 *
+	 * <p>
+	 * Public because the REST client needs the very same answer as this WebSocket channel. They used to disagree - the channel authenticated and the
+	 * REST client did not - which left a worker that registered and ran tasks but had every write to Loom rejected, silently, because a node treats a
+	 * failed asset lookup as "asset unknown" and no-ops. One definition, one behaviour.
+	 * </p>
+	 */
+	public static String resolveToken(LoomClientOptions loom) {
 		if (loom != null && loom.getToken() != null && !loom.getToken().isBlank()) {
 			return loom.getToken();
 		}

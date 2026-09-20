@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.options.AuthenticationOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.LoomAuthenticationHandler;
+import io.metaloom.loom.db.model.token.TokenDao;
 import io.vertx.core.Future;
 import io.vertx.core.http.Cookie;
 import io.vertx.core.http.CookieSameSite;
@@ -44,11 +45,13 @@ public class LoomJWTAuthHandlerImpl implements LoomAuthenticationHandler {
 	private static final Pattern BEARER = Pattern.compile("^Bearer$", Pattern.CASE_INSENSITIVE);
 
 	private final JWTAuth authProvider;
+	private final TokenDao tokenDao;
 	private final LoomOptions options;
 
 	@Inject
-	public LoomJWTAuthHandlerImpl(JWTAuth authProvider, LoomOptions options) {
+	public LoomJWTAuthHandlerImpl(JWTAuth authProvider, TokenDao tokenDao, LoomOptions options) {
 		this.authProvider = authProvider;
+		this.tokenDao = tokenDao;
 		this.options = options;
 	}
 
@@ -69,16 +72,61 @@ public class LoomJWTAuthHandlerImpl implements LoomAuthenticationHandler {
 		// Validate the JWT
 		authProvider.authenticate(new TokenCredentials(token))
 			.onSuccess(authenticatedUser -> {
+				// A media token is signed by the same key, so it would otherwise authenticate every
+				// route in the API. It must not: it travels in a query string, where a proxy log, a
+				// browser history or a pasted URL will carry it further than a session ever goes.
+				// MediaTokenAuthHandler is the only place it is accepted, and only for the asset it
+				// names.
+				if (MediaTokenAuthHandler.SCOPE_MEDIA.equals(authenticatedUser.principal().getString(MediaTokenAuthHandler.CLAIM_SCOPE))) {
+					log.warn("Rejected a media-scoped token presented as a session credential.");
+					handle401(context);
+					return;
+				}
 				((UserContextInternal) context.userContext()).setUser(authenticatedUser);
 				refreshTokenCookie(context, authenticatedUser.principal());
 				context.next();
 			})
-			.onFailure(err -> {
-				if (log.isDebugEnabled()) {
-					log.debug("JWT authentication failed", err);
-				}
-				handle401(context);
+			.onFailure(jwtErr -> {
+				// Not a valid JWT - fall back to a long-lived API key (POST /api/v1/tokens). No
+				// cookie is issued for an API key: it is a bearer credential for non-browser
+				// clients (e.g. a Cortex worker), not a browser session.
+				validateApiKey(token)
+					.onSuccess(apiKeyUser -> {
+						if (apiKeyUser == null) {
+							if (log.isDebugEnabled()) {
+								log.debug("JWT authentication failed", jwtErr);
+							}
+							handle401(context);
+							return;
+						}
+						((UserContextInternal) context.userContext()).setUser(apiKeyUser);
+						context.next();
+					})
+					.onFailure(apiKeyErr -> {
+						if (log.isDebugEnabled()) {
+							log.debug("JWT authentication failed", jwtErr);
+						}
+						handle401(context);
+					});
 			});
+	}
+
+	/**
+	 * Validate an API key against the TokenDao. Resolves to the owning user (the token's
+	 * {@code creator_uuid}); the token record has no separate user column, so the creator is
+	 * authoritative for permission resolution - mirrors {@code MCPAuthenticationHandler#validateApiKey}.
+	 */
+	private Future<User> validateApiKey(String apiKey) {
+		return tokenDao.findByToken(apiKey)
+			.map(optionalToken -> optionalToken
+				.map(t -> {
+					var userUuid = t.getCreatorUuid();
+					if (userUuid == null) {
+						return (User) null;
+					}
+					return User.create(new JsonObject().put("uuid", userUuid.toString()));
+				})
+				.orElse(null));
 	}
 
 	/**

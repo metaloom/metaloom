@@ -269,6 +269,26 @@ async function connectPorts(page: Page, from: string, to: string) {
   await page.mouse.up();
 }
 
+/**
+ * Make an unrelated edit so the Save affordance appears.
+ *
+ * The Save chip reads "Saved" and is inert until the editor is dirty. These specs used to click
+ * it straight after load, which only worked because the editor marked itself dirty on every load -
+ * `handleGraphChange` called `setDirty(true)` with no comparison. Now that a load is correctly
+ * clean, a save has to follow an actual change; nudging a node is the smallest one that touches
+ * neither options nor ports, which is what these specs assert on.
+ */
+async function nudgeANode(page: Page) {
+  const node = page.getByTestId("pipeline-canvas").locator(".react-flow__node").first();
+  const box = await node.boundingBox();
+  expect(box, "a node must be on the canvas to drag").toBeTruthy();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2 + 30, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByText("Save", { exact: true })).toBeVisible({ timeout: 5_000 });
+}
+
 test.describe("Pipeline typed ports – mocked", () => {
 
   test("a node renders one handle per declared port, named and typed", async ({ page }) => {
@@ -356,6 +376,7 @@ test.describe("Pipeline typed ports – mocked", () => {
 
     // The `outputs` option and the port list are different things living in the same node data —
     // saving must round-trip the option rather than mistake it for editor state.
+    await nudgeANode(page);
     await page.getByText("Save", { exact: true }).click();
     await expect.poll(() => state.saved.length, { timeout: 10_000 }).toBe(1);
     const saved = state.saved[0].definition.nodes.find((n: any) => n.id === "script");
@@ -422,6 +443,7 @@ test.describe("Pipeline typed ports – mocked", () => {
     await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
     await expect(canvas.locator(".react-flow__edge")).toHaveCount(2, { timeout: 10_000 });
 
+    await nudgeANode(page);
     await page.getByText("Save", { exact: true }).click();
     await expect.poll(() => state.saved.length, { timeout: 10_000 }).toBe(1);
 
@@ -440,6 +462,7 @@ test.describe("Pipeline typed ports – mocked", () => {
 
     // Saving again must reproduce byte-identical edges. Before the handles round-tripped, this
     // second save came back with the ports gone and every branch reset to ANY.
+    await nudgeANode(page);
     await page.getByText("Save", { exact: true }).click();
     await expect.poll(() => state.saved.length, { timeout: 10_000 }).toBe(2);
     expect(state.saved[1].definition.edges).toEqual(first);

@@ -19,7 +19,11 @@ export function notificationLink(notification: NotificationResponse): string | n
     return `/tasks?task=${encodeURIComponent(notification.taskUuid)}`;
   }
   if (notification.pipelineRunUuid) {
-    return `/monitoring?run=${encodeURIComponent(notification.pipelineRunUuid)}`;
+    // The editor, not monitoring. This used to point at `/monitoring?run=...`, and MonitoringArea
+    // reads no query parameter at all - so clicking "pipeline run failed" discarded the run uuid
+    // and showed fleet-wide statistics. The editor resolves the run, selects its pipeline and
+    // opens the run detail drawer, which is where the failing node and its error actually live.
+    return `/pipelines?run=${encodeURIComponent(notification.pipelineRunUuid)}`;
   }
   return null;
 }

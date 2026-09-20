@@ -120,5 +120,16 @@ public class ClusterEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.reject(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Detach the person - the inverse of confirm.
+		addRoute(basePath() + "/:uuid/person", DELETE,
+			"Remove the person from a cluster and return it to the review queue. The inverse of confirm: `update` writes only "
+				+ "name/type/meta, and `reject` says the cluster is not a real subject, which is a different claim from 'that is "
+				+ "somebody else'. The person row is left alone - it may hold other clusters.",
+			null,
+			examples.clusterReviewedResponseExample(),
+			lrc -> {
+				service.detachPerson(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

@@ -367,15 +367,17 @@ LoginPage → AuthProvider.login() → POST /login
 `components/AssetThumbnail.tsx` + `components/MediaPlaceholder.tsx`, URL from
 `api/assets.ts → assetBinaryUrl(uuid)`.
 
-There is still no thumbnail service and no derived-image endpoint. A preview *is* the stored binary
-(`GET /assets/:uuid/binary/data`), which only resolves for assets with an `asset_location` row.
+**Since 2026-09-20 there is a derived-media endpoint** (`GET /assets/:uuid/poster`), so a video
+preview is a server-rendered JPEG rather than the stored binary. An image preview is still the
+binary itself (`GET /assets/:uuid/binary/data`), which only resolves for assets with an
+`asset_location` row.
 
 | Concern | Rule |
 |---------|------|
 | Images | An `<img>` at the binary URL. |
-| Video | A **muted `<video preload="metadata" src="…#t=1">`** at the same URL, non-interactive and `pointerEvents: none` — it is a tile, not a player. The browser decodes one frame a second in; the range support on the binary route serves it without shipping the file, and the `#t=` offset avoids the black leader frame that is often frame 0. This is the poster mechanism, and it is entirely client-side: the server still generates nothing. |
+| Video | An `<img>` at **`/assets/:uuid/poster?t=&w=&mt=`** — a frame ffmpeg extracts on demand and caches, a few KB. It was a muted `<video preload="metadata" src="…#t=1">` at the binary URL, which asked the browser to decode a frame out of the original: it opened a connection to a multi-gigabyte asset to draw a 180px tile, and for a Matroska container it could not decode at all, so the tile did the download *and* fell back to the placeholder. |
 | Audio, PDF, unknown | `MediaPlaceholder`. Nothing in a browser renders them. |
-| Auth | `<img>`/`<video>` cannot carry `Authorization`, so both rely on the HttpOnly cookie. This requires same-origin — a cross-origin `VITE_API_BASE_URL` silently yields 401s and placeholder icons everywhere. |
+| Auth | `<img>`/`<video>` cannot carry `Authorization`. The cookie is the fallback and is **not** enough: it is `Secure`/`__Host-` prefixed, so a browser drops it on any plain-HTTP deployment and every preview 401s into a placeholder. The poster and stream routes therefore also accept a short-lived asset-scoped token as `?mt=` (`POST /assets/:uuid/media-token`, `useMediaToken`). It is refused everywhere else — see [REST_BINARY_HANDLING.md](../../features/rest/REST_BINARY_HANDLING.md). |
 | Failure | `onError` swaps in `MediaPlaceholder`. A missing preview is the normal case, not an error to surface. |
 
 The share viewer's grid follows the same rule against `sharedBinaryUrl` (`ShareTile`), so the
@@ -383,12 +385,25 @@ customer-facing tiles and the internal ones agree.
 
 ### 7.2.1 The asset detail player
 
-`features/assetDetail/AssetDetail.tsx` renders a real `<video controls preload="metadata">` at
-`assetBinaryUrl(asset.id)` for a video asset, and `VideoTimeline` is driven off it: `onTimeUpdate`
-feeds `currentTime`, `onLoadedMetadata` supplies the duration, and every seek in the screen — the
-timeline bar, a marker, a transcript line, a detection — goes through one `seekTo` that sets
-`video.currentTime`. The element's own duration wins over the component's, so the bar cannot end
-before the last frame.
+`features/assetDetail/AssetDetail.tsx` renders a real `<video controls preload="metadata">` for a
+video asset, and `VideoTimeline` is driven off it: `onTimeUpdate` feeds `currentTime`, and every
+seek in the screen — the timeline bar, a marker, a transcript line, a detection — goes through one
+`seekTo`.
+
+**The source is `/assets/:uuid/stream`, not the binary.** It used to be `assetBinaryUrl(asset.id)`,
+which is a black box for any container a browser cannot decode — exactly the Matroska files this
+was meant to play. The stream route remuxes on demand: the H.264 video is stream-copied and only
+the audio is re-encoded to AAC.
+
+Two consequences the player has to carry:
+
+* **Seeking is a re-request.** A fragmented MP4 over a pipe has no index, so `video.currentTime`
+  cannot leave what is buffered. `seekTo` uses `video.seekable` when the target is inside it and
+  otherwise sets `streamOffset`, which re-requests with `?t=`; `key={streamUrl}` forces a fresh
+  element, and `onTimeUpdate` adds the offset back so the timeline reads absolute time.
+* **The element's duration is not the clip's.** A pipe reports whatever has arrived, which made a
+  43-minute episode's timeline read `0:05`. `asset.duration` (from `asset_video_comp`) wins, and
+  the element is the fallback only for an asset the metadata node has never seen.
 
 It replaced a `MediaPlaceholder` with a fake play button over a `setInterval` that advanced a
 counter by 0.25 s. That is worth recording because it looked like a player in every screenshot: the

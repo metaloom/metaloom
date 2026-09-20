@@ -415,6 +415,22 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 			}
 		}
 
+		// Run the node's one-time startup hook. Nothing else in the engine calls it, so without
+		// this every node that loads a native library in initialize() - thumbnail, facedetect,
+		// sam2, captioning, objectdetect, quality, all of which call Video4j.init() - reaches
+		// process() with OpenCV unloaded and dies on
+		// "NoClassDefFoundError: Could not initialize class io.metaloom.opencv.NativeBindings".
+		// Their unit tests call Video4j.init() themselves, which is why this never showed there.
+		//
+		// Failing the pipeline build is deliberate and matches the checks above: a graph whose
+		// nodes cannot load their natives should be refused here, not dispatched and then die
+		// per-item at process() time.
+		try {
+			adapter.initialize();
+		} catch (Throwable e) {
+			throw new IllegalStateException("Node '" + id + "' failed to initialize: " + e.getMessage(), e);
+		}
+
 		return adapter;
 	}
 }

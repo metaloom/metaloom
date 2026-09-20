@@ -114,7 +114,16 @@ two such kinds. **Do not "fix" this by renaming.**
 Never reads, moves or alters a file. Its whole output is a `PENDING` row in Loom.
 
 1. **Gate.** Skip when offline, when `client() == null`, when the asset is unknown to Loom, or when
-   `asset.getFingerprint().getFingerprintV1()` is null.
+   no fingerprint reached the node — read from the `fingerprint` **input port**, falling back to the
+   legacy `asset.getFingerprint().getFingerprintV1()`. The literal `"NULL"` counts as absent:
+   that is the sentinel `FingerprintNode` emits for a file it could not fingerprint.
+
+   > 🔴 **Fixed 2026-09-20.** The gate read the legacy asset field *and nothing else*, and no writer
+   > has ever populated it — `FingerprintNode` persists to `asset_fingerprint_comp`, the `asset`
+   > table has no fingerprint column, and Loom's asset assembler never sets `AssetResponse.fingerprint`.
+   > Only `FingerprintDedupNodeTest` set it, by construction, so a node that skipped **every item in
+   > every real deployment** with `"no fingerprint"` had a fully green suite and a SUCCESS run. The
+   > declared `IN_FINGERPRINT` port existed the whole time and was never read.
 2. **Query.** `listSimilarAssets(uuid, algorithm, topK, scoreThreshold)` — the Lucene HNSW k-NN over
    256-dim fingerprints ([SEARCH_LUCENE.md](../../../loom/SEARCH_LUCENE.md)). A thrown
    query is a `failure`; an empty result is a `skip`.

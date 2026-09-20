@@ -13,7 +13,7 @@ import {
   FaceOutlined, CenterFocusStrongOutlined, FullscreenOutlined,
   FullscreenExitOutlined, PersonOutlined,
   HelpOutlineOutlined, CheckCircleOutlineOutlined,
-  AutoAwesomeOutlined,
+  AutoAwesomeOutlined, PlayArrowOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import HelpHint from "../../components/HelpHint";
@@ -23,12 +23,14 @@ import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { listAssets, loadAsset, assetBinaryUrl, AssetResponse } from "../../api/assets";
+import { listAssets, loadAsset, assetBinaryUrl, assetStreamUrl, AssetResponse } from "../../api/assets";
+import { useMediaToken } from "../../hooks/useMediaToken";
 import {
   bulkReviewDetections, listAssetDetections, confirmDetection, rejectDetection,
   type DetectionResponse,
 } from "../../api/detections";
-import { confirmCluster, listAssetClusters, listClusterMembers, rejectCluster } from "../../api/clusters";
+import { CLUSTER_TYPE_FACE, confirmCluster, listAssetClusters, listClusterMembers, listClusters, rejectCluster } from "../../api/clusters";
+import { FaceCrop } from "../faceDetection/FaceCrop";
 import { listPersons, type PersonResponse } from "../../api/persons";
 import { compText, listAssetJsonComps, type JsonCompResponse } from "../../api/jsonComps";
 import {
@@ -132,7 +134,7 @@ function previewUrlOf(asset?: AssetResponse): string {
 function WorkflowPreview({ asset, block = false }: { asset: Asset; block?: boolean }) {
   return (
     <Box sx={{ position: "relative", width: "100%", height: block ? "auto" : "100%", aspectRatio: block ? "16 / 9" : undefined }}>
-      <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={48} alt={asset.name} fit="contain" />
+      <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} assetUuid={asset.id} iconSize={48} alt={asset.name} fit="contain" posterWidth={960} />
     </Box>
   );
 }
@@ -446,11 +448,47 @@ function DedupMemberFacts({ member, asset }: { member: DedupGroupMemberModel; as
   );
 }
 
+/**
+ * One member of a dedup group: a poster frame, click to play.
+ *
+ * Two things a reviewer could not do before. The tile showed nothing for a video - the spec called
+ * the placeholder "honest", which it was, but a dedup decision is a judgement about *pictures* and
+ * there were none. And there was no way to play either member, so "are these the same footage?"
+ * had to be answered from a filename and a byte count.
+ */
 function DedupPreview({ asset, alt }: { asset?: AssetResponse; alt: string }) {
-  // AssetThumbnail is absolutely positioned, so the aspect-ratio wrapper is load-bearing.
+  const [playing, setPlaying] = useState(false);
+  const isVideo = assetTypeOf(asset) === "video";
+  const mediaToken = useMediaToken(isVideo && playing ? asset?.uuid : null);
+  const streamUrl = isVideo && playing && asset?.uuid && mediaToken ? assetStreamUrl(asset.uuid, mediaToken) : null;
+
+  // The height is capped. This used to be `paddingTop: "56.25%"` alone, i.e. 16:9 of whatever the
+  // content column happened to be - about 620px of picture per member on a desktop panel - so a
+  // group of a keep plus two candidates was over 2000px tall and the reviewer could never see the
+  // keep and a candidate at the same time. Comparing them is the entire job of this screen.
   return (
-    <Box sx={{ position: "relative", width: "100%", paddingTop: "56.25%", bgcolor: tokens.bg.overlay, overflow: "hidden" }}>
-      <AssetThumbnail type={assetTypeOf(asset)} src={previewUrlOf(asset)} iconSize={32} alt={alt} fit="contain" />
+    <Box sx={{
+      position: "relative", width: "100%", aspectRatio: "16 / 9", maxHeight: "min(32vh, 320px)",
+      bgcolor: tokens.bg.overlay, overflow: "hidden",
+    }}>
+      {streamUrl ? (
+        <Box component="video" data-testid="dedup-player" src={streamUrl} controls autoPlay playsInline
+          sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", bgcolor: "#000" }} />
+      ) : (
+        <>
+          {/* AssetThumbnail is absolutely positioned, so the aspect-ratio wrapper above is load-bearing. */}
+          <AssetThumbnail type={assetTypeOf(asset)} src={previewUrlOf(asset)} assetUuid={asset?.uuid} iconSize={32} alt={alt} fit="contain" posterWidth={640} />
+          {isVideo && asset?.uuid && (
+            <IconButton data-testid="dedup-play" aria-label={alt} onClick={() => setPlaying(true)}
+              sx={{
+                position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                bgcolor: "rgba(0,0,0,0.55)", color: "#fff", "&:hover": { bgcolor: "rgba(0,0,0,0.75)" },
+              }}>
+              <PlayArrowOutlined />
+            </IconButton>
+          )}
+        </>
+      )}
     </Box>
   );
 }
@@ -472,8 +510,10 @@ function DeduplicationMode({
   const keepAsset = keep ? assets[keep.assetUuid] : undefined;
 
   return (
+    // No `overflow: auto` here: the page content area is already a scroller, and nesting a second
+    // one gave the dedup group its own scrollbar inside the pane.
     <Box data-testid="dedup-group" data-group-uuid={group.uuid}
-      sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
+      sx={{ display: "flex", flexDirection: "column", gap: 1.5, flex: 1, minHeight: 0 }}>
       <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
           {t("workflow.dedup.algorithm")}: {group.algorithm}
@@ -485,35 +525,37 @@ function DeduplicationMode({
         )}
       </Box>
 
-      {/* Keep asset */}
-      {keep && (
-        <Box>
-          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>{t("workflow.dedup.keep")}</Typography>
+      {/* Keep and candidates side by side.
+          They used to be two stacked full-width sections, which put the keep and the first
+          candidate over a screen apart - and comparing them is the whole decision this pane
+          exists to support. One grid, so a wide window shows the set at a glance and a narrow one
+          falls back to a column. */}
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 1.5, alignItems: "start" }}>
+        {keep && (
           <Paper data-testid="dedup-keep" elevation={0} sx={{ border: `2px solid ${tokens.accent.green}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated }}>
             <DedupPreview asset={keepAsset} alt={keepAsset?.file?.filename ?? ""} />
             <Box sx={{ p: 1.5 }}>
+              <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.65rem", letterSpacing: "0.06em", display: "block", mb: 0.25 }}>
+                {t("workflow.dedup.keep")}
+              </Typography>
               <DedupMemberFacts member={keep} asset={keepAsset} />
             </Box>
           </Paper>
-        </Box>
-      )}
-
-      {/* Duplicate candidates */}
-      <Box>
-        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.text.tertiary, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>
-          {t("workflow.dedup.duplicateCandidates")}
-        </Typography>
+        )}
         {dups.map(c => {
           const asset = assets[c.assetUuid];
           return (
             <Paper key={c.assetUuid} data-testid={`dedup-member-${c.assetUuid}`} elevation={0} sx={{
               border: `2px dashed ${decision === "confirmed" ? tokens.accent.red : decision === "rejected" ? tokens.text.tertiary : tokens.border.strong}`,
               borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated,
-              opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease", mb: 1,
+              opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease",
             }}>
               <DedupPreview asset={asset} alt={asset?.file?.filename ?? ""} />
-              <Box sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                <Box sx={{ flex: 1 }}>
+              <Box sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase", color: tokens.text.tertiary, fontSize: "0.65rem", letterSpacing: "0.06em", display: "block", mb: 0.25 }}>
+                    {t("workflow.dedup.duplicateCandidates")}
+                  </Typography>
                   <DedupMemberFacts member={c} asset={asset} />
                 </Box>
                 {/* The decision a reviewer could not express at all before: keep this one instead. */}
@@ -648,10 +690,15 @@ function FaceDetectionMode({
                     </Typography>
                   </Tooltip>
                 )}
+                {/* The faces themselves. This used to be <Avatar src={f.thumbnailUrl}/>, and
+                    DetectedFace.thumbnailUrl is hardcoded to "" where the detections are mapped -
+                    so every card was a row of blank grey silhouettes and there was nothing on this
+                    screen to judge a cluster's coherence by. A crop needs an Authorization header,
+                    so it cannot be a plain src at all; FaceCrop is the component that fetches it
+                    and revokes the object URL, and it is what ClustersPanel already uses. */}
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                   {c.faces.map(f => (
-                    <Avatar key={f.id} src={f.thumbnailUrl} variant="rounded"
-                      sx={{ width: 36, height: 36, border: `1px solid ${tokens.border.subtle}` }} />
+                    <FaceCrop key={f.id} assetUuid={f.assetId} detectionUuid={f.id} size={36} rounded={false} />
                   ))}
                 </Box>
                 {isSelected && !decision && (
@@ -972,6 +1019,19 @@ export default function WorkflowView() {
   const { token, userUuid } = useAuth();
   const { showToast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
+  /**
+   * The face-review queue: only assets that actually carry a face cluster.
+   *
+   * All five modes used to walk one queue - the first 20 assets in creation order - and
+   * `currentIdx` resets to 0 on every mode switch. In a seeded deployment asset 0 is
+   * `street-crossing.jpg`, which has object detections and no faces, so face mode always opened on
+   * an empty pane while the person autocomplete showed the seeded demo names. The pane looked like
+   * it was rendering dummy data when in fact it was rendering an asset with nothing on it.
+   *
+   * `null` means "not loaded yet"; an empty array means the library genuinely has no face clusters,
+   * and the generic queue is used so the pane can say so against a real asset.
+   */
+  const [faceAssets, setFaceAssets] = useState<Asset[] | null>(null);
   const [mode, setMode] = useState<WorkflowMode>("rating");
   const [currentIdx, setCurrentIdx] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -1041,6 +1101,29 @@ export default function WorkflowView() {
     });
   }, [token, userUuid, showToast, t]);
 
+  // Load the face queue: every asset with at least one face cluster, in the order the cluster list
+  // returns them. Only fetched while face mode is on screen - the other four modes never read it.
+  useEffect(() => {
+    if (!token || mode !== "facedetection") return;
+    let cancelled = false;
+    listClusters(token, { limit: PAGE_SIZE }, { type: CLUSTER_TYPE_FACE })
+      .then(async resp => {
+        const uuids: string[] = [];
+        for (const c of resp.data ?? []) {
+          if (c.assetUuid && !uuids.includes(c.assetUuid)) {
+            uuids.push(c.assetUuid);
+          }
+        }
+        const loaded = await Promise.all(uuids.map(u => loadAsset(token, u).catch(() => null)));
+        if (cancelled) return;
+        setFaceAssets(loaded.filter((a): a is AssetResponse => a !== null).map(apiToWorkflowAsset));
+      })
+      .catch(() => {
+        if (!cancelled) setFaceAssets([]);
+      });
+    return () => { cancelled = true; };
+  }, [token, mode]);
+
   // The tag vocabulary a reviewer picks from. Unscoped on purpose - see loadTagVocabulary. A
   // failure is not fatal: the input is freeSolo, so a reviewer can still type a tag.
   useEffect(() => {
@@ -1082,7 +1165,13 @@ export default function WorkflowView() {
     return () => { cancelled = true; };
   }, [token, showToast, t]);
 
-  const currentAsset = assets[currentIdx] ?? assets[0];
+  /**
+   * The queue the arrow keys walk. Face mode gets its own; every other mode shares the generic one.
+   * Falls back to the generic queue when there are no face clusters at all, so the pane shows a
+   * real asset with an honest "no clusters" message rather than nothing.
+   */
+  const queue = mode === "facedetection" && faceAssets && faceAssets.length > 0 ? faceAssets : assets;
+  const currentAsset = queue[currentIdx] ?? queue[0];
   const currentGroup = dedupGroups[currentIdx] ?? dedupGroups[0];
 
   // A group carries only asset uuids; the filename, mime type and preview come from the asset itself.
@@ -1183,7 +1272,10 @@ export default function WorkflowView() {
         const members = await listClusterMembers(token, c.uuid).catch(() => null);
         loaded.push({
           id: c.uuid,
-          label: c.name ?? "",
+          // A machine proposal has no name until a reviewer supplies one (V2.79 made cluster.name
+          // nullable for exactly that). Falling back to "" rendered an unnamed card with no title
+          // at all; the review panels call the same thing "Unnamed cluster".
+          label: c.name || t("faceDetection.label.unnamedCluster"),
           representativeThumbnailUrl: "",
           faceIds: (members?.members ?? []).map(m => m.detectionUuid).filter((id): id is string => Boolean(id)),
           faceCount: members?.members?.length ?? 0,
@@ -1244,7 +1336,7 @@ export default function WorkflowView() {
     }));
   }, [assetClusters, currentFaces]);
   // The dedup queue counts groups, not assets.
-  const maxIdx = mode === "deduplication" ? dedupGroups.length - 1 : assets.length - 1;
+  const maxIdx = mode === "deduplication" ? dedupGroups.length - 1 : queue.length - 1;
 
   useEffect(() => {
     const profile = profiles.find(p => p.mode === mode);

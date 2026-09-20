@@ -559,6 +559,21 @@ export async function loadPipelineRun(token: string, pipelineUuid: string, runUu
 }
 
 /**
+ * Resolve a run by its own uuid, without knowing which pipeline owns it.
+ * Endpoint: `GET /api/v1/pipeline-runs/:runUuid`.
+ *
+ * The response carries `pipelineUuid`, which is what turns a bare run uuid - all a
+ * PIPELINE_RUN_FAILED notification carries - into something the pipeline-scoped routes can use.
+ */
+export async function resolvePipelineRun(token: string, runUuid: string): Promise<PipelineRunRecord> {
+  const res = await fetch(`${API_BASE_URL}/pipeline-runs/${encodeURIComponent(runUuid)}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<PipelineRunRecord>(res);
+}
+
+/**
  * Fetch the items discovered/processed by a single pipeline run (paged).
  * Endpoint: `GET /api/v1/pipelines/:uuid/runs/:runUuid/items`.
  * Degrades gracefully to an empty array when the endpoint is not deployed

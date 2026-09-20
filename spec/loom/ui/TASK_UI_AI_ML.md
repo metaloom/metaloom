@@ -192,8 +192,15 @@ plus a mocked list spec asserting the raw vector is never rendered.
 * **`person_image`** — table exists, `PersonEndpoint` is CRUD-only; only the scalar
   `primaryImageUuid` is reachable (Task 3).
 * **`embedding_cluster`, `tag_cluster`, `collection_cluster`** — association tables in
-  [../DOMAIN.md](../DOMAIN.md) group 4 with no routes: cluster membership, cluster tagging,
-  cluster→collection assignment and cluster merge are all unbuildable in the UI today.
+  [../DOMAIN.md](../DOMAIN.md) group 4 with no routes: cluster membership, cluster tagging and
+  cluster→collection assignment are unbuildable in the UI today.
+  **"Cluster merge" is no longer on this list**, but not because a merge route was added: it turned
+  out not to need one. Dragging one cluster card onto another attributes both to the same person
+  via the existing `POST /clusters/:uuid/confirm`, which is what "same subject" already means in
+  this schema (`cluster.person_uuid` is many-to-one). A *structural* merge — moving
+  `embedding_cluster` rows between clusters — remains unbuildable, and
+  [../../workflows/WORKFLOW_FACE.md](../../workflows/WORKFLOW_FACE.md) §2.3 records why it would be
+  actively wrong to ship one first.
 * **No top-level `/api/v1/detections`** — detections exist only as an asset sub-resource, so a
   global detection browser is not possible via REST.
 * ~~**`POST /api/v1/similarity-index/rebuild`** has no UI consumer.~~ **Closed** — it landed on

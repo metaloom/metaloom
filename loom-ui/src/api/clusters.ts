@@ -162,6 +162,20 @@ export async function rejectCluster(token: string, uuid: string): Promise<Cluste
   return handleResponse<ClusterResponse>(res);
 }
 
+/**
+ * Remove the person from a cluster, returning it to the review queue.
+ *
+ * The inverse of {@link confirmCluster}. Not {@link rejectCluster}: that records the cluster is
+ * not a real subject, which is a heavier and different claim from "that is somebody else".
+ */
+export async function detachClusterPerson(token: string, uuid: string): Promise<ClusterResponse> {
+  const res = await fetch(`${API_BASE_URL}/clusters/${encodeURIComponent(uuid)}/person`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse<ClusterResponse>(res);
+}
+
 /** The clusters computed within one asset. */
 export async function listAssetClusters(token: string, assetUuid: string): Promise<ClusterListResponse> {
   const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/clusters`, {

@@ -100,6 +100,8 @@
     "name" : "pipeline",
     "description" : "Pipeline node descriptors and content types"
   }, {
+    "name" : "pipeline-runs"
+  }, {
     "name" : "pipelines",
     "description" : "Pipeline definitions, versions, runs and the event stream"
   }, {
@@ -7113,6 +7115,88 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/media-token" : {
+      "description" : "Mint a short-lived, asset-scoped token for the poster and stream routes. An <img> or <video> element cannot send an Authorization header, so the client appends the token as the 'mt' query parameter instead. Requires READ_ASSET_BINARY.",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Mint a short-lived, asset-scoped token for the poster and stream routes. An <img> or <video> element cannot send an Authorization header, so the client appends the token as the 'mt' query parameter instead. Requires READ_ASSET_BINARY.",
+        "description" : "Mint a short-lived, asset-scoped token for the poster and stream routes. An <img> or <video> element cannot send an Authorization header, so the client appends the token as the 'mt' query parameter instead. Requires READ_ASSET_BINARY.",
+        "operationId" : "postAssetsByUuidMediatoken",
+        "responses" : {
+          "200" : {
+            "description" : "The media token response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "token" : "<signed media token>",
+                  "expiresIn" : 600
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/node-results" : {
       "description" : "Record (upsert) a node processing result for an asset",
       "get" : {
@@ -7472,6 +7556,77 @@
         "name" : "nodeResultUuid",
         "in" : "path",
         "description" : "UUID of the referenced nodeResult",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/poster" : {
+      "description" : "A single frame of a video as a JPEG, extracted on demand and cached. 't' selects the offset in seconds and 'w' the width. Answers 503 when no ffmpeg is configured - deliberately, rather than a placeholder that hides the missing capability.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "A single frame of a video as a JPEG, extracted on demand and cached. 't' selects the offset in seconds and 'w' the width. Answers 503 when no ffmpeg is configured - deliberately, rather than a placeholder that hides the missing capability.",
+        "description" : "A single frame of a video as a JPEG, extracted on demand and cached. 't' selects the offset in seconds and 'w' the width. Answers 503 when no ffmpeg is configured - deliberately, rather than a placeholder that hides the missing capability.",
+        "operationId" : "getAssetsByUuidPoster",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
         "required" : true,
         "schema" : {
           "type" : "string",
@@ -8539,6 +8694,77 @@
         "summary" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
         "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
         "operationId" : "getAssetsByUuidSimilarassets",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/stream" : {
+      "description" : "The video remuxed into a fragmented MP4 a browser can play, with the video stream-copied and the audio re-encoded to AAC. A pipe has no index, so the response is not seekable: a player seeks by re-requesting with a different 't'. Answers 415 for a codec that cannot be remuxed and 503 when too many streams are already in flight.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "The video remuxed into a fragmented MP4 a browser can play, with the video stream-copied and the audio re-encoded to AAC. A pipe has no index, so the response is not seekable: a player seeks by re-requesting with a different 't'. Answers 415 for a codec that cannot be remuxed and 503 when too many streams are already in flight.",
+        "description" : "The video remuxed into a fragmented MP4 a browser can play, with the video stream-copied and the audio re-encoded to AAC. A pipe has no index, so the response is not seekable: a player seeks by re-requesting with a different 't'. Answers 415 for a codec that cannot be remuxed and 503 when too many streams are already in flight.",
+        "operationId" : "getAssetsByUuidStream",
         "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
@@ -14949,6 +15175,112 @@
                     "origin" : "AUTO"
                   } ],
                   "total" : 2
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/clusters/{uuid}/person" : {
+      "description" : "Remove the person from a cluster and return it to the review queue. The inverse of confirm: `update` writes only name/type/meta, and `reject` says the cluster is not a real subject, which is a different claim from 'that is somebody else'. The person row is left alone - it may hold other clusters.",
+      "delete" : {
+        "tags" : [ "clusters" ],
+        "summary" : "Remove the person from a cluster and return it to the review queue. The inverse of confirm: `update` writes only name/type/meta, and `reject` says the cluster is not a real subject, which is a different claim from 'that is somebody else'. The person row is left alone - it may hold other clusters.",
+        "description" : "Remove the person from a cluster and return it to the review queue. The inverse of confirm: `update` writes only name/type/meta, and `reject` says the cluster is not a real subject, which is a different claim from 'that is somebody else'. The person row is left alone - it may hold other clusters.",
+        "operationId" : "deleteClustersByUuidPerson",
+        "responses" : {
+          "200" : {
+            "description" : "The reviewed cluster response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Anna Meyer",
+                  "type" : "face",
+                  "reviewStatus" : "CONFIRMED",
+                  "personUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewedAt" : "2026-08-09T10:15:30Z",
+                  "reviewerUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
                 }
               }
             }
@@ -24155,6 +24487,98 @@
         }
       } ]
     },
+    "/api/v1/pipeline-runs/{runUuid}" : {
+      "description" : "Load a single pipeline run by its uuid, without knowing its pipeline",
+      "get" : {
+        "tags" : [ "pipeline-runs" ],
+        "summary" : "Load a single pipeline run by its uuid, without knowing its pipeline",
+        "description" : "Load a single pipeline run by its uuid, without knowing its pipeline",
+        "operationId" : "getPipelinerunsByRunUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline run detail response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "17665c51-96b1-4460-bd13-dcda47927c46",
+                  "pipelineUuid" : "96da593a-8349-43f3-bd96-4b997cf38464",
+                  "pipelineVersion" : 1,
+                  "started" : "2026-09-20T13:53:54.577197966Z",
+                  "finished" : "2026-09-20T13:53:54.577203886Z",
+                  "status" : "SUCCESS",
+                  "mediaCount" : 100,
+                  "successCount" : 95,
+                  "failureCount" : 3,
+                  "skippedCount" : 2,
+                  "dryRun" : false,
+                  "durationMs" : 45000
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/pipeline/content-types" : {
       "description" : "Load all pipeline content types",
       "get" : {
@@ -24449,7 +24873,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "577b10c5-6ebd-43aa-861b-db5c07d0e71e",
+                    "versionUuid" : "9dc96b2d-c538-48bc-9b4f-31b5d47ee66f",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24476,7 +24900,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "d05b57d5-20d7-4869-976a-cc6a95ece52a",
+                    "versionUuid" : "eeab1d56-471d-404c-9181-1758ac1c3621",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24583,7 +25007,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "2c1d5872-5058-409e-a3f4-7d759c87b573",
+                  "versionUuid" : "7415bc4b-0d65-4feb-a3c4-6a4131062ad1",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24669,7 +25093,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "2dabd628-70ae-48b5-a1de-5f0df25f2f3c",
+                  "versionUuid" : "af1b2a5c-faa8-4fc0-80f3-63086be5d5c2",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24776,7 +25200,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "8c366e16-b298-4a4e-93bd-99256300bf13",
+                  "versionUuid" : "57296253-179f-43b8-8862-84e0896985e4",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24938,7 +25362,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "9b66dcb3-3e41-47fe-b4a7-c772c1e8cb70",
+                  "runUuid" : "88c00ea1-0160-4775-9e3b-1f7511ebaf33",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -25064,11 +25488,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "9e710a4d-72f9-4643-ba39-5283bd066ad2",
-                    "pipelineUuid" : "faa7676d-5f99-447b-b28b-9f7eeab834d2",
+                    "uuid" : "4aba12c3-ec89-437f-823e-7fb6d9fd8b81",
+                    "pipelineUuid" : "e3df49cc-d637-42b8-a9a4-8fc3e59fcc84",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-20T12:47:09.987238822Z",
-                    "finished" : "2026-08-20T12:47:09.987346132Z",
+                    "started" : "2026-09-20T13:53:54.575800523Z",
+                    "finished" : "2026-09-20T13:53:54.575904583Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -25077,11 +25501,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "fcd48f4d-5f16-4fa2-bb57-a670788a7785",
-                    "pipelineUuid" : "40762a5d-0d3e-42b1-af93-97ef652df714",
+                    "uuid" : "ba75f5c9-f4cf-41b9-af0c-54cf63055750",
+                    "pipelineUuid" : "0b236e40-f987-4157-b32b-11c2f85411d8",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-20T12:47:09.987488642Z",
-                    "finished" : "2026-08-20T12:47:09.987492432Z",
+                    "started" : "2026-09-20T13:53:54.576046654Z",
+                    "finished" : "2026-09-20T13:53:54.576051114Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -25174,11 +25598,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "d0e3672b-77ea-424c-84b9-3e8cbe4463e5",
-                  "pipelineUuid" : "f335c973-07b6-470d-a8f9-95771958235f",
+                  "uuid" : "9568c3cb-cfcb-4449-bb25-5a08078acd61",
+                  "pipelineUuid" : "54d0c6b0-6f54-4546-8e86-7f11803f5b03",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-20T12:47:09.988190122Z",
-                  "finished" : "2026-08-20T12:47:09.988196452Z",
+                  "started" : "2026-09-20T13:53:54.576984006Z",
+                  "finished" : "2026-09-20T13:53:54.576991506Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -25668,16 +26092,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "5bb37000-d5da-46aa-9c66-7d2b43dcb37d",
-                    "runUuid" : "8bc955e7-7eff-450b-8b3c-2c03136dd850",
+                    "uuid" : "f50c21fd-f5ff-48ee-ab4b-500e132839eb",
+                    "runUuid" : "dea68f15-ee0c-408c-97cc-75bf6dcd020d",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "f3f395d8-6c66-4d40-98cc-ae7bef4b4a32",
-                    "runUuid" : "aee647e6-e499-4aec-b806-d900674e3fe0",
+                    "uuid" : "dde8a656-579e-4108-ad3e-17254bfbf069",
+                    "runUuid" : "9f9a8adf-3a7b-4dfd-90e9-5ed9966d6e71",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -25778,9 +26202,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "5b22fbcb-7faf-4e33-95d5-555bef97440a",
-                    "itemUuid" : "02bae27e-2fc1-47a1-a1db-d937a36b4665",
-                    "runUuid" : "6fb2401c-75b8-4183-a480-432a7a0a4a92",
+                    "uuid" : "576a0867-922a-4a20-ab1f-d9085e7935d5",
+                    "itemUuid" : "663f45f3-5ede-4ee3-9cc1-2ebc1217b5e4",
+                    "runUuid" : "e0a6c864-6862-45e0-b5e7-fd1368438d57",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -26446,7 +26870,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "cc97ab4b-4b79-41f4-ba87-e67586ea2f60",
+                    "versionUuid" : "e8ec2b5e-3a6d-4511-bb4d-7ca8c690555d",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -26473,7 +26897,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "3a2b69d2-29e8-4122-bd98-eef5c3e65586",
+                    "versionUuid" : "2b6f5a30-2a63-48c5-91f6-fb073817afe5",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -26584,7 +27008,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "c664d406-fc96-43f9-87e4-3f6dfb38d5a2",
+                  "versionUuid" : "afb07e09-6536-4bf4-afbd-d7b61f143260",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -26709,7 +27133,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a270c676-4d72-4439-a274-7f8f97785cdd",
+                  "versionUuid" : "bdb9a204-6db4-4b3a-adc4-d0830ba3864c",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

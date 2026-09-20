@@ -87,7 +87,22 @@ public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDisc
 		if (isOfflineMode() || asset == null || client() == null) {
 			return ctx.skipped("offline or asset unknown to Loom").next();
 		}
-		if (asset.getFingerprint() == null || asset.getFingerprint().getFingerprintV1() == null) {
+		// The fingerprint arrives on the declared input port - that is what IN_FINGERPRINT is for, and
+		// what FingerprintNode's OUT_FINGERPRINT is wired to.
+		//
+		// This gate used to read asset.getFingerprint().getFingerprintV1() and nothing else. No writer
+		// has ever populated that field: FingerprintNode persists to asset_fingerprint_comp, the asset
+		// table has no fingerprint column, and Loom's asset assembler leaves AssetResponse.fingerprint
+		// null. Only the unit tests here set it. So in every real deployment this node skipped every
+		// single item with "no fingerprint" and proposed nothing, while the run reported SUCCESS.
+		//
+		// The legacy field is still honoured as a fallback so an unwired node keeps whatever behaviour
+		// it had, but the port is the contract.
+		String fingerprint = ctx.input(IN_FINGERPRINT);
+		if (fingerprint == null && asset.getFingerprint() != null) {
+			fingerprint = asset.getFingerprint().getFingerprintV1();
+		}
+		if (fingerprint == null || "NULL".equals(fingerprint)) {
 			return ctx.skipped("no fingerprint").next();
 		}
 

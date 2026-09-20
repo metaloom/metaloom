@@ -35,9 +35,10 @@ public class MCPModule {
 	@Singleton
 	public WebSocketAuthenticator webSocketAuthenticator(
 			io.metaloom.loom.auth.LoomAuthenticationHandler authHandler,
+			io.metaloom.loom.db.model.token.TokenDao tokenDao,
 			io.metaloom.loom.api.options.LoomOptions options,
 			io.metaloom.loom.common.metrics.LoomMetrics metrics) {
-		return new WebSocketAuthenticator(authHandler, options, metrics);
+		return new WebSocketAuthenticator(authHandler, tokenDao, options, metrics);
 	}
 
 }

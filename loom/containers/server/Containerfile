@@ -17,6 +17,10 @@ EXPOSE 8091
 EXPOSE 8989
 
 USER root
+# ffmpeg powers the poster-frame and video-stream routes. Loom stores originals and nothing else,
+# so without it a video asset has no thumbnail a browser can show and no form a browser can play -
+# the routes then answer 503 with that reason rather than rendering a placeholder.
+RUN apk add --no-cache ffmpeg
 RUN adduser -D -u 1000 -G root -h /loom loom && \
     mkdir /uploads   && chown 1000:0 /uploads  -R && chmod 770 /uploads  && \
     mkdir /plugins   && chown 1000:0 /plugins  -R && chmod 770 /plugins  && \

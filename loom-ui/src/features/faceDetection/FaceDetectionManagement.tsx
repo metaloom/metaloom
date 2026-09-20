@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Chip, TextField, InputAdornment, Button,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -16,6 +16,7 @@ import {
   listClusters as apiListClusters,
   createCluster as apiCreateCluster,
   confirmCluster as apiConfirmCluster,
+  detachClusterPerson as apiDetachClusterPerson,
   ClusterResponse,
 } from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
@@ -39,6 +40,9 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const [newPersonFirstname, setNewPersonFirstname] = useState("");
   const [newPersonLastname, setNewPersonLastname] = useState("");
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
+  /** A stack-drop waiting on a name, because neither cluster is attributed yet. */
+  const [mergePending, setMergePending] = useState<{ sourceId: string; targetId: string } | null>(null);
+  const [mergeName, setMergeName] = useState("");
   const [assignPersonId, setAssignPersonId] = useState("");
   // Three states, not two: loading, failed and loaded-but-empty are different things to say, and
   // this screen used to render all three identically.
@@ -182,6 +186,86 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     }
   };
 
+  /**
+   * Two clusters were stacked: they are the same person.
+   *
+   * Three cases, and the difference matters because only one of them creates a person:
+   *  - the target already has one, so the source joins it;
+   *  - neither does, so the reviewer is asked for a name and both are confirmed to it;
+   *  - the source has one and the target does not, so the target joins the source's.
+   *
+   * Nothing is updated optimistically - the state that lands is what the server returned, the same
+   * rule `handleAssignCluster` follows. Attributing a face to a named person is biometric, and a
+   * card that claims an attribution the server rejected is worse than no card.
+   */
+  const mergeInto = useCallback(async (personUuid: string, clusterIds: string[]) => {
+    if (!token) return;
+    for (const clusterId of clusterIds) {
+      const confirmed = await apiConfirmCluster(token, clusterId, { personUuid });
+      setClusters(prev => prev.map(c => (c.id === clusterId ? { ...c, ...toUiCluster(confirmed), faceIds: c.faceIds } : c)));
+    }
+    setPersons(prev => prev.map(p => (p.id === personUuid
+      ? { ...p, clusterIds: [...new Set([...p.clusterIds, ...clusterIds])] }
+      : p)));
+  }, [token]);
+
+  /** Take the person back off a cluster. The person row stays: it may hold other clusters. */
+  const handleDetachPerson = useCallback(async (clusterId: string) => {
+    if (!token) return;
+    try {
+      const detached = await apiDetachClusterPerson(token, clusterId);
+      setClusters(prev => prev.map(c => (c.id === clusterId ? { ...c, ...toUiCluster(detached), faceIds: c.faceIds } : c)));
+      setPersons(prev => prev.map(p => ({ ...p, clusterIds: p.clusterIds.filter(id => id !== clusterId) })));
+    } catch (e) {
+      reportFailure("detachClusterPerson", e);
+    }
+  }, [token, reportFailure]);
+
+  const handleMergeClusters = useCallback(async (sourceId: string, targetId: string) => {
+    if (!token) return;
+    const source = clusters.find(c => c.id === sourceId);
+    const target = clusters.find(c => c.id === targetId);
+    if (!source || !target) return;
+    const existingPerson = target.personId ?? source.personId;
+    if (!existingPerson) {
+      // Neither is attributed yet, so this merge has to name somebody. Deferred to the dialog
+      // rather than inventing a placeholder name: an unnamed person is not a person.
+      setMergePending({ sourceId, targetId });
+      setMergeName("");
+      return;
+    }
+    try {
+      const toMove = [sourceId, targetId].filter(id => {
+        const c = clusters.find(x => x.id === id);
+        return c && c.personId !== existingPerson;
+      });
+      await mergeInto(existingPerson, toMove);
+    } catch (e) {
+      reportFailure("confirmCluster", e);
+    }
+  }, [token, clusters, mergeInto, reportFailure]);
+
+  /** Confirm both clusters to a newly named person. */
+  const handleMergeWithNewPerson = useCallback(async () => {
+    if (!token || !mergePending || !mergeName.trim()) return;
+    try {
+      // The first confirm creates the person; the second links to the uuid it returned. Passing the
+      // alias twice would create two people with the same name - or fail on the unique index.
+      const first = await apiConfirmCluster(token, mergePending.targetId, { alias: mergeName.trim() });
+      setClusters(prev => prev.map(c => (c.id === mergePending.targetId ? { ...c, ...toUiCluster(first), faceIds: c.faceIds } : c)));
+      if (first.personUuid) {
+        await mergeInto(first.personUuid, [mergePending.sourceId]);
+        setPersons(prev => prev.some(p => p.id === first.personUuid)
+          ? prev
+          : [...prev, { id: first.personUuid!, name: mergeName.trim(), description: "", avatarUrl: "", clusterIds: [mergePending.sourceId, mergePending.targetId], createdAt: new Date().toISOString() }]);
+      }
+      setMergePending(null);
+      setMergeName("");
+    } catch (e) {
+      reportFailure("confirmCluster", e);
+    }
+  }, [token, mergePending, mergeName, mergeInto, reportFailure]);
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
@@ -294,6 +378,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onAssignCluster={(clusterId) => { setAssignOpen(clusterId); setAssignPersonId(""); }}
             onClusterDeleted={(id) => setClusters(prev => prev.filter(c => c.id !== id))}
             onClusterUpdated={(updated) => setClusters(prev => prev.map(c => c.id === updated.id ? updated : c))}
+            onMergeClusters={handleMergeClusters}
+            onDetachPerson={handleDetachPerson}
           />
         )}
         {!loading && !loadError && activeSection === "persons" && (
@@ -385,6 +471,30 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         <DialogActions>
           <Button onClick={() => setAssignOpen(null)} size="small">{t("faceDetection.button.cancel")}</Button>
           <Button onClick={handleAssignCluster} variant="contained" size="small" data-testid="facedetection-assign-save" disabled={!assignPersonId}>{t("faceDetection.button.assign")}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Naming the person a stack of two unattributed clusters belongs to. */}
+      <Dialog open={!!mergePending} onClose={() => setMergePending(null)} maxWidth="xs" fullWidth
+        PaperProps={{ "data-testid": "facedetection-merge-dialog" } as React.ComponentProps<typeof Dialog>["PaperProps"]}>
+        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.label.mergePrompt")}</DialogTitle>
+        <DialogContent sx={{ pt: "8px !important" }}>
+          <TextField
+            label={t("faceDetection.label.name")}
+            value={mergeName}
+            onChange={e => setMergeName(e.target.value)}
+            size="small"
+            fullWidth
+            autoFocus
+            inputProps={{ "data-testid": "facedetection-merge-name" }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMergePending(null)} size="small">{t("faceDetection.button.cancel")}</Button>
+          <Button onClick={handleMergeWithNewPerson} variant="contained" size="small"
+            data-testid="facedetection-merge-save" disabled={!mergeName.trim()}>
+            {t("faceDetection.button.assign")}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

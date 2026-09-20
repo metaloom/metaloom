@@ -507,6 +507,25 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	}
 
 	/**
+	 * Load a single pipeline run addressed by its own uuid.
+	 *
+	 * <p>
+	 * The pipeline-scoped {@link #loadRun(LoomRoutingContext, UUID, UUID)} is the route the editor uses; this one exists for callers that hold a run
+	 * uuid and nothing else - a {@code PIPELINE_RUN_FAILED} notification carries only {@code pipeline_run_uuid}. Same permission, and the response
+	 * carries {@code pipelineUuid}, so a caller can follow up on the nested routes.
+	 * </p>
+	 */
+	public void loadRunByUuid(LoomRoutingContext lrc, UUID runUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			PipelineRun run = pipelineRunDao.load(runUuid);
+			if (run == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
+			}
+			lrc.send(modelBuilder.toPipelineRunRecord(run));
+		});
+	}
+
+	/**
 	 * List the items of a single pipeline run.
 	 */
 	public void listRunItems(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {

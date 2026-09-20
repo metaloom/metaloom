@@ -183,4 +183,22 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 		apiRouter().getDelegate().route(path).handler(deps.authHandler);
 	}
 
+	/**
+	 * Also accept a short-lived, asset-scoped {@code ?mt=} token on this route.
+	 *
+	 * <p>
+	 * An {@code <img>} or {@code <video>} cannot send an {@code Authorization} header, and the session cookie is {@code Secure}/{@code __Host-} so
+	 * a browser drops it on any plain-HTTP deployment - which is why every preview in the UI answered 401 and rendered a placeholder.
+	 * </p>
+	 *
+	 * <p>
+	 * This does <b>not</b> secure the route; call it <b>before</b> the {@code secure(...)} that does, so the media handler runs first. It only ever
+	 * calls {@code next()}: a valid token sets the user and the session handler then short-circuits, while a missing or bad one leaves the session
+	 * handler to behave exactly as it always has. Use it only on routes whose path carries the asset uuid the token is scoped to.
+	 * </p>
+	 */
+	public void acceptMediaToken(String path) {
+		apiRouter().getDelegate().route(path).handler(deps.mediaTokenHandler);
+	}
+
 }

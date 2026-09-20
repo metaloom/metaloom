@@ -8,20 +8,26 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.LoomAuthenticationHandler;
+import io.metaloom.loom.db.model.token.TokenDao;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.ext.auth.User;
 
 /**
- * Validates a JWT bearer token supplied on a WebSocket handshake as the
+ * Validates a bearer token supplied on a WebSocket handshake as the
  * {@code ?token=} query parameter.
  *
  * <p>When a token is present, it is validated via
- * {@link LoomAuthenticationHandler#authenticateToken(String)} which uses the
- * same underlying JWT provider as the REST auth handler. When absent, the
- * connection is accepted with a warning so pre-token clients keep working
- * during the migration; set {@code LOOM_WS_STRICT_AUTH=true} (or JVM property
+ * {@link LoomAuthenticationHandler#authenticateToken(String)} (the same JWT
+ * provider the REST auth handler uses); a token that is not a valid JWT is
+ * then looked up as a long-lived API key via {@link TokenDao}, mirroring the
+ * fallback {@code MCPAuthenticationHandler} already applies for MCP
+ * endpoints. This is what lets a Cortex worker authenticate with a stable
+ * {@code POST /api/v1/tokens} API key instead of an hour-lived login JWT.
+ * When absent, the connection is accepted with a warning so pre-token
+ * clients keep working during the migration; set
+ * {@code LOOM_WS_STRICT_AUTH=true} (or JVM property
  * {@code loom.ws.strictAuth}) to require a token on every connection.</p>
  *
  * <p>Close codes:</p>
@@ -38,13 +44,15 @@ public class WebSocketAuthenticator {
 	private static final Logger log = LoggerFactory.getLogger(WebSocketAuthenticator.class);
 
 	private final LoomAuthenticationHandler authHandler;
+	private final TokenDao tokenDao;
 	private final boolean strict;
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
 	@Inject
-	public WebSocketAuthenticator(LoomAuthenticationHandler authHandler, LoomOptions options,
+	public WebSocketAuthenticator(LoomAuthenticationHandler authHandler, TokenDao tokenDao, LoomOptions options,
 		io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		this.authHandler = authHandler;
+		this.tokenDao = tokenDao;
 		this.strict = resolveStrict(options);
 		this.metrics = metrics;
 	}
@@ -89,13 +97,47 @@ public class WebSocketAuthenticator {
 				log.debug("Authenticated {} WebSocket from {}", endpoint, ws.remoteAddress());
 				promise.complete(user);
 			})
-			.onFailure(err -> {
-				metrics.recordAuthFailure("ws");
-				close(ws, "invalid token");
-				log.warn("Rejecting {} WebSocket from {}: invalid token ({})", endpoint, ws.remoteAddress(), err.getMessage());
-				promise.fail(err);
+			.onFailure(jwtErr -> {
+				// Not a valid JWT - fall back to a long-lived API key (POST /api/v1/tokens),
+				// the same fallback MCPAuthenticationHandler applies for MCP endpoints.
+				validateApiKey(token)
+					.onSuccess(user -> {
+						if (user == null) {
+							metrics.recordAuthFailure("ws");
+							close(ws, "invalid token");
+							log.warn("Rejecting {} WebSocket from {}: invalid token ({})", endpoint, ws.remoteAddress(), jwtErr.getMessage());
+							promise.fail(jwtErr);
+							return;
+						}
+						log.debug("Authenticated {} WebSocket from {} via API key", endpoint, ws.remoteAddress());
+						promise.complete(user);
+					})
+					.onFailure(apiKeyErr -> {
+						metrics.recordAuthFailure("ws");
+						close(ws, "invalid token");
+						log.warn("Rejecting {} WebSocket from {}: invalid token ({})", endpoint, ws.remoteAddress(), jwtErr.getMessage());
+						promise.fail(jwtErr);
+					});
 			});
 		return promise.future();
+	}
+
+	/**
+	 * Validate an API key against the TokenDao. Resolves to the owning user (the token's
+	 * {@code creator_uuid}); the token record has no separate user column, so the creator is
+	 * authoritative for permission resolution - mirrors {@code MCPAuthenticationHandler#validateApiKey}.
+	 */
+	private Future<User> validateApiKey(String apiKey) {
+		return tokenDao.findByToken(apiKey)
+			.map(optionalToken -> optionalToken
+				.map(t -> {
+					var userUuid = t.getCreatorUuid();
+					if (userUuid == null) {
+						return (User) null;
+					}
+					return User.create(new io.vertx.core.json.JsonObject().put("uuid", userUuid.toString()));
+				})
+				.orElse(null));
 	}
 
 	private static String extractToken(ServerWebSocket ws) {

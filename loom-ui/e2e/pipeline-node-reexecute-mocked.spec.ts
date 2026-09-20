@@ -279,6 +279,18 @@ test.describe("Pipeline node re-execution – mocked", () => {
     await parameterField(page, "cols").fill("4");
     await expect(page.getByTestId("pipeline-node-settings-draft")).toBeVisible();
 
+    // The unrelated reason to save, which this test's own premise calls for: drafting a value at a
+    // breakpoint deliberately does *not* mark the editor dirty, so without a real edit there is
+    // nothing to press. (This used to work only because every load marked the editor dirty.)
+    const node = page.getByTestId("pipeline-canvas").locator(".react-flow__node").first();
+    const box = await node.boundingBox();
+    expect(box, "a node must be on the canvas to drag").toBeTruthy();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2 + 30, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.getByText("Save", { exact: true })).toBeVisible({ timeout: 5_000 });
     await page.getByText("Save", { exact: true }).click();
 
     await expect.poll(() => calls.saved.length, { timeout: 10_000 }).toBe(1);

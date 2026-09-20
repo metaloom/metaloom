@@ -29,6 +29,7 @@ paging and OpenAPI mechanics live in [../../loom/RESTAPI.md](../../loom/RESTAPI.
 | Does replacing a binary update the S3 object? | **Yes.** `POST /assets/:uuid/binary/data` PUTs the object, rewrites `asset_location.path` to the new `s3://bucket/key` and reclaims the previous object when nothing else references it. |
 | Can Cortex upload binary data to Loom? | **The client can express it** — `uploadAsset`, `uploadAssetBinary`, `uploadAttachment(File,…)`, `downloadAssetBinary`, `downloadAttachment`. **No node calls them yet** (§7.2, G2). |
 | How is a thumbnail handled today? | Still **never uploaded**. `ThumbnailNode` renders into the worker-local `metaPath/thumbnail_bin/…` cache and records only a ledger row via `POST /assets/:uuid/node-results`. Same for depthmap, imagegen, videogen, TTS. |
+| So what does the UI show for a video? | A **poster frame derived on demand** by Loom's own ffmpeg (`GET /assets/:uuid/poster`), and `GET /assets/:uuid/stream` to play it. Neither is stored. §7.3. |
 
 ---
 
@@ -382,12 +383,59 @@ the source:
 `DaoAssetSink.persist(...)` maps **only** SHA-512/SHA-256/MD5 onto the asset and logs everything else
 via `warnAboutUnmapped` as *"has no asset mapping and was not persisted"*.
 
-**Consequence: a pipeline-generated thumbnail is still not retrievable through any Loom API.** The
-UI's asset preview is the *original* binary (`GET /assets/:uuid/binary/data`), scaled by the browser.
+**Consequence: a pipeline-generated thumbnail is still not retrievable through any Loom API.** It
+remains stranded in the worker's cache.
 
 The wall is now on the node side only — the byte-ingest endpoints, attachment storage and the
 multipart client methods all exist. Closing it is
 [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) Phase B.
+
+### 7.3 Derived media on demand (`/poster`, `/stream`)
+
+Built 2026-09-20, and it exists **because** §7.2 is still open. With no stored derivative, the UI
+had only the original to point at, which for a 4.5 GB Matroska file means an `<img>` opening a
+connection to 4.5 GB in order to draw a 180px tile — and no browser decodes that container, so the
+tile downloaded the file *and* fell back to a placeholder. Loom now derives both on request:
+
+| Route | Answers | Cost |
+|---|---|---|
+| `GET /assets/:uuid/poster?t=&w=` | One JPEG frame. `ffmpeg -ss <t> -i … -frames:v 1`, with `-ss` **before** `-i` so it seeks by index rather than decoding — 350 ms on a 4.5 GB file, then cached on disk keyed by `sha512+t+w` and served in 40 ms. An offset past the end falls back to frame 0, because "shorter than five seconds" describes a lot of real media. | one-off per (asset, t, w) |
+| `GET /assets/:uuid/stream?t=` | `video/mp4`, `inline`, chunked. Video is `-c:v copy`, audio `-c:a aac` (AC-3 in MP4 is not playable), `-movflags frag_keyframe+empty_moov+default_base_moof`. | one ffmpeg process **per viewer, for as long as they watch** |
+
+Three limits, all deliberate and all visible rather than silent:
+
+* **Codec gate.** A non-H.264 video answers **415** rather than starting a full transcode nobody
+  asked for. `ffprobe` decides; a failed probe carries on rather than refusing.
+* **Concurrency.** `LOOM_MEDIA_MAX_STREAMS` (default 4) bounds the ffmpeg processes; over that is a
+  **503**. A media server that forks per request is a denial-of-service with extra steps.
+* **Capability, not dependency.** No ffmpeg, or `LOOM_MEDIA_ENABLED=false`, answers **503 with the
+  reason** — never a placeholder. A silent fallback is precisely how the missing thumbnail producer
+  above stayed invisible for several releases.
+
+Filesystem-backed only: ffmpeg takes a path, and staging a multi-gigabyte object out of S3 first
+would cost more than it saves, so that case answers **501**.
+
+#### 7.3.1 Media tokens — the `?mt=` parameter
+
+`<img>` and `<video>` cannot send an `Authorization` header. The documented fallback was the session
+cookie, and §9 already recorded that it does not work behind the dev proxy; the deployment case is
+worse, because the cookie is `Secure` + `__Host-` prefixed and a browser therefore drops it on
+**every plain-HTTP deployment**. The result was a 401 on every preview with nothing in the UI to say
+why.
+
+`POST /assets/:uuid/media-token` (perm `READ_ASSET_BINARY`) mints a JWT carrying
+`scope=media` and `asset=<uuid>`, default TTL 600 s. Three things keep a credential-in-a-URL from
+becoming a key to the library, and all three are tested in `AssetMediaEndpointTest`:
+
+1. `MediaTokenAuthHandler` is mounted on the poster and stream routes **only**. Nothing else in the
+   API reads `mt`.
+2. The handler compares the token's `asset` claim against the asset in the path, so a leaked poster
+   URL opens that poster and nothing else.
+3. `LoomJWTAuthHandlerImpl` **refuses** any token carrying `scope=media`, so one cannot be replayed
+   as a session — and the media handler symmetrically refuses a session token presented as `mt`.
+
+The handler never rejects on its own: it calls `next()` and lets the ordinary auth handler own the
+401, so a missing or bad `mt` is indistinguishable from not having tried one.
 The one exception is `s3-sink`, which uploads to a bucket named in the pipeline definition and
 registers the artefact as a new asset — see that plan's §7 B5.
 
@@ -424,8 +472,10 @@ registers the artefact as a new asset — see that plan's §7 B5.
 
 ### 8.3 Missing use cases (nothing built)
 
-- Retrieve a **generated** thumbnail / poster frame / proxy / waveform — the `attachment_type` values
-  exist since V2.44 with no producer (G2/G14).
+- Retrieve a **stored** thumbnail / proxy / waveform — the `attachment_type` values exist since
+  V2.44 with no producer (G2/G14). A **poster frame** and a playable stream are now derived on
+  demand instead (§7.3); storing them as attachments would turn a per-request cost into a one-off
+  and remains the better answer.
 - Resumable or chunked upload (single-shot multipart only, one file part per request).
 - Server-side mime sniffing — the mime type is taken verbatim from the multipart part, or guessed from
   the file extension in `DaoAssetSink.mimeTypeOf`.

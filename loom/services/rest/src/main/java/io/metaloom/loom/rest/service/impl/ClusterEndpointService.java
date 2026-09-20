@@ -181,6 +181,30 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 	 * what the earlier verdict was; the status is what says the cluster is no longer to be acted on.
 	 * </p>
 	 */
+	/**
+	 * Take a cluster's person back off it, returning it to the review queue.
+	 *
+	 * <p>
+	 * The inverse of {@link #confirm}, and neither of the two existing routes could stand in for it: {@code update} writes only name/type/meta, and
+	 * {@code reject} means "not a real subject", which is a different and defamatory thing to record about a face that simply belongs to somebody
+	 * else. Without this, a reviewer who attributed a cluster to the wrong person had no way back.
+	 * </p>
+	 *
+	 * <p>
+	 * The person itself is untouched: it may have other clusters, and deleting a directory entry because one attribution was wrong would be a much
+	 * larger action than the one being undone.
+	 * </p>
+	 */
+	public void detachPerson(LoomRoutingContext lrc, UUID clusterUuid) {
+		checkPerm(lrc, UPDATE_CLUSTER, () -> {
+			requireCluster(clusterUuid);
+			// Back to PENDING rather than staying CONFIRMED with a null person: a confirmed cluster
+			// with no subject is a verdict about nobody, and the review queue would never show it again.
+			Cluster detached = dao().detachPerson(clusterUuid, lrc.userUuid());
+			lrc.send(modelBuilder.toResponse(detached, dao().countMembers(clusterUuid)));
+		});
+	}
+
 	public void reject(LoomRoutingContext lrc, UUID clusterUuid) {
 		checkPerm(lrc, UPDATE_CLUSTER, () -> {
 			requireCluster(clusterUuid);

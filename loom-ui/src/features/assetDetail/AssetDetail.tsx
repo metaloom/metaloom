@@ -25,7 +25,8 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, assetStreamUrl, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
+import { useMediaToken } from "../../hooks/useMediaToken";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
@@ -557,15 +558,47 @@ export default function AssetDetail() {
     window.addEventListener("mouseup", onUp);
   }, []);
 
+  /**
+   * Where the stream currently starts, in seconds.
+   *
+   * The video is remuxed on the fly into a fragmented MP4 and delivered over a pipe, and a pipe
+   * carries no index — so the browser cannot seek within it at all. Seeking is therefore a new
+   * request with a different `t`, and this is the offset that request carries. Everything the
+   * player reports is relative to it, which is why `displayTime` below adds it back.
+   */
+  const [streamOffset, setStreamOffset] = useState(0);
+
+  /**
+   * A media token for the player, or null while it is in flight.
+   *
+   * A `<video src>` cannot carry an Authorization header, so the credential rides in the query
+   * string instead. Declared up here with the other hooks - `isVideo` is only computed after the
+   * loading early-return below, and a hook cannot live behind that.
+   */
+  const mediaToken = useMediaToken(asset?.type === "video" ? asset?.id : null);
+
   // Seek the player. Everything that puts a time on the timeline — a marker, a transcript line, a
   // detection — goes through here, so the picture follows the click rather than only the playhead.
   const seekTo = useCallback((time: number) => {
+    if (!Number.isFinite(time)) {
+      return;
+    }
     setCurrentTime(time);
     const video = videoRef.current;
-    if (video && Number.isFinite(time)) {
-      video.currentTime = time;
+    if (!video) {
+      return;
     }
-  }, []);
+    // A seek inside what the browser has already buffered is free; only leaving it costs a new
+    // remux. `seekable` is empty for a fragmented stream, so fall back to re-requesting.
+    const withinBuffer = video.seekable.length > 0
+      && time - streamOffset >= video.seekable.start(0)
+      && time - streamOffset <= video.seekable.end(video.seekable.length - 1);
+    if (withinBuffer) {
+      video.currentTime = time - streamOffset;
+      return;
+    }
+    setStreamOffset(Math.max(0, Math.floor(time)));
+  }, [streamOffset]);
 
   if (!asset) {
     return (
@@ -576,10 +609,12 @@ export default function AssetDetail() {
   }
 
   const isVideo = asset.type === "video";
-  // The element's own duration wins once it has one: the timeline is drawn against what can
-  // actually be scrubbed, and a component row that is a frame out would leave the last marker
-  // unreachable.
-  const duration = playedDuration || asset.duration || 0;
+  /** The playable URL, or null until the token arrives. See `streamOffset` for why `t` is on it. */
+  const streamUrl = isVideo && mediaToken ? assetStreamUrl(asset.id, mediaToken, streamOffset) : null;
+  // The asset's own duration wins for a video: the player is fed a remuxed stream whose element
+  // duration describes the pipe, not the clip. `playedDuration` remains the fallback for an asset
+  // with no metadata, and the only source for anything that is not streamed.
+  const duration = asset.duration || playedDuration || 0;
 
   // ── Asset metadata edit / delete / process ──────────────────────────────
   const nameDirty = editName.trim() !== "" && editName.trim() !== asset.name;
@@ -938,26 +973,41 @@ export default function AssetDetail() {
         <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
           <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {isVideo && asset.url ? (
-              // The browser's own player, pointed at the stored binary. The controls are the
-              // browser's too: the range support on /assets/:uuid/binary/data is what makes
-              // scrubbing work, and reimplementing a transport over it would buy nothing the
-              // timeline below does not already give.
+            {isVideo && streamUrl ? (
+              // The browser's own player, pointed at the *remuxed* stream rather than the stored
+              // binary. Pointing it at the binary is what it used to do, and for the Matroska
+              // files this deployment holds that is a black box: no browser decodes the container,
+              // whatever the range support on /assets/:uuid/binary/data can do. The stream route
+              // copies the H.264 video into a fragmented MP4 and re-encodes only the audio.
+              //
+              // `key` is load-bearing: a seek changes the src, and without it React reuses the
+              // element and the browser keeps playing the old response.
               <Box
                 component="video"
+                key={streamUrl}
                 ref={videoRef}
                 data-testid="asset-video"
-                src={asset.url}
+                src={streamUrl}
                 controls
+                autoPlay={streamOffset > 0}
                 playsInline
                 preload="metadata"
                 onLoadedMetadata={e => {
                   const el = e.currentTarget as HTMLVideoElement;
-                  if (Number.isFinite(el.duration)) setPlayedDuration(el.duration);
+                  // The element's duration is not to be trusted here. A fragmented MP4 arriving over
+                  // a pipe has no total length - browsers report whatever has arrived so far, which
+                  // made a 43-minute episode's timeline read "0:05" - and a stream started at an
+                  // offset only covers the remainder. The asset's own metadata is authoritative;
+                  // the element is a fallback for an asset the metadata node has never seen.
+                  if (!asset.duration && streamOffset === 0 && Number.isFinite(el.duration)) {
+                    setPlayedDuration(el.duration);
+                  }
                 }}
-                onTimeUpdate={e => setCurrentTime((e.currentTarget as HTMLVideoElement).currentTime)}
+                onTimeUpdate={e => setCurrentTime(streamOffset + (e.currentTarget as HTMLVideoElement).currentTime)}
                 sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block", bgcolor: "#000" }}
               />
+            ) : isVideo ? (
+              <MediaPlaceholder type="video" iconSize={48} />
             ) : !isVideo && asset.url ? (
               <ZoomableImage
                 src={asset.url}
