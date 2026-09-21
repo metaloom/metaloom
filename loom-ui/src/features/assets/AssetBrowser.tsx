@@ -18,6 +18,8 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
+import DurationBadge from "../../components/DurationBadge";
+import { useAssetDurations } from "../../hooks/useAssetDurations";
 import EmptyState from "../../components/EmptyState";
 import ListPaging from "../../components/ListPaging";
 import { Asset, AssetType, AssetStatus } from "../../types";
@@ -83,15 +85,18 @@ type CardSize = "small" | "medium" | "large";
 interface CardProps {
   asset: Asset;
   cardSize?: CardSize;
+  /** Probed length, when the catalogue has none. See {@link useAssetDurations}. */
+  probedDuration?: number;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   onDelete?: (asset: Asset) => void;
 }
 
-function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected = false, onToggleSelect, onDelete }: CardProps) {
+function AssetCard({ asset, cardSize = "medium", probedDuration, selectionMode = false, selected = false, onToggleSelect, onDelete }: CardProps) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
+  const duration = asset.duration || probedDuration;
 
   const handleClick = () => {
     if (selectionMode) {
@@ -150,9 +155,11 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
         <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} assetUuid={asset.id} iconSize={40} alt={asset.name} />
         <Box sx={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>
           <Box sx={{ color: "#fff", display: "flex" }}>{typeIcon[asset.type]}</Box>
-          {asset.duration && <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", fontWeight: 600 }}>{formatDuration(asset.duration)}</Typography>}
         </Box>
         <Box sx={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: "50%", bgcolor: sc, boxShadow: `0 0 6px ${sc}` }} />
+        {/* Length in the bottom-right corner, the way every video surface puts it. It used to
+            sit next to the type glyph top left, where it competed with the selection checkbox. */}
+        <DurationBadge seconds={duration} />
       </Box>
 
       {/* Info — hidden in small mode */}
@@ -178,9 +185,9 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
                 ))}
               </Box>
               <Box sx={{ display: "flex", gap: 1, mt: 0.75, alignItems: "center" }}>
-                {asset.duration && (
+                {duration && (
                   <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
-                    {formatDuration(asset.duration)}
+                    {formatDuration(duration)}
                   </Typography>
                 )}
                 <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
@@ -198,15 +205,17 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
 // ── Asset Row (list mode) ─────────────────────────────────────────────────
 interface RowProps {
   asset: Asset;
+  probedDuration?: number;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   onDelete?: (asset: Asset) => void;
 }
 
-function AssetRow({ asset, selectionMode = false, selected = false, onToggleSelect, onDelete }: RowProps) {
+function AssetRow({ asset, probedDuration, selectionMode = false, selected = false, onToggleSelect, onDelete }: RowProps) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
+  const duration = asset.duration || probedDuration;
 
   const handleClick = () => {
     if (selectionMode) {
@@ -240,21 +249,21 @@ function AssetRow({ asset, selectionMode = false, selected = false, onToggleSele
       <Box sx={{ position: "relative", width: 48, height: 32, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
         <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} assetUuid={asset.id} iconSize={18} alt={asset.name} posterWidth={96} />
       </Box>
+      {/* The filename and nothing under it. The MIME type was a second line on every row that
+          restated what the type glyph to the right already says — "video/x-matroska" is not
+          what anybody is scanning a list of episodes for. It is still on the asset's own page. */}
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem", color: tokens.text.primary }}>
           {asset.name}
-        </Typography>
-        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-          {asset.mimeType}
         </Typography>
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: tokens.text.secondary }}>
         {typeIcon[asset.type]}
         <Typography variant="caption" sx={{ fontSize: "0.7rem", minWidth: 28 }}>{asset.type}</Typography>
       </Box>
-      {asset.duration && (
+      {duration && (
         <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem", minWidth: 40, textAlign: "right" }}>
-          {formatDuration(asset.duration)}
+          {formatDuration(duration)}
         </Typography>
       )}
       <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem", minWidth: 60, textAlign: "right" }}>
@@ -297,6 +306,13 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [creator, setCreator] = useState("");
   const [collection, setCollection] = useState("");
   const creators = useCreatorOptions(token);
+  /**
+   * Lengths for the video tiles the catalogue has none for.
+   *
+   * Every ingested video is in that state until something has probed it: the component row has
+   * no producer, so the badge would otherwise never appear on the files this deployment holds.
+   */
+  const probedDurations = useAssetDurations(filtered);
   const [collectionOptions, setCollectionOptions] = useState<FilterOption[]>([]);
 
   // ── Browse mode ──
@@ -668,11 +684,17 @@ export default function AssetBrowser({ embedded = false }: Props) {
           gap: 1.25,
         }}
       >
+        {/* Icon, title, subtitle — the same three things, in the same order and at the same
+            size, as every other view. This row used to be a title and a subtitle with no glyph,
+            which is why moving between Assets and Collections felt like two applications. */}
         {!embedded && (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Box>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("assets.title")}</Typography>
-              <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minHeight: 28 }}>
+            <Box sx={{ display: "flex", alignItems: "center", color: tokens.primary.main, "& > *": { fontSize: 20 } }}>
+              <PermMediaOutlined />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("assets.title")}</Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }}>{activeSpace?.name}</Typography>
             </Box>
           </Box>
         )}
@@ -905,6 +927,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
                 key={a.id}
                 asset={a}
                 cardSize={cardSize}
+                probedDuration={probedDurations[a.id]}
                 selectionMode={selectionMode}
                 selected={selected.has(a.id)}
                 onToggleSelect={toggleSelect}
@@ -918,6 +941,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <React.Fragment key={a.id}>
                 <AssetRow
                   asset={a}
+                  probedDuration={probedDurations[a.id]}
                   selectionMode={selectionMode}
                   selected={selected.has(a.id)}
                   onToggleSelect={toggleSelect}

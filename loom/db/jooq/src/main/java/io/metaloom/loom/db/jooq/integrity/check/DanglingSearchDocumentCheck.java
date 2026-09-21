@@ -75,10 +75,47 @@ public final class DanglingSearchDocumentCheck extends AbstractSqlCheck {
 			"search_document_deleted", true);
 	}
 
+	/**
+	 * Every {@code entity_uuid} a transcript window currently has.
+	 *
+	 * <p>
+	 * A transcript document is the one kind whose {@code entity_uuid} names no row anywhere. Since
+	 * {@code V2.110} a transcript is indexed as one document per timecoded window, and a window
+	 * lives inside {@code transcript_json} rather than in a table of its own - so its key is
+	 * derived, {@code uuid_generate_v5(transcript_uuid, window_index)}. Looking it up in
+	 * {@code asset_transcript_comp} finds nothing, which would report every window in the catalog
+	 * as dangling.
+	 * </p>
+	 *
+	 * <p>
+	 * Re-deriving the set is the exact answer rather than a weaker proxy, and it is strictly more
+	 * than the old check saw: a document whose window the current transcript no longer produces -
+	 * a re-transcription that heard fewer minutes - is a hit that plays a moment where nobody says
+	 * the thing that was searched for, and it now shows up here.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code MATERIALIZED} is load-bearing. Without it the planner inlines this into the
+	 * correlated {@code NOT EXISTS} and re-parses every transcript's JSON once per document, which
+	 * is quadratic in the number of windows per asset. Forced to one pass it is a single expansion
+	 * of the corpus and a hash anti-join.
+	 * </p>
+	 */
+	private static final String WINDOW_CTE = "with \"valid_transcript_windows\" as materialized ("
+		+ "select uuid_generate_v5(tc.\"uuid\", w.\"window_index\"::text) as \"entity_uuid\""
+		+ " from \"asset_transcript_comp\" tc"
+		+ " cross join lateral \"search_transcript_windows\"(tc.\"uuid\") w) ";
+
 	private String predicate() {
 		String exists = offendingWhenSubjectPresent ? "exists" : "not exists";
 		List<String> branches = new ArrayList<>();
 		for (Map.Entry<SearchEntityType, String> entry : SearchDocumentEntities.TABLES.entrySet()) {
+			if (entry.getKey() == SearchEntityType.TRANSCRIPT) {
+				branches.add("(d.\"entity_type\" = '" + entry.getKey().id() + "'"
+					+ " and " + exists + " (select 1 from \"valid_transcript_windows\" v"
+					+ " where v.\"entity_uuid\" = d.\"entity_uuid\"))");
+				continue;
+			}
 			branches.add("(d.\"entity_type\" = '" + entry.getKey().id() + "'"
 				+ " and " + exists + " (select 1 from \"" + entry.getValue() + "\" e"
 				+ " where e.\"uuid\" = d.\"entity_uuid\"))");
@@ -88,11 +125,11 @@ public final class DanglingSearchDocumentCheck extends AbstractSqlCheck {
 
 	@Override
 	protected String countSql() {
-		return "select count(*) from \"" + table + "\" d where " + predicate();
+		return WINDOW_CTE + "select count(*) from \"" + table + "\" d where " + predicate();
 	}
 
 	@Override
 	protected String sampleSql() {
-		return "select d.\"entity_uuid\", d.\"entity_type\" from \"" + table + "\" d where " + predicate();
+		return WINDOW_CTE + "select d.\"entity_uuid\", d.\"entity_type\" from \"" + table + "\" d where " + predicate();
 	}
 }

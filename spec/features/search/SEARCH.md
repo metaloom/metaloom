@@ -266,9 +266,33 @@ true multilingual support requires a trigger-maintained `tsvector`. `LOOM_SEARCH
 | `keywords` | `mime_type`, `initial_origin`, **tokenized** origin/filename/paths, distinct `detection.label`, `asset_segment_comp.title`, `tag.name`/`tag.collection` | D |
 | `tag_names[]` / `library_uuids[]` / `space_uuids[]` / `collection_uuids[]` | `tag_asset` · `library_asset` · `library_asset`→`project_library` · `collection_asset` | — |
 
-**Transcripts get a second document** (`entity_type='transcript'`, `time_from`, `lang`+`model` as
-subtitle) so a hit can deep-link to a timestamp; the text is *also* in the asset's `body` so a
-transcript match surfaces the asset in a normal search.
+**A transcript is indexed as one document per timecoded window** (`entity_type='transcript'`,
+`time_from` = the window's offset in ms, subtitle = `h:mm:ss · lang model`), so a hit deep-links to
+the moment rather than to the file. The text is *also* in the asset's `body`, so a transcript match
+still surfaces the asset in a normal search.
+
+Before `V2.110` there was exactly one transcript document per transcript, with `time_from`
+hardcoded to `0`. The comment above that INSERT said the row existed "so a hit can deep-link to a
+timestamp in the player" — but there was only ever one timestamp and it was zero, so searching for
+a line of dialogue told you which 43-minute episode it was in and dropped you at 0:00. It also made
+semantic search over transcripts meaningless: one embedding cannot represent forty minutes of
+unrelated conversation.
+
+| | |
+|---|---|
+| Window source, in order of authority | `transcript_json.sections[]` (authored chapters, `startTime` in **seconds**) → `transcript_json.segments[]` (what `WhisperNode` writes, `from`/`to` in **milliseconds**, bucketed by `search_transcript_window_ms()` = 60000) → `transcript_text` as one window at offset 0 |
+| Key | `uuid_generate_v5(transcript_uuid, window_index::text)` — a window is not a row anywhere, and the key has to be identical between the incremental refresh and `search_document_rebuild()` |
+| Helper | `search_transcript_windows(uuid)` returns `(window_index, time_from, body)` |
+| Stale windows | deleted by `search_document_refresh_asset` against the set the *current* transcript produces, so re-transcribing to fewer minutes does not leave results pointing at speech that is no longer there |
+
+⚠️ **`entity_uuid` of a transcript document names no row.** It is the only entity type of which
+that is true, and `DanglingSearchDocumentCheck` special-cases it: it re-derives the valid window
+set rather than joining `asset_transcript_comp`. Without that special case the integrity sweep
+reports every window in the catalog as dangling — `AssetCascadeTest` catches this.
+
+A minute is the window because it is roughly a scene's worth of speech: short enough that a single
+embedding means something, long enough that a sentence is not split from the sentence that gives
+it its sense.
 
 `search_extract_json_text(schema_type, data)` is whitelist-driven:
 
@@ -373,7 +397,12 @@ because it calls the same provider.
 
 **Parameters** — `SearchQueryParameterKey` (`loom-shared/rest-model`), deliberately **separate** from
 `QueryParameterKey`: `q, types, mode, limit, offset, cursor, sort, highlight, mime, library, space,
-collection, tag, from, to, lang, profile, facets`. Bound by `SearchParameters` in `loom/services/rest`
+collection, asset, tag, from, to, lang, profile, facets`.
+
+`?asset=` is the only narrowing here that is about a *single* asset rather than a set of them, and
+it is what "search inside this file" means — `?types=transcript&asset=<uuid>` searches what is said
+in one video and returns the timecodes. Counted by `hasNarrowing`, like every other restricting
+field; add to both or neither. Bound by `SearchParameters` in `loom/services/rest`
 — ⚠️ same package name (`io.metaloom.loom.rest.parameter`), different module, matching where
 `AbstractQueryParameters` lives.
 

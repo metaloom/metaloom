@@ -12,6 +12,21 @@ export interface TimelineMarker {
   id: string;
 }
 
+/**
+ * One chapter of a transcript, drawn as a tile in the lower half of the marker bar.
+ *
+ * Separate from {@link TimelineMarker} because it is a different kind of statement: a marker is
+ * something a reviewer put on the timeline, a span is the shape of what was said. They are drawn
+ * in different halves of the bar for the same reason.
+ */
+export interface TranscriptSpan {
+  id: string;
+  from: number;
+  to: number;
+  label: string;
+  color: string;
+}
+
 export function VideoTimeline({
   duration,
   currentTime,
@@ -24,6 +39,9 @@ export function VideoTimeline({
   onMarkerDragEnd,
   rangeMode = false,
   onRangeSelect,
+  transcriptSpans,
+  showTranscript = false,
+  onTranscriptClick,
 }: {
   duration: number;
   currentTime: number;
@@ -39,6 +57,18 @@ export function VideoTimeline({
   rangeMode?: boolean;
   /** Called with the selected range (seconds) on mouse-up. */
   onRangeSelect?: (from: number, to: number) => void;
+  /** Transcript chapters, for the lower half of the bar. */
+  transcriptSpans?: TranscriptSpan[];
+  /**
+   * Whether the tiles are on screen.
+   *
+   * Driven by whether the transcript section below is unfolded: tiles that point into a panel
+   * nobody has open are decoration, and they compete with the markers for the same bar. Kept as
+   * a flag rather than by simply not passing the spans, so the change is a fade rather than a
+   * pop — the elements have to stay mounted to animate out.
+   */
+  showTranscript?: boolean;
+  onTranscriptClick?: (from: number) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const markerBarRef = useRef<HTMLDivElement>(null);
@@ -215,6 +245,51 @@ export function VideoTimeline({
           );
         })}
 
+        {/* Transcript chapters — the lower half of the bar, so they never sit under a marker.
+
+            Half the height is deliberate: the markers are points a reviewer placed and the tiles
+            are the shape of the speech, and stacking them in one lane made both unreadable. They
+            fade rather than appear, because the control that shows them is a fold several hundred
+            pixels below and a silent change up here would look like a glitch. */}
+        {transcriptSpans && transcriptSpans.length > 0 && duration > 0 && (
+          <Box
+            data-testid="video-timeline-transcript"
+            data-visible={showTranscript ? "true" : "false"}
+            sx={{
+              position: "absolute", left: 0, right: 0, top: "50%", bottom: 0,
+              opacity: showTranscript ? 1 : 0,
+              pointerEvents: showTranscript ? "auto" : "none",
+              transition: "opacity 220ms ease",
+              zIndex: 3,
+            }}
+          >
+            {transcriptSpans.map(span => {
+              const left = (Math.max(0, span.from) / duration) * 100;
+              const width = Math.max(0.15, ((Math.min(duration, span.to) - Math.max(0, span.from)) / duration) * 100);
+              return (
+                <Tooltip key={span.id} title={span.label}>
+                  <Box
+                    data-testid="video-timeline-transcript-tile"
+                    data-span-id={span.id}
+                    onClick={e => { e.stopPropagation(); onTranscriptClick?.(span.from); }}
+                    sx={{
+                      position: "absolute",
+                      left: `${left}%`, width: `${width}%`,
+                      top: 1, bottom: 1,
+                      bgcolor: `${span.color}55`,
+                      borderLeft: `1px solid ${span.color}`,
+                      borderRadius: "2px",
+                      cursor: "pointer",
+                      transition: "background-color 120ms ease",
+                      "&:hover": { bgcolor: `${span.color}aa` },
+                    }}
+                  />
+                </Tooltip>
+              );
+            })}
+          </Box>
+        )}
+
         {/* Point markers */}
         {markers.map(m => {
           const isHovered = hoveredMarkerId === m.id;
@@ -234,7 +309,9 @@ export function VideoTimeline({
                 sx={{
                   position: "absolute",
                   left: `${(m.time / duration) * 100}%`,
-                  top: "50%",
+                  // A quarter down rather than centred: the lower half of the bar belongs to the
+                  // transcript tiles, and a marker sitting on top of one hid both.
+                  top: "25%",
                   transform: "translate(-50%, -50%)",
                   width: isHovered ? 12 : 8,
                   height: isHovered ? 12 : 8,

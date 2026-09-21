@@ -6,6 +6,14 @@ import { tokens } from "../../theme";
 import { TranscriptSection } from "../../types";
 import { formatDuration } from "./helpers";
 
+/**
+ * The palette the chapters cycle through.
+ *
+ * Exported because the timeline draws the same chapters as tiles, and two lists of colours that
+ * are meant to agree will not stay in agreement.
+ */
+export const TRANSCRIPT_SECTION_COLORS = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
+
 export function TranscriptPanel({
   sections,
   currentTime,
@@ -18,7 +26,7 @@ export function TranscriptPanel({
   onSectionsChange: (s: TranscriptSection[]) => void;
 }) {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
-  const sectionColors = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
+  const sectionColors = TRANSCRIPT_SECTION_COLORS;
 
   // Local draft for the section title being edited; commits to onSectionsChange on blur.
   const [editingTitle, setEditingTitle] = useState<{ id: string; value: string } | null>(null);

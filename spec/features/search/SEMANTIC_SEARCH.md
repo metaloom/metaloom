@@ -55,7 +55,11 @@ The contract the lexical phase reserved is now filled in rather than merely decl
 | `RankFusion` (RRF) | ✅ built + 13 unit tests | `loom-shared/api/…/api/search/RankFusion.java` |
 | `SearchMode.{SEMANTIC,HYBRID}` served rather than rejected | ✅ built + 20 tests | `PostgresSearchProvider.fusedSearch`, `SearchSemanticQueryTest` |
 | Document → embedding pass | ✅ built | `SearchEmbeddingService` + `SearchEmbeddingDrainer` |
-| Embedding inference host | ✅ `sidecars/llamacpp-embeddings` — the llama.cpp image again, with `--embeddings`. **Resolves the P3-1 spike**: no ONNX-in-process, no new Python sidecar |
+| Embedding inference host | ✅ **two, interchangeable.** `sidecars/llamacpp-embeddings` (nomic-embed-text-v1.5, 768d, English) and `sidecars/tei` (BGE-M3, 1024d, multilingual, 8192-token context). Loom knows only the OpenAI `POST /v1/embeddings` protocol, so either answers. **Resolves the P3-1 spike**: no ONNX-in-process, no new Python sidecar |
+| What gets embedded | Asset documents **and transcript windows** — `SearchEmbeddingService` embeds both since 2026-09-20. It used to embed asset documents only (its javadoc said so outright), so a transcript reached the index as one average of forty minutes of unrelated conversation. Windows are one row per minute since `V2.110` ([SEARCH.md](SEARCH.md) §4.1) |
+| How a window's vector is keyed | `embedding.subject_index`: **0 is the asset's own document, 1..N are its transcript windows in time order**. A window has no row of its own — its document key is derived — so there is no foreign uuid to point at. The numbering is `row_number() OVER (PARTITION BY asset_uuid ORDER BY time_from, entity_uuid)`, total rather than merely by time so an asset with two transcripts of the same audio cannot make the ordinal flip between passes and re-embed the catalogue. `SearchEmbeddingService.WINDOW_ORDINALS` is shared with the provider, which recomputes it to resolve a hit |
+| How a window's hit is resolved | `PostgresSearchProvider.vectorRanking` used to map *every* neighbour to `EntityKey(ASSET, assetUuid)`, which would have collapsed an embedded window back to its episode and thrown the timecode away. It now resolves the page of neighbours in one query and emits `EntityKey(TRANSCRIPT, windowUuid)` for those that are windows. A failure there degrades to asset hits — still true, just less precise — never to an error |
+| What a semantic hit shows | The **opening of the document**, added by `enrichFused`. `ts_headline` has no term to find in a hit matched by meaning and returns an empty string, so these hits used to carry no snippet at all — and for a transcript window the client was then left rendering the filename and the window's own timecode, which are already on the row. A search-by-meaning that answers with a list of timecodes and no words is not an answer. Still flagged `matchedIn: semantic`, so a client can tell "here is where your words are" from "here is what this passage is about" |
 | CLIP/SigLIP **image** embeddings | 🔴 Absent. This is what §4 still describes and the only reason text→image search does not work |
 | `loom/services/qdrant` | 🔴 `pom.xml` + Eclipse metadata, **no `src/`** |
 | GraphQL `search` field | 🔴 Absent from `loom/services/graphql/src/main/resources/loom.graphqls` |
@@ -756,7 +760,7 @@ Both live in `loom/db/jooq/src/test/.../search/`:
 | The fusion arithmetic and its tests | `loom-shared/api/.../api/search/RankFusion.java`; `RankFusionTest` |
 | The semantic/hybrid query path | `PostgresSearchProvider.fusedSearch` / `vectorRanking` / `lexicalRanking` / `hydrate` / `reorder` |
 | How documents get embedded | `loom/db/jooq/.../search/SearchEmbeddingService.java`; `loom/services/rest/.../search/SearchEmbeddingDrainer.java` |
-| The embedding host, and how to run it | `sidecars/llamacpp-embeddings/README.md` |
+| The embedding host, and how to run it | `sidecars/tei/README.md` (BGE-M3, multilingual — what transcript search wants) or `sidecars/llamacpp-embeddings/README.md` (nomic, English) |
 | Which embedder is bound, and the boot probe | `loom/core/.../dagger/SearchModule.java#textEmbedder` |
 | What a user is told about all this | `website/content/english/docs/ui/index.adoc` — "Searching by Meaning" |
 | Node result persistence pattern | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2; `WhisperNode` |

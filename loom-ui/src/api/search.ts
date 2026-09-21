@@ -132,6 +132,13 @@ export interface SearchRequestParams {
   library?: string;
   space?: string;
   collection?: string;
+  /**
+   * Restrict to the documents of one asset — "search inside this file".
+   *
+   * The only narrowing here that is about a single asset rather than a set of them. Combine with
+   * `types: ["transcript"]` to search what is said in one video and get the timecodes back.
+   */
+  asset?: string;
   tag?: string[];
   /** ISO-8601 instant. */
   from?: string;
@@ -238,6 +245,7 @@ export function buildSearchQuery(params: SearchRequestParams): string {
   put("library", params.library);
   put("space", params.space);
   put("collection", params.collection);
+  put("asset", params.asset);
   putList("tag", params.tag);
   put("from", params.from);
   put("to", params.to);

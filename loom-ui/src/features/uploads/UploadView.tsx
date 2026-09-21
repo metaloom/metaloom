@@ -11,7 +11,7 @@ import {
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
-import Title from "../../components/Title";
+import ViewHeader from "../../components/ViewHeader";
 import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
@@ -231,14 +231,16 @@ export default function UploadView() {
   const canUpload = Boolean(libraryUuid);
 
   return (
-    <Box sx={{ p: 3, overflow: "auto", height: "100%" }} data-testid="upload-view">
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <Title>{t("uploads.title")}</Title>
-        <HelpHint topic="uploads" size={16} />
-      </Box>
-      <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary, mb: 2.5, maxWidth: 720 }}>
-        {t("uploads.subtitle")}
-      </Typography>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }} data-testid="upload-view">
+      {/* The shared header band, so this screen has the same glyph, title size and rule under
+          it as every other one. It used to be a bare <Title> inside the padded content area. */}
+      <ViewHeader
+        icon={<CloudUploadOutlined />}
+        title={t("uploads.title")}
+        meta={<HelpHint topic="uploads" size={16} />}
+        subtitle={t("uploads.subtitle")}
+      />
+      <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
 
       {/* Target selection */}
       <Paper
@@ -459,6 +461,7 @@ export default function UploadView() {
           compact
         />
       )}
+      </Box>
     </Box>
   );
 }

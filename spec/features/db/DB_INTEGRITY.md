@@ -105,11 +105,26 @@ alike in the catalogue table is indistinguishable from one row listed twice.
 |---|---|---|---|
 | `DANGLING_TOKEN_EDITOR` | API token editor | ERROR | `token.editor_uuid` naming no user. V2.1 declares the FK for `creator_uuid` and omits this one |
 | `DANGLING_VECTOR_CONFIG_ACTOR` | Vector config creator and editor | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declares no PK and no FKs at all |
-| `DANGLING_SEARCH_DOCUMENT` | Search document target | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers |
+| `DANGLING_SEARCH_DOCUMENT` | Search document target | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers. **Transcripts are special-cased**, see below |
 | `STALE_SEARCH_TOMBSTONE` | Search deletion tombstone | WARN | A `search_document_deleted` row whose subject exists again |
 | `DANGLING_MEMORY_ENTRY_SCOPE` | Memory entry scope target | WARN | `memory_entry.scope_uuid` unresolvable in the table its `scope` names |
 | `DANGLING_NODE_TASK_LEASE` | Node task lease holder | WARN | An unfinished task leased to an unregistered `cortex_instance.node_id` |
 | `SOFT_DELETED_USER_HAS_LIVE_WORK` | Work left behind by a deleted user | ERROR | A soft-deleted user still holding tokens, assignments, notifications, memberships or grants |
+
+`DANGLING_SEARCH_DOCUMENT` is the one with a wrinkle. Every other `entity_type` names a row, so the
+check is an anti-join against the table `SearchDocumentEntities` maps it to. A **transcript**
+document names no row anywhere: since `V2.110` a transcript is indexed as one document per
+timecoded window, a window lives inside `transcript_json`, and its key is derived —
+`uuid_generate_v5(transcript_uuid, window_index)`. Looking that up in `asset_transcript_comp` finds
+nothing, so the naive check reports every window in the catalog as dangling; `AssetCascadeTest` is
+what catches that, because it asserts integrity after an ordinary delete.
+
+`DanglingSearchDocumentCheck` therefore re-derives the valid set in a `MATERIALIZED` CTE and
+anti-joins against it. That is *stronger* than the mapped-table version, not a concession: a
+document whose window the current transcript no longer produces — a re-transcription that heard
+fewer minutes — is a hit that plays a moment where nobody says the searched-for thing, and it now
+shows up here. `MATERIALIZED` is load-bearing; inlined, the planner re-parses every transcript's
+JSON once per document.
 
 `SOFT_DELETED_USER_HAS_LIVE_WORK` is the one worth reading twice. `user.deleted` is the only soft
 delete in the schema, and because the row is never removed, **every `ON DELETE CASCADE` pointed at

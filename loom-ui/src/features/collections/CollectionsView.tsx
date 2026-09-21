@@ -6,6 +6,7 @@ import {
 } from "@mui/material";
 import { AddOutlined, CollectionsOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ShareOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import EmptyState from "../../components/EmptyState";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
@@ -227,13 +228,11 @@ export default function CollectionsView() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <CollectionsOutlined sx={{ fontSize: 20, color: tokens.primary.main }} />
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("collections.title")}</Typography>
-            <Typography variant="caption" color="text.secondary" data-testid="collections-count">{page.totalCount} {t("collections.count.collections")}</Typography>
-          </Box>
+      <ViewHeader
+        icon={<CollectionsOutlined />}
+        title={t("collections.title")}
+        meta={<span data-testid="collections-count">{page.totalCount} {t("collections.count.collections")}</span>}
+        actions={
           <Chip
             icon={<AddOutlined sx={{ fontSize: 14 }} />}
             label={t("collections.button.new")}
@@ -241,7 +240,8 @@ export default function CollectionsView() {
             onClick={() => { resetForm(); setCreateOpen(true); }}
             sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
           />
-        </Box>
+        }
+      >
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             value={query}
@@ -274,7 +274,7 @@ export default function CollectionsView() {
 
           <ListSortControl value={sortState} onChange={setSortState} testId="collections-sort" />
         </Box>
-      </Box>
+      </ViewHeader>
 
       {/* Grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>

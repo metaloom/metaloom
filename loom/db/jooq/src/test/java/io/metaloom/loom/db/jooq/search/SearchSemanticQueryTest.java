@@ -337,8 +337,12 @@ public class SearchSemanticQueryTest extends AbstractJooqTest {
 		comp.setLang("en").setModel("whisper-large-v3").setTranscriptText("a bicycle leaning on a wall");
 		daos().assetComponentDao().upsertTranscriptComp(comp);
 
-		assertEquals(1, embeddingService.pendingCount(), "A refreshed document must go stale again");
-		assertEquals(1, embeddingService.embedStale(500));
+		// Two documents go stale, not one: the asset's own (its body carries the transcript text) and the
+		// transcript's single window. A transcript with no segments and no sections is one window at
+		// offset 0, which is the shape V2.110 falls back to.
+		assertEquals(2, embeddingService.pendingCount(), "A refreshed document must go stale again");
+		assertEquals(2, embeddingService.embedStale(500));
+		assertEquals(0, embeddingService.pendingCount(), "And must stop being stale once embedded");
 	}
 
 	@Test
@@ -352,8 +356,17 @@ public class SearchSemanticQueryTest extends AbstractJooqTest {
 			new FakeTextEmbedder("fake-embed-v2").withTopic("glacier"), options);
 		assertTrue(upgraded.embedStale(500) >= 1, "The new model must re-embed the corpus");
 
-		long stored = daos().embeddingDao().streamAll().filter(e -> asset.getUuid().equals(e.getAssetUuid())).count();
-		assertEquals(2, stored, "Both models' vectors must coexist for the same asset");
+		// subject_index 0 is the asset's own document; 1..N are its transcript windows (V2.110), so
+		// counting every row for the asset would count the windows twice over as well.
+		long storedForTheDocument = daos().embeddingDao().streamAll()
+			.filter(e -> asset.getUuid().equals(e.getAssetUuid()) && e.getSubjectIndex() == 0)
+			.count();
+		assertEquals(2, storedForTheDocument, "Both models' vectors must coexist for the same asset");
+
+		long storedForTheWindow = daos().embeddingDao().streamAll()
+			.filter(e -> asset.getUuid().equals(e.getAssetUuid()) && e.getSubjectIndex() == 1)
+			.count();
+		assertEquals(2, storedForTheWindow, "And for each of its transcript windows");
 	}
 
 	@Test

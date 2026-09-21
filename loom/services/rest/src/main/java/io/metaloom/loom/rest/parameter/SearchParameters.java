@@ -57,6 +57,7 @@ public class SearchParameters {
 			.setLibraryUuid(uuidParam(SearchQueryParameterKey.LIBRARY))
 			.setSpaceUuid(uuidParam(SearchQueryParameterKey.SPACE))
 			.setCollectionUuid(uuidParam(SearchQueryParameterKey.COLLECTION))
+			.setAssetUuid(uuidParam(SearchQueryParameterKey.ASSET))
 			.setTags(csv(SearchQueryParameterKey.TAG))
 			.setLang(raw(SearchQueryParameterKey.LANG))
 			.setProfile(raw(SearchQueryParameterKey.PROFILE))

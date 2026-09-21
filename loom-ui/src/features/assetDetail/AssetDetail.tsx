@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import ShareDialog from "../share/ShareDialog";
 import AddToRemixDialog from "../remix/AddToRemixDialog";
 import { listAssetRemixes, type RemixResponse } from "../../api/remixes";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box, Typography, Chip, IconButton, Tab, Tabs, Autocomplete,
   Tooltip, LinearProgress, TextField, InputAdornment,
@@ -20,7 +20,8 @@ import {
   CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined, LayersOutlined,
   DownloadOutlined, UploadFileOutlined, LinkOutlined,
   StorageOutlined, LockOutlined, LaunchOutlined,
-  CenterFocusStrongOutlined, CheckOutlined, AddOutlined, ShareOutlined } from "@mui/icons-material";
+  CenterFocusStrongOutlined, CheckOutlined, AddOutlined, ShareOutlined,
+  NotesOutlined, InfoOutlined, RecordVoiceOverOutlined, DragHandleOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
@@ -49,26 +50,76 @@ import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComme
 import { listAssetTasks, assignTaskToAsset, createTask, TaskResponse } from "../../api/tasks";
 import { apiToAsset, formatDuration, formatBytes, userName, tagBreadcrumb } from "./helpers";
 import { asrSegmentsToSections } from "./transcriptMapping";
-import { VideoTimeline, TimelineMarker } from "./VideoTimeline";
+import { VideoTimeline, TimelineMarker, TranscriptSpan } from "./VideoTimeline";
 import { ZoomableImage } from "./ZoomableImage";
 import { CommentItem } from "./CommentItem";
 import { AnnotationItem } from "./AnnotationItem";
 import { ReactionsPanel } from "../reactions/ReactionsPanel";
 import { TaskItem, taskPriorityColor, taskStatusColor } from "./TaskItem";
-import { TranscriptPanel } from "./TranscriptPanel";
+import { TranscriptPanel, TRANSCRIPT_SECTION_COLORS } from "./TranscriptPanel";
+import { TranscriptSearchPanel } from "./TranscriptSearchPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import CollapsibleSection from "../../components/CollapsibleSection";
+import { useSectionState } from "../../hooks/useSectionState";
+import { useAuthedImage } from "../../hooks/useAuthedImage";
 
 
 /**
  * Below this many pixels the tab strip drops its labels and keeps the icons.
  *
- * Narrow enough that a comfortable sidebar keeps its words, wide enough that the strip turns to
- * icons before the tabs start scrolling in earnest. It is not a hard floor on the sidebar: the
- * strip is `scrollable`, so labels never actually block a drag — this is about what is worth
- * reading in a column this thin.
+ * 380, and the number is bounded on both sides. At the 300 it was first set to, the labels
+ * survived through the whole range anybody would call narrow and only vanished once the sidebar
+ * was a sliver — which is not when you want them to. At 420 they were gone at the *default*
+ * split on a 1600px window (30% of the body is about 414px there), so a screen nobody had
+ * dragged opened in icon mode. 380 keeps the words at every default width and drops them as soon
+ * as the divider is pulled in.
+ *
+ * It is not a hard floor on the sidebar: the strip is `scrollable`, so labels never block a
+ * drag — this is about what is worth reading in a column this thin.
  */
-const SIDEBAR_ICON_ONLY_PX = 300;
+const SIDEBAR_ICON_ONLY_PX = 380;
+
+/** Where the fold state of the left column's sections is remembered. */
+const SECTION_STATE_KEY = "loom.assetDetail.sections";
+
+/**
+ * How tall the media slot is, in pixels, and where the drag handle may take it.
+ *
+ * A pixel height rather than a fraction of the pane: the thing being sized is a picture, and how
+ * much of one you want on screen does not scale with how long the page below it happens to be.
+ */
+const MEDIA_HEIGHT_KEY = "loom.assetDetail.mediaHeight";
+const MEDIA_MIN_PX = 140;
+const MEDIA_MAX_PX = 1200;
+const MEDIA_DEFAULT_PX = 380;
+
+function readStoredMediaHeight(): number {
+  try {
+    const raw = window.localStorage.getItem(MEDIA_HEIGHT_KEY);
+    const value = raw == null ? NaN : Number.parseInt(raw, 10);
+    if (!Number.isFinite(value)) return MEDIA_DEFAULT_PX;
+    return Math.min(MEDIA_MAX_PX, Math.max(MEDIA_MIN_PX, value));
+  } catch {
+    return MEDIA_DEFAULT_PX;
+  }
+}
+
+/**
+ * Which sections start open for somebody who has never folded one.
+ *
+ * Only the raw metadata table starts shut, and only because it is the longest block of the least
+ * situational interest — size, mime, owner, created. Everything else opens, which keeps the
+ * default view of an asset the same set of information it always showed; the fold is a control
+ * the reviewer reaches for, not a decision made on their behalf.
+ */
+const SECTION_DEFAULTS: Record<string, boolean> = {
+  description: true,
+  detections: true,
+  transcript: true,
+  locations: true,
+  metadata: false,
+};
 
 // Map a REST comment response onto the local Comment view model.
 function commentResponseToComment(c: CommentResponse, assetId: string): Comment {
@@ -138,6 +189,9 @@ function transcriptResponseToGroup(tr: TranscriptResponse): TranscriptGroup {
 export default function AssetDetail() {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  /** `?t=<seconds>`: where a transcript hit or a shared link wants the player to open. */
+  const deepLinkSeconds = Number.parseFloat(searchParams.get("t") ?? "");
   const navigate = useNavigate();
   const { token, userUuid } = useAuth();
   const [asset, setAsset] = useState<Asset | null>(null);
@@ -222,6 +276,17 @@ export default function AssetDetail() {
   const [leftPct, setLeftPct] = useState(70);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  /**
+   * How tall the media slot is.
+   *
+   * The vertical twin of {@link leftPct}: the sidebar had a handle and the player had a hard cap,
+   * so the only way to see more of a video was to widen the pane, which does nothing once the
+   * picture is already as wide as the column. Remembered, because it is a preference about how
+   * you review rather than about this asset.
+   */
+  const [mediaPx, setMediaPx] = useState(readStoredMediaHeight);
+  const mediaColumnRef = useRef<HTMLDivElement>(null);
+  const draggingMedia = useRef(false);
   /**
    * The sidebar's measured width, so the tab strip can drop its labels.
    *
@@ -604,12 +669,48 @@ export default function AssetDetail() {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      setLeftPct(Math.min(Math.max(pct, 30), 88));
+      // 94 rather than 88: with the labels gone at SIDEBAR_ICON_ONLY_PX there is no longer a
+      // word-width floor, and the point of a strip of icons is that you can push past it.
+      setLeftPct(Math.min(Math.max(pct, 30), 94));
     };
     const onUp = () => { isDragging.current = false; window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(MEDIA_HEIGHT_KEY, String(Math.round(mediaPx))); } catch { /* private mode */ }
+  }, [mediaPx]);
+
+  /**
+   * Drag the media slot taller or shorter.
+   *
+   * Clamped against the column it lives in rather than only against a constant: leaving less
+   * than a couple of hundred pixels for the timeline and the sections below turns the handle
+   * into a way to hide the rest of the screen.
+   */
+  const handleMediaResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    draggingMedia.current = true;
+    const startY = e.clientY;
+    const startPx = mediaPx;
+    const columnHeight = mediaColumnRef.current?.getBoundingClientRect().height ?? 0;
+    const ceiling = columnHeight > 0 ? Math.max(MEDIA_MIN_PX, columnHeight - 200) : MEDIA_MAX_PX;
+    const onMove = (ev: MouseEvent) => {
+      if (!draggingMedia.current) return;
+      setMediaPx(Math.min(ceiling, Math.max(MEDIA_MIN_PX, startPx + (ev.clientY - startY))));
+    };
+    const onUp = () => {
+      draggingMedia.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [mediaPx]);
+
+  /** Which of the left column's sections are open. See {@link useSectionState}. */
+  const { isExpanded: sectionExpanded, toggle: toggleSection } = useSectionState(SECTION_STATE_KEY, SECTION_DEFAULTS);
 
   /**
    * The player, which owns the stream offset and the transport.
@@ -640,6 +741,35 @@ export default function AssetDetail() {
       .catch(() => { /* suggestions are an aid; typing still works without them */ });
     return () => { cancelled = true; };
   }, [token]);
+
+  /**
+   * Honour `?t=` once, when the player can actually act on it.
+   *
+   * Deliberately gated on the probe rather than run on mount: the stream is a remux and a seek
+   * before the duration is known is a request for an offset into a file of unknown length. Keyed
+   * on the asset so navigating from one transcript hit to another in a different episode seeks
+   * again, and guarded by a ref so a re-render does not drag the viewer back to the link's
+   * timestamp after they have scrubbed away from it.
+   */
+  const deepLinkApplied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!id || !Number.isFinite(deepLinkSeconds) || deepLinkSeconds <= 0) return;
+    if (deepLinkApplied.current === id) return;
+    if (!(mediaInfo?.duration ?? 0)) return;
+    deepLinkApplied.current = id;
+    setCurrentTime(deepLinkSeconds);
+    playerRef.current?.seekTo(deepLinkSeconds);
+  }, [id, deepLinkSeconds, mediaInfo?.duration]);
+
+  /**
+   * The picture for an image asset, fetched with the auth header.
+   *
+   * `asset.url` points at `/assets/:uuid/binary/data`, which an `<img>` cannot authenticate
+   * against — so every image asset rendered as a broken-image glyph. See {@link useAuthedImage}.
+   * Beyond the obvious, this is load-bearing for the region overlays: `ZoomableImage` reads the
+   * picture's intrinsic size off the element, and an image that never loads leaves it guessing.
+   */
+  const imageUrl = useAuthedImage(asset?.type !== "video" && asset?.url ? asset.id : null);
 
   /** The bounding box to light up, and when. See {@link useFaceFlash}. */
   const { flash: faceFlash, armFlash } = useFaceFlash();
@@ -700,6 +830,28 @@ export default function AssetDetail() {
   // stream it describes the pipe rather than the clip, which is what made a 43-minute episode's
   // timeline read "0:05".
   const duration = asset.duration || mediaInfo?.duration || 0;
+
+  /** Whether the transcript fold is open — the timeline tiles follow it. */
+  const transcriptOpen = sectionExpanded("transcript");
+
+  /**
+   * The transcript's chapters as timeline tiles.
+   *
+   * Flattened across every transcript on the asset, because the bar is one bar: two transcripts
+   * of the same audio in different languages describe the same moments, and drawing each in its
+   * own lane would say they were different scenes. The colour cycles through the same palette
+   * the panel below uses, so a tile and its section are recognisably the same thing.
+   */
+  const transcriptSpans: TranscriptSpan[] = transcripts.flatMap(tr =>
+    tr.sections
+      .filter(section => section.endTime > section.startTime)
+      .map((section, idx) => ({
+        id: `${tr.uuid}:${section.id}`,
+        from: section.startTime,
+        to: section.endTime,
+        label: section.title || formatDuration(Math.round(section.startTime)),
+        color: TRANSCRIPT_SECTION_COLORS[idx % TRANSCRIPT_SECTION_COLORS.length],
+      })));
 
   // ── Asset metadata edit / delete / process ──────────────────────────────
   const nameDirty = editName.trim() !== "" && editName.trim() !== asset.name;
@@ -1058,7 +1210,7 @@ export default function AssetDetail() {
       {/* Body */}
       <Box ref={containerRef} sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: { xs: "column", lg: "row" }, gap: 0 }}>
         {/* Left: media */}
-        <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Box ref={mediaColumnRef} sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
           {/* `flexShrink: 0`, or the column below squashes this to nothing.
               The media area is a flex item in a column whose other children — timeline, tags,
@@ -1067,7 +1219,8 @@ export default function AssetDetail() {
               correct 966x380 and was then handed a 0px slot, so it overflowed upward out of an
               `overflow: hidden` parent and the page showed a timeline with no video above it.
               The old `aspectRatio` here hid the same bug behind a definite basis. */}
-          <Box data-testid="asset-media-area" sx={{ position: "relative", flexShrink: 0, bgcolor: "#000", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Box data-testid="asset-media-area" data-media-height={Math.round(mediaPx)}
+            sx={{ position: "relative", flexShrink: 0, bgcolor: "#000", height: mediaPx, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isVideo ? (
               // The remuxed stream, not the stored binary: no browser decodes the Matroska files
               // this deployment holds, whatever range support /assets/:uuid/binary/data offers.
@@ -1081,7 +1234,7 @@ export default function AssetDetail() {
                 // The player sizes itself: 16:9 capped at the same height the slot is capped at, so
                 // the aspect ratio yields to the cap rather than overflowing it. Handing it
                 // `height: 100%` against an aspect-ratio'd parent is what collapsed the picture.
-                sx={{ width: "100%", aspectRatio: "16/9", maxHeight: { xs: 240, lg: 380 } }}
+                sx={{ width: "100%", height: "100%" }}
                 // Only the faces belonging to the moment on screen, plus whichever one was
                 // clicked. Drawing all of them at once is every detection in a 43-minute episode
                 // stacked on one frame, which is not a picture of anything.
@@ -1092,7 +1245,7 @@ export default function AssetDetail() {
               />
             ) : !isVideo && asset.url ? (
               <ZoomableImage
-                src={asset.url}
+                src={imageUrl ?? ""}
                 alt={asset.name}
                 selectMode={regionMode || detectionMode}
                 regions={[...imageRegions, ...detectionRegions]}
@@ -1120,6 +1273,30 @@ export default function AssetDetail() {
             )}
           </Box>
 
+          {/* Resize handle for the media slot.
+
+              Below the picture rather than above the timeline's own controls, because what it
+              sizes is the picture: dragging down makes the video bigger and pushes the sections
+              below further down, which is the gesture people already know from a split pane. */}
+          <Box
+            data-testid="asset-media-resize"
+            onMouseDown={handleMediaResizeStart}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={tAD("media.resize")}
+            sx={{
+              flexShrink: 0, height: 8, display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "row-resize", bgcolor: tokens.bg.surface,
+              borderTop: `1px solid ${tokens.border.subtle}`, borderBottom: `1px solid ${tokens.border.subtle}`,
+              "&:hover": { bgcolor: tokens.primary.subtle },
+              "&:hover .media-drag-grip": { opacity: 1 },
+              transition: "background-color 120ms ease",
+            }}
+          >
+            <DragHandleOutlined className="media-drag-grip"
+              sx={{ fontSize: 14, color: tokens.primary.main, opacity: 0.35, transition: "opacity 120ms ease" }} />
+          </Box>
+
           {/* Timeline (video only) */}
           {isVideo && (
             <Box sx={{ flexShrink: 0, px: 2.5, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
@@ -1131,6 +1308,9 @@ export default function AssetDetail() {
                 onSeek={seekTo}
                 onMarkerClick={handleMarkerClick}
                 onMarkerHover={setHoveredMarkerId}
+                transcriptSpans={transcriptSpans}
+                showTranscript={transcriptOpen}
+                onTranscriptClick={seekTo}
                 rangeMode={regionMode}
                 onRangeSelect={(from, to) => {
                   setPendingArea({ from: Math.round(from * 1000), to: Math.round(to * 1000) });
@@ -1250,9 +1430,36 @@ export default function AssetDetail() {
             />
           </Box>
 
-          {/* Object detections — editable bounding boxes overlaid on the central image */}
-          {!isVideo && asset.url && (
-            <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-detections">
+          {/* The foldable stack — and the one scroller in this column.
+
+              It used to be five fixed bands with `overflow: auto` on the metadata one alone, so
+              metadata scrolled and the locations, the description and a 43-minute transcript
+              below it were off the bottom of an `overflow: hidden` pane with no way to reach
+              them at all. One scroller around the stack, and each band foldable, is the pair of
+              changes that makes the column navigable; the fold state is remembered per user, not
+              per asset (see SECTION_STATE_KEY). */}
+          <Box data-testid="asset-section-stack"
+            sx={{ flex: 1, minHeight: 0, overflow: "auto", bgcolor: tokens.bg.surface }}>
+            <CollapsibleSection id="description" title={tAD("meta.description")} icon={<NotesOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+              expanded={sectionExpanded("description")} onToggle={toggleSection}>
+              <TextField
+                multiline
+                minRows={2}
+                maxRows={5}
+                fullWidth
+                value={asset.description}
+                size="small"
+                InputProps={{ sx: { fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 } }}
+                sx={{ "& .MuiOutlinedInput-root": { bgcolor: tokens.bg.elevated } }}
+              />
+            </CollapsibleSection>
+
+            {/* Object detections — editable bounding boxes overlaid on the central image */}
+            {!isVideo && asset.url && (
+              <CollapsibleSection id="detections" title={tAD("detection.label")} icon={<CenterFocusStrongOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+                meta={detections.length || undefined}
+                expanded={sectionExpanded("detections")} onToggle={toggleSection}>
+              <Box data-testid="asset-detections">
               <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("detection.label")}</Typography>
                 <Tooltip title={tAD("detection.modeToggle")} placement="top" arrow>
@@ -1333,125 +1540,111 @@ export default function AssetDetail() {
                 </Box>
               )}
             </Box>
-          )}
+              </CollapsibleSection>
+            )}
 
-          {/* Description */}
-          <Box sx={{ px: 2, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
-            <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>
-              {tAD("meta.description")}
-            </Typography>
-            <TextField
-              multiline
-              minRows={2}
-              maxRows={5}
-              fullWidth
-              value={asset.description}
-              size="small"
-              InputProps={{ sx: { fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 } }}
-              sx={{ "& .MuiOutlinedInput-root": { bgcolor: tokens.bg.elevated } }}
-            />
-          </Box>
+            <CollapsibleSection id="metadata" title={tAD("meta.title")} icon={<InfoOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+              expanded={sectionExpanded("metadata")} onToggle={toggleSection}>
+              <Box sx={{ mt: 1, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+                {[
+                  [tAD("meta.size"), formatBytes(asset.fileSize)],
+                  [tAD("meta.mime"), asset.mimeType],
+                  ...(asset.width ? [[tAD("meta.dimensions"), `${asset.width}×${asset.height}`]] : []),
+                  ...(asset.duration ? [[tAD("meta.duration"), formatDuration(asset.duration)]] : []),
+                  [tAD("meta.owner"), userName(asset.ownerId)],
+                  [tAD("meta.created"), new Date(asset.createdAt).toLocaleDateString()],
+                  ...Object.entries(asset.metadata).slice(0, 4).map(([k, v]) => [k, String(v)]),
+                ].map(([k, v], idx, arr) => (
+                  <Box
+                    key={k}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "120px 1fr",
+                      px: 1.5,
+                      py: 0.85,
+                      borderBottom: idx < arr.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
+                      bgcolor: idx % 2 === 0 ? "transparent" : `rgba(255,255,255,0.02)`,
+                    }}
+                  >
+                    <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
+                    <Typography sx={{ color: tokens.text.secondary, fontSize: "0.8rem", wordBreak: "break-word" }}>{v}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </CollapsibleSection>
 
-          {/* Metadata */}
-          {/* The one part of this column that scrolls, so it is the one that takes what is left. */}
-          <Box sx={{ px: 2, py: 2, flex: 1, minHeight: 0, overflow: "auto" }}>
-            <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
-              {tAD("meta.title")}
-            </Typography>
-            <Box sx={{ mt: 1, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
-              {[
-                [tAD("meta.size"), formatBytes(asset.fileSize)],
-                [tAD("meta.mime"), asset.mimeType],
-                ...(asset.width ? [[tAD("meta.dimensions"), `${asset.width}×${asset.height}`]] : []),
-                ...(asset.duration ? [[tAD("meta.duration"), formatDuration(asset.duration)]] : []),
-                [tAD("meta.owner"), userName(asset.ownerId)],
-                [tAD("meta.created"), new Date(asset.createdAt).toLocaleDateString()],
-                ...Object.entries(asset.metadata).slice(0, 4).map(([k, v]) => [k, String(v)]),
-              ].map(([k, v], idx, arr) => (
-                <Box
-                  key={k}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "120px 1fr",
-                    px: 1.5,
-                    py: 0.85,
-                    borderBottom: idx < arr.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
-                    bgcolor: idx % 2 === 0 ? "transparent" : `rgba(255,255,255,0.02)`,
-                  }}
-                >
-                  <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
-                  <Typography sx={{ color: tokens.text.secondary, fontSize: "0.8rem", wordBreak: "break-word" }}>{v}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-
-          {/* Storage location(s) — pool / path / state / license of the binary */}
-          <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-locations">
-            <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "flex", alignItems: "center", gap: 0.5 }}>
-              <StorageOutlined sx={{ fontSize: 13 }} />
-              {tAD("location.title")}
-            </Typography>
-            {assetLocations.length === 0 ? (
-              <Typography sx={{ mt: 1, color: tokens.text.tertiary, fontSize: "0.8rem" }}>
-                {tAD("location.empty")}
-              </Typography>
-            ) : (
-              <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
-                {assetLocations.map((loc, li) => {
-                  const path = loc.filesystem?.path ?? loc.s3?.objectPath;
-                  const rows: [string, React.ReactNode][] = [];
-                  if (loc.poolUuid) {
-                    rows.push([tAD("location.pool"), (
-                      <Box
-                        component="span"
-                        role="link"
-                        tabIndex={0}
-                        data-testid="asset-location-pool-link"
-                        onClick={() => navigate("/asset-pools")}
-                        onKeyDown={e => { if (e.key === "Enter") navigate("/asset-pools"); }}
-                        sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.primary.main, cursor: "pointer", fontSize: "0.8rem", "&:hover": { textDecoration: "underline" } }}
-                      >
-                        {loc.poolUuid}
-                        <Tooltip title={tAD("location.viewPool")}><LaunchOutlined sx={{ fontSize: 12 }} /></Tooltip>
+            <CollapsibleSection id="locations" title={tAD("location.title")} icon={<StorageOutlined sx={{ fontSize: 13, color: tokens.text.tertiary }} />}
+              meta={assetLocations.length || undefined}
+              expanded={sectionExpanded("locations")} onToggle={toggleSection}>
+              <Box data-testid="asset-locations">
+              {assetLocations.length === 0 ? (
+                <Typography sx={{ mt: 1, color: tokens.text.tertiary, fontSize: "0.8rem" }}>
+                  {tAD("location.empty")}
+                </Typography>
+              ) : (
+                <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {assetLocations.map((loc, li) => {
+                    const path = loc.filesystem?.path ?? loc.s3?.objectPath;
+                    const rows: [string, React.ReactNode][] = [];
+                    if (loc.poolUuid) {
+                      rows.push([tAD("location.pool"), (
+                        <Box
+                          component="span"
+                          role="link"
+                          tabIndex={0}
+                          data-testid="asset-location-pool-link"
+                          onClick={() => navigate("/asset-pools")}
+                          onKeyDown={e => { if (e.key === "Enter") navigate("/asset-pools"); }}
+                          sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.primary.main, cursor: "pointer", fontSize: "0.8rem", "&:hover": { textDecoration: "underline" } }}
+                        >
+                          {loc.poolUuid}
+                          <Tooltip title={tAD("location.viewPool")}><LaunchOutlined sx={{ fontSize: 12 }} /></Tooltip>
+                        </Box>
+                      )]);
+                    }
+                    if (path) rows.push([tAD("location.path"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary, fontFamily: "monospace", wordBreak: "break-all" }}>{path}</Typography>]);
+                    if (loc.mimeType) rows.push([tAD("location.mime"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.mimeType}</Typography>]);
+                    if (loc.state) rows.push([tAD("location.state"), <Chip label={loc.state} size="small" data-testid="asset-location-state" sx={{ height: 18, fontSize: "0.65rem", bgcolor: tokens.bg.elevated }} />]);
+                    if (loc.license) rows.push([tAD("location.license"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.license}</Typography>]);
+                    if (loc.lockedByUuid) rows.push([tAD("location.locked"), (
+                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.accent.amber, fontSize: "0.8rem" }}>
+                        <LockOutlined sx={{ fontSize: 12 }} />{loc.lockedByUuid}
                       </Box>
                     )]);
-                  }
-                  if (path) rows.push([tAD("location.path"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary, fontFamily: "monospace", wordBreak: "break-all" }}>{path}</Typography>]);
-                  if (loc.mimeType) rows.push([tAD("location.mime"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.mimeType}</Typography>]);
-                  if (loc.state) rows.push([tAD("location.state"), <Chip label={loc.state} size="small" data-testid="asset-location-state" sx={{ height: 18, fontSize: "0.65rem", bgcolor: tokens.bg.elevated }} />]);
-                  if (loc.license) rows.push([tAD("location.license"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.license}</Typography>]);
-                  if (loc.lockedByUuid) rows.push([tAD("location.locked"), (
-                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.accent.amber, fontSize: "0.8rem" }}>
-                      <LockOutlined sx={{ fontSize: 12 }} />{loc.lockedByUuid}
-                    </Box>
-                  )]);
-                  return (
-                    <Box key={loc.uuid ?? li} data-testid="asset-location" sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
-                      {rows.map(([k, v], idx) => (
-                        <Box
-                          key={k}
-                          sx={{
-                            display: "grid", gridTemplateColumns: "120px 1fr", px: 1.5, py: 0.85, alignItems: "center",
-                            borderBottom: idx < rows.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
-                            bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
-                          }}
-                        >
-                          <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
-                          {v}
-                        </Box>
-                      ))}
-                    </Box>
-                  );
-                })}
+                    return (
+                      <Box key={loc.uuid ?? li} data-testid="asset-location" sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+                        {rows.map(([k, v], idx) => (
+                          <Box
+                            key={k}
+                            sx={{
+                              display: "grid", gridTemplateColumns: "120px 1fr", px: 1.5, py: 0.85, alignItems: "center",
+                              borderBottom: idx < rows.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
+                              bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
+                            }}
+                          >
+                            <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
+                            {v}
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
               </Box>
-            )}
-          </Box>
+            </CollapsibleSection>
 
-          {/* Transcripts — inline in content area, synced with player. One panel
-              per transcript (an asset may carry several — different source/language). */}
-          {transcripts.length > 0 && (
-            <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${tokens.border.subtle}` }}>
+            {/* Transcripts — synced with the player. One panel per transcript (an asset may
+                carry several: different source, different language). Folding this is what turns
+                the chapter tiles in the timeline above on and off. */}
+            {transcripts.length > 0 && (
+              <CollapsibleSection id="transcript" title={tAD("transcript.sectionTitle")} icon={<RecordVoiceOverOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+                meta={transcripts.map(t => [t.source, t.lang].filter(Boolean).join(" ")).filter(Boolean).join(" · ") || undefined}
+                expanded={sectionExpanded("transcript")} onToggle={toggleSection}>
+              {/* Server-side search over this asset's transcript windows, above the panels. The
+                  "find in transcript" box inside each panel is a literal scan of what is already
+                  loaded and stays — this answers the question that one cannot. */}
+              <TranscriptSearchPanel assetUuid={asset.id} onSeek={seekTo} />
               {transcripts.map(tr => (
                 <Box key={tr.uuid} sx={{ mb: 2, "&:last-of-type": { mb: 0 } }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
@@ -1477,8 +1670,9 @@ export default function AssetDetail() {
                   />
                 </Box>
               ))}
-            </Box>
-          )}
+              </CollapsibleSection>
+            )}
+          </Box>
         </Box>
 
         {/* Draggable divider */}

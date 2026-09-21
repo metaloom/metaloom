@@ -8,6 +8,10 @@ import { SEARCH_MAX_OFFSET, SEARCH_PAGE_SIZE } from "../../types";
  * that asset; the rest lands on the management screen that lists it. Returns null when the hit
  * cannot be resolved — a transcript whose `assetUuid` the server omitted — and the row then
  * renders as plain, non-clickable text rather than a link to nowhere.
+ *
+ * A hit that knows *when* carries `?t=` with it. Before the transcript index was windowed there
+ * was nothing worth carrying — every transcript hit reported offset zero — so a search for a
+ * line of dialogue opened a 43-minute episode at the beginning and left the reader to find it.
  */
 export function hitTarget(hit: SearchHitResponse): string | null {
   switch (hit.type) {
@@ -17,7 +21,9 @@ export function hitTarget(hit: SearchHitResponse): string | null {
     case "annotation":
     case "segment":
     case "detection":
-      return hit.assetUuid ? `/assets/${encodeURIComponent(hit.assetUuid)}` : null;
+      return hit.assetUuid
+        ? `/assets/${encodeURIComponent(hit.assetUuid)}${deepLinkTime(hit.timeFromMs)}`
+        : null;
     case "tag":
       return "/tags";
     case "collection":
@@ -34,6 +40,18 @@ export function hitTarget(hit: SearchHitResponse): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * The `?t=` fragment for a hit that knows its offset, or the empty string.
+ *
+ * Seconds rather than milliseconds because that is what a player's `currentTime` is and what
+ * every other `?t=` on the web means; zero is omitted because it is where the file opens anyway
+ * and a URL that says so is noise.
+ */
+function deepLinkTime(timeFromMs?: number): string {
+  if (timeFromMs === undefined || !Number.isFinite(timeFromMs) || timeFromMs <= 0) return "";
+  return `?t=${Math.floor(timeFromMs / 1000)}`;
 }
 
 /** Format a millisecond offset as `m:ss`, or `h:mm:ss` once it passes an hour. */

@@ -258,6 +258,36 @@ public class SearchEndpointTest extends AbstractEndpointTest {
 			"types=remix must exclude the asset that matches the same term");
 	}
 
+	/**
+	 * {@code ?asset=} is what "search inside this file" means.
+	 *
+	 * <p>
+	 * The only narrowing the search API has that is about a single asset rather than a set of them, and the one the asset viewer's transcript box
+	 * sends. Without it there was no way to ask "where in <em>this</em> video does somebody say that" short of loading the whole transcript into the
+	 * browser and scanning it there.
+	 * </p>
+	 */
+	@Test
+	public void testSearchNarrowsToOneAsset() throws LoomClientException {
+		Asset wanted = seedAsset("kelvin_probe_wanted.mp4");
+		Asset other = seedAsset("kelvin_probe_other.mp4");
+
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		SearchResultResponse everywhere = client.search("kelvin_probe").sync().body();
+		assertTrue(everywhere.getData().stream().anyMatch(hit -> wanted.getUuid().equals(hit.getUuid())));
+		assertTrue(everywhere.getData().stream().anyMatch(hit -> other.getUuid().equals(hit.getUuid())),
+			"Both assets match the term when nothing narrows the search");
+
+		SearchResultResponse scoped = client.search("kelvin_probe", "asset", wanted.getUuid().toString()).sync().body();
+		assertFalse(scoped.getData().isEmpty(), "The asset itself still matches inside its own scope");
+		assertTrue(scoped.getData().stream().allMatch(hit -> wanted.getUuid().equals(hit.getAssetUuid())),
+			"Every hit must belong to the asset that was asked for");
+		assertFalse(scoped.getData().stream().anyMatch(hit -> other.getUuid().equals(hit.getUuid())),
+			"?asset= must exclude the other asset that matches the same term");
+	}
+
 	@Test
 	public void testSearchAssetsRequiresReadAsset() throws LoomClientException {
 		LoomHttpClient client = loginWith("search-no-asset", Permission.READ_SEARCH, Permission.READ_TAG);

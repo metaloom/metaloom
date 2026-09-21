@@ -10,6 +10,7 @@ import {
   SaveOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -382,17 +383,16 @@ export default function TagsView() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tags.title")}</Typography>
-              <Tooltip title={t("tags.tooltip.info")} arrow>
-                <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
-              </Tooltip>
-            </Box>
-            <Typography variant="caption" color="text.secondary">{totalTags} {t("tags.count", { collections: collections.size })}</Typography>
-          </Box>
+      <ViewHeader
+        icon={<LocalOfferOutlined />}
+        title={t("tags.title")}
+        meta={
+          <Tooltip title={t("tags.tooltip.info")} arrow>
+            <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
+          </Tooltip>
+        }
+        subtitle={`${totalTags} ${t("tags.count", { collections: collections.size })}`}
+        actions={
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <TextField
               inputRef={newTagInputRef}
@@ -419,7 +419,8 @@ export default function TagsView() {
               </IconButton>
             </Tooltip>
           </Box>
-        </Box>
+        }
+      >
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             value={searchQuery}
@@ -450,7 +451,7 @@ export default function TagsView() {
 
           <ListSortControl value={sortState} onChange={setSortState} testId="tags-sort" />
         </Box>
-      </Box>
+      </ViewHeader>
 
       {/* Tree + Detail Sidebar */}
       <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>

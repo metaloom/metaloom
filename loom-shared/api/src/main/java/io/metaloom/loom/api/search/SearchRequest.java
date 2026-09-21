@@ -40,6 +40,22 @@ public class SearchRequest {
 
 	private UUID clusterUuid;
 
+	/**
+	 * Narrow to the documents belonging to one asset.
+	 *
+	 * <p>
+	 * What "search inside this episode" is. Every other narrowing here answers a question about a <em>set</em> of assets - which library, which
+	 * collection, which tag - and none of them can express the one a viewer asks while looking at a single file: where in this does somebody say
+	 * that. The index already carries {@code asset_uuid} on every derived document, so this is a column comparison rather than a join.
+	 * </p>
+	 *
+	 * <p>
+	 * A hit for the asset itself matches too: {@code search_document.asset_uuid} equals {@code entity_uuid} for {@code entity_type='asset'}.
+	 * Combine with {@link #getTypes()} when only the transcript spans are wanted.
+	 * </p>
+	 */
+	private UUID assetUuid;
+
 	private List<String> tags = new ArrayList<>();
 
 	private Instant createdFrom;
@@ -199,6 +215,15 @@ public class SearchRequest {
 
 	public SearchRequest setCreatedTo(Instant createdTo) {
 		this.createdTo = createdTo;
+		return this;
+	}
+
+	public UUID getAssetUuid() {
+		return assetUuid;
+	}
+
+	public SearchRequest setAssetUuid(UUID assetUuid) {
+		this.assetUuid = assetUuid;
 		return this;
 	}
 

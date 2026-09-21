@@ -239,10 +239,11 @@ async function openDetectionImageAsset(page: Page) {
 }
 
 async function drawBox(page: Page, x0: number, y0: number, x1: number, y1: number) {
-  const image = page.getByTestId("zoomable-image");
+  // The picture, not the container that holds it: a region is a fraction of the image.
+  const image = page.getByTestId("zoomable-image-picture");
   await expect(image).toBeVisible();
   const box = await image.boundingBox();
-  if (!box) throw new Error("zoomable-image has no bounding box");
+  if (!box) throw new Error("zoomable-image-picture has no bounding box");
   await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 10 });

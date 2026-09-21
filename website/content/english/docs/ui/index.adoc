@@ -231,6 +231,15 @@ has to be processed once before it can be matched this way. Word search is avail
 administrator can see how many items are still waiting.
 ====
 
+[TIP]
+====
+Transcripts are indexed **a minute at a time**, not a file at a time, so a result points at the
+moment rather than at the episode — the timecode is on the result and clicking it opens the player
+there. Narrow the results to *transcript* when you are looking for something somebody said. To
+search inside one video instead of across all of them, use the search box above its transcript
+(see <<_searching_what_was_said>>).
+====
+
 === When Search Is Turned Off
 
 Search is optional, and an administrator can disable it or point Loom at a search backend that is not
@@ -296,13 +305,22 @@ image::asset-detail.png[Asset detail view,role=img-fluid]
 
 Loom keeps your original files, and a browser cannot play most of the containers a camera or a
 delivery house produces. So the player is fed a copy the server converts as you watch, and the
-transport below the picture — play, ten seconds back and forward, the clock, mute, fullscreen — is
-Loom's own rather than the browser's. Scrubbing is the *timeline* under it: click anywhere on it to
-jump there, including the far end of a long file.
+transport below the picture — play, ten seconds back and forward, the clock, a volume slider,
+mute, fullscreen — is Loom's own rather than the browser's. Scrubbing is the *timeline* under it:
+click anywhere on it to jump there, including the far end of a long file.
 
-The panel on the right can be made as narrow as you like by dragging the divider between it and the
-media. Past a point the tab names step aside and leave their icons, so a sidebar you only need for
-reference can be a thin strip.
+*Making room.* Two handles shape the view, and both remember where you left them:
+
+* the divider between the media and the right-hand panel, dragged sideways. Past a point the tab
+  names step aside and leave their icons, so a panel you only need for reference can be a thin
+  strip;
+* the bar directly under the picture, dragged up or down, which makes the video as large or as
+  small as you want it.
+
+*Everything below the picture folds.* The description, the detections, the storage locations, the
+metadata and the transcript each have a heading you can click to collapse, and the whole stack
+scrolls as one. Which sections you keep open is remembered for you, not for the file — so a habit
+of working with the metadata shut carries to the next asset.
 
 ==== Faces in a video
 
@@ -318,6 +336,27 @@ A transcript produced by link:../nodes/whisper/[Speech-to-Text] appears under th
 into chapters with a bar above them showing where each one sits in the file. Clicking any line
 jumps the player to it, and *Find in transcript* marks every match in place rather than hiding the
 rest, so the bar above stays true to the whole recording.
+
+While the transcript section is open, its chapters also appear as coloured tiles along the bottom
+half of the timeline, so you can see the shape of the conversation without scrolling down to it.
+Click a tile to jump to that chapter. Fold the transcript away and the tiles fade out with it.
+
+==== Searching what was said
+
+Above the transcript is a search box that asks the server rather than scanning the page, and it
+searches *this video only*. Each result is a timecode and the line it belongs to; click one to
+jump there.
+
+The difference from *Find in transcript* below it is worth knowing. That one looks for the letters
+you typed in the text already on screen — the right tool when you can see the word and want to get
+to it. This one searches the whole transcript on the server, and where your administrator has set
+up link:../../install/[an embedding service], it can also search by *Meaning*: ask for "the iris
+device" and find the scene where somebody talks about it without ever using that phrase. The
+*Words* / *Meaning* / *Both* chips appear only when the server can actually do it.
+
+To search across your whole library instead, use the main link:#_search[Search] and narrow it to
+*transcript*. A result there carries its timecode too, and opens the episode at the moment rather
+than at the beginning.
 
 === Uploads
 
@@ -465,18 +504,22 @@ leaves your verdicts untouched, so a group you confirmed last month is still con
 A library of any size produces hundreds of groups, so the grid is built to be swept rather than
 clicked through one card at a time.
 
-* *Three card sizes* sit beside the search box. *Small* hides the name, count and buttons and shows
-  nothing but the faces, which is the size to use when you are looking for two groups that are the
-  same person. Your choice is remembered.
+* *A size slider* sits beside the search box, with four steps. The smallest is the scanning size:
+  cards are narrow, they show nothing but the faces, and as many as possible fit on screen — this
+  is what you want when you are hunting for two groups that are the same person. Each step up
+  draws the faces larger for when you need to look closely; the top two steps also bring back the
+  card's name, count and buttons. Your choice is remembered.
 * *Hovering a face* opens an enlarged copy of it. Deciding whether two groups match is not something
   a thumbnail supports.
 * *Double-clicking a card* opens a box you type a name into, with the cursor already in it; matching
   people appear as you type, and a name that matches nobody creates that person.
 * *The arrow keys* move between cards — the one you are on is outlined — and Enter opens the same
-  box.
+  box. Just press an arrow key: you do not have to click a card first, and the first card takes
+  the outline.
 * *Dragging one card onto another* says the two are the same person. You can also drop a card onto a
   person's whole group rather than onto one particular card in it; the group lights up as you drag
-  over it. Removing the name again is the cross on the person chip.
+  over it. To take a name back off, click the cross on the person chip — or, at the two smallest
+  sizes where there is no chip, the green dot in the card's corner.
 
 ==== What the grouping does and does not mean
 

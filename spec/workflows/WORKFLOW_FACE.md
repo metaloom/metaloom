@@ -278,6 +278,12 @@ hundred-card grid needs more than one. Four additions, each aimed at a different
   resolved by **geometry** (nearest card in x on the closest row in that direction) rather than by
   a column count: the grid is `auto-fill` and each person's group starts a fresh row, so there is
   no column count to do arithmetic with.
+* **An arrow key with nothing focused enters the grid at the top left.** A window-level listener,
+  deliberately narrow: it fires only when focus is on the body, never while somebody is typing in
+  the search box, never when a control with its own arrow-key behaviour (a listbox, a slider, the
+  tab strip) holds focus, and never when the grid already has focus. Without it the keyboard was
+  reachable only *after* a click, which made it useless for the job it exists for — the hands are
+  on the arrows precisely because nobody wants to aim at three hundred small cards with a mouse.
 * **Enter finishes every dialog on the screen.** They are all one field and two buttons, and none
   of them committed on Enter. Bound at the dialog, guarded on the same condition that disables the
   button, and skipped while an `Autocomplete` popup is open — there, Enter is picking an option.
@@ -286,9 +292,30 @@ hundred-card grid needs more than one. Four additions, each aimed at a different
 > is attributed, so there is by definition nobody to suggest, and an `Autocomplete` popup in a
 > dialog that short opens straight over the Save button under it.
 
-`small` draws its crops at **60px**, not the 40 it shipped with. The mode exists for comparing
-faces, and 40 is below what a face is recognisable at — so the size that dropped the chrome to
-make room for faces was the one you could see them worst in.
+#### Card size is a slider, and the card is half as wide
+
+`CLUSTER_SIZE_STEPS` is four notches of **thumbnail** size — 60, 90, 120, 160px — replacing the
+three named sizes (`small｜medium｜large`) that were here. The names conflated two unrelated
+questions, how big is a face and does the card carry a header, and offered no way to say "these
+faces, but larger". The scale is anchored at the bottom: step 0 is the density the grid is
+designed around and every step above it exists to inspect a face rather than to scan for one.
+60px, not the 40 it shipped with — 40 is below what a face is recognisable at, so the size that
+dropped the chrome to make room for faces was the one you could see them worst in.
+
+The card width is **derived** from the crop (`clusterColumnPx` = two crops plus the gap and the
+padding), not stored. At step 0 that is 138px against the 250 it was: the old column held the same
+two 60px faces with 120px of nothing beside them, so a screen showed half the clusters it had room
+for.
+
+⚠️ **The two scanning steps carry no card header** — an avatar, a name, a chip and two icon
+buttons do not fit in a card two faces wide, which is the trade the width reduction forces. The
+attribution survives as a dot in the corner, and **that dot is also the detach button**: stacking
+is fastest at these steps, so this is where a wrong stack gets made, and before the dot became a
+button the fast way to make the mistake had no fast way to correct it. The name, the count, the
+review date, edit and delete live on steps 2 and 3.
+
+The step is remembered under `loom.faceDetection.clusterThumbStep` — a **new** key, because the
+old one holds a word and a word parses as `NaN`.
 
 ### 2.2.2 Reviewing a cluster against the video it came from (2026-09-20)
 

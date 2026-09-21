@@ -80,6 +80,23 @@ public class DbIntegrityServiceTest extends AbstractJooqTest {
 	}
 
 	@Test
+	public void testStaleTranscriptWindowIsFound() {
+		// A transcript document whose window the transcript no longer produces.
+		//
+		// This is the shape a re-transcription leaves behind when the delete pass misses: the new
+		// model heard fewer minutes, the later windows are gone, and a search hit for one of them
+		// plays a moment where nobody says the searched-for thing. It is also the case the check
+		// could not see before V2.110 — a transcript document's entity_uuid is derived rather than
+		// a row's primary key, so the check has to re-derive the valid set to have an opinion.
+		context.ctx().execute("""
+			insert into "search_document" ("entity_type", "entity_uuid", "title", "keywords", "dirty", "synced_at")
+			values ('transcript', ?, 'a window nothing produces', '', true, now())
+			""", UUID.randomUUID());
+
+		assertEquals(1, expectFinding(DbIntegrityCodes.DANGLING_SEARCH_DOCUMENT).count());
+	}
+
+	@Test
 	public void testSoftDeletedUserHoldingATokenIsFound() {
 		User victim = createUser("integrity_soft_deleted");
 		context.ctx().execute("""

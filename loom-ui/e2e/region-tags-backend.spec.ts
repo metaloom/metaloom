@@ -47,10 +47,11 @@ test.describe("Region tagging – full backend e2e", () => {
     await page.getByTestId("region-mode-toggle").click();
 
     // Draw a rubber-band box across the middle of the image.
-    const image = page.getByTestId("zoomable-image");
+    // The picture, not the container that holds it: a region is a fraction of the image.
+  const image = page.getByTestId("zoomable-image-picture");
     await expect(image).toBeVisible();
     const box = await image.boundingBox();
-    if (!box) throw new Error("zoomable-image has no bounding box");
+    if (!box) throw new Error("zoomable-image-picture has no bounding box");
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.65, { steps: 10 });

@@ -184,10 +184,11 @@ async function loginAndOpenAnnotations(page: Page, seed: StoredAnnotation[], rec
 
 /** Rubber-band a box over the image, in fractions of the image container. */
 async function drawRegion(page: Page, x0: number, y0: number, x1: number, y1: number) {
-  const image = page.getByTestId("zoomable-image");
+  // The picture, not the container that holds it: a region is a fraction of the image.
+  const image = page.getByTestId("zoomable-image-picture");
   await expect(image).toBeVisible({ timeout: 10_000 });
   const box = await image.boundingBox();
-  if (!box) throw new Error("zoomable-image has no bounding box");
+  if (!box) throw new Error("zoomable-image-picture has no bounding box");
   await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 10 });
@@ -195,10 +196,15 @@ async function drawRegion(page: Page, x0: number, y0: number, x1: number, y1: nu
 }
 
 /**
- * ZoomableImage reports a region as a fraction of its container and AssetDetail converts it to
+ * ZoomableImage reports a region as a fraction of the **picture** and AssetDetail converts it to
  * permille, so the expected numbers are the drag fractions × 1000. The tolerance absorbs the
  * pixel rounding of the mouse path — the point is that the drawn box travelled, not that it
  * survived to the unit.
+ *
+ * The picture, not the container: a detector's box is a fraction of the image it saw, and a
+ * region drawn by hand has to mean the same thing or the two cannot be compared. On a
+ * letterboxed image the two frames differ by the width of a bar, which is what `drawRegion`
+ * aiming at `zoomable-image-picture` is about.
  */
 function expectPermille(actual: unknown, expected: number) {
   expect(typeof actual).toBe("number");

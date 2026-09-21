@@ -465,17 +465,113 @@ that clicking a face behaves the same in both. Three rules, each of which was a 
   frame — a remuxed seek lands on a keyframe some seconds early, and with the player paused (the
   usual case while picking through a cluster) the crossing never happens at all. The animation is
   keyed on a nonce so clicking the same crop twice flashes twice.
+* **The percentages are of the picture, not of the box around it.** A bounding box arrives as
+  fractions of the *image*; the overlay used to position against the element containing it, and
+  with `object-fit: contain` the two are only the same rectangle when the aspect ratios match. On
+  the asset viewer they never do — the picture box is the player minus its transport, so a 16:9
+  video sits pillarboxed inside a wider box — and every box came out stretched horizontally and
+  shifted left by the width of one bar, moving again on resize, zoom and fullscreen.
+  `components/ContainFrame.tsx` measures the box with a `ResizeObserver`, takes the intrinsic size
+  from the element (`videoWidth`/`videoHeight` at `loadedmetadata`, or `asset.width`/`height` for a
+  still), and renders the overlay in a frame at the computed rect. Children are unchanged — they
+  still say `left: "42%"` — and they are now percentages of the right thing. `fitContain` is pure
+  and unit-tested; an unknown intrinsic size fills the box, which is the old behaviour.
+
+**`ZoomableImage` had the same defect, fixed the same way but not with `ContainFrame`.** Its
+region overlays *and* its rubber-band capture were both in container coordinates. That is
+internally consistent — draw a box, see it where you drew it — and wrong about the only thing
+that matters: `detection.bbox_*` is a fraction of the picture the model saw, so a hand-drawn
+region and a model's region meant different things and could not be compared or corrected
+against each other. On a letterboxed image the two frames differ by the width of a bar, and the
+pan/zoom transform moved them apart again.
+
+It does not use `ContainFrame`, because it needs the transform on the same element as the image:
+`[data-testid=zoomable-image-picture]` is positioned at `fitContain(...)` and carries
+`translate(pan) scale(scale)`, and the `<img>`, the regions and the rubber band all live inside
+it. A child at `left: "42%"` is then at 42% of the *image* at every zoom level and pan offset,
+with no arithmetic in the component to get wrong. Capture reads that layer's
+`getBoundingClientRect()`, which the browser has already transformed — deriving it from `pan` and
+`scale` instead is how the drawn box and the rendered box drift apart. `pointInPicture` is pure
+and unit-tested, including the zoom case; out-of-picture drags clamp to the edge.
+
+> The stored coordinates changed meaning with this. That was acceptable only because the owner
+> confirmed the region data was disposable demo content — and in the event there was none to
+> discard: metaloom.sky had 0 image assets, 0 annotations and 0 spatial tags. A catalogue with
+> real annotations would need those rows migrated, not reinterpreted.
+
+**An image asset's picture would not load at all**, which is how the defect above stayed
+invisible and which would have kept the fix on its fallback. `asset.url` is
+`/assets/:uuid/binary/data`, and that route needs an `Authorization` header an `<img src>`
+cannot send — every image rendered as a broken-image glyph. Video sidesteps this with the `?mt=`
+media token, but that credential is mounted on the poster and stream routes **only**; widening
+it to the original bytes would turn a narrow, short-lived grant into a general download link. So
+`hooks/useAuthedImage.ts` fetches the bytes with the header and wraps them in a blob URL, the
+same shape `FaceCrop` uses for detection crops — one hook, so the `URL.revokeObjectURL` cannot be
+forgotten. Verified on a deliberately 4:1 test image: the picture letterboxes to ratio 4.000
+inside a 2.54:1 slot, and a region drawn at 0.100/0.200/0.300/0.600 renders back at
+0.099/0.198/0.300/0.600.
+
+**The crop strip must not be rebuilt on every render.** `FaceDetectionPanel`'s tile used to be a
+function *defined inside the component body*, so React saw a different component type on each
+render: hovering a crop set state in the asset viewer, and every tile in the strip was unmounted
+and remounted, throwing away each crop's object URL and re-fetching it. The strip blinked back to
+placeholder icons and the tile under the pointer fired a fresh `mouseenter` — the "strange
+flickering effect". `FaceTile` is now a memoised module-scope component, and the call sites render
+it directly rather than through a wrapper that would reintroduce the churn.
 
 ### 7.2.3 The asset-detail sidebar
 
-The split defaults to **70/30** and clamps to 30–88. The tab strip drops its labels below
-`SIDEBAR_ICON_ONLY_PX` (300) and keeps the icons, with the label surviving as the `title` and
+The split defaults to **70/30** and clamps to 30–94. The tab strip drops its labels below
+`SIDEBAR_ICON_ONLY_PX` (**380**) and keeps the icons, with the label surviving as the `title` and
 `aria-label`; `data-compact` on `[data-testid=asset-sidebar]` is what a test reads. The strip is
 `variant="scrollable"`, so the labels are no longer a floor on how far the divider can travel.
+
+380, and bounded on both sides. At 300 the labels survived through the whole range anybody would
+call narrow and only vanished once the sidebar was a sliver; at 420 they were gone at the
+*default* split on a 1600px window — 30% of the body is about 414px there — so an untouched
+screen opened in icon mode. 380 keeps the words at every default width and drops them as soon as
+the divider is pulled in. The upper clamp went 88 → 94 separately: with no word-width floor left,
+the point of a strip of icons is that you can push past it.
 
 The width is measured with a `ResizeObserver` attached through a **callback ref**, not an effect:
 the sidebar renders past `if (!asset) return …`, so on the render an empty-dependency effect would
 have run on, there is no node to observe and it never runs again.
+
+### 7.2.3.1 The left column: one scroller, foldable bands, a resizable picture
+
+The column below the picture used to be five fixed bands with `overflow: auto` on the metadata one
+alone. Metadata scrolled; the locations, the description and a 43-minute transcript below it were
+off the bottom of an `overflow: hidden` pane with **no way to reach them at all**.
+
+* **One scroller** (`[data-testid=asset-section-stack]`, `flex: 1; min-height: 0; overflow: auto`)
+  wraps the whole stack.
+* **Each band folds** — `components/CollapsibleSection.tsx`, heading is a `button` with
+  `aria-expanded`, `data-section-id` / `data-expanded` for tests, `Collapse unmountOnExit` so a
+  folded transcript of 1400 lines is not in the document.
+* **The fold state is remembered per user, not per asset** (`hooks/useSectionState.ts`,
+  `localStorage` key `loom.assetDetail.sections`). "I never want to see the locations block" is a
+  statement about how somebody works; keying it by asset would silently reset it on the next
+  episode. `SECTION_DEFAULTS` decides what an unvisited section does, so a new section can ship
+  open without anyone's stored state mentioning it. Only `metadata` starts shut.
+* **The picture is resizable.** `[data-testid=asset-media-resize]` is a `row-resize` handle
+  directly under the media slot; `mediaPx` is clamped to 140…(column − 200) and remembered under
+  `loom.assetDetail.mediaHeight`. The vertical twin of the divider: the sidebar had a handle and
+  the player had a hard 380px cap, so the only way to see more of a video was to widen the pane —
+  which does nothing once the picture is already as wide as the column.
+* **The player has a volume slider**, not just mute. Mute stays a separate flag rather than writing
+  zero over the level, so unmuting returns to where it was; the level is remembered under
+  `loom.player.volume` and pushed back onto the element after every seek, because `key={streamUrl}`
+  rebuilds the `<video>` and a fresh one starts at 1.0.
+
+### 7.2.3.2 Transcript chapters in the timeline
+
+`VideoTimeline` takes `transcriptSpans` and draws them as tiles in the **lower half** of the
+28px marker bar; the point markers moved to 25% so the two never overlap. They fade
+(`data-visible` on `[data-testid=video-timeline-transcript]`) rather than appear, and they are
+shown only while the transcript section below is unfolded — tiles that point into a panel nobody
+has open are decoration competing with the markers for the same bar. Clicking one seeks. The
+colours are `TRANSCRIPT_SECTION_COLORS`, exported from `TranscriptPanel` so the tile and its
+section are recognisably the same thing.
 
 ### 7.2.4 Transcripts: two shapes, one panel
 
@@ -489,6 +585,30 @@ of `ASR_SECTION_SECONDS` (60) and makes each utterance one "word" entry. One sec
 would give the section bar 900 slivers for an episode; splitting a sentence into per-word times
 would invent timing nothing measured. Authored `sections` win where a transcript has both —
 somebody edited those on purpose.
+
+#### Searching the transcript
+
+Two boxes, deliberately, answering different questions:
+
+| | `TranscriptPanel`'s "find in transcript" | `TranscriptSearchPanel` |
+|---|---|---|
+| Runs | in the browser, over the loaded sections | on the server, `GET /search/results` |
+| Matches | a literal substring | words, meaning, or both |
+| Scope | the transcripts on this screen | `?types=transcript&asset=<uuid>` |
+| Answers | "I can see the word, take me to it" | "where does somebody talk about the iris device" |
+
+The second is only possible because the index windows a transcript per minute
+([SEARCH.md](../../features/search/SEARCH.md) §4.1) — each hit carries the offset of the minute it
+was said in, which is what makes a result clickable. The LEXICAL/SEMANTIC/HYBRID chips render only
+where `/search/status` advertises the capability: a control whose only possible outcome is a 400 is
+worse than no control, and the capability is recomputed per call server-side, so an embedding host
+that dies retracts it while the component is mounted (there is an effect that falls the mode back).
+
+Cross-episode search is the ordinary `/search` view. `hitTarget` appends `?t=<seconds>` for any hit
+that knows its offset, and `AssetDetail` honours it once the probe has answered — gated on the
+duration rather than run on mount, because seeking a remux before its length is known is a request
+for an offset into a file of unknown size, and guarded by a ref so a re-render does not drag the
+viewer back to the link's timestamp after they have scrubbed away.
 
 ### 7.3 Serving under `/ui/` (base path)
 
@@ -837,6 +957,38 @@ red:
 Feature detail, the `/help/` page and why its semantic pass ranks rather than redirects:
 [../../website/WEBSITE_SEARCH.md](../../website/WEBSITE_SEARCH.md) § *The `/help/` redirector*.
 
+### 7.11 One header per view — `components/ViewHeader.tsx`
+
+Every screen had a header and no two were the same. Collections had a glyph, a 1rem bold title and
+a count beside it; Tags had the title with no glyph; Assets had a title and a subtitle and no
+glyph; the Workflow view had a **hardcoded English string** at a different size; Uploads, Memory,
+Skills and Chat sessions used a bare `Title` inside the padded content area with no header band at
+all; the admin area had a title band *and* a second band for its tabs. Moving between views felt
+like moving between applications, and there was nowhere to change "the header" because there was
+no header — there were twenty.
+
+`ViewHeader` is the band: `icon` (rendered at 20px in `tokens.primary.main`), `title`, and
+optional `meta` (a count or a `HelpHint`, beside the title at caption weight), `subtitle`,
+`actions` (pushed right) and `children` (the filter row, inside the same band). It is deliberately
+not configurable beyond those slots — a header that can be told its font size is one that will
+drift again. `data-testid=view-header` / `view-header-title` / `view-header-icon`.
+
+The two narrow rails — the library list and the pipeline list — keep their own layout and gained
+only the glyph: a full-width header band does not belong in a 220px column.
+
+### 7.12 Two list details
+
+* **No MIME type in a listing.** `video/x-matroska` under every row restated what the type glyph
+  already said and crowded out the filename. It is still on the asset's own page.
+* **A video tile carries its length**, bottom-right, `h:mm:ss`, where every video surface puts it —
+  the top-left corner already has the type glyph and the selection checkbox. The number is a
+  problem of its own: `asset_video_comp.media_duration` has existed since V1 with **no producer**,
+  so every ingested video reports none. `AssetMediaEndpointService.mediaInfo` now persists what it
+  probes (`node_kind='probe'`), and `useAssetDurations` fills the gap for the tiles on screen —
+  three probes at a time, only for videos with no duration, each result remembered as a number or
+  as "cannot be measured" so a failure is not retried on every render. The column answers from
+  then on. A stored `PROXY`/component written by a node at ingest is still the durable answer.
+
 ---
 
 ## 8. Test setup
@@ -977,7 +1129,13 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `ListSortControl` / `ListFilterSelect` / `DEFAULT_SORT` / `sortLocally` | `src/components/ListControls.tsx` | Server-side sort column, direction and one-of-many filters for a listing view; `sortLocally` is the comparator for the two screens no list route backs (§7.5.2) |
 | `useCreatorOptions` | `src/hooks/useCreatorOptions.ts` | The user list shaped for a "created by" filter; fails quietly to `[]` without `READ_USER` (§7.5.2) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
-| `Title` | `src/components/Title.tsx` | Page heading |
+| `ViewHeader` | `src/components/ViewHeader.tsx` | The band at the top of a view: glyph, title, optional meta/subtitle/actions, and a slot for the filter row (§7.11) |
+| `CollapsibleSection` | `src/components/CollapsibleSection.tsx` | A titled foldable band; `data-section-id` / `data-expanded` (§7.2.3.1) |
+| `useSectionState` | `src/hooks/useSectionState.ts` | Which bands are open, per view, in `localStorage` |
+| `ContainFrame` / `fitContain` | `src/components/ContainFrame.tsx` | The coordinate space an overlay on a letterboxed picture belongs in (§7.2.2) |
+| `DurationBadge` / `clockHMS` | `src/components/DurationBadge.tsx` | `h:mm:ss` in the bottom-right corner of a video tile |
+| `useAssetDurations` | `src/hooks/useAssetDurations.ts` | Probes the video tiles the catalogue has no length for, three at a time, once per asset |
+| `Title` | `src/components/Title.tsx` | Page heading. **Superseded by `ViewHeader`** for a view's own header; still used inside panels |
 | `usePagedList` / `pageFrom` | `src/hooks/usePagedList.ts` | Loads a collection page by page; `items`, `totalCount`, `hasMore`, `loadMore`, `setItems` (§11.3) |
 | `pagingQuery` / `PagingParams` / `PagingInfo` | `src/api/paging.ts` | `?limit=&from=` serialization and the `_metainfo` wire shape |
 | `toAsset` / `hitToCard` / `mimeFilterFor` | `src/features/assets/assetMapping.ts` | AssetResponse → card, search hit → card, type filter → `?mime=` |
@@ -1032,7 +1190,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Never match on an error's message | Branch on `ApiError.status`. `DbIntegrityAdmin` tested `message.startsWith("API error 403")` and broke the moment the shared handler started surfacing the server's own message |
 | Global 401 handling exists now | `src/api/http.ts` dispatches `loom:session-expired`; `AuthProvider` logs out and raises exactly **one** toast however many requests failed. The six modules with their own typed error class call `noteUnauthorized` to join in — except `shares.ts`, deliberately: a 401 there is a lapsed *share* session, not a Loom one |
 | Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
-| Two view preferences **are** persisted | `LibraryView`'s selected library (`loom.library.lastSelected`) and the Detection → Faces card size (`loom.faceDetection.clusterCardSize`). Both wrap the `localStorage` call in try/catch — private browsing throws, and losing a preference must never throw while rendering. `LibraryView` used to open on `libs[0]` unconditionally, which on a server that had seeded itself example content meant opening on an example library while the user's own sat further down the list, reading from the main pane as though it had gone |
+| Several view preferences **are** persisted | `LibraryView`'s selected library (`loom.library.lastSelected`), the Detection → Faces thumbnail step (`loom.faceDetection.clusterThumbStep` — a new key, because the value used to be `"small"｜"medium"｜"large"` and a stored word has to read as "nothing stored" rather than as step `NaN`), the asset viewer's folded sections (`loom.assetDetail.sections`) and player height (`loom.assetDetail.mediaHeight`), and the playback volume (`loom.player.volume`). Both wrap the `localStorage` call in try/catch — private browsing throws, and losing a preference must never throw while rendering. `LibraryView` used to open on `libs[0]` unconditionally, which on a server that had seeded itself example content meant opening on an example library while the user's own sat further down the list, reading from the main pane as though it had gone |
 | A tag field suggests, it does not constrain | `AssetDetail` and the workflow tag editors use a `freeSolo` `Autocomplete` over `loadTagVocabulary` (`src/api/tags.ts`, unscoped `listTags`). **Do not add a second `onKeyDown` Enter handler** to the `TextField` — freeSolo already reports Enter-on-a-typed-word through `onChange` as `createOption`, and both firing tags the asset twice |
 | ACL nav is nested | Open `sidebar-group-acl` before asserting on Users/Groups/Permissions/API-Keys/Blacklist |
 | Deep-link 404 on reload | Keep `base`, `basename` and the `UIService` fallback in sync (§7.3) |

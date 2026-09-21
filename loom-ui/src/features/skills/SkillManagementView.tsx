@@ -9,9 +9,9 @@ import {
   RestoreOutlined, UpgradeOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
-import Title from "../../components/Title";
 import EmptyState from "../../components/EmptyState";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -207,22 +207,24 @@ export default function SkillManagementView() {
   const loaded = tab === "mine" ? skills : library;
 
   return (
-    <Box data-testid="skills-view" sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box>
-          <Title>{t("skills.title")}</Title>
-          <Typography variant="caption" sx={{ color: tokens.text.secondary }}>{t("skills.subtitle")}</Typography>
-        </Box>
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<Add />}
-          data-testid="skill-create-button"
-          onClick={() => setEditor({ name: "", description: "", content: "" })}
-        >
-          {t("skills.create")}
-        </Button>
-      </Box>
+    <Box data-testid="skills-view" sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
+      <ViewHeader
+        icon={<AutoAwesomeOutlined />}
+        title={t("skills.title")}
+        subtitle={t("skills.subtitle")}
+        actions={
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<Add />}
+            data-testid="skill-create-button"
+            onClick={() => setEditor({ name: "", description: "", content: "" })}
+          >
+            {t("skills.create")}
+          </Button>
+        }
+      />
+      <Box sx={{ flex: 1, overflow: "auto", p: 3, display: "flex", flexDirection: "column", gap: 2 }}>
 
       <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ minHeight: 36, "& .MuiTab-root": { minHeight: 36, fontSize: "0.8rem" } }}>
         <Tab label={t("skills.tabMine")} value="mine" data-testid="skills-mine-tab" />
@@ -519,6 +521,7 @@ export default function SkillManagementView() {
           </Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   );
 }

@@ -55,6 +55,16 @@ describe("buildSearchQuery", () => {
     expect(buildSearchQuery({ q: "a", mode: "LEXICAL" })).toContain("mode=LEXICAL");
   });
 
+  it("carries ?asset= so a search can be scoped to one file", () => {
+    // What "search inside this episode" is on the wire. Without it the only way to search one
+    // video's speech was to load the whole transcript into the browser and scan it there.
+    const query = new URLSearchParams(
+      buildSearchQuery({ q: "chevron", types: ["transcript"], asset: "22222222-2222-2222-2222-222222222222" }).slice(1),
+    );
+    expect(query.get("asset")).toBe("22222222-2222-2222-2222-222222222222");
+    expect(query.get("types")).toBe("transcript");
+  });
+
   it("omits empty lists entirely rather than sending an empty value", () => {
     const query = buildSearchQuery({ q: "a", types: [], tag: [], facets: [] });
     expect(query).toBe("?q=a");

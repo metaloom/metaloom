@@ -31,7 +31,9 @@ import io.metaloom.loom.auth.jwt.MediaTokenAuthHandler;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
+import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
+import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.media.MediaInfoResponse;
@@ -88,6 +90,7 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	private static final List<String> REMUXABLE_VIDEO_CODECS = List.of("h264");
 
 	private final AssetDao assetDao;
+	private final AssetComponentDao compDao;
 	private final AssetBinaryDao binaryDao;
 	private final BinaryStorageResolver storageResolver;
 	private final AuthenticationService authService;
@@ -112,10 +115,11 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	private static final int PROBE_CACHE_LIMIT = 10_000;
 
 	@Inject
-	public AssetMediaEndpointService(AssetDao assetDao, AssetBinaryDao binaryDao, BinaryStorageResolver storageResolver,
+	public AssetMediaEndpointService(AssetDao assetDao, AssetComponentDao compDao, AssetBinaryDao binaryDao, BinaryStorageResolver storageResolver,
 		AuthenticationService authService, LoomOptions options, Vertx vertx, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
 		super(modelBuilder, validator);
 		this.assetDao = assetDao;
+		this.compDao = compDao;
 		this.binaryDao = binaryDao;
 		this.storageResolver = storageResolver;
 		this.authService = authService;
@@ -188,6 +192,7 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 						}
 						probeCache.put(key, info);
 					}
+					persistVideoComp(assetUuid, info);
 					lrc.send(info);
 				})
 				.onFailure(err -> {
@@ -199,6 +204,45 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 				});
 		});
 	}
+
+	/**
+	 * Write what the probe measured into {@code asset_video_comp}.
+	 *
+	 * <p>
+	 * The probe cache above is per-process and keyed by content, which answers the same screen quickly and answers nothing else at all: an
+	 * asset list cannot afford an ffprobe per tile, so with the measurement living only in a heap map every grid in the UI still had to render
+	 * videos with no length on them. Persisting it means the second time anybody looks at an asset the number is a column, and the components
+	 * row the schema has carried since V1 finally has a writer.
+	 * </p>
+	 *
+	 * <p>
+	 * Under {@code node_kind = 'probe'}, not {@code 'manual'}: this is a measurement rather than something a user typed, and keeping it in its
+	 * own kind means the node that should eventually do this at ingest can write its own row without fighting this one for the unique key.
+	 * Best-effort throughout — a failed write must never turn a successful probe into an error for the caller, who only asked what the file is.
+	 * </p>
+	 */
+	private void persistVideoComp(UUID assetUuid, MediaInfoResponse info) {
+		if (info == null || info.getDuration() == null) {
+			return;
+		}
+		try {
+			AssetVideoComp comp = compDao.loadVideoComp(assetUuid, PROBE_NODE_KIND, 0);
+			if (comp == null) {
+				comp = compDao.createVideoComp(null, assetUuid, PROBE_NODE_KIND);
+			}
+			// Milliseconds: asset_video_comp.media_duration is integral, ffprobe reports fractional seconds.
+			comp.setMediaDuration(Math.round(info.getDuration() * 1000));
+			comp.setMediaWidth(info.getWidth());
+			comp.setMediaHeight(info.getHeight());
+			comp.setVideoEncoding(info.getVideoCodec());
+			compDao.upsertVideoComp(comp);
+		} catch (Exception e) {
+			log.warn("Could not persist probed video component for asset {}: {}", assetUuid, e.getMessage());
+		}
+	}
+
+	/** The {@code node_kind} the probe writes its component row under. See {@link #persistVideoComp}. */
+	private static final String PROBE_NODE_KIND = "probe";
 
 	/**
 	 * One ffprobe call for every field.

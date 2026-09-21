@@ -62,6 +62,8 @@ const FRAME_B = 24_000;
 interface Recorder {
   streamRequests: string[];
   tagPosts: { name: string }[];
+  /** Every `/search/results` URL the transcript search box produced. */
+  searchRequests: string[];
 }
 
 /**
@@ -150,6 +152,27 @@ async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = 
     route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
   );
 
+  // Search: available, lexical only, and one transcript window that answers "pegasus".
+  await page.route(/\/api\/v1\/search\/status$/, route =>
+    json(route, { provider: "postgres", available: true, capabilities: ["LEXICAL", "HIGHLIGHT"], documentCount: 9, dirtyCount: 0 })
+  );
+  await page.route(/\/api\/v1\/search\/results/, route => {
+    rec.searchRequests.push(route.request().url());
+    return json(route, {
+      data: [{
+        type: "transcript",
+        uuid: "66666666-6666-6666-6666-666666666666",
+        assetUuid: ASSET_UUID,
+        score: 0.8,
+        title: "episode.mkv",
+        subtitle: "00:02:05 · en ggml-large-v3-turbo.bin",
+        timeFromMs: 125_000,
+        highlights: ["So here we have the <b>Pegasus</b>."],
+      }],
+      _metainfo: { totalHits: 1, totalExact: true, perPage: 25, offset: 0, tookMs: 3, provider: "postgres", capabilities: [], warnings: [] },
+    });
+  });
+
   await page.route(/\/api\/v1\/assets(\?|$)/, route =>
     json(route, { data: [asset()], _metainfo: { totalCount: 1 } })
   );
@@ -157,16 +180,27 @@ async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = 
 }
 
 function recorder(): Recorder {
-  return { streamRequests: [], tagPosts: [] };
+  return { streamRequests: [], tagPosts: [], searchRequests: [] };
+}
+
+/**
+ * Sign in, if the session did not already survive.
+ *
+ * Idempotent on purpose: the JWT lives in sessionStorage, so a `page.reload()` comes back already
+ * authenticated and waiting for a login form that will never appear is a 30 second timeout.
+ */
+async function login(page: Page) {
+  if (await page.getByPlaceholder("Username").count() === 0) return;
+  await page.getByPlaceholder("Username").fill("admin");
+  await page.getByPlaceholder("Password").fill("finger");
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
 }
 
 async function open(page: Page, rec: Recorder, opts: { probe?: null } = {}) {
   await installMocks(page, rec, opts);
   await page.goto("/");
-  await page.getByPlaceholder("Username").fill("admin");
-  await page.getByPlaceholder("Password").fill("finger");
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
+  await login(page);
 
   await page.getByRole("button", { name: "Assets", exact: true }).first().click();
   const link = page.getByText("episode.mkv").first();
@@ -268,9 +302,11 @@ test.describe("Asset detail player – mocked e2e", () => {
   });
 
   test("dragging the divider past the tab labels leaves the icons", async ({ page }) => {
-    // Pinned, because what is under test is a pixel threshold: at the project's default viewport
-    // the sidebar is already close to it and the test would be measuring the viewport.
-    await page.setViewportSize({ width: 1600, height: 900 });
+    // Pinned, because what is under test is a pixel threshold and the default viewport sits right
+    // on it. 1920 rather than 1600: the body excludes the app's nav rail, so at 1600 the sidebar
+    // starts at about 410px — already under SIDEBAR_ICON_ONLY_PX, which is the point of raising
+    // that constant to just under the width six tab labels need.
+    await page.setViewportSize({ width: 1920, height: 900 });
     const rec = recorder();
     await open(page, rec);
 
@@ -350,6 +386,129 @@ test.describe("Asset detail player – mocked e2e", () => {
     await expect(page.getByText("Jim Menard, Director of Photography.")).toBeVisible({ timeout: 10_000 });
     // Two chapters: the 125s line is more than a minute past the first, so it starts its own.
     await expect(page.getByTestId("transcript-search")).toBeVisible();
+  });
+
+  test("the transcript search box asks the server for this asset's windows only", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    await page.getByTestId("transcript-search-input").fill("pegasus");
+
+    await expect(page.getByTestId("transcript-search-hit")).toHaveCount(1, { timeout: 10_000 });
+    const url = new URL(rec.searchRequests[rec.searchRequests.length - 1]);
+    // `?asset=` is what makes this "search inside this episode" rather than "search everything
+    // and hope the right file is near the top".
+    expect(url.searchParams.get("asset")).toBe(ASSET_UUID);
+    expect(url.searchParams.get("types")).toBe("transcript");
+    expect(url.searchParams.get("q")).toBe("pegasus");
+  });
+
+  test("clicking a transcript hit seeks to the minute it was said in", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    await page.getByTestId("transcript-search-input").fill("pegasus");
+    const hit = page.getByTestId("transcript-search-hit").first();
+    await expect(hit).toBeVisible({ timeout: 10_000 });
+    await expect(hit).toHaveAttribute("data-time-ms", "125000");
+    await hit.click();
+
+    // 125000ms is second 125, and the stream is re-requested there. Before the transcript index
+    // was windowed every hit reported offset 0 and this could only ever have asked for t=0.
+    await expect.poll(() => {
+      const last = rec.streamRequests[rec.streamRequests.length - 1] ?? "";
+      return Number(new URL(last, "http://x").searchParams.get("t") ?? "-1");
+    }, { timeout: 10_000 }).toBe(125);
+  });
+
+  test("the semantic mode chip is absent while the provider cannot serve it", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    // The status mock advertises LEXICAL only. A control whose only outcome is a 400 is worse
+    // than no control, so it is not rendered at all.
+    await expect(page.getByTestId("transcript-search-panel")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("transcript-search-mode-SEMANTIC")).toHaveCount(0);
+  });
+
+  // ── Layout: folding and resizing ────────────────────────
+
+  test("the sections fold, and the fold survives a reload", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    const metadata = page.getByTestId("asset-section").filter({ has: page.locator("[data-section-id='metadata']") });
+    const section = page.locator("[data-section-id='metadata']");
+    await expect(section).toBeVisible({ timeout: 10_000 });
+    // Metadata ships shut: it is reference material, and it used to be the one band that scrolled
+    // while the transcript below it was unreachable.
+    await expect(section).toHaveAttribute("data-expanded", "false");
+
+    await section.getByTestId("asset-section-toggle").click();
+    await expect(section).toHaveAttribute("data-expanded", "true");
+
+    await page.reload();
+    await login(page);
+    await expect(page.locator("[data-section-id='metadata']")).toHaveAttribute("data-expanded", "true", { timeout: 10_000 });
+    expect(metadata).toBeTruthy();
+  });
+
+  test("the timeline shows transcript chapters only while the transcript is unfolded", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    const tiles = page.getByTestId("video-timeline-transcript");
+    await expect(tiles).toHaveAttribute("data-visible", "true", { timeout: 10_000 });
+    // Two chapters: the 125s line is more than a minute past the first, so it starts its own.
+    await expect(page.getByTestId("video-timeline-transcript-tile")).toHaveCount(2);
+
+    await page.locator("[data-section-id='transcript']").getByTestId("asset-section-toggle").click();
+    await expect(tiles).toHaveAttribute("data-visible", "false");
+  });
+
+  test("the media area can be dragged taller and remembers it", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    const slot = page.getByTestId("asset-media-area");
+    await expect(slot).toBeVisible({ timeout: 10_000 });
+    const before = (await slot.boundingBox())!.height;
+
+    const handle = page.getByTestId("asset-media-resize");
+    const grip = (await handle.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 90, { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(async () => (await slot.boundingBox())!.height, { timeout: 5_000 })
+      .toBeGreaterThan(before + 40);
+
+    // A preference about how you review, not about this file, so it outlives the page.
+    const after = (await slot.boundingBox())!.height;
+    await page.reload();
+    await login(page);
+    await expect.poll(async () => (await page.getByTestId("asset-media-area").boundingBox())!.height, { timeout: 10_000 })
+      .toBeCloseTo(after, -1);
+  });
+
+  test("the boxes are drawn in a frame of their own, inside the media slot", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    await openFacesTab(page);
+    await page.getByTestId("asset-face-tile").nth(1).click();
+
+    // The overlay lives in its own measured frame rather than directly in the picture box, which
+    // is what lets it be the size of the *picture* — see fitContain and its unit tests for the
+    // arithmetic. It cannot be exercised end to end here: the mocked stream has no decodable
+    // body, so `loadedmetadata` never fires and the frame correctly falls back to filling the
+    // box. What this pins is that the frame exists, is inside the slot, and holds the boxes.
+    const frame = page.getByTestId("asset-video-picture");
+    await expect(frame).toBeVisible({ timeout: 10_000 });
+    const slot = (await page.getByTestId("asset-media-area").boundingBox())!;
+    const box = (await frame.boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(slot.width + 1);
+    expect(box.height).toBeLessThanOrEqual(slot.height + 1);
+    await expect(frame.getByTestId("face-box")).toHaveCount(1);
   });
 
   // ── Tagging ─────────────────────────────────────────────

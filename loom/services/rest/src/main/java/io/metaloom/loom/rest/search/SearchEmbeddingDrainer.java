@@ -41,6 +41,24 @@ public class SearchEmbeddingDrainer {
 
 	private volatile long timerId = -1;
 
+	/**
+	 * Whether a pass is already running.
+	 *
+	 * <p>
+	 * {@link io.vertx.core.Vertx#setPeriodic} fires on a clock, not on completion, so without this a pass that takes longer than the interval is
+	 * simply joined by the next one. That is not a slow drain, it is a pile-up: on metaloom.sky a 5s interval against a CPU embedding host built up
+	 * two dozen concurrent 32-document requests, every one of them queued behind the others inside the host, until they all breached the client
+	 * timeout in the same millisecond and the whole backlog made no progress at all. Worse, abandoning a queued request does not cancel the work the
+	 * host is already committed to, so the overload feeds itself.
+	 * </p>
+	 *
+	 * <p>
+	 * Skipping a tick is always safe here: the documents stay stale and the next tick picks them up. That is the same reasoning
+	 * {@code SearchEmbeddingService} gives for abandoning a failed batch rather than retrying it inline.
+	 * </p>
+	 */
+	private final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+
 	@Inject
 	public SearchEmbeddingDrainer(Vertx vertx, SearchEmbeddingService service, SearchOptions options) {
 		this.vertx = vertx;
@@ -61,14 +79,24 @@ public class SearchEmbeddingDrainer {
 		if (timerId != -1) {
 			return;
 		}
-		timerId = vertx.setPeriodic(options.getEmbedSyncIntervalMs(), id -> vertx.executeBlocking(() -> {
-			try {
-				service.embedStale(options.getEmbedBatchSize());
-			} catch (RuntimeException e) {
-				log.warn("The document embedding pass failed", e);
+		timerId = vertx.setPeriodic(options.getEmbedSyncIntervalMs(), id -> {
+			if (!running.compareAndSet(false, true)) {
+				// The previous pass is still in flight. See the field comment: overlapping passes against a
+				// slow embedding host do not drain faster, they deadlock the drain.
+				log.debug("Skipping the document embedding pass - the previous one is still running");
+				return;
 			}
-			return null;
-		}, false));
+			vertx.executeBlocking(() -> {
+				try {
+					service.embedStale(options.getEmbedBatchSize());
+				} catch (RuntimeException e) {
+					log.warn("The document embedding pass failed", e);
+				} finally {
+					running.set(false);
+				}
+				return null;
+			}, false);
+		});
 		log.info("Document embedding pass started (interval={}ms, batch={})", options.getEmbedSyncIntervalMs(), options.getEmbedBatchSize());
 	}
 

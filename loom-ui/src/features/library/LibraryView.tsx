@@ -8,6 +8,8 @@ import {
 import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined, EditOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
+import DurationBadge from "../../components/DurationBadge";
+import { useAssetDurations } from "../../hooks/useAssetDurations";
 import EmptyState from "../../components/EmptyState";
 import LoadFailure from "../../components/LoadFailure";
 import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
@@ -19,7 +21,7 @@ import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from 
 import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
-import { assetTypeFromMime } from "../assets/assetMapping";
+import { assetTypeFromMime, durationSeconds } from "../assets/assetMapping";
 import { clampOffset, hasNextPage } from "../search/searchHits";
 import { useSpace } from "../../context/SpaceContext";
 import { useSearch } from "../../context/SearchContext";
@@ -46,6 +48,8 @@ interface LibraryCard {
   /** Empty for anything an `<img>` cannot decode; the tile then keeps the type placeholder. */
   previewUrl: string;
   size: number;
+  /** Seconds, when the catalogue knows. A search hit never carries one. */
+  duration?: number;
 }
 
 /**
@@ -71,6 +75,7 @@ function cardFromAsset(asset: AssetResponse): LibraryCard {
     type,
     previewUrl: previewFor(type, asset.uuid),
     size: asset.file?.size ?? 0,
+    duration: durationSeconds(asset.videoComponents?.[0]?.duration),
   };
 }
 
@@ -388,6 +393,9 @@ export default function LibraryView() {
     [searchMode, searchHits, locallyFiltered],
   );
 
+  /** Lengths for the video tiles the catalogue has none for; see {@link useAssetDurations}. */
+  const probedDurations = useAssetDurations(cards.map(c => ({ id: c.id, type: c.type, duration: c.duration })));
+
   const videoCount = cards.filter(c => c.type === "video").length;
   const imageCount = cards.filter(c => c.type === "image").length;
   const totalSize = cards.reduce((s, c) => s + c.size, 0);
@@ -397,12 +405,18 @@ export default function LibraryView() {
       {/* Library sidebar */}
       <Box sx={{ width: 230, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("library.title")}</Typography>
-              <Tooltip title={t("library.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+          {/* Icon, then title, then subtitle — the order every other view uses. This is the
+              narrow library rail rather than a full-width header band, so it keeps its own
+              layout; what it was missing was the glyph. */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <LibraryBooksOutlined sx={{ fontSize: 20, color: tokens.primary.main, flexShrink: 0 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("library.title")}</Typography>
+                <Tooltip title={t("library.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+              </Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }} noWrap>{activeSpace?.name ?? "All Spaces"}</Typography>
             </Box>
-            <Typography variant="caption" color="text.secondary">{activeSpace?.name ?? "All Spaces"}</Typography>
           </Box>
           <Tooltip title={t("library.tooltip.newLibrary")}>
             <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
@@ -587,10 +601,12 @@ export default function LibraryView() {
                           alt={a.name}
                           posterWidth={360}
                         />
+                        <DurationBadge seconds={a.duration ?? probedDurations[a.id]} />
                       </Box>
+                      {/* The filename alone. "video/x-matroska" under every tile restated what
+                          the poster already shows and crowded out the name it sat under. */}
                       <Box sx={{ px: 1.25, py: 1 }}>
                         <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.name || "Untitled"}</Typography>
-                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{a.mimeType || "unknown"}</Typography>
                       </Box>
                     </Paper>
                   ))}

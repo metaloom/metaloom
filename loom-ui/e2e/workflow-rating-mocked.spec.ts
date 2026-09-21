@@ -7,9 +7,9 @@ import { test, expect, Page, Route } from "@playwright/test";
  * routes and survives a reload:
  *   GET/POST /api/v1/assets/:uuid/reactions
  *
- * Because auth is held in memory only, a reload logs the user out; re-logging in
- * and finding the rating still present proves it was persisted server-side (the
- * mock store) and re-hydrated, not just kept in React state.
+ * A reload is the assertion that matters: finding the rating still present afterwards proves it
+ * was persisted server-side (the mock store) and re-hydrated, not just kept in React state. The
+ * session itself now survives a reload (LOOM_UI.md §7.1), so `login` is a no-op on the way back.
  */
 
 const ME_UUID = "11111111-1111-1111-1111-111111111111";
@@ -197,6 +197,12 @@ async function login(page: Page) {
 async function openWorkflow(page: Page) {
   await page.getByRole("button", { name: "Workflow" }).click();
   await expect(page.getByTestId("workflow-rating-value")).toBeVisible({ timeout: 10_000 });
+  // And wait for the queue to have something in it. The rating card mounts as soon as the mode
+  // does, so the value above is visible while `currentAsset` is still undefined — and a keyboard
+  // binding pressed then reaches nothing at all and writes nothing. Under parallel load that
+  // gap is wide enough to lose the keypress, which is what made these tests flaky. The asset's
+  // name is the first thing that cannot render without an asset.
+  await expect(page.getByText("workflow-a.jpg").first()).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe("Workflow rating – mocked e2e", () => {
@@ -219,8 +225,10 @@ test.describe("Workflow rating – mocked e2e", () => {
     expect(JSON.parse((await created).postData() || "{}")).toMatchObject({ type: "RATING", rating: 5 });
     await expect(ratingValue).toHaveText("5", { timeout: 10_000 });
 
-    // Reload: auth is in-memory so this logs us out. Log back in and reopen the
-    // workflow — the rating must be re-hydrated from the persisted reaction.
+    // Reload and reopen the workflow — the rating must be re-hydrated from the persisted
+    // reaction rather than from anything the page was holding. The session now survives a
+    // reload (LOOM_UI.md §7.1), so `login` is a no-op here; it stays because it is idempotent
+    // and the test should not care which way that goes.
     await page.reload();
     await login(page);
     await openWorkflow(page);

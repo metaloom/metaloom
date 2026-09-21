@@ -492,13 +492,24 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
         <Box sx={{ width: 26, height: 26, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
           {nodeIcon ?? cfg.icon}
         </Box>
-        <Box>
-          <Typography sx={{ fontSize: "0.78rem", fontWeight: 700, color: tokens.text.primary, lineHeight: 1.2 }}>
-            {data.label as string}{data.displayName ? ` — ${data.displayName}` : ""}
+        <Box sx={{ minWidth: 0 }}>
+          <Typography data-testid={`pipeline-node-label-${id}`}
+            sx={{ fontSize: "0.78rem", fontWeight: 700, color: tokens.text.primary, lineHeight: 1.2 }}>
+            {(data.label as string) || (data.kind as string) || id}{data.displayName ? ` — ${data.displayName}` : ""}
           </Typography>
-          <Typography sx={{ fontSize: "0.65rem", color: tokens.text.tertiary, lineHeight: 1.3 }}>
-            {(data.description as string)?.slice(0, 40)}
-          </Typography>
+          {/* The kind and the node id, not the description.
+
+              "What kind of node is this?" is the question the card could not answer — two Whisper
+              nodes in one graph are two identical cards otherwise, and a node with no authored
+              label had no text on it at all. The description is a sentence, which is the wrong
+              shape for a 180px card; it moves to the tooltip. */}
+          <Tooltip title={(data.description as string) ?? ""}>
+            <Typography data-testid={`pipeline-node-kind-${id}`}
+              sx={{ fontSize: "0.62rem", fontFamily: "monospace", color: tokens.text.tertiary, lineHeight: 1.3,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 190 }}>
+              {(data.kind as string) ?? ""}{data.kind && id ? " · " : ""}{id}
+            </Typography>
+          </Tooltip>
         </Box>
       </Box>
 
@@ -703,8 +714,13 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
       data: {
         // Options first: everything below is editor state and must win over a same-named option.
         ...pipelineNodeOptions(n),
-        label: n.label,
-        description: n.description,
+        // The descriptor answers when the definition does not. `label` and `description` are
+        // optional in a definition and absent from every pipeline authored over REST rather than
+        // drawn — the editor is not the only client — so the nodes on the deployment rendered
+        // with an empty title and an empty subtitle, and the icon was the only clue to what kind
+        // of node you were looking at.
+        label: n.label || desc?.name || n.type,
+        description: n.description || desc?.description,
         category,
         nodeColor: desc?.color,
         // Preserve the descriptor kind (definition `type`) in node data so
@@ -4159,8 +4175,11 @@ export default function PipelineEditor() {
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
       {/* Pipeline list */}
       <Box sx={{ width: 220, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
+        {/* The narrow pipeline rail rather than a full-width header band, so it keeps its own
+            layout — what it was missing is the glyph every other view leads with. */}
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("pipeline.editor.title")}</Typography>
+          <AccountTreeOutlined sx={{ fontSize: 20, color: tokens.primary.main, flexShrink: 0 }} />
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("pipeline.editor.title")}</Typography>
           <HelpHint topic="pipeline.editing" />
           <Box sx={{ flex: 1 }} />
           <Tooltip title={t("pipeline.editor.newPipeline")}>

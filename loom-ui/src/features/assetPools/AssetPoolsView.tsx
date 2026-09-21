@@ -9,6 +9,7 @@ import {
   FolderOutlined, CloudOutlined, StorageOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import EmptyState from "../../components/EmptyState";
 import { AssetPool, AssetPoolType } from "../../types";
 import { useToast } from "../../context/ToastContext";
@@ -374,16 +375,16 @@ export default function AssetPoolsView() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <StorageOutlined sx={{ fontSize: 20, color: tokens.primary.main }} />
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("assetPools.title")}</Typography>
-              <Tooltip title={t("assetPools.tooltip.info")} arrow>
-              <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
-            </Tooltip>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <ViewHeader
+        icon={<StorageOutlined />}
+        title={t("assetPools.title")}
+        meta={
+          <Tooltip title={t("assetPools.tooltip.info")} arrow>
+            <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
+          </Tooltip>
+        }
+        actions={
+          <>
             <Chip label={`${fsCount} ${t("assetPools.chip.filesystem")}`} size="small" icon={<FolderOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
             <Chip label={`${s3Count} ${t("assetPools.chip.s3")}`} size="small" icon={<CloudOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
             <Chip label={`${formatCount(totalAssets)} ${t("assetPools.chip.assets")}`} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
@@ -395,8 +396,9 @@ export default function AssetPoolsView() {
               onClick={() => { resetForm(); setCreateOpen(true); }}
               sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
             />
-          </Box>
-        </Box>
+          </>
+        }
+      >
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
           <TextField
             value={query}
@@ -427,7 +429,7 @@ export default function AssetPoolsView() {
 
           <ListSortControl value={sortState} onChange={setSortState} testId="asset-pools-sort" />
         </Box>
-      </Box>
+      </ViewHeader>
 
       {/* Pool grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>

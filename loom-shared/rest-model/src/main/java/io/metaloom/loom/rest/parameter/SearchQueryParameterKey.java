@@ -48,6 +48,9 @@ public enum SearchQueryParameterKey {
 
 	COLLECTION("collection", null, UUID::fromString, "Restrict to a collection", "e829f0f1-4775-4857-a326-850440cf9577"),
 
+	ASSET("asset", null, UUID::fromString, "Restrict to the documents of one asset - what \"search inside this file\" is",
+		"e829f0f1-4775-4857-a326-850440cf9577"),
+
 	TAG("tag", null, s -> s, "Comma separated tag names the asset must carry", "nightscape"),
 
 	FROM("from", null, Instant::parse, "Only elements first seen at or after this instant", "2026-01-01T00:00:00Z"),

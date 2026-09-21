@@ -4,11 +4,11 @@ import {
   IconButton, InputAdornment, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField,
   Tooltip, Typography,
 } from "@mui/material";
-import { Add, DeleteOutline, EditOutlined, LockOutlined, SearchOutlined } from "@mui/icons-material";
+import { Add, DeleteOutline, EditOutlined, LockOutlined, PsychologyOutlined, SearchOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
-import Title from "../../components/Title";
 import HelpHint from "../../components/HelpHint";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -172,15 +172,15 @@ export default function MemoryView() {
   const writable = activeScope?.writable ?? false;
 
   return (
-    <Box sx={{ p: 3 }} data-testid="memory-view">
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <Title>{t("memory.title", "Agent memory")}</Title>
-        <HelpHint topic="memory" size={16} />
-      </Box>
-      <Typography variant="body2" sx={{ color: tokens.text.tertiary, mb: 2 }}>
-        {t("memory.subtitle",
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }} data-testid="memory-view">
+      <ViewHeader
+        icon={<PsychologyOutlined />}
+        title={t("memory.title", "Agent memory")}
+        meta={<HelpHint topic="memory" size={16} />}
+        subtitle={t("memory.subtitle",
           "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.")}
-      </Typography>
+      />
+      <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
 
       {scopes.length === 0 && (
         <Typography variant="body2" data-testid="memory-empty-scopes">
@@ -352,6 +352,7 @@ export default function MemoryView() {
           </Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   );
 }

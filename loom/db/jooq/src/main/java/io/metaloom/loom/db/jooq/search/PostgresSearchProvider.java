@@ -375,15 +375,68 @@ public class PostgresSearchProvider implements SearchProvider {
 			throw new LoomRestException(503, LoomRestErrorCode.SEARCH_UNAVAILABLE,
 				"The vector index could not be queried, so semantic search is unavailable right now.");
 		}
+		// A vector belongs either to an asset's whole-document embedding or to one minute of one of
+		// its transcripts. Collapsing both to the asset would throw away the only thing that makes a
+		// transcript hit useful - where in the file it is - so the windows are resolved back first.
+		Map<UUID, UUID> windowByEmbedding = transcriptWindows(hits);
+
 		List<EntityKey> ranked = new ArrayList<>(hits.size());
 		for (VectorHit hit : hits) {
-			if (hit.assetUuid() != null) {
+			UUID window = windowByEmbedding.get(hit.embeddingUuid());
+			if (window != null) {
+				ranked.add(new EntityKey(SearchEntityType.TRANSCRIPT.id(), window));
+			} else if (hit.assetUuid() != null) {
 				// Duplicates are left in: RankFusion collapses an asset's repeated appearances to its best
 				// rank, which is exactly the wanted behaviour if an asset ever carries several vectors.
 				ranked.add(new EntityKey(SearchEntityType.ASSET.id(), hit.assetUuid()));
 			}
 		}
 		return ranked;
+	}
+
+	/**
+	 * Which of these vectors are transcript windows, and which window each one is.
+	 *
+	 * <p>
+	 * A transcript window has no row of its own — its {@code search_document} key is derived from the transcript uuid and the window index
+	 * ({@code V2.110}) — so the embedding cannot carry a foreign uuid pointing at it. {@code subject_index} is the link: 0 is the asset's own
+	 * document, 1..N are its windows in time order. This recomputes exactly the numbering
+	 * {@link SearchEmbeddingService#WINDOW_ORDINALS} assigned, which is why that expression is shared rather than written twice.
+	 * </p>
+	 *
+	 * <p>
+	 * One query for the whole page of neighbours, bounded by {@code topK}. A failure here degrades to "these are asset hits", which is the previous
+	 * behaviour and still a true statement — never to an error, because a ranking that works is worth more than a timecode that does not.
+	 * </p>
+	 */
+	private Map<UUID, UUID> transcriptWindows(List<VectorHit> hits) {
+		List<UUID> ids = new ArrayList<>(hits.size());
+		for (VectorHit hit : hits) {
+			if (hit.embeddingUuid() != null) {
+				ids.add(hit.embeddingUuid());
+			}
+		}
+		if (ids.isEmpty()) {
+			return Map.of();
+		}
+		Map<UUID, UUID> resolved = new LinkedHashMap<>();
+		try {
+			String sql = "WITH win AS (" + SearchEmbeddingService.WINDOW_ORDINALS + ")"
+				+ " SELECT e.uuid AS embedding_uuid, w.entity_uuid AS window_uuid"
+				+ "   FROM embedding e"
+				+ "   JOIN win w ON w.asset_uuid = e.asset_uuid AND w.ord = e.subject_index"
+				+ "  WHERE e.uuid = ANY(?) AND e.subject_index > 0";
+			for (Record row : ctx.fetch(sql, (Object) ids.toArray(new UUID[0]))) {
+				UUID embeddingUuid = row.get("embedding_uuid", UUID.class);
+				UUID windowUuid = row.get("window_uuid", UUID.class);
+				if (embeddingUuid != null && windowUuid != null) {
+					resolved.put(embeddingUuid, windowUuid);
+				}
+			}
+		} catch (Exception e) {
+			log.warn("Could not resolve transcript windows for the vector hits: {}", e.getMessage());
+		}
+		return resolved;
 	}
 
 	/** The lexical ranking as positions rather than scores - RRF reads only the order. */
@@ -482,6 +535,51 @@ public class PostgresSearchProvider implements SearchProvider {
 		List<SearchHit> lexical = hits.stream().filter(hit -> !MATCHED_IN_SEMANTIC.equals(hit.getMatchedIn())).toList();
 		if (!lexical.isEmpty()) {
 			enrich(lexical, term);
+		}
+		List<SearchHit> semantic = hits.stream().filter(hit -> MATCHED_IN_SEMANTIC.equals(hit.getMatchedIn())).toList();
+		if (!semantic.isEmpty()) {
+			openingOf(semantic);
+		}
+	}
+
+	/**
+	 * Give a semantic hit the opening of the document it found, since it has nothing to highlight.
+	 *
+	 * <p>
+	 * A semantic hit matched by meaning: {@code ts_headline} has no term to find in it and returns an empty string, so these hits used to carry no
+	 * snippet at all. The client then has nothing to render but the title and the subtitle — which for a transcript window is its own timecode and
+	 * the model name, i.e. the two things already on the row. "Search by meaning" that answers with a list of timecodes and no words is not a
+	 * usable answer.
+	 * </p>
+	 *
+	 * <p>
+	 * The opening of the body rather than a middle fragment: without a term there is no basis for choosing which part to show, and the start of a
+	 * minute of dialogue is the part a reader can orient by. Marked {@code semantic} still, so a client can tell the difference between "here is
+	 * where your words are" and "here is what this passage is about".
+	 * </p>
+	 */
+	/**
+	 * How much of a semantic hit's document to show, in characters.
+	 *
+	 * Roughly the length {@code ts_headline} produces for a lexical hit (MaxWords=18, two fragments), so the two kinds of result row are the same
+	 * size and a mixed HYBRID page does not look ragged.
+	 */
+	private static final int SEMANTIC_OPENING_CHARS = 220;
+
+	private void openingOf(List<SearchHit> hits) {
+		try {
+			for (SearchHit hit : hits) {
+				Record record = ctx.fetchOne("SELECT left(coalesce(nullif(body,''), subtitle), ?) AS opening"
+					+ " FROM search_document WHERE entity_type = ? AND entity_uuid = ?",
+					SEMANTIC_OPENING_CHARS, hit.getType().id(), hit.getUuid());
+				String opening = record == null ? null : record.get("opening", String.class);
+				if (opening != null && !opening.isBlank()) {
+					hit.getHighlights().add(opening);
+				}
+			}
+		} catch (Exception e) {
+			// A missing snippet is a worse result, never a failed one.
+			log.debug("Could not read the opening for the semantic hits: {}", e.getMessage());
 		}
 	}
 
@@ -663,6 +761,7 @@ public class PostgresSearchProvider implements SearchProvider {
 			|| request.getLibraryUuid() != null
 			|| request.getSpaceUuid() != null
 			|| request.getCollectionUuid() != null
+			|| request.getAssetUuid() != null
 			|| !request.getTags().isEmpty()
 			|| (request.getLang() != null && !request.getLang().isBlank())
 			|| request.getCreatedFrom() != null
@@ -690,6 +789,13 @@ public class PostgresSearchProvider implements SearchProvider {
 		if (request.getCollectionUuid() != null) {
 			where.append(" AND collection_uuids @> ARRAY[?]::uuid[]");
 			binds.add(request.getCollectionUuid());
+		}
+		// "Search inside this one file". An indexed column comparison, and the reason the transcript
+		// windows carry an asset_uuid at all: without it the only way to search one episode's speech
+		// was to load the whole transcript into the browser and scan it there.
+		if (request.getAssetUuid() != null) {
+			where.append(" AND asset_uuid = ?");
+			binds.add(request.getAssetUuid());
 		}
 		if (!request.getTags().isEmpty()) {
 			where.append(" AND tag_names && ?");

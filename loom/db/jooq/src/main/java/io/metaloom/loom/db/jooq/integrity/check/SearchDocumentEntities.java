@@ -29,8 +29,12 @@ public final class SearchDocumentEntities {
 	static {
 		Map<SearchEntityType, String> tables = new LinkedHashMap<>();
 		tables.put(SearchEntityType.ASSET, "asset");
-		// A transcript gets its own document so a hit can deep-link to a timecode; the entity is the
-		// per-track component row, not the asset.
+		// A transcript is the one entry here whose uuid is NOT a row's primary key. Since V2.110 a
+		// transcript is indexed as one document per timecoded window, keyed by a derived
+		// uuid_generate_v5(transcript_uuid, window_index) - see DanglingSearchDocumentCheck, which
+		// special-cases this type and re-derives the valid set instead of joining on the table.
+		// The mapping stays so the coverage assertion in DbIntegrityChecksTest still holds, and it
+		// still names where a window comes from.
 		tables.put(SearchEntityType.TRANSCRIPT, "asset_transcript_comp");
 		tables.put(SearchEntityType.TAG, "tag");
 		tables.put(SearchEntityType.ANNOTATION, "annotation");

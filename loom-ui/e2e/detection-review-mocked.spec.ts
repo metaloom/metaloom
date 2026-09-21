@@ -204,10 +204,11 @@ async function openDetectionPanel(page: Page) {
 
 /** Rubber-band a box over the image, in fractions of the image container. */
 async function drawBox(page: Page, x0: number, y0: number, x1: number, y1: number) {
-  const image = page.getByTestId("zoomable-image");
+  // The picture, not the container that holds it: a region is a fraction of the image.
+  const image = page.getByTestId("zoomable-image-picture");
   await expect(image).toBeVisible();
   const box = await image.boundingBox();
-  if (!box) throw new Error("zoomable-image has no bounding box");
+  if (!box) throw new Error("zoomable-image-picture has no bounding box");
   await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 10 });
@@ -348,7 +349,8 @@ test.describe("Detection review on asset detail – mocked e2e", () => {
     await page.reload();
     await openDetectionPanel(page);
 
-    const image = page.getByTestId("zoomable-image");
+    // The picture, not the container that holds it: a region is a fraction of the image.
+    const image = page.getByTestId("zoomable-image-picture");
     const region = page.getByTestId("image-region");
     await expect(region).toHaveCount(1, { timeout: 10_000 });
     const imageBox = await image.boundingBox();
@@ -356,6 +358,56 @@ test.describe("Detection review on asset detail – mocked e2e", () => {
     if (!imageBox || !regionBox) throw new Error("overlay geometry unavailable");
     expect((regionBox.x - imageBox.x) / imageBox.width).toBeCloseTo(0.50, 1);
     expect((regionBox.y - imageBox.y) / imageBox.height).toBeCloseTo(0.30, 1);
+  });
+
+  /**
+   * A model's box and a hand-drawn box mean the same thing.
+   *
+   * <p>They did not. The overlay and the rubber band were both in *container* coordinates, so
+   * they agreed with each other and with nothing else: `detection.bbox_*` is a fraction of the
+   * picture the detector saw, and on a letterboxed image the two frames differ by the width of a
+   * bar. A reviewer redrawing a model's box therefore moved it, and a model's box drew in the
+   * wrong place to begin with.</p>
+   *
+   * <p>The seeded detection below is the model's; the drag reproduces it by hand. If the two
+   * frames of reference have drifted apart again, the redraw writes something other than what
+   * was already there and this fails.</p>
+   */
+  test("redrawing a model's box in the same place writes the same coordinates back", async ({ page }) => {
+    const rec = recorder();
+    // x=0.2, so the 0.15-wide box sits well inside the picture: a box that overhangs the edge is
+    // clamped on redraw, which is right but would be measuring the clamp rather than the frames.
+    await installMocks(page, rec, { seed: [detection(DETECTION_DOG, "dog", 0.2)] });
+    await page.goto("/");
+    await login(page);
+    await openDetectionPanel(page);
+
+    // What the seeded detection claims, as the overlay renders it.
+    const region = page.getByTestId("image-region");
+    await expect(region).toHaveCount(1, { timeout: 10_000 });
+    const picture = page.getByTestId("zoomable-image-picture");
+    const pictureBox = (await picture.boundingBox())!;
+    const before = (await region.boundingBox())!;
+    const asDrawn = {
+      x: (before.x - pictureBox.x) / pictureBox.width,
+      y: (before.y - pictureBox.y) / pictureBox.height,
+      width: before.width / pictureBox.width,
+      height: before.height / pictureBox.height,
+    };
+
+    // Redraw it over itself, corner to corner.
+    await page.getByTestId("detection-redraw").first().click();
+    await page.mouse.move(before.x, before.y);
+    await page.mouse.down();
+    await page.mouse.move(before.x + before.width, before.y + before.height, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(() => rec.updates.length, { timeout: 10_000 }).toBe(1);
+    const body = rec.updates[0].body;
+    expect(body.bboxX as number).toBeCloseTo(asDrawn.x, 2);
+    expect(body.bboxY as number).toBeCloseTo(asDrawn.y, 2);
+    expect(body.bboxWidth as number).toBeCloseTo(asDrawn.width, 2);
+    expect(body.bboxHeight as number).toBeCloseTo(asDrawn.height, 2);
   });
 });
 

@@ -19,27 +19,63 @@ import {
 import { FaceCrop } from "./FaceCrop";
 
 /**
- * How much of a cluster card to draw.
+ * One notch of the thumbnail-size slider.
  *
- * `small` is faces and nothing else: the reviewer scanning a wall of clusters for two that are the
- * same person is reading pictures, and the name, count, review date and buttons above each one are
- * three lines of chrome between every two rows of the thing they are actually comparing. The
- * actions do not disappear — the card is still a drop target, and `medium` is one click away.
+ * Four steps rather than the three named sizes that were here before, and the scale is now
+ * anchored at the bottom: step 0 is the smallest anyone asked for, and the three above it exist
+ * to inspect a face rather than to scan for one. The three old names conflated two unrelated
+ * questions — how big is a face, and does the card carry a header — and offered no way to say
+ * "these faces, but larger".
  */
-export type ClusterCardSize = "small" | "medium" | "large";
+export interface ClusterCardSpec {
+  /** Longest edge of one face crop. */
+  crop: number;
+  /** How many crops a card shows before it says "+N". */
+  maxCrops: number;
+  /** Whether the card carries its name/count/actions row. */
+  header: boolean;
+}
 
 /**
- * Card width, crop size and how many crops fit, per size.
+ * `maxCrops` is two rows of two, everywhere.
  *
- * The faces at `small` are 60px, not the 40 they started at: the point of the mode is comparing
- * faces, and 40 was below what a face is recognisable at, so the mode that exists for looking at
- * faces was the one you could see them worst in. The column grew with them.
+ * The card is two crops wide, so this is the number that decides how tall it gets — and a grid
+ * row is as tall as its tallest card even with `alignItems: start`, so one cluster of twelve
+ * used to set the height for a whole row of clusters of one. Twelve crops is six rows of empty
+ * space beside every single-face neighbour; four is two. Four faces is enough to see whether a
+ * cluster is coherent, the "+N" tile says how many more there are, and the cluster's own page is
+ * where you go to look at all of them.
  */
-const SIZE_SPECS: Record<ClusterCardSize, { column: number; crop: number; maxCrops: number; header: boolean }> = {
-  small: { column: 250, crop: 60, maxCrops: 12, header: false },
-  medium: { column: 280, crop: 44, maxCrops: 8, header: true },
-  large: { column: 400, crop: 72, maxCrops: 10, header: true },
-};
+export const CLUSTER_SIZE_STEPS: ClusterCardSpec[] = [
+  { crop: 60, maxCrops: 4, header: false },
+  { crop: 90, maxCrops: 4, header: false },
+  { crop: 120, maxCrops: 4, header: true },
+  { crop: 160, maxCrops: 4, header: true },
+];
+
+export const CLUSTER_SIZE_MIN = 0;
+export const CLUSTER_SIZE_MAX = CLUSTER_SIZE_STEPS.length - 1;
+export const CLUSTER_SIZE_DEFAULT = 0;
+
+/** Clamp a stored or user-supplied step onto the scale that exists. */
+export function clampClusterSize(step: number): number {
+  if (!Number.isFinite(step)) return CLUSTER_SIZE_DEFAULT;
+  return Math.min(CLUSTER_SIZE_MAX, Math.max(CLUSTER_SIZE_MIN, Math.round(step)));
+}
+
+/**
+ * How wide a card is, for a given crop size.
+ *
+ * Two crops across plus the gap and the padding, which is half what the cards used to be. The
+ * old 250px column held the same two 60px faces with 120px of nothing beside them, so a screen
+ * showed half the clusters it had room for. Deriving the width from the crop rather than storing
+ * it is what keeps that true at every step of the slider.
+ */
+export function clusterColumnPx(spec: ClusterCardSpec): number {
+  const gap = 6;
+  const padding = 12;
+  return spec.crop * 2 + gap + padding;
+}
 
 interface ClustersPanelProps {
   clusters: FaceCluster[];
@@ -68,12 +104,16 @@ interface ClustersPanelProps {
    * the card-to-card path has to infer it from the target.
    */
   onAssignToPerson?: (clusterId: string, personId: string) => void;
-  /** How much of each card to draw; see {@link ClusterCardSize}. */
-  size?: ClusterCardSize;
+  /** Thumbnail-size step; see {@link CLUSTER_SIZE_STEPS}. */
+  size?: number;
 }
 
-export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated, onMergeClusters, onDetachPerson, onAssignToPerson, size = "medium" }: ClustersPanelProps) {
-  const spec = SIZE_SPECS[size];
+export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated, onMergeClusters, onDetachPerson, onAssignToPerson, size = CLUSTER_SIZE_DEFAULT }: ClustersPanelProps) {
+  const step = clampClusterSize(size);
+  const spec = CLUSTER_SIZE_STEPS[step];
+  const column = clusterColumnPx(spec);
+  /** The two smallest steps are for scanning, so they drop the chrome and tighten the gaps. */
+  const dense = !spec.header;
   const { t } = useTranslation();
   const { token } = useAuth();
   const { reportFailure } = useFailure();
@@ -232,6 +272,39 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
   };
 
   /**
+   * An arrow key with nothing focused enters the grid at the top left.
+   *
+   * Without this the keyboard was only usable after a click, which made it useless for the job
+   * it exists for: the reviewer's hands are on the arrows precisely because they do not want to
+   * aim at three hundred small cards with a mouse. Deliberately narrow — it fires only when
+   * focus is on the page body or on a container, never while somebody is typing in the search
+   * box or has tabbed to a button, and never when the grid already holds focus.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const grid = gridRef.current;
+      const first = cardOrder[0];
+      if (!grid || !first) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && grid.contains(active)) return;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.isContentEditable) return;
+        // A focused control of any kind owns its own arrow keys — a listbox, a slider, a tab strip.
+        if (active !== document.body && active.tabIndex >= 0) return;
+      }
+      e.preventDefault();
+      focusCard(first);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // `focusCard` is re-created every render and only reads refs, so it is deliberately not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardOrder]);
+
+  /**
    * Arrow-key movement, measured rather than computed.
    *
    * The grid is `auto-fill`, so how many cards are on a row depends on the window, and the groups
@@ -310,8 +383,8 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
   });
 
   return (
-    <Box ref={gridRef} data-testid="clusters-grid" data-card-size={size}
-      sx={{ display: "flex", flexDirection: "column", gap: size === "small" ? 1 : 2 }}>
+    <Box ref={gridRef} data-testid="clusters-grid" data-card-size={step} data-crop-size={spec.crop}
+      sx={{ display: "flex", flexDirection: "column", gap: dense ? 1 : 2 }}>
       {groups.map(group => {
         const groupKey = `group:${group.key}`;
         const isDropTarget = dropTargetId === groupKey;
@@ -349,7 +422,10 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                 </Typography>
               </Box>
             )}
-            <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${spec.column}px, 1fr))`, gap: size === "small" ? 1 : 2 }}>
+            {/* `alignItems: start`, or a grid row is as tall as its tallest card and every other
+                card in it stretches to match. With the cards now two faces wide a cluster of
+                twelve is six rows of crops, and its neighbours became six rows of nothing. */}
+            <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${column}px, 1fr))`, gap: dense ? 1 : 2, alignItems: "start" }}>
               {group.cards.map(cluster => {
                 const person = cluster.personId ? persons.find(p => p.id === cluster.personId) : undefined;
                 const cardDropTarget = dropTargetId === cluster.id;
@@ -456,12 +532,32 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                       </Box>
                     </Box>
                     )}
-                    {/* At `small` the person is the one thing that cannot be read off the faces, so it
-                        stays - as a dot of colour and a tooltip rather than a row of its own. */}
+                    {/* At the scanning steps the person is the one thing that cannot be read off the
+                        faces, so it stays — as a dot of colour and a tooltip rather than a row of
+                        its own, because a header with an avatar, a name, a chip and two buttons
+                        does not fit in a card two faces wide.
+
+                        The dot is also the way back out. A drag onto the wrong card is the obvious
+                        way to get an attribution wrong, and without this the only undo lived in a
+                        header these steps do not draw — so the fast way to make the mistake had no
+                        fast way to correct it. */}
                     {!spec.header && person && (
-                      <Tooltip title={person.name}>
-                        <Box data-testid="cluster-person-dot" data-person-name={person.name}
-                          sx={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.accent.green, zIndex: 1 }} />
+                      <Tooltip title={onDetachPerson ? t("faceDetection.tooltip.detachFrom", { name: person.name }) : person.name}>
+                        <Box
+                          component={onDetachPerson ? "button" : "div"}
+                          type={onDetachPerson ? "button" : undefined}
+                          data-testid="cluster-person-dot"
+                          data-person-name={person.name}
+                          aria-label={person.name}
+                          onClick={onDetachPerson ? (e: React.MouseEvent) => { e.stopPropagation(); onDetachPerson(cluster.id); } : undefined}
+                          sx={{
+                            position: "absolute", top: 3, right: 3, width: 12, height: 12, p: 0,
+                            borderRadius: "50%", bgcolor: tokens.accent.green,
+                            border: `2px solid ${tokens.bg.elevated}`, zIndex: 2,
+                            cursor: onDetachPerson ? "pointer" : "default",
+                            "&:hover": onDetachPerson ? { bgcolor: tokens.accent.red } : {},
+                            transition: "background-color 120ms ease",
+                          }} />
                       </Tooltip>
                     )}
                     {/* Face thumbnails grid.

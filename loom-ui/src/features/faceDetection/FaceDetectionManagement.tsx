@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Chip, TextField, InputAdornment, Button, Autocomplete,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  CircularProgress, ToggleButton, ToggleButtonGroup, Tooltip,
+  CircularProgress, Slider, Tooltip,
 } from "@mui/material";
 import {
   SearchOutlined, GroupWorkOutlined, PersonOutlined, AddOutlined,
-  ViewComfyOutlined, ViewModuleOutlined, ViewQuiltOutlined,
+  PhotoSizeSelectSmallOutlined, PhotoSizeSelectActualOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
@@ -20,7 +20,9 @@ import {
   detachClusterPerson as apiDetachClusterPerson,
   ClusterResponse,
 } from "../../api/clusters";
-import ClustersPanel, { ClusterCardSize } from "./ClustersPanel";
+import ClustersPanel, {
+  CLUSTER_SIZE_DEFAULT, CLUSTER_SIZE_MAX, CLUSTER_SIZE_MIN, CLUSTER_SIZE_STEPS, clampClusterSize,
+} from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
 import { toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
@@ -28,24 +30,31 @@ import { ListFilterSelect } from "../../components/ListControls";
 import { useFailure } from "../../context/FailureContext";
 import LoadFailure from "../../components/LoadFailure";
 
-/** localStorage key for the cluster card size. */
-const CARD_SIZE_KEY = "loom.faceDetection.clusterCardSize";
+/**
+ * localStorage key for the thumbnail-size step.
+ *
+ * A new key rather than the old one: the value used to be "small" | "medium" | "large" and is
+ * now an index, so a stored word has to read as "nothing stored" rather than as step NaN.
+ */
+const CARD_SIZE_KEY = "loom.faceDetection.clusterThumbStep";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [query, setQuery] = useState("");
   /**
-   * How large to draw the cluster cards.
+   * How large to draw the face thumbnails, as a step on {@link CLUSTER_SIZE_STEPS}.
    *
-   * Remembered across visits: which size suits you is a property of the work you are doing - a
-   * sweep for duplicate people wants `small`, checking one cluster's coherence wants `large` - and
-   * having to re-pick it on every navigation is the kind of friction that makes people stop using
-   * a control. A malformed or absent value falls back to `medium`.
+   * Remembered across visits: which size suits you is a property of the work you are doing — a
+   * sweep for duplicate people wants the smallest, checking whether one cluster is coherent
+   * wants the largest — and having to re-pick it on every navigation is the kind of friction
+   * that makes people stop using a control. Anything unparseable falls back to the smallest,
+   * which is the density the grid is designed around.
    */
-  const [cardSize, setCardSize] = useState<ClusterCardSize>(() => {
+  const [cardSize, setCardSize] = useState<number>(() => {
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(CARD_SIZE_KEY) : null;
-    return stored === "small" || stored === "large" || stored === "medium" ? stored : "medium";
+    const parsed = stored == null ? NaN : Number.parseInt(stored, 10);
+    return Number.isFinite(parsed) ? clampClusterSize(parsed) : CLUSTER_SIZE_DEFAULT;
   });
   const [activeSection, setActiveSection] = useState<"clusters" | "persons">("clusters");
   const [assignment, setAssignment] = useState("");
@@ -137,7 +146,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(CARD_SIZE_KEY, cardSize);
+      window.localStorage.setItem(CARD_SIZE_KEY, String(cardSize));
     } catch {
       // Private browsing, or a full quota. A size that does not survive a reload is a much smaller
       // problem than a screen that throws while rendering.
@@ -364,27 +373,37 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             ),
           }}
         />
-        {/* Card size. Beside the search box because it is the same kind of control: neither
-            changes what is in the list, both change what you can find in it. */}
+        {/* Thumbnail size. Beside the search box because it is the same kind of control: neither
+            changes what is in the list, both change what you can find in it.
+
+            A slider rather than the three named buttons that were here, because the question is
+            "how big is a face" and the answer is a magnitude. The scale is anchored at the
+            bottom: step 0 is the density the grid is designed around and every other step is
+            larger, which is how it was asked for. */}
         {activeSection === "clusters" && (
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={cardSize}
-            onChange={(_, value: ClusterCardSize | null) => { if (value) setCardSize(value); }}
-            data-testid="facedetection-card-size"
-            sx={{ "& .MuiToggleButton-root": { px: 0.75, py: 0.25, border: `1px solid ${tokens.border.subtle}` } }}
-          >
-            <ToggleButton value="small" data-testid="facedetection-card-size-small" aria-label={t("faceDetection.size.small")}>
-              <Tooltip title={t("faceDetection.size.small")}><ViewComfyOutlined sx={{ fontSize: 16 }} /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="medium" data-testid="facedetection-card-size-medium" aria-label={t("faceDetection.size.medium")}>
-              <Tooltip title={t("faceDetection.size.medium")}><ViewModuleOutlined sx={{ fontSize: 16 }} /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="large" data-testid="facedetection-card-size-large" aria-label={t("faceDetection.size.large")}>
-              <Tooltip title={t("faceDetection.size.large")}><ViewQuiltOutlined sx={{ fontSize: 16 }} /></Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}
+            data-testid="facedetection-card-size" data-step={cardSize}>
+            <Tooltip title={t("faceDetection.size.smaller")}>
+              <PhotoSizeSelectSmallOutlined sx={{ fontSize: 15, color: tokens.text.tertiary }} />
+            </Tooltip>
+            <Slider
+              size="small"
+              value={cardSize}
+              min={CLUSTER_SIZE_MIN}
+              max={CLUSTER_SIZE_MAX}
+              step={1}
+              marks
+              valueLabelDisplay="auto"
+              valueLabelFormat={value => `${CLUSTER_SIZE_STEPS[clampClusterSize(value)].crop}px`}
+              onChange={(_, value) => setCardSize(clampClusterSize(Array.isArray(value) ? value[0] : value))}
+              aria-label={t("faceDetection.size.thumbnails")}
+              data-testid="facedetection-card-size-slider"
+              sx={{ width: 110, color: tokens.primary.main, "& .MuiSlider-thumb": { width: 12, height: 12 } }}
+            />
+            <Tooltip title={t("faceDetection.size.larger")}>
+              <PhotoSizeSelectActualOutlined sx={{ fontSize: 17, color: tokens.text.tertiary }} />
+            </Tooltip>
+          </Box>
         )}
         {/* Only meaningful for clusters — a person is not assigned to anything. */}
         {activeSection === "clusters" && (

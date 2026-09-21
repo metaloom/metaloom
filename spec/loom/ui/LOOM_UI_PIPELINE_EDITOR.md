@@ -250,6 +250,25 @@ Two residual defects in these channels (see §1):
 
 ---
 
+## 5.1 What a node card says it is
+
+The header carries two lines: the node's **name** and, under it in monospace, **`kind · id`**.
+
+Both halves were missing for the pipelines that matter. `label` and `description` are *optional*
+on a definition node and absent from every pipeline authored over REST rather than drawn — the
+editor is not the only client — so `data.label` was `undefined` and the card rendered with no text
+on it at all. Only the category icon hinted at what the node was, which is why "I can't figure out
+what actual node type they are" was the report from the deployment.
+
+`toFlowNodes` now falls back to the descriptor: `label: n.label || desc?.name || n.type`,
+`description: n.description || desc?.description`.
+
+The second line is `kind · id` rather than the description. The description is a sentence, which
+is the wrong shape for a 180px card, and it does not answer the question the card could not answer
+— two `whisper` nodes in one graph are two identical cards without their ids. The description
+moves to the header's tooltip. `data-testid="pipeline-node-label-<id>"` /
+`pipeline-node-kind-<id>`.
+
 ## 6. Ports on the canvas
 
 The port model itself is specified in

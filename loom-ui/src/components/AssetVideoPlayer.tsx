@@ -1,7 +1,7 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import {
-  PlayArrowOutlined, PauseOutlined, VolumeUpOutlined, VolumeOffOutlined,
+  PlayArrowOutlined, PauseOutlined, VolumeUpOutlined, VolumeOffOutlined, VolumeDownOutlined,
   FullscreenOutlined, Replay10Outlined, Forward10Outlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,21 @@ import { useTranslation } from "react-i18next";
 import { assetPosterUrl, assetStreamUrl } from "../api/assets";
 import { useMediaToken } from "../hooks/useMediaToken";
 import { tokens } from "../theme";
+import ContainFrame from "./ContainFrame";
 import MediaPlaceholder from "./MediaPlaceholder";
+
+/** localStorage key for the playback volume, so it is not re-set on every asset. */
+const VOLUME_KEY = "loom.player.volume";
+
+function readStoredVolume(): number {
+  try {
+    const raw = window.localStorage.getItem(VOLUME_KEY);
+    const value = raw == null ? NaN : Number.parseFloat(raw);
+    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  } catch {
+    return 1;
+  }
+}
 
 /** Imperative surface: the timeline lives outside this component, so seeking has to come in. */
 export interface AssetVideoPlayerHandle {
@@ -32,7 +46,14 @@ interface AssetVideoPlayerProps {
   duration: number;
   /** Playback position in asset time, reported continuously. */
   onTimeUpdate?: (seconds: number) => void;
-  /** Absolutely positioned children drawn over the picture — bounding boxes, badges. */
+  /**
+   * Absolutely positioned children drawn over the picture — bounding boxes, badges.
+   *
+   * Positioned against the *picture*, not against the element that holds it: the overlay is
+   * wrapped in a {@link ContainFrame} sized to where `object-fit: contain` actually put the
+   * video, so a child saying `left: "50%"` means the middle of the frame the detector saw and
+   * not the middle of a box with letterbox bars in it.
+   */
   overlay?: React.ReactNode;
   autoPlay?: boolean;
   testId?: string;
@@ -86,7 +107,28 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
     const [streamOffset, setStreamOffset] = useState(0);
     const [paused, setPaused] = useState(!autoPlay);
     const [muted, setMuted] = useState(false);
+    const [volume, setVolume] = useState(readStoredVolume);
     const [position, setPosition] = useState(0);
+    /**
+     * The decoded frame size, for the overlay's coordinate space.
+     *
+     * Read off the element rather than taken from the probe: the stream is a remux and the
+     * player is the only thing that knows what the decoder finally produced. Null until
+     * `loadedmetadata`, which {@link ContainFrame} reads as "fill the box" — the behaviour
+     * before any of this existed.
+     */
+    const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+
+    // The element is rebuilt on every seek (`key={streamUrl}`), so the volume has to be pushed
+    // back onto it rather than only set once — a fresh <video> starts at 1.0.
+    useEffect(() => {
+      const video = videoRef.current;
+      if (video) video.volume = volume;
+    }, [volume, streamOffset]);
+
+    useEffect(() => {
+      try { window.localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* private mode */ }
+    }, [volume]);
 
     const streamUrl = mediaToken ? assetStreamUrl(assetUuid, mediaToken, streamOffset) : null;
     const posterUrl = mediaToken ? assetPosterUrl(assetUuid, mediaToken, undefined, 960) : undefined;
@@ -159,6 +201,13 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
             muted={muted}
             onPlay={() => setPaused(false)}
             onPause={() => setPaused(true)}
+            onLoadedMetadata={e => {
+              const el = e.currentTarget as HTMLVideoElement;
+              el.volume = volume;
+              if (el.videoWidth > 0 && el.videoHeight > 0) {
+                setNatural({ width: el.videoWidth, height: el.videoHeight });
+              }
+            }}
             onClick={togglePlay}
             onTimeUpdate={e => {
               const at = streamOffset + (e.currentTarget as HTMLVideoElement).currentTime;
@@ -167,7 +216,11 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
             }}
             sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block", cursor: "pointer" }}
           />
-          {overlay}
+          {overlay && (
+            <ContainFrame natural={natural} testId={`${testId}-picture`}>
+              {overlay}
+            </ContainFrame>
+          )}
         </Box>
 
         {/* Transport. The scrubber is not here: see the class comment. */}
@@ -193,11 +246,32 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
             {clock(position)} / {duration > 0 ? clock(duration) : "--:--"}
           </Typography>
           <Box sx={{ flex: 1 }} />
+          {/* Mute and level are separate controls on purpose: mute is a panic button that has to
+              remember where the level was, so it toggles a flag rather than writing 0 over it. */}
           <Tooltip title={muted ? t("player.unmute") : t("player.mute")}>
             <IconButton size="small" onClick={() => setMuted(m => !m)} data-testid={`${testId}-mute`}>
-              {muted ? <VolumeOffOutlined sx={{ fontSize: 18 }} /> : <VolumeUpOutlined sx={{ fontSize: 18 }} />}
+              {muted || volume === 0
+                ? <VolumeOffOutlined sx={{ fontSize: 18 }} />
+                : volume < 0.5 ? <VolumeDownOutlined sx={{ fontSize: 18 }} /> : <VolumeUpOutlined sx={{ fontSize: 18 }} />}
             </IconButton>
           </Tooltip>
+          <Slider
+            size="small"
+            value={muted ? 0 : volume}
+            min={0} max={1} step={0.01}
+            onChange={(_, value) => {
+              const next = Array.isArray(value) ? value[0] : value;
+              setVolume(next);
+              // Moving the slider off zero is how anyone expects to undo a mute.
+              if (next > 0 && muted) setMuted(false);
+            }}
+            aria-label={t("player.volume")}
+            data-testid={`${testId}-volume`}
+            data-volume={muted ? 0 : Math.round(volume * 100)}
+            sx={{ width: 72, mx: 0.75, color: tokens.primary.main,
+              "& .MuiSlider-thumb": { width: 10, height: 10 },
+              "& .MuiSlider-rail": { opacity: 0.35 } }}
+          />
           <Tooltip title={t("player.fullscreen")}>
             <IconButton size="small" data-testid={`${testId}-fullscreen`}
               onClick={() => { void containerRef.current?.requestFullscreen?.().catch(() => { /* denied */ }); }}>

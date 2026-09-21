@@ -223,6 +223,25 @@ async function openFaces(page: Page) {
   await expect(page.getByTestId("facedetection-switcher")).toBeVisible({ timeout: 10_000 });
 }
 
+/**
+ * Move the thumbnail slider up to an inspection step.
+ *
+ * Nearly every test in this file is about the card's *chrome* — the name, the face count, the
+ * reviewer stamp, the assign button, the person chip, edit and delete. Since the grid opens at
+ * its smallest step none of that is drawn: a card there is two faces wide, and an avatar, a name,
+ * a chip and two icon buttons do not fit in 138 pixels. The scanning steps are covered in
+ * face-clusters-mocked.spec.ts, which is where their own affordances live.
+ *
+ * Driven by keyboard because a slider thumb is awkward to drop on.
+ */
+async function showCardChrome(page: Page) {
+  const slider = page.getByTestId("facedetection-card-size-slider").locator("input");
+  await slider.focus();
+  for (let i = 0; i < 4; i++) await slider.press("ArrowLeft");
+  for (let i = 0; i < 2; i++) await slider.press("ArrowRight");
+  await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "2");
+}
+
 async function showPersons(page: Page) {
   await page.getByTestId("facedetection-section-persons").click();
 }
@@ -273,6 +292,7 @@ test.describe("Face panels – mocked e2e", () => {
 
     const card = page.getByTestId("cluster-card");
     await expect(card).toHaveCount(1, { timeout: 10_000 });
+    await showCardChrome(page);
     // The count comes from the list route; the crops come from GET /clusters/:uuid/members.
     await expect(card.getByTestId("cluster-face-count")).toHaveText("3 faces");
     await expect(card.getByTestId("face-crop")).toHaveCount(3, { timeout: 10_000 });
@@ -313,6 +333,7 @@ test.describe("Face panels – mocked e2e", () => {
     await openFaces(page);
 
     await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await showCardChrome(page);
 
     const decided = page.getByTestId("cluster-card").filter({ hasText: "Anna Meyer" });
     const stamp = decided.getByTestId("cluster-reviewed-at");
@@ -335,6 +356,8 @@ test.describe("Face panels – mocked e2e", () => {
     await login(page);
     await openFaces(page);
 
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await showCardChrome(page);
     const unassigned = page.getByTestId("cluster-card").filter({ has: page.getByTestId("cluster-assign") });
     await expect(unassigned).toHaveCount(2, { timeout: 10_000 });
 
@@ -403,6 +426,7 @@ test.describe("Face panels – mocked e2e", () => {
     await expect(created.getByTestId("person-cluster-count")).toHaveText("0 clusters");
 
     await showClusters(page);
+    await showCardChrome(page);
     await page.getByTestId("cluster-assign").first().click();
     // A type-to-find box since 2026-09-20, not a dropdown: this grid runs to a hundred
     // cards and scrolling a select to the right name is the slow half of a review pass.
@@ -423,6 +447,8 @@ test.describe("Face panels – mocked e2e", () => {
     await login(page);
     await openFaces(page);
 
+    await expect(page.getByTestId("cluster-card")).toHaveCount(1, { timeout: 10_000 });
+    await showCardChrome(page);
     await expect(page.getByTestId("cluster-name")).toHaveText("Group A", { timeout: 10_000 });
 
     await page.getByTestId("cluster-edit").click();
@@ -436,6 +462,7 @@ test.describe("Face panels – mocked e2e", () => {
     await page.reload();
     await login(page);
     await openFaces(page);
+    // The step is remembered, so the chrome is back without re-selecting it.
     await expect(page.getByTestId("cluster-name")).toHaveText("The neighbours", { timeout: 10_000 });
   });
 

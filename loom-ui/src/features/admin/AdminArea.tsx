@@ -14,9 +14,11 @@ import {
   CloseOutlined, ExpandMoreOutlined, ExpandLessOutlined, LockOutlined,
   CheckBoxOutlined, CheckBoxOutlineBlankOutlined, SearchOutlined,
   MoreVertOutlined, HelpOutlineOutlined,
+  AdminPanelSettingsOutlined,
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import HelpHint from "../../components/HelpHint";
 import SearchIndicesAdmin from "./SearchIndicesAdmin";
 import DbIntegrityAdmin from "./DbIntegrityAdmin";
@@ -1680,16 +1682,15 @@ export default function AdminArea() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.25 }}>{t("admin.title")}</Typography>
-        <Typography variant="caption" color="text.secondary">{t("admin.subtitle")}</Typography>
-      </Box>
-
-      <Box sx={{ borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, px: 2 }}>
-        <Tabs value={activeTab} onChange={(_, i) => navigate(ADMIN_TABS[i].path)}>
+      {/* One header band with the tab strip inside it, rather than a title band and a second
+          band for the tabs. Every management screen below this — spaces, users, roles, the deny
+          lists, the ACL editor — then carries its own section heading inside the same frame. */}
+      <ViewHeader icon={<AdminPanelSettingsOutlined />} title={t("admin.title")} subtitle={t("admin.subtitle")}>
+        <Tabs value={activeTab} onChange={(_, i) => navigate(ADMIN_TABS[i].path)} variant="scrollable" scrollButtons="auto"
+          sx={{ minHeight: 34, "& .MuiTab-root": { minHeight: 34 } }}>
           {ADMIN_TABS.map(tab => <Tab key={tab.path} label={tab.label} sx={{ fontSize: "0.8rem" }} />)}
         </Tabs>
-      </Box>
+      </ViewHeader>
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         <Routes>

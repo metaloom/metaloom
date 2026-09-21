@@ -9,9 +9,10 @@ import {
 import {
   AccountTreeOutlined, SpeedOutlined,
   PlayCircleOutlineOutlined, MemoryOutlined, DnsOutlined,
-  ReportProblemOutlined, BlockOutlined,
+  ReportProblemOutlined, BlockOutlined, MonitorHeartOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { loadPipelineRunStats, PipelineRunDayStats } from "../../api/pipelines";
@@ -255,10 +256,7 @@ export default function MonitoringArea() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("monitoring.title")}</Typography>
-        <Typography variant="caption" color="text.secondary">{t("monitoring.subtitle")}</Typography>
-      </Box>
+      <ViewHeader icon={<MonitorHeartOutlined />} title={t("monitoring.title")} subtitle={t("monitoring.subtitle")} />
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         {runStatsError && (

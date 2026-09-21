@@ -28,10 +28,11 @@ import {
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
+import ForumOutlined from "@mui/icons-material/ForumOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import { useTranslation } from "react-i18next";
-import Title from "../../components/Title";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -145,19 +146,23 @@ export default function ChatSessionsView() {
   });
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <Title>Chat sessions</Title>
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<AddOutlined />}
-          onClick={openCreate}
-          data-testid="chat-session-create-button"
-        >
-          New session
-        </Button>
-      </Stack>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <ViewHeader
+        icon={<ForumOutlined />}
+        title={t("chatSessions.title", "Chat sessions")}
+        actions={
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddOutlined />}
+            onClick={openCreate}
+            data-testid="chat-session-create-button"
+          >
+            New session
+          </Button>
+        }
+      />
+      <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
       <Typography variant="body2" sx={{ color: tokens.text.tertiary, mb: 2 }}>
         Publishable coding/chat sessions. Publish a session to share it, or open one to edit its context.
       </Typography>
@@ -348,6 +353,7 @@ export default function ChatSessionsView() {
           </Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   );
 }

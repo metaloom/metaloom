@@ -25,11 +25,19 @@ production.
 | [`mage-flow-sidecar/`](./mage-flow-sidecar) | `imagegen` (same node, `port` option) | Image generation + instruction editing — Mage-Flow 4B, **MIT weights**, `POST /generate` + `/remix` | `9210` |
 | [`ltx2-sidecar/`](./ltx2-sidecar) | `videogen` (`io.metaloom.cortex.node.videogen`) | Text/image-to-video — LTX-2 19B, `POST /generate` + `/animate` → `video/mp4` | `9220` |
 | [`llamacpp/`](./llamacpp) | `llm` (`io.metaloom.cortex.node.llm`), `translate`, `guard` | LLM — llama.cpp's official server image, OpenAI chat-completions at `/v1` | `8080` |
+| [`llamacpp-embeddings/`](./llamacpp-embeddings) | none — **Loom itself**, for semantic search | Text embeddings — nomic-embed-text-v1.5, OpenAI `POST /v1/embeddings` | `8090` |
+| [`tei/`](./tei) | none — **Loom itself**, for semantic and transcript search | Text embeddings — BGE-M3, multilingual, 8192-token context, OpenAI `POST /v1/embeddings` | `8091` |
 
-`llamacpp` breaks the pattern the other seven share: it is **not** a Python server of ours but three
-shell scripts around `ghcr.io/ggml-org/llama.cpp:server-cuda`, it runs under **docker or podman**,
-and it sits on `8080` because that is already `AbstractLlmNodeOptions.DEFAULT_OPENAI_URL` — so the
-`llm` node finds it with no configuration. It has no `.venv` and no `server.py`.
+Three of these break the pattern the Python sidecars share — `llamacpp`, `llamacpp-embeddings` and
+`tei` are shell scripts around an official upstream image rather than a FastAPI server of ours,
+they run under **docker or podman**, and none of them has a `.venv` or a `server.py`. `llamacpp`
+sits on `8080` because that is already `AbstractLlmNodeOptions.DEFAULT_OPENAI_URL`, so the `llm`
+node finds it with no configuration.
+
+The two embedding sidecars are also the only ones **no Cortex node talks to**: they serve *Loom*,
+which embeds `search_document` rows for semantic search. They serve the same route with different
+models, so running both at once is how you compare them — see [`tei/README.md`](./tei) for which
+to pick and why transcript search wants the multilingual one.
 
 Two sidecars serve the same `imagegen` node on purpose. The ideogram one's practical
 default is SDXL-Turbo, whose weights are **non-commercial** (as are Ideogram 4's, which

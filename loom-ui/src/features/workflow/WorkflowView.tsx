@@ -28,6 +28,7 @@ import { useMediaToken } from "../../hooks/useMediaToken";
 import { useMediaInfo } from "../../hooks/useMediaInfo";
 import { AssetVideoPlayer, AssetVideoPlayerHandle } from "../../components/AssetVideoPlayer";
 import { FaceBoxes, FACE_FLASH_MS, visibleFacesAt } from "../../components/FaceBoxes";
+import ContainFrame from "../../components/ContainFrame";
 import { useFaceFlash } from "../../hooks/useFaceFlash";
 import { VideoTimeline, TimelineMarker } from "../assetDetail/VideoTimeline";
 import { formatDuration } from "../assetDetail/helpers";
@@ -711,9 +712,16 @@ function FaceDetectionMode({
         ) : (
           <Box sx={{ position: "relative" }}>
             <WorkflowPreview asset={asset} block />
-            <FaceBoxes faces={visibleFaces} selectedClusterId={selectedCluster?.cluster.id}
-              clusterDecisions={clusterDecisions} hoveredFaceId={hoveredFaceId} flash={faceFlash}
-              testId="workflow-face-box" />
+            {/* The picture is letterboxed inside a 16:9 tile, so the boxes belong to the picture's
+                rect and not to the tile's — the same correction the video path gets inside the
+                player. Without the asset's dimensions this degrades to filling the tile. */}
+            <ContainFrame
+              natural={asset.width && asset.height ? { width: asset.width, height: asset.height } : null}
+              testId="workflow-face-picture">
+              <FaceBoxes faces={visibleFaces} selectedClusterId={selectedCluster?.cluster.id}
+                clusterDecisions={clusterDecisions} hoveredFaceId={hoveredFaceId} flash={faceFlash}
+                testId="workflow-face-box" />
+            </ContainFrame>
           </Box>
         )}
       </Box>
@@ -1771,8 +1779,11 @@ export default function WorkflowView() {
         {/* Toolbar */}
         <Box sx={{ px: 2.5, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-            <SpeedOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Workflow</Typography>
+            <SpeedOutlined sx={{ fontSize: 20, color: tokens.primary.main }} />
+            {/* Translated and at 1rem like every other view title. It was a hardcoded English
+                string at a different size, which is the one heading in the app that could not
+                be translated and the one that did not match its neighbours. */}
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("workflow.title")}</Typography>
             {/* The hint follows the mode. One icon for the whole screen would have to point at one
                 of six review modes and be wrong about the other five — and a coachmark that lands
                 somebody on the wrong section is the failure this feature exists to prevent. */}

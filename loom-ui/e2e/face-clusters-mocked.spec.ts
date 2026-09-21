@@ -200,9 +200,26 @@ function recorder(): Recorder {
 }
 
 test.describe("Face cluster review – mocked e2e", () => {
+  /**
+   * Move the thumbnail slider to a step, by keyboard — a slider thumb is awkward to drop on.
+   *
+   * Several tests need this because the grid now opens at its smallest step, where a card is two
+   * faces wide and carries no header: an avatar, a name, a chip and two icon buttons do not fit
+   * in 138 pixels. The name, the count and the per-card actions live on the inspection steps.
+   */
+  async function setThumbnailStep(page: Page, step: number) {
+    const slider = page.getByTestId("facedetection-card-size-slider").locator("input");
+    await slider.focus();
+    for (let i = 0; i < 4; i++) await slider.press("ArrowLeft");
+    for (let i = 0; i < step; i++) await slider.press("ArrowRight");
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", String(step));
+  }
+
   test("a pending group shows its real member count", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec, { memberCount: 2 });
+    await expect(page.getByTestId("cluster-card").first()).toBeVisible({ timeout: 10_000 });
+    await setThumbnailStep(page, 2);
 
     // "0 faces" is what the hardcoded-empty membership produced for every group, whatever was in it.
     await expect(page.getByText(/2 faces/i).first()).toBeVisible({ timeout: 10_000 });
@@ -223,6 +240,8 @@ test.describe("Face cluster review – mocked e2e", () => {
   test("confirming a group posts to the confirm route", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card").first()).toBeVisible({ timeout: 10_000 });
+    await setThumbnailStep(page, 2);
 
     // The link icon on an unassigned card opens the assign dialog.
     await page.locator("svg[data-testid='LinkOutlinedIcon']").first().click();
@@ -278,6 +297,7 @@ test.describe("Face cluster review – mocked e2e", () => {
     const rec = recorder();
     await openFaces(page, rec);
     await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await setThumbnailStep(page, 2);
 
     // Attribute the first card through the existing dialog, so the second drop has a person to join.
     await page.locator("svg[data-testid='LinkOutlinedIcon']").first().click();
@@ -318,10 +338,11 @@ test.describe("Face cluster review – mocked e2e", () => {
     await expect(heading).toHaveAttribute("data-person-name", "Anna Meyer");
   });
 
-  test("a wrong stack can be taken back off the person", async ({ page }) => {
+  test("a wrong stack can be taken back off the person from the card chrome", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);
     await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await setThumbnailStep(page, 2);
 
     await page.getByTestId("cluster-card").nth(1).dragTo(page.getByTestId("cluster-card").nth(0));
     await page.getByTestId("facedetection-merge-name").fill("Anna Meyer");
@@ -333,6 +354,28 @@ test.describe("Face cluster review – mocked e2e", () => {
     const chip = page.getByTestId("cluster-person-chip").first();
     await expect(chip).toBeVisible();
     await chip.locator("svg").last().click();
+
+    await expect.poll(() => rec.detaches.length, { timeout: 10_000 }).toBe(1);
+  });
+
+  test("and from the person dot, which is the only undo the scanning steps have", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    // Still at the default step, where the card carries no header. Stacking is fastest here, so
+    // this is where the wrong stack gets made — and before the dot became a button it was also
+    // the one place with no way to undo one.
+    await page.getByTestId("cluster-card").nth(1).dragTo(page.getByTestId("cluster-card").nth(0));
+    await page.getByTestId("facedetection-merge-name").fill("Anna Meyer");
+    await page.getByTestId("facedetection-merge-save").click();
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(2);
+
+    await expect(page.getByTestId("cluster-person-chip")).toHaveCount(0);
+    const dot = page.getByTestId("cluster-person-dot").first();
+    await expect(dot).toBeVisible({ timeout: 10_000 });
+    await expect(dot).toHaveAttribute("data-person-name", "Anna Meyer");
+    await dot.click();
 
     await expect.poll(() => rec.detaches.length, { timeout: 10_000 }).toBe(1);
   });
@@ -358,35 +401,55 @@ test.describe("Face cluster review – mocked e2e", () => {
     expect(rec.cropRequests.length).toBe(afterHover);
   });
 
-  test("the small size drops the card chrome and keeps the faces", async ({ page }) => {
+  test("the grid opens at the smallest step: faces, and no card chrome", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);
     await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
-    await expect(page.getByTestId("cluster-name").first()).toBeVisible();
 
-    await page.getByTestId("facedetection-card-size-small").click();
-
-    // The point of the size: the name, count, review date and buttons are three lines of chrome
-    // between every two rows of the thing the reviewer is actually comparing.
+    // Step 0 is the density the grid is designed around: the name, count, review date and
+    // buttons are three lines of chrome between every two rows of the thing being compared.
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "0");
     await expect(page.getByTestId("cluster-name")).toHaveCount(0);
-    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "small");
-    await expect(page.getByTestId("cluster-card")).toHaveCount(2);
     await expect(page.getByTestId("face-crop").first()).toBeVisible();
   });
 
-  test("the small size draws the faces large enough to compare", async ({ page }) => {
+  test("the slider makes the thumbnails bigger, three steps up from the smallest", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);
     await expect.poll(() => rec.cropRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
 
-    await page.getByTestId("facedetection-card-size-small").click();
-    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "small");
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-crop-size", "60");
+    const smallest = (await page.getByTestId("face-crop").first().boundingBox())!.width;
+    // 60px, not the 40 the mode started at: below that a face is not recognisable, so the size
+    // that exists for looking at faces was the one you could see them worst in.
+    expect(smallest).toBeGreaterThanOrEqual(56);
 
-    // The mode exists for looking at faces, and it used to draw them at 40px — below what a face
-    // is recognisable at, so the size that dropped the chrome to make room for faces was the one
-    // you could see them worst in.
-    const box = await page.getByTestId("face-crop").first().boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(56);
+    await setThumbnailStep(page, 3);
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-crop-size", "160");
+    const largest = (await page.getByTestId("face-crop").first().boundingBox())!.width;
+    expect(largest).toBeGreaterThan(smallest * 2);
+  });
+
+  test("the card is half the width it used to be, so twice as many fit a row", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    // The old card was a 250px column holding two 60px faces with 120px of nothing beside them.
+    // Deriving the width from the crop is what keeps it honest at every step of the slider.
+    const card = (await page.getByTestId("cluster-card").first().boundingBox())!;
+    expect(card.width).toBeLessThan(180);
+  });
+
+  test("the larger steps bring the card chrome back", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.getByTestId("cluster-name")).toHaveCount(0);
+
+    await setThumbnailStep(page, 2);
+    // At inspection sizes there is room for the name, the count and the actions again.
+    await expect(page.getByTestId("cluster-name").first()).toBeVisible();
   });
 
   // ── Getting around the grid ─────────────────────────────────
@@ -458,14 +521,45 @@ test.describe("Face cluster review – mocked e2e", () => {
   test("the chosen size survives leaving the screen and coming back", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);
-    await page.getByTestId("facedetection-card-size-large").click();
-    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "large");
+    await setThumbnailStep(page, 3);
 
     // Which size suits you is a property of the work, not of the visit. Re-picking it on every
     // navigation is the kind of friction that stops a control being used at all.
     await page.getByRole("button", { name: "Tags", exact: true }).first().click();
     await expect(page.getByTestId("clusters-grid")).toHaveCount(0, { timeout: 10_000 });
     await page.getByRole("button", { name: "Detection", exact: true }).first().click();
-    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "large", { timeout: 10_000 });
+    await expect(page.getByTestId("clusters-grid")).toHaveAttribute("data-card-size", "3", { timeout: 10_000 });
+  });
+
+  test("an arrow key enters the grid at the top left with nothing focused", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    // Nothing focused, nothing clicked. The keyboard used to be reachable only after a click,
+    // which made it useless for the job it exists for — the hands are on the arrows precisely
+    // because nobody wants to aim at three hundred small cards with a mouse.
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("ArrowRight");
+
+    const first = page.getByTestId("cluster-card").first();
+    await expect(first).toHaveAttribute("data-focused", "true");
+    await expect(first).toBeFocused();
+  });
+
+  test("typing in the search box still gets its own arrow keys", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    // The grid listens on the window, so it has to keep its hands off a focused text field —
+    // otherwise moving the caret through a typed term jumps the page to the first card instead.
+    const search = page.getByTestId("facedetection-search").locator("input");
+    await search.fill("Anna");
+    await search.press("ArrowLeft");
+    await expect(search).toBeFocused();
+    for (const card of await page.getByTestId("cluster-card").all()) {
+      await expect(card).toHaveAttribute("data-focused", "false");
+    }
   });
 });

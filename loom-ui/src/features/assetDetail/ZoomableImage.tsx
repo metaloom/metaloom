@@ -4,8 +4,40 @@ import {
   ZoomInOutlined, ZoomOutOutlined, CenterFocusStrongOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import { fitContain } from "../../components/ContainFrame";
 
-/** A rectangular region to draw over the image. All values are normalized to 0-1 of the container. */
+/**
+ * Turn a pointer position into a fraction of the picture.
+ *
+ * <p>Pure, so the arithmetic that decides where a drawn box lands is testable without a DOM. The
+ * rect passed in is the *picture's* on-screen rectangle — `getBoundingClientRect()` of the layer
+ * that carries the pan/zoom transform, so the transform is already baked into it and this needs
+ * no knowledge of either.</p>
+ *
+ * <p>Clamped, because a drag that leaves the picture is a drag to its edge, not a coordinate
+ * outside the image. A region with x &gt; 1 would be stored, rendered nowhere, and impossible to
+ * explain.</p>
+ */
+export function pointInPicture(
+  rect: { left: number; top: number; width: number; height: number },
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } {
+  if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+  return {
+    x: clamp01((clientX - rect.left) / rect.width),
+    y: clamp01((clientY - rect.top) / rect.height),
+  };
+}
+
+/**
+ * A rectangular region to draw over the image.
+ *
+ * <p><b>Normalized 0-1 of the image</b>, not of the element that holds it. That is the same frame
+ * of reference a detector works in — `detection.bbox_*` is a fraction of the picture the model
+ * saw — so a box drawn by hand and a box drawn by a model mean the same thing and can be compared,
+ * corrected and re-drawn interchangeably.</p>
+ */
 export interface ImageRegion {
   id: string;
   label?: string;
@@ -34,19 +66,65 @@ export function ZoomableImage({
   /** Existing regions to render as read-only overlays (normalized 0-1). */
   regions?: ImageRegion[];
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * The layer the picture and its overlays share.
+   *
+   * Everything that has to agree with the image lives inside it: the `<img>`, the regions, the
+   * rubber band. It is positioned at the letterboxed picture rect and carries the pan/zoom
+   * transform, so a child at `left: "42%"` is at 42% of the *image* however the image is
+   * currently sized, panned or scaled — the browser does the arithmetic instead of this file.
+   */
+  const pictureRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
-  // Rubber-band selection (normalized 0-1 corners) while drawing a region.
+  // Rubber-band selection (normalized 0-1 corners of the IMAGE) while drawing a region.
   const drawing = useRef(false);
   const [band, setBand] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 
+  /** The container's size, so the picture rect can be computed. */
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  /** The image's intrinsic size, from the element itself. Null until it loads. */
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const observer = useRef<ResizeObserver | null>(null);
+
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    observer.current?.disconnect();
+    observer.current = null;
+    if (!node) return;
+    const read = (width: number, height: number) =>
+      setBox(prev => (prev.width === width && prev.height === height ? prev : { width, height }));
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(entries => {
+        const r = entries[0]?.contentRect;
+        if (r) read(r.width, r.height);
+      });
+      ro.observe(node);
+      observer.current = ro;
+    }
+    const rect = node.getBoundingClientRect();
+    read(rect.width, rect.height);
+  }, []);
+
+  /** Where `object-fit: contain` puts the picture inside the container, before the transform. */
+  const fit = fitContain(box, natural);
+
+  /**
+   * A pointer position as a fraction of the picture.
+   *
+   * Measured off the transformed layer rather than computed from `pan` and `scale`: the browser
+   * has already applied both, and re-deriving them here is how the drawn box and the rendered
+   * box drift apart. This used to read the *container* rect, which meant a box drawn on a
+   * letterboxed image was stored in coordinates that were not the image's — self-consistent with
+   * the old renderer, and disagreeing with every box a detector produced.
+   */
   const normPoint = useCallback((clientX: number, clientY: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-    return { x: clamp01((clientX - rect.left) / rect.width), y: clamp01((clientY - rect.top) / rect.height) };
+    const rect = pictureRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return pointInPicture(rect, clientX, clientY);
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -112,17 +190,19 @@ export function ZoomableImage({
     ? { x: Math.min(band.x0, band.x1), y: Math.min(band.y0, band.y1), width: Math.abs(band.x1 - band.x0), height: Math.abs(band.y1 - band.y0) }
     : null;
 
-  // Minimap viewport fraction
+  // Minimap viewport fraction. Against the PICTURE, not the container: `pan` moves the picture,
+  // so dividing by the container's width overstated the travel on a letterboxed image and the
+  // indicator drifted away from what was actually on screen.
   const vpW = Math.min(1, 1 / scale);
   const vpH = Math.min(1, 1 / scale);
-  const cw = containerRef.current?.clientWidth ?? 1;
-  const ch = containerRef.current?.clientHeight ?? 1;
-  const vpX = 0.5 - pan.x / (cw * scale) - vpW / 2;
-  const vpY = 0.5 - pan.y / (ch * scale) - vpH / 2;
+  const pw = fit.width || 1;
+  const ph = fit.height || 1;
+  const vpX = 0.5 - pan.x / (pw * scale) - vpW / 2;
+  const vpY = 0.5 - pan.y / (ph * scale) - vpH / 2;
 
   return (
     <Box
-      ref={containerRef}
+      ref={measureRef}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -135,19 +215,45 @@ export function ZoomableImage({
       }}
       data-testid="zoomable-image"
     >
-      <img
-        src={src}
-        alt={alt}
-        draggable={false}
-        style={{
-          maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+      {/* The picture and everything that has to line up with it, in one transformed layer.
+
+          The image used to be a bare <img> in the container with the overlays as siblings, each
+          positioned in percentages of the *container*. Those two rectangles are only the same
+          when the aspect ratios match, which with a letterboxed image they never do — so a box a
+          model produced (fractions of the picture) was drawn in the wrong place, and a box drawn
+          by hand was stored in coordinates that were not the picture's. Self-consistent, and
+          disagreeing with everything else in the system.
+
+          Now the layer IS the picture rect, and it carries the pan/zoom transform, so a child at
+          `left: "42%"` is at 42% of the image at every zoom level and every pan offset, with no
+          arithmetic here to get wrong. */}
+      <Box
+        ref={pictureRef}
+        data-testid="zoomable-image-picture"
+        sx={{
+          position: "absolute",
+          left: fit.left, top: fit.top, width: fit.width, height: fit.height,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
           transformOrigin: "center center",
           transition: dragging.current ? "none" : "transform 80ms ease-out",
-          userSelect: "none",
         }}
-      />
-      {/* Existing region overlays (normalized to the container) */}
+      >
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          onLoad={e => {
+            const el = e.currentTarget;
+            if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+              setNatural({ width: el.naturalWidth, height: el.naturalHeight });
+            }
+          }}
+          style={{
+            display: "block", width: "100%", height: "100%", objectFit: "contain",
+            userSelect: "none",
+          }}
+        />
+      {/* Existing region overlays — percentages of the picture layer above. */}
       {regions.map(r => {
         const color = r.color ?? tokens.primary.main;
         return (
@@ -198,6 +304,7 @@ export function ZoomableImage({
           }}
         />
       )}
+      </Box>
       {/* Zoom controls */}
       <Box sx={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: tokens.radius.md, px: 0.5, py: 0.25 }}>
         <IconButton size="small" onClick={() => setScale(s => Math.min(8, s + 0.5))} sx={{ color: "#fff", p: 0.5 }}><ZoomInOutlined sx={{ fontSize: 16 }} /></IconButton>

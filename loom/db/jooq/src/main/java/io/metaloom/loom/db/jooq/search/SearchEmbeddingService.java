@@ -84,6 +84,65 @@ public class SearchEmbeddingService {
 		   AND (e.uuid IS NULL OR e.edited < sd.synced_at)
 		""";
 
+	/**
+	 * The transcript windows of every asset, numbered.
+	 *
+	 * <p>
+	 * A transcript window has no row of its own - it lives inside {@code transcript_json} and its document key is derived (see
+	 * {@code V2.110}) - so the vector it owns cannot be keyed by a foreign uuid. {@code subject_index} is the discriminator instead: <b>0 is the
+	 * asset's own document, 1..N are its windows in time order</b>. The ordering is total rather than merely by time, because an asset with two
+	 * transcripts (two languages of the same audio) can have two windows at the same offset, and an ordinal that flips between passes would
+	 * re-embed the whole catalogue every time.
+	 * </p>
+	 *
+	 * <p>
+	 * Shared verbatim with {@code PostgresSearchProvider}, which computes the same numbering to turn a vector hit back into the window it came
+	 * from. The two must agree; that is why the expression lives in one string per side and is spelled identically.
+	 * </p>
+	 */
+	public static final String WINDOW_ORDINALS = """
+		SELECT sd.entity_uuid, sd.asset_uuid, sd.title, sd.body, sd.synced_at,
+		       row_number() OVER (PARTITION BY sd.asset_uuid ORDER BY sd.time_from, sd.entity_uuid) AS ord
+		  FROM search_document sd
+		 WHERE sd.entity_type = 'transcript' AND sd.asset_uuid IS NOT NULL
+		""";
+
+	/** Transcript windows whose embedding is missing or older than the window. Mirrors {@link #STALE_SQL}. */
+	private static final String STALE_TRANSCRIPT_SQL = """
+		WITH win AS (
+		""" + WINDOW_ORDINALS + """
+		)
+		SELECT w.asset_uuid, w.title, '' AS keywords, w.body, w.ord
+		  FROM win w
+		  LEFT JOIN embedding e
+		         ON e.asset_uuid = w.asset_uuid
+		        AND e.node_kind = ?
+		        AND e.type = ?
+		        AND e.model = ?
+		        AND e.frame_number = 0
+		        AND e.subject_index = w.ord
+		 WHERE e.uuid IS NULL OR e.edited < w.synced_at
+		 ORDER BY w.synced_at
+		 LIMIT ?
+		""";
+
+	/** How many transcript windows are waiting. */
+	private static final String PENDING_TRANSCRIPT_SQL = """
+		WITH win AS (
+		""" + WINDOW_ORDINALS + """
+		)
+		SELECT count(*) AS c
+		  FROM win w
+		  LEFT JOIN embedding e
+		         ON e.asset_uuid = w.asset_uuid
+		        AND e.node_kind = ?
+		        AND e.type = ?
+		        AND e.model = ?
+		        AND e.frame_number = 0
+		        AND e.subject_index = w.ord
+		 WHERE e.uuid IS NULL OR e.edited < w.synced_at
+		""";
+
 	private final DSLContext ctx;
 	private final EmbeddingDao embeddingDao;
 	private final TextEmbedder embedder;
@@ -106,10 +165,14 @@ public class SearchEmbeddingService {
 		}
 	}
 
-	/** How many asset documents are waiting to be embedded. Reported by the status route so a backlog is visible. */
+	/** How many documents are waiting to be embedded — assets and transcript windows both. Reported by the status route so a backlog is visible. */
 	public long pendingCount() {
+		return count(PENDING_SQL) + count(PENDING_TRANSCRIPT_SQL);
+	}
+
+	private long count(String sql) {
 		try {
-			Record record = ctx.fetchOne(PENDING_SQL, SearchOptions.VECTOR_NODE_KIND, options.getVectorType(), model());
+			Record record = ctx.fetchOne(sql, SearchOptions.VECTOR_NODE_KIND, options.getVectorType(), model());
 			return record == null ? 0 : record.get("c", Long.class);
 		} catch (Exception e) {
 			log.warn("Could not count pending search embeddings: {}", e.getMessage());
@@ -131,9 +194,24 @@ public class SearchEmbeddingService {
 		if (!isReady() || limit <= 0) {
 			return 0;
 		}
+		// Assets first, then transcript windows, each with its own share of the limit. Assets lead
+		// because a catalogue with no asset vectors answers nothing at all, while one with no window
+		// vectors still answers at episode granularity - so the useful half arrives first.
+		int written = embed(STALE_SQL, limit);
+		int remaining = limit - written;
+		if (remaining > 0) {
+			written += embed(STALE_TRANSCRIPT_SQL, remaining);
+		}
+		if (written > 0) {
+			log.debug("Embedded {} search document(s)", written);
+		}
+		return written;
+	}
+
+	private int embed(String staleSql, int limit) {
 		Result<Record> stale;
 		try {
-			stale = ctx.fetch(STALE_SQL, SearchOptions.VECTOR_NODE_KIND, options.getVectorType(), model(), limit);
+			stale = ctx.fetch(staleSql, SearchOptions.VECTOR_NODE_KIND, options.getVectorType(), model(), limit);
 		} catch (Exception e) {
 			log.warn("Could not read stale search documents: {}", e.getMessage());
 			return 0;
@@ -141,15 +219,11 @@ public class SearchEmbeddingService {
 		if (stale.isEmpty()) {
 			return 0;
 		}
-
 		int written = 0;
 		int batchSize = Math.max(1, options.getEmbedBatchSize());
 		for (int start = 0; start < stale.size(); start += batchSize) {
 			List<Record> batch = stale.subList(start, Math.min(start + batchSize, stale.size()));
 			written += embedBatch(batch);
-		}
-		if (written > 0) {
-			log.debug("Embedded {} search document(s)", written);
 		}
 		return written;
 	}
@@ -193,13 +267,16 @@ public class SearchEmbeddingService {
 		}
 		int written = 0;
 		for (int i = 0; i < batch.size(); i++) {
-			UUID assetUuid = batch.get(i).get("asset_uuid", UUID.class);
+			Record record = batch.get(i);
+			UUID assetUuid = record.get("asset_uuid", UUID.class);
+			// `ord` is present only for a transcript window; an asset document is subject 0.
+			int subject = record.indexOf("ord") >= 0 ? intOf(record.get("ord")) : 0;
 			try {
-				embeddingDao.upsertEmbedding(toEmbedding(assetUuid, vectors.get(i)));
+				embeddingDao.upsertEmbedding(toEmbedding(assetUuid, subject, vectors.get(i)));
 				written++;
 			} catch (Exception e) {
-				// One asset failing must not lose the rest of the batch's inference work.
-				log.warn("Failed to store the search embedding for asset {}: {}", assetUuid, e.getMessage());
+				// One document failing must not lose the rest of the batch's inference work.
+				log.warn("Failed to store the search embedding for asset {} subject {}: {}", assetUuid, subject, e.getMessage());
 			}
 		}
 		return written;
@@ -233,7 +310,11 @@ public class SearchEmbeddingService {
 		}
 	}
 
-	private Embedding toEmbedding(UUID assetUuid, float[] vector) {
+	private static int intOf(Object value) {
+		return value instanceof Number number ? number.intValue() : 0;
+	}
+
+	private Embedding toEmbedding(UUID assetUuid, int subjectIndex, float[] vector) {
 		Float[] boxed = new Float[vector.length];
 		for (int i = 0; i < vector.length; i++) {
 			boxed[i] = vector[i];
@@ -243,7 +324,8 @@ public class SearchEmbeddingService {
 			.setModel(model())
 			.setDimensions(vector.length)
 			.setFrameNumber(0)
-			.setSubjectIndex(0)
+			// 0 is the asset's own document; 1..N are its transcript windows. See WINDOW_ORDINALS.
+			.setSubjectIndex(subjectIndex)
 			// The embedder unit-normalizes, so cosine and inner product rank identically. Recording it is
 			// what makes that auditable instead of an assumption the ranking quietly depends on.
 			.setNormalized(Boolean.TRUE)

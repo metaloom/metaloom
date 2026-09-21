@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import {
-  Box, Typography, Tabs, Tab,
+  Box, Tabs, Tab,
 } from "@mui/material";
 import {
   FaceOutlined, CenterFocusStrongOutlined, AutoAwesomeOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useTranslation } from "react-i18next";
 import HelpHint from "../../components/HelpHint";
 import FaceDetectionManagement from "../faceDetection/FaceDetectionManagement";
@@ -19,21 +20,19 @@ export default function DetectionManagement() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.75 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>
-            {t("detection.title")}
-          </Typography>
-          {/* Faces have a section of their own — grouping a stranger's face is a different job
-              from confirming a box a model drew. The other two tabs share the general one. */}
-          <HelpHint topic={tab === 0 ? "detection.faces" : "detection.results"} />
-        </Box>
+      <ViewHeader
+        icon={<CenterFocusStrongOutlined />}
+        title={t("detection.title")}
+        // Faces have a section of their own — grouping a stranger's face is a different job
+        // from confirming a box a model drew. The other two tabs share the general one.
+        meta={<HelpHint topic={tab === 0 ? "detection.faces" : "detection.results"} />}
+      >
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 32 }}>
           <Tab icon={<FaceOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.faces")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
           <Tab icon={<CenterFocusStrongOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.objects")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
           <Tab icon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.llm")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
         </Tabs>
-      </Box>
+      </ViewHeader>
 
       {/* Tab content */}
       <Box sx={{ flex: 1, overflow: "hidden" }}>

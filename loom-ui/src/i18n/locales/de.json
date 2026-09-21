@@ -1671,7 +1671,8 @@
     },
     "tooltip": {
       "assign": "Person zuweisen",
-      "reviewer": "Geprüft von Benutzer {{uuid}}"
+      "reviewer": "Geprüft von Benutzer {{uuid}}",
+      "detachFrom": "{{name}} — zum Entfernen klicken"
     },
     "empty": {
       "clusters": "Keine Cluster gefunden",
@@ -1693,7 +1694,10 @@
     "size": {
       "small": "Klein — nur Gesichter",
       "medium": "Mittel",
-      "large": "Groß"
+      "large": "Groß",
+      "smaller": "Kleinere Vorschaubilder",
+      "larger": "Größere Vorschaubilder",
+      "thumbnails": "Vorschaubildgröße"
     }
   },
   "maintenance": {
@@ -2083,7 +2087,7 @@
     },
     "transcript": {
       "untitled": "Transkript",
-      "sectionTitle": "Abschnittstitel",
+      "sectionTitle": "Transkript",
       "delete": "Transkript löschen",
       "createError": "Transkript konnte nicht hinzugefügt werden",
       "updateError": "Transkript konnte nicht gespeichert werden",
@@ -2091,7 +2095,19 @@
       "searchPlaceholder": "Im Transkript suchen",
       "matchCount_one": "{{count}} Abschnitt",
       "matchCount_other": "{{count}} Abschnitte",
-      "noMatch": "Kein Treffer"
+      "noMatch": "Kein Treffer",
+      "search": {
+        "placeholder": "Gesprochenen Text in diesem Video durchsuchen",
+        "clear": "Leeren",
+        "noMatch": "Dazu wird hier nichts gesagt.",
+        "unavailable": "Die Suche ist in dieser Installation nicht konfiguriert.",
+        "failed": "Die Suche konnte nicht ausgeführt werden.",
+        "mode": {
+          "LEXICAL": "Wörter",
+          "SEMANTIC": "Bedeutung",
+          "HYBRID": "Beides"
+        }
+      }
     },
     "transcriptCreate": {
       "title": "Transkript hinzufügen",
@@ -2100,6 +2116,9 @@
     },
     "annotations": {
       "label": "Annotationen:"
+    },
+    "media": {
+      "resize": "Player-Größe ändern"
     }
   },
   "skills": {
@@ -2478,6 +2497,7 @@
     "mute": "Stumm",
     "unmute": "Ton an",
     "fullscreen": "Vollbild",
-    "notStreamable": "Dieses Video kann hier nicht abgespielt werden: {{codec}} erfordert eine vollständige Transkodierung."
+    "notStreamable": "Dieses Video kann hier nicht abgespielt werden: {{codec}} erfordert eine vollständige Transkodierung.",
+    "volume": "Lautstärke"
   }
 }

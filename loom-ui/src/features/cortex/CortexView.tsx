@@ -11,6 +11,7 @@ import {
   SearchOutlined, HelpOutlineOutlined, TuneOutlined, DeleteOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -508,18 +509,12 @@ export default function CortexView() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Toolbar */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1.25 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25 }}>
-              <DnsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("cortex.title")}</Typography>
-              <Tooltip title={t("cortex.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
-            </Box>
-            <Typography variant="caption" color="text.secondary">{t("cortex.count.online", { online: onlineCount, total: workers.length })}</Typography>
-          </Box>
-        </Box>
-
+      <ViewHeader
+        icon={<DnsOutlined />}
+        title={t("cortex.title")}
+        meta={<Tooltip title={t("cortex.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>}
+        subtitle={t("cortex.count.online", { online: onlineCount, total: workers.length })}
+      >
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             value={query}
@@ -583,7 +578,7 @@ export default function CortexView() {
             />
           )}
         </Box>
-      </Box>
+      </ViewHeader>
 
       {/* Worker list */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>

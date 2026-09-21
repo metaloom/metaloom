@@ -18,6 +18,17 @@ describe("hitTarget", () => {
     expect(hitTarget(hit({ type: "segment", uuid: "s1", assetUuid: "a1" }))).toBe("/assets/a1");
   });
 
+  it("carries the offset of a timecoded hit, so the player opens on the moment", () => {
+    // The whole point of windowing the transcript index: before it, every transcript hit
+    // reported offset zero and a search for a line of dialogue opened the episode at 0:00.
+    expect(hitTarget(hit({ type: "transcript", uuid: "t1", assetUuid: "a1", timeFromMs: 1_234_000 })))
+      .toBe("/assets/a1?t=1234");
+  });
+
+  it("omits ?t= at offset zero, which is where the file opens anyway", () => {
+    expect(hitTarget(hit({ type: "transcript", uuid: "t1", assetUuid: "a1", timeFromMs: 0 }))).toBe("/assets/a1");
+  });
+
   it("returns null when an asset-owned hit has no asset to go to", () => {
     expect(hitTarget(hit({ type: "transcript", uuid: "t1" }))).toBeNull();
   });

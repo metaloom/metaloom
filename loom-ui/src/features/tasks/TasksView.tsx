@@ -12,6 +12,7 @@ import {
   EditOutlined, DeleteOutlined, SendOutlined, ChatBubbleOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import ViewHeader from "../../components/ViewHeader";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -668,16 +669,16 @@ export default function TasksView() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      {/* Title and controls on separate rows, matching Detection Management.
-          They were one row with `justify-content: space-between`, which spaces by the gaps
-          *between* items — so the title pushed the search box into the middle of the header, the
-          two filters and the sort pair drifted apart from each other, and how far apart depended
-          on the window width. Nothing lined up with any other screen. */}
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.5 }}>{t("tasks.title")}</Typography>
-        <Typography variant="caption" color="text.secondary" data-testid="tasks-count">{page.totalCount} {t("tasks.count")}</Typography>
-      </Box>
-      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", gap: 1, alignItems: "center" }}>
+      {/* Title row and controls row, the shape every view shares. They were one row with
+          `justify-content: space-between`, which spaces by the gaps *between* items — so the
+          title pushed the search box into the middle of the header and the filters drifted
+          apart by an amount that depended on the window width. */}
+      <ViewHeader
+        icon={<TaskAltOutlined />}
+        title={t("tasks.title")}
+        subtitle={<span data-testid="tasks-count">{page.totalCount} {t("tasks.count")}</span>}
+      >
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
         <TextField
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -713,6 +714,7 @@ export default function TasksView() {
           {t("tasks.button.new")}
         </Button>
       </Box>
+      </ViewHeader>
 
       <Box sx={{ flex: 1, overflow: "auto" }}>
         {loading && (

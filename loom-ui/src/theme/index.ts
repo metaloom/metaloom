@@ -220,6 +220,17 @@ export function buildTheme(mode: "dark" | "light") {
           "&:hover": {
             boxShadow: `0 0 18px ${tokens.primary.glow}`,
           },
+          // MUI dims a disabled button's *text* and greys its background-color. The `background`
+          // shorthand above wins over that background-color, so a disabled contained button kept
+          // the full-strength brand gradient and lost its label to 30% white — which is how the
+          // asset viewer's Save button came out unreadable rather than obviously inactive. Both
+          // halves have to be restated together: a flat surface, and a label with contrast on it.
+          "&.Mui-disabled": {
+            background: tokens.bg.elevated,
+            color: tokens.text.tertiary,
+            border: `1px solid ${tokens.border.subtle}`,
+            boxShadow: "none",
+          },
         },
         outlined: {
           borderColor: tokens.border.default,
