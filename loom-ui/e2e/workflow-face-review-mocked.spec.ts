@@ -309,6 +309,29 @@ test.describe("Workflow face review – mocked e2e", () => {
     expect(fraction).toBeCloseTo(FRAME_A / FPS / DURATION, 2);
   });
 
+  test("the transport is inside the player's box, not clipped off the bottom of it", async ({ page }) => {
+    const rec = recorder();
+    await installMocks(page, rec);
+    await page.goto("/");
+    await openFaceMode(page);
+
+    const container = page.getByTestId("workflow-face-video-container");
+    await expect(container).toBeVisible({ timeout: 10_000 });
+
+    // The media tile is a column flex item and flex items shrink by default, so once the
+    // timeline and the cluster strip below it were on screen the tile was squeezed — and
+    // because it also clips, what it cut off was the bottom of the player: the transport.
+    const controls = page.getByTestId("workflow-face-video-controls");
+    await expect(controls).toBeVisible();
+    await expect(page.getByTestId("workflow-face-video-playpause")).toBeVisible();
+    await expect(page.getByTestId("workflow-face-video-volume")).toBeVisible();
+
+    const outer = (await container.boundingBox())!;
+    const bar = (await controls.boundingBox())!;
+    expect(bar.y + bar.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
+    expect(bar.height).toBeGreaterThan(20);
+  });
+
   test("only the faces near the playhead have boxes drawn", async ({ page }) => {
     const rec = recorder();
     await installMocks(page, rec);

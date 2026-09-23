@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.imagegen;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -80,7 +81,8 @@ class ImageGenNodePersistenceTest {
 
 	@Test
 	void testRecordsLedgerOnlyOnSuccess() {
-		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt())).thenReturn("fake-png".getBytes());
+		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt(), nullable(String.class), anyDouble()))
+			.thenReturn(new ImageGenResult("fake-png".getBytes(), "Qwen/Qwen-Image-2.1"));
 
 		NodeResult result = node().process(NodeContext.create(media));
 		assertThat(result).isSuccess();
@@ -89,12 +91,29 @@ class ImageGenNodePersistenceTest {
 			&& "SUCCESS".equals(r.getState())
 			&& "COMPUTED".equals(r.getOrigin())
 			// Ledger only - the produced image has no typed component, so there is no result_ref pointer.
-			&& r.getResultRef() == null));
+			&& r.getResultRef() == null
+			// ...but the row does say WHICH model drew it, taken from the sidecar's X-Model-Id.
+			&& "Qwen/Qwen-Image-2.1".equals(r.getProducerVersion())));
+	}
+
+	/**
+	 * The two older backends do not send X-Model-Id, so the row keeps the null producer_version it
+	 * has always had. Recording the string "null" instead would be worse than recording nothing.
+	 */
+	@Test
+	void testProducerVersionStaysNullWhenTheSidecarDoesNotSayWhichModelItIs() {
+		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt(), nullable(String.class), anyDouble()))
+			.thenReturn(new ImageGenResult("fake-png".getBytes(), null));
+
+		assertThat(node().process(NodeContext.create(media))).isSuccess();
+
+		verify(client).createAssetNodeResult(eq(assetUuid),
+			argThat((NodeResultCreateRequest r) -> "SUCCESS".equals(r.getState()) && r.getProducerVersion() == null));
 	}
 
 	@Test
 	void testRecordsFailedLedgerWhenSidecarThrows() {
-		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt()))
+		when(imageGenClient.generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt(), nullable(String.class), anyDouble()))
 			.thenThrow(new RuntimeException("sidecar down"));
 
 		// The returned state has to agree with the row. It did not until 2026-08-18: the node ended its

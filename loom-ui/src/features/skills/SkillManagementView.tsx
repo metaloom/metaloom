@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import EmptyState from "../../components/EmptyState";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -211,7 +212,7 @@ export default function SkillManagementView() {
       <ViewHeader
         icon={<AutoAwesomeOutlined />}
         title={t("skills.title")}
-        subtitle={t("skills.subtitle")}
+        meta={<HelpHint topic="skills" description={t("skills.subtitle")} />}
         actions={
           <Button
             variant="contained"

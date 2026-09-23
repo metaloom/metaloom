@@ -164,6 +164,19 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     return c.label.toLowerCase().includes(q) || (person?.name.toLowerCase().includes(q) ?? false);
   });
 
+  /**
+   * The people the assign dialog is currently offering.
+   *
+   * The same `includes` MUI's default filter applies, recomputed here because two things need to
+   * know how many options are on screen: the save path, which resolves a lone match, and Enter,
+   * which may only take over from the popup when there is nothing left to choose between.
+   */
+  const assignMatches = (() => {
+    const q = assignPersonName.trim().toLowerCase();
+    if (!q) return persons;
+    return persons.filter(p => p.name.toLowerCase().includes(q));
+  })();
+
   const filteredPersons = persons.filter(p => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
@@ -215,7 +228,13 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const handleAssignCluster = async () => {
     const typed = assignPersonName.trim();
     if (!assignOpen || !typed || !token) return;
-    const existing = persons.find(p => p.name.toLowerCase() === typed.toLowerCase());
+    // An exact name first, then the one person the typed fragment can only mean. The second is
+    // what makes Enter enough: typing "o'ne" with one O'Neill in the instance is not an ambiguous
+    // request, and making the reviewer pick the single option off a list of one is the keystroke
+    // the whole dialog was built to avoid. Ambiguous input still creates the person that was
+    // literally typed - guessing between two candidates would be the wrong kind of helpful.
+    const existing = persons.find(p => p.name.toLowerCase() === typed.toLowerCase())
+      ?? (assignMatches.length === 1 ? assignMatches[0] : undefined);
     try {
       // `alias` when nobody matches: the confirm route creates the person and returns its uuid,
       // which is the only way to name somebody without a second round trip.
@@ -398,7 +417,10 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
               onChange={(_, value) => setCardSize(clampClusterSize(Array.isArray(value) ? value[0] : value))}
               aria-label={t("faceDetection.size.thumbnails")}
               data-testid="facedetection-card-size-slider"
-              sx={{ width: 110, color: tokens.primary.main, "& .MuiSlider-thumb": { width: 12, height: 12 } }}
+              sx={{ width: 110, color: tokens.primary.main,
+                "& .MuiSlider-thumb": { width: 12, height: 12 },
+                // The bubble pops up out of the toolbar and over the view heading above it.
+                "& .MuiSlider-valueLabel": { zIndex: 2 } }}
             />
             <Tooltip title={t("faceDetection.size.larger")}>
               <PhotoSizeSelectActualOutlined sx={{ fontSize: 17, color: tokens.text.tertiary }} />
@@ -579,6 +601,19 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           <Autocomplete
             freeSolo
             options={persons.map(p => p.name)}
+            // `useAutocomplete` calls this before its own switch and honours `defaultMuiPrevented`,
+            // so this is the one place Enter can be taken off the popup. It is taken only when the
+            // popup has nothing to decide - no options, or exactly one - because with several on
+            // screen the reviewer may be arrowing towards the third of them.
+            onKeyDown={e => {
+              if (e.key !== "Enter" || e.shiftKey || assignMatches.length > 1) return;
+              if (!assignPersonName.trim()) return;
+              (e as unknown as { defaultMuiPrevented?: boolean }).defaultMuiPrevented = true;
+              e.preventDefault();
+              // The dialog has its own Enter handler and would otherwise submit a second time.
+              e.stopPropagation();
+              handleAssignCluster();
+            }}
             inputValue={assignPersonName}
             onInputChange={(_, value, reason) => { if (reason !== "reset") setAssignPersonName(value); }}
             onChange={(_, value) => { if (typeof value === "string") setAssignPersonName(value); }}

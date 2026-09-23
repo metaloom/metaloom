@@ -4,13 +4,16 @@ import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.Nullable;
@@ -21,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.Element;
 import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
@@ -43,14 +47,28 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Image-generation node. Unlike the analysis nodes it does not annotate the media
- * with a property of the media itself - it <em>generates</em> a new image from a
- * configured prompt (mode {@link ImageGenMode#GENERATE}) or remixes the asset's own
- * image (mode {@link ImageGenMode#REMIX}) and attaches it to the asset.
+ * with a property of the media itself - it <em>generates</em> a new image, in one of
+ * four modes: from a prompt alone ({@link ImageGenMode#GENERATE}), from the asset's own
+ * image ({@link ImageGenMode#REMIX}), from the asset's image plus any number of wired
+ * reference images and an optional region mask ({@link ImageGenMode#EDIT}), or as a
+ * binary mask of a named region ({@link ImageGenMode#MASK}).
  *
  * <p>
- * The diffusion inference runs in the FastAPI image sidecar (see
- * {@code sidecars/ideogram-sidecar}); this node is a pure HTTP client via
- * {@link ImageGenClient}.
+ * The diffusion inference runs in a FastAPI image sidecar; this node is a pure HTTP
+ * client via {@link ImageGenClient}. Three backends serve the same contract and are
+ * selected by the {@code port} option alone - there is no backend enum. Only
+ * {@code qwen-image-sidecar} (9230) serves {@code /edit} and {@code /mask}, so
+ * {@code EDIT} and {@code MASK} against ideogram (9200) or mage-flow (9210) fail the
+ * item with that sidecar's 404.
+ * </p>
+
+ * <p>
+ * <strong>The mask is an image, not a parameter.</strong> {@code MASK} produces one on
+ * the ordinary {@code image} output port, and {@code EDIT} consumes one on the
+ * {@code mask} input port, so "change only the hair" is two instances of this node wired
+ * together rather than a special code path. That also makes the intermediate mask a real
+ * artifact you can look at, which matters: a wrong mask yields a plausible edit in
+ * entirely the wrong place.
  * </p>
  *
  * <p>
@@ -61,8 +79,9 @@ import io.vertx.core.json.JsonObject;
  * </p>
  */
 @NodeSpec(nodeId = "imagegen", name = "Image Generation", icon = "auto_awesome", category = NodeCategory.TRANSFORM,
-	description = "Generate an image through the image-generation sidecar - text-to-image from a prompt, or "
-		+ "image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a "
+	description = "Generate an image through the image-generation sidecar - text-to-image from a prompt, "
+		+ "image-to-image from the source asset, a multi-image edit combining wired reference images, or a "
+		+ "binary mask of a named region. The PNG is written to the worker's local cache; wire it into a "
 		+ "sink to keep it.",
 	// timeoutMs lives on AbstractNodeOptions, where it is hidden because almost no descriptor advertises
 	// it. This node does, and puts it last in the form.
@@ -82,6 +101,21 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 		description = "The image to remix. Required in REMIX mode and ignored in GENERATE mode")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
+	// artifact/image carrying a path String, NOT media/image carrying LoomMedia: ValueCoercer
+	// coerces every media, text, hash and artifact value to a String, so an InputPort<LoomMedia>
+	// typed media/image throws ValueCoercionException on ctx.input(). S3SinkNode.IN_ARTIFACTS is
+	// the one working precedent in the tree for consuming an upstream artifact path, and these two
+	// follow it. It also means these ports take *produced* images - another node's output - which
+	// is exactly what they are for; the asset's own picture arrives via ctx.media().
+
+	@PortDoc(label = "Reference Images", required = false,
+		description = "Further images combined into the result alongside the asset's own picture. Up to nine, in EDIT mode")
+	public static final InputPort<String> IN_REFERENCES = InputPort.many("references", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
+	@PortDoc(label = "Region Mask", required = false,
+		description = "A binary mask, white where the edit applies. Wire a MASK-mode instance of this node here")
+	public static final InputPort<String> IN_MASK = InputPort.one("mask", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
 	@PortDoc(label = "Image", description = "The generated PNG in the worker's local cache; wire it into a sink to keep it")
 	public static final OutputPort<String> OUT_IMAGE = OutputPort.one("image", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
 
@@ -91,6 +125,11 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 	/** In-heap skip cache of the generated image path, keyed by media path plus the option digest, to avoid re-generating within this worker's
 	 * lifetime. The digest is in the key for the same reason it is in the file name — see {@link #digest(String)}. The rendered PNG itself
 	 * is a durable local artifact under {@code metaPath/imagegen_bin}. */
+	/** The condition list the sidecar accepts is capped at ten, which is the model's own limit. One
+	 * slot is the asset's own image and one may be the mask, so nine references is the most that can
+	 * ever be useful - the node trims rather than letting the sidecar 400 a whole item. */
+	private static final int MAX_REFERENCES = 9;
+
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
 	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
@@ -112,6 +151,11 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 	private Double strength;
 	private Integer seed;
 	private Integer steps;
+	private String maskPrompt;
+	private String negativePrompt;
+	private Double trueCfgScale;
+	private Integer outputResolution;
+	private Boolean composite;
 
 	@Inject
 	public ImageGenNode(@Nullable LoomClient client, CortexOptions cortexOptions, ImageGenNodeOptions options, ImageGenClient imageGenClient) {
@@ -166,6 +210,26 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 		if (nodeDef.containsKey("seed")) {
 			seed = nodeDef.getInteger("seed");
 		}
+		if (nodeDef.containsKey("maskPrompt")) {
+			maskPrompt = nodeDef.getString("maskPrompt");
+		}
+		if (nodeDef.containsKey("negativePrompt")) {
+			negativePrompt = nodeDef.getString("negativePrompt");
+		}
+		if (nodeDef.containsKey("composite")) {
+			composite = nodeDef.getBoolean("composite");
+		}
+		if (nodeDef.containsKey("outputResolution")) {
+			outputResolution = positiveInt(nodeDef, "outputResolution");
+		}
+		if (nodeDef.containsKey("trueCfgScale")) {
+			double value = nodeDef.getDouble("trueCfgScale");
+			// Mirrors ImageGenNodeOptions.validate(), which a per-instance value never passes through.
+			if (value < 1 || value > 10) {
+				throw new IllegalStateException("Image generation node '" + nodeId + "': trueCfgScale must be in [1, 10], got " + value);
+			}
+			trueCfgScale = value;
+		}
 		if (nodeDef.containsKey("strength")) {
 			double value = nodeDef.getDouble("strength");
 			// Mirrors ImageGenNodeOptions.validate(), which a per-instance value never passes through.
@@ -215,6 +279,26 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 		return steps != null ? steps : options().getSteps();
 	}
 
+	private String maskPrompt() {
+		return maskPrompt != null ? maskPrompt : options().getMaskPrompt();
+	}
+
+	private String negativePrompt() {
+		return negativePrompt != null ? negativePrompt : options().getNegativePrompt();
+	}
+
+	private double trueCfgScale() {
+		return trueCfgScale != null ? trueCfgScale : options().getTrueCfgScale();
+	}
+
+	private int outputResolution() {
+		return outputResolution != null ? outputResolution : options().getOutputResolution();
+	}
+
+	private boolean composite() {
+		return composite != null ? composite : options().isComposite();
+	}
+
 	@Override
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		return ctx.media().isImage();
@@ -228,7 +312,14 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 		// A wired prompt port wins over the configured one: the option is the default for a
 		// standalone node, the edge is what a pipeline author explicitly connected.
 		String prompt = ctx.optionalInput(IN_PROMPT).orElseGet(this::configuredPrompt);
-		String digest = digest(prompt);
+
+		// The wired images change the result as surely as any option does, so they are digest
+		// material. Without them two runs over the same asset with different references would
+		// collide on one file name and serve each other's picture.
+		List<String> referencePaths = referencePaths(ctx);
+		String maskPath = ctx.optionalInput(IN_MASK).orElse(null);
+
+		String digest = digest(prompt, referencePaths, maskPath);
 		String cacheKey = path + "|" + digest;
 
 		// Re-emit a locally cached image path instead of re-generating. On a hit the ledger entry already exists in Loom, so we also skip re-persisting.
@@ -242,15 +333,16 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 
 		try {
 			long aiStart = System.currentTimeMillis();
-			byte[] png;
+			ImageGenResult result;
 			try {
-				png = generate(prompt, media);
+				result = generate(ctx, prompt, media, referencePaths, maskPath);
 			} catch (RuntimeException e) {
 				metrics.recordAiCall("imagegen", false, System.currentTimeMillis() - aiStart);
 				throw e;
 			}
 			metrics.recordAiCall("imagegen", true, System.currentTimeMillis() - aiStart);
 
+			byte[] png = result.png();
 			Path imagePath = resolveImagePath(media, digest);
 			Files.createDirectories(imagePath.getParent());
 			Files.write(imagePath, png);
@@ -262,7 +354,11 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 
 			// The image bytes live in the local imagegen_bin cache; record the ledger marker that this node produced them for the asset. Uploading the bytes
 			// into the asset binary subsystem needs a byte-ingest endpoint that does not exist yet, so that remains a follow-up (same as ThumbnailNode/TtsNode).
-			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, null);
+			// producerVersion is the sidecar's own X-Model-Id, so a ledger row can say WHICH model
+			// drew the picture - worth having now that three backends answer one contract behind a
+			// port number and do not share a weight licence. Null against the two older backends,
+			// which do not send the header; the row then looks exactly as it always did.
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, result.modelId(), null);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to generate image for media {}", path, e);
@@ -273,17 +369,128 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 	}
 
 	/**
-	 * Call the sidecar for the effective mode: REMIX loads the source image and hits {@code /remix}; GENERATE (default) hits {@code /generate}.
+	 * The paths wired into {@code references}, in port order, capped at {@link #MAX_REFERENCES}.
+	 *
+	 * <p>
+	 * A MANY port so several upstream images arrive in <em>one</em> invocation. Were it ONE, a
+	 * MANY output feeding it would run this node once per element - which is several unrelated
+	 * pictures rather than one picture combining them, the opposite of the point.
+	 * </p>
 	 */
-	private byte[] generate(String prompt, LoomMedia media) throws IOException {
-		if (mode() == ImageGenMode.REMIX) {
-			BufferedImage source = ImageIO.read(media.file());
-			if (source == null) {
-				throw new IOException("Could not read source image: " + media.absolutePath());
-			}
-			return imageGenClient.remix(source, prompt, strength(), seed(), steps());
+	private List<String> referencePaths(NodeContext<LoomMedia> ctx) {
+		if (!ctx.isWired(IN_REFERENCES)) {
+			return List.of();
 		}
-		return imageGenClient.generate(prompt, width(), height(), seed(), steps());
+		List<String> paths = new ArrayList<>();
+		for (Element<String> element : ctx.inputs(IN_REFERENCES)) {
+			if (element.value() != null && !element.value().isBlank()) {
+				paths.add(element.value());
+			}
+		}
+		if (paths.size() > MAX_REFERENCES) {
+			log.warn("Node '{}' was wired {} reference images but the model takes at most {} - dropping the rest",
+				nodeId, paths.size(), MAX_REFERENCES);
+			paths = paths.subList(0, MAX_REFERENCES);
+		}
+		return paths;
+	}
+
+	/**
+	 * Call the sidecar for the effective mode.
+	 *
+	 * <ul>
+	 * <li>{@code GENERATE} hits {@code /generate} and never looks at the source pixels.</li>
+	 * <li>{@code REMIX} loads the asset's image and hits {@code /remix}.</li>
+	 * <li>{@code EDIT} hits {@code /edit} with the asset's image first and the wired references
+	 * after - the order is significant, because the sidecar edits element 0 and treats the rest as
+	 * references.</li>
+	 * <li>{@code MASK} hits {@code /mask}.</li>
+	 * </ul>
+	 */
+	private ImageGenResult generate(NodeContext<LoomMedia> ctx, String prompt, LoomMedia media, List<String> referencePaths, String maskPath)
+		throws IOException {
+		switch (mode()) {
+		case REMIX:
+			return imageGenClient.remix(readSource(media), prompt, strength(), seed(), steps(), negativePrompt(), trueCfgScale());
+
+		case MASK:
+			// In MASK mode the node's entire output is a mask, so what the prompt names is a
+			// REGION, not a picture. A wired prompt port therefore still wins - an upstream LLM
+			// answering "which part of this do you mean" is exactly the useful thing to connect -
+			// and maskPrompt is the fallback for a node standing on its own, which validate()
+			// guarantees is non-blank in this mode.
+			String subject = ctx.optionalInput(IN_PROMPT).orElseGet(this::maskPrompt);
+			return imageGenClient.mask(readSource(media), subject, seed(), steps(), outputResolution());
+
+		case EDIT:
+			List<BufferedImage> images = new ArrayList<>();
+			// Element 0 is the image being edited. Everything after it is a reference.
+			images.add(readSource(media));
+			for (String reference : referencePaths) {
+				images.add(readArtifact(reference, "reference image"));
+			}
+			// A wired mask beats the configured maskPrompt, on the same reasoning as the prompt
+			// port: the option is the default for a node standing alone, the edge is what a
+			// pipeline author explicitly connected. Only one of the two is ever sent - the sidecar
+			// rejects both together, deliberately.
+			byte[] maskPng = maskPath != null ? readArtifactBytes(maskPath, "region mask") : null;
+			String maskPrompt = maskPng != null ? null : blankToNull(maskPrompt());
+			if (composite() && maskPng == null && maskPrompt == null) {
+				throw new IOException("Node '" + nodeId + "' has composite enabled but no mask: wire the mask port or set maskPrompt");
+			}
+			return imageGenClient.edit(images, maskPng, maskPrompt, prompt, seed(), steps(), negativePrompt(), trueCfgScale(),
+				outputResolution(), composite());
+
+		case GENERATE:
+		default:
+			return imageGenClient.generate(prompt, width(), height(), seed(), steps(), negativePrompt(), trueCfgScale());
+		}
+	}
+
+	private BufferedImage readSource(LoomMedia media) throws IOException {
+		BufferedImage source = ImageIO.read(media.file());
+		if (source == null) {
+			throw new IOException("Could not read source image: " + media.absolutePath());
+		}
+		return source;
+	}
+
+	/**
+	 * Read an image another node produced, as pixels.
+	 */
+	private BufferedImage readArtifact(String path, String what) throws IOException {
+		BufferedImage image = ImageIO.read(requireArtifact(path, what));
+		if (image == null) {
+			throw new IOException("Node '" + nodeId + "': the " + what + " '" + path + "' is not a readable image");
+		}
+		return image;
+	}
+
+	/**
+	 * Read an image another node produced, as bytes - the mask is forwarded verbatim rather than
+	 * decoded, because the sidecar has to binarize it and a round trip through {@code BufferedImage}
+	 * would only risk changing it on the way.
+	 */
+	private byte[] readArtifactBytes(String path, String what) throws IOException {
+		return Files.readAllBytes(requireArtifact(path, what).toPath());
+	}
+
+	/**
+	 * An artifact path is <em>worker-local</em>, so a missing file almost always means the producing
+	 * node ran on a different worker. Say that, because "could not read image" sends people looking
+	 * at the file system instead of at their affinity groups.
+	 */
+	private File requireArtifact(String path, String what) throws IOException {
+		File file = new File(path);
+		if (!file.isFile()) {
+			throw new IOException("Node '" + nodeId + "': the " + what + " '" + path + "' does not exist on this worker. "
+				+ "Artifact paths are worker-local - pin the producing node and this one into one affinity group.");
+		}
+		return file;
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
 	}
 
 	/**
@@ -306,8 +513,13 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> impleme
 	 * configured) and the result-affecting options. Copied from the {@code Sam2Node} /
 	 * {@code ImageManipulationNode} pattern.
 	 */
-	private String digest(String prompt) {
-		String material = mode() + "|" + prompt + "|" + width() + "x" + height() + "|" + strength() + "|" + seed() + "|" + steps();
+	private String digest(String prompt, List<String> referencePaths, String maskPath) {
+		// EVERY result-affecting input belongs here. A new option left out of this string is not a
+		// cosmetic omission: the path and the cache key both derive from it, so two instances
+		// differing only in the forgotten option write to one file and serve each other's picture.
+		String material = mode() + "|" + prompt + "|" + width() + "x" + height() + "|" + strength() + "|" + seed() + "|" + steps()
+			+ "|" + maskPrompt() + "|" + negativePrompt() + "|" + trueCfgScale() + "|" + outputResolution() + "|" + composite()
+			+ "|" + String.join(",", referencePaths) + "|" + maskPath;
 		return sha256Hex(material).substring(0, 12);
 	}
 

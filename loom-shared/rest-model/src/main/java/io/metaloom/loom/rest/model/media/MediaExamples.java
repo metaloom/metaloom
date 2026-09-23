@@ -31,4 +31,16 @@ public interface MediaExamples extends ExampleValues {
 			.setAudioCodec("ac3")
 			.setStreamable(true);
 	}
+
+	default Example streamStartResponseExample() {
+		return new ExampleImpl(streamStartResponse(), "Where a stream asked to start at that offset will really begin", HttpResponseStatus.OK);
+	}
+
+	default StreamStartResponse streamStartResponse() {
+		// Four seconds apart, which is an ordinary keyframe interval for a broadcast rip and about
+		// as wrong as a player's clock can silently be.
+		return new StreamStartResponse()
+			.setRequested(604.5d)
+			.setStart(599.599d);
+	}
 }

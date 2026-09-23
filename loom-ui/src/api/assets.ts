@@ -312,11 +312,44 @@ export function assetPosterUrl(uuid: string, mediaToken: string, second?: number
  *
  * The response is a pipe and therefore has no index, so the player cannot seek within it: seeking
  * means requesting this again with a different `second`.
+ *
+ * `second` should be a value {@link loadStreamStart} returned, not a position a human picked. The
+ * video is stream-copied, so the response begins at the keyframe at or before what is asked for;
+ * passing an arbitrary offset means the stream silently starts somewhere else.
  */
 export function assetStreamUrl(uuid: string, mediaToken: string, second?: number): string {
   const params = new URLSearchParams({ mt: mediaToken });
   if (second !== undefined && second > 0) params.set("t", String(second));
   return `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/stream?${params.toString()}`;
+}
+
+/** Where a stream requested at an offset will really begin. See {@link loadStreamStart}. */
+export interface StreamStartResponse {
+  requested?: number;
+  start?: number;
+}
+
+/**
+ * Ask where a stream starting near `second` will actually begin.
+ *
+ * A stream-copied video can only start on a keyframe, so the answer is the keyframe at or before
+ * the offset — on a broadcast rip, up to five seconds earlier. The player has to treat that, and
+ * not what it asked for, as the origin of its clock: everything drawn against time beside the
+ * picture reads the clock, so assuming the stream starts where it was asked is how a transcript
+ * comes to highlight a line nobody has reached yet.
+ *
+ * Session-authenticated: this is the application asking, not a media element that cannot set a
+ * header, so it uses the bearer token rather than the `?mt=` credential.
+ */
+export async function loadStreamStart(token: string, uuid: string, second: number): Promise<number> {
+  const params = new URLSearchParams({ t: String(second) });
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/stream-start?${params.toString()}`,
+    { method: "GET", headers: authHeaders(token) });
+  const body = await handleResponse<StreamStartResponse>(res);
+  // A server that cannot probe answers with the offset unchanged, which is the old behaviour for
+  // that one request rather than a seek that fails.
+  return typeof body.start === "number" && Number.isFinite(body.start) ? body.start : second;
 }
 
 // ── CRUD API ──────────────────────────────────────────────────────────

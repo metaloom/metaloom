@@ -88,6 +88,49 @@ public class AssetMediaEndpointTest extends AbstractEndpointTest implements Test
 		return uploadClip(client, "testsrc");
 	}
 
+	/**
+	 * A clip with a keyframe every two seconds, so "which keyframe does this land on" has more than
+	 * one answer.
+	 *
+	 * <p>
+	 * The default fixture is eight seconds long and libx264's default keyframe interval is 250
+	 * frames, so every offset in it seeks to zero and a seek-point test passes without testing
+	 * anything. Twenty frames at ten a second puts keyframes at 0, 2, 4 and 6.
+	 * </p>
+	 */
+	private AssetResponse uploadGoppedClip(LoomHttpClient client) throws Exception {
+		Path clip = Files.createTempFile("gop-", ".mp4");
+		Files.delete(clip);
+		Process ffmpeg = new ProcessBuilder("ffmpeg", "-v", "error", "-y",
+			"-f", "lavfi", "-i", "smptebars=size=320x240:rate=10:duration=8",
+			"-c:v", "libx264", "-pix_fmt", "yuv420p",
+			"-g", "20", "-keyint_min", "20", "-sc_threshold", "0",
+			clip.toString())
+			.redirectErrorStream(true).start();
+		assertThat(ffmpeg.waitFor(60, TimeUnit.SECONDS)).as("ffmpeg produced a fixture clip").isTrue();
+		assertEquals(0, ffmpeg.exitValue(), "ffmpeg must produce the fixture clip");
+		return client.uploadAsset(clip.toFile(), LIBRARY_UUID, "video/mp4").sync().body();
+	}
+
+	/** Length of a local media file in seconds, via ffprobe. */
+	private static double probeDuration(Path file) throws Exception {
+		Process probe = new ProcessBuilder("ffprobe", "-v", "error",
+			"-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file.toString())
+			.redirectErrorStream(true).start();
+		String out = new String(probe.getInputStream().readAllBytes()).strip();
+		assertThat(probe.waitFor(30, TimeUnit.SECONDS)).as("ffprobe finished").isTrue();
+		return Double.parseDouble(out.lines().findFirst().orElseThrow().strip());
+	}
+
+	private io.vertx.core.json.JsonObject streamStart(LoomHttpClient client, UUID assetUuid, String query) throws Exception {
+		HttpResponse<String> resp = http.send(HttpRequest.newBuilder()
+			.uri(URI.create(url("/api/v1/assets/" + assetUuid + "/stream-start" + query)))
+			.header("Authorization", "Bearer " + client.getToken())
+			.GET().build(), BodyHandlers.ofString());
+		assertEquals(200, resp.statusCode(), "asking where a stream would start");
+		return new io.vertx.core.json.JsonObject(resp.body());
+	}
+
 	private static boolean ffmpegPresent() {
 		try {
 			Process p = new ProcessBuilder("ffmpeg", "-version")
@@ -225,6 +268,129 @@ public class AssetMediaEndpointTest extends AbstractEndpointTest implements Test
 			// Only the two routes a media element has to reach on its own accept mt, and widening
 			// that set is how a narrowly scoped credential stops being narrow.
 			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/media-info?mt=" + mt));
+
+			assertEquals(401, resp.statusCode(), "mt opens the poster and stream routes and nothing else");
+		}
+	}
+
+	// ── Where a stream really begins ─────────────────────────────────────
+
+	@Test
+	@DisplayName("A seek point is the keyframe at or before the offset, not the offset")
+	public void shouldReportWhereAStreamWillActuallyStart() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadGoppedClip(client);
+
+			io.vertx.core.json.JsonObject body = streamStart(client, asset.getUuid(), "?t=5.5");
+
+			// The whole point of the route. A stream copy cannot begin between keyframes, so a
+			// request for 5.5s yields a response starting at 4s - and a player told otherwise runs
+			// a clock a second and a half fast for as long as that response lasts.
+			assertThat(body.getDouble("requested")).isEqualTo(5.5d);
+			assertThat(body.getDouble("start"))
+				.as("the keyframe at or before 5.5s, with keyframes every 2s")
+				.isNotNull()
+				.isBetween(3.8d, 4.2d);
+			assertThat(body.getDouble("start")).as("a seek never lands after what was asked for").isLessThan(5.5d);
+		}
+	}
+
+	@Test
+	@DisplayName("The start of the file needs no probe and no seek")
+	public void shouldReportZeroForTheStartOfTheFile() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadGoppedClip(client);
+
+			assertThat(streamStart(client, asset.getUuid(), "?t=0").getDouble("start")).isEqualTo(0d);
+			// An absent t is the same request: a player that has not seeked yet starts at the top.
+			assertThat(streamStart(client, asset.getUuid(), "").getDouble("start")).isEqualTo(0d);
+		}
+	}
+
+	@Test
+	@DisplayName("An offset past the end answers rather than failing the seek")
+	public void shouldAnswerForAnOffsetPastTheEnd() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadGoppedClip(client);
+
+			// Nothing to seek to in an eight-second clip. The answer must still be a number the
+			// player can use as an origin - a 500 here would leave a seek half-applied.
+			io.vertx.core.json.JsonObject body = streamStart(client, asset.getUuid(), "?t=600");
+			assertThat(body.getDouble("start")).isNotNull().isLessThanOrEqualTo(600d);
+		}
+	}
+
+	@Test
+	@DisplayName("The stream really does begin where the seek point said it would")
+	public void shouldStartTheStreamWhereTheSeekPointSaid() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required for remuxing");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadGoppedClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			// The two halves have to agree, and nothing else in this file checks that they do. They
+			// once did not: the probe predicted the keyframe from the container index while ffmpeg
+			// subtracts a seek margin before looking, so for offsets just after a keyframe the
+			// stream began a whole group of pictures earlier than the player was told.
+			double start = streamStart(client, asset.getUuid(), "?t=5.5").getDouble("start");
+
+			HttpResponse<byte[]> resp = http.send(HttpRequest.newBuilder()
+				.uri(URI.create(url("/api/v1/assets/" + asset.getUuid() + "/stream?t=5.5&mt=" + mt)))
+				.GET().build(), BodyHandlers.ofByteArray());
+			assertEquals(200, resp.statusCode());
+
+			Path remuxed = Files.createTempFile("remux-", ".mp4");
+			Files.write(remuxed, resp.body());
+			// The invariant, and the only one that ties the two routes together: a stream runs from
+			// where it began to the end of the file, so what came back plus where the probe said it
+			// starts must add up to the whole clip. Had the stream snapped to an earlier keyframe
+			// than the probe reported, this sum would overshoot by that keyframe's distance.
+			double remaining = probeDuration(remuxed);
+			Files.deleteIfExists(remuxed);
+			assertThat(start).as("a seek to 5.5s of a clip with keyframes every 2s").isBetween(3.8d, 4.2d);
+			assertThat(start + remaining)
+				.as("where the stream began (%s) plus what it delivered (%s) is the whole 8s clip", start, remaining)
+				.isBetween(7.5d, 8.5d);
+		}
+	}
+
+	@Test
+	@DisplayName("Asking where a stream starts needs the permission the bytes need")
+	public void shouldRefuseASeekPointWithoutPermission() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		UUID assetUuid;
+		try (LoomHttpClient admin = loom.httpClient()) {
+			loginAdmin(admin);
+			assetUuid = uploadGoppedClip(admin).getUuid();
+		}
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			HttpResponse<String> resp = http.send(HttpRequest.newBuilder()
+				.uri(URI.create(url("/api/v1/assets/" + assetUuid + "/stream-start?t=5")))
+				.header("Authorization", "Bearer " + client.getToken())
+				.GET().build(), BodyHandlers.ofString());
+			assertEquals(403, resp.statusCode(), "the seek point describes an asset you may not read");
+		}
+	}
+
+	@Test
+	@DisplayName("A seek point is not reachable with a media token")
+	public void shouldRefuseAMediaTokenOnStreamStart() throws Exception {
+		Assumptions.assumeTrue(ffmpegPresent(), "ffmpeg is required to create the fixture clip");
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = uploadGoppedClip(client);
+			String mt = mintToken(client, asset.getUuid());
+
+			// Like media-info: application code asking a question, and able to send a header. Only
+			// the two routes a media element must reach unaided accept mt.
+			HttpResponse<byte[]> resp = getAnonymously(url("/api/v1/assets/" + asset.getUuid() + "/stream-start?t=5&mt=" + mt));
 
 			assertEquals(401, resp.statusCode(), "mt opens the poster and stream routes and nothing else");
 		}

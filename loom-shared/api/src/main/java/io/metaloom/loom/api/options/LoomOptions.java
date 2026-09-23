@@ -22,6 +22,8 @@ public class LoomOptions implements Option {
 
 	private NodeExecOptions nodeExec = new NodeExecOptions();
 
+	private ImageGenToolOptions imageGenTool = new ImageGenToolOptions();
+
 	private SearchOptions search = new SearchOptions();
 
 	private SimilarityOptions similarity = new SimilarityOptions();
@@ -45,6 +47,7 @@ public class LoomOptions implements Option {
 		sandbox.overrideWithEnv();
 		memory.overrideWithEnv();
 		nodeExec.overrideWithEnv();
+		imageGenTool.overrideWithEnv();
 		search.overrideWithEnv();
 		similarity.overrideWithEnv();
 		vectorIndex.overrideWithEnv();
@@ -132,6 +135,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public ImageGenToolOptions getImageGenTool() {
+		return imageGenTool;
+	}
+
+	public LoomOptions setImageGenTool(ImageGenToolOptions imageGenTool) {
+		this.imageGenTool = imageGenTool;
+		return this;
+	}
+
 	public SearchOptions getSearch() {
 		return search;
 	}
@@ -197,6 +209,7 @@ public class LoomOptions implements Option {
 			.nested("sandbox", sandbox)
 			.nested("memory", memory)
 			.nested("nodeExec", nodeExec)
+			.nested("imageGenTool", imageGenTool)
 			.nested("search", search)
 			.nested("similarity", similarity)
 			.nested("media", media)

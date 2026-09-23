@@ -33,6 +33,7 @@ import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -150,6 +151,7 @@ export default function ChatSessionsView() {
       <ViewHeader
         icon={<ForumOutlined />}
         title={t("chatSessions.title", "Chat sessions")}
+        meta={<HelpHint topic="chatSessions" />}
         actions={
           <Button
             variant="contained"

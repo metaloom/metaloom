@@ -34,6 +34,7 @@ import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
 import io.metaloom.loom.rest.model.tag.AssetTagBulkResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
@@ -272,6 +273,43 @@ public class TagEndpointService extends AbstractCRUDEndpointService<TagDao, Tag>
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag placement not found " + placementUuid);
 			}
 			lrc.sendNoContent();
+		});
+	}
+
+	/**
+	 * Move one placement of a tag to a different region of the asset.
+	 *
+	 * <p>
+	 * The write behind dragging the edge of a region tag on the video timeline. Deliberately not "untag, then tag again with the new area": that would
+	 * mint a fresh placement uuid and replace who attached the original and when with whoever happened to be dragging it. A region being wrong is not
+	 * the same statement as a tag being wrong.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code TAG_ASSET} rather than {@code UPDATE_TAG}: what changes is the asset's relationship to the tag, not the tag, and the tag is a global
+	 * object other assets share. A reviewer who may place a region may correct one.
+	 * </p>
+	 */
+	public void updateTagPlacement(LoomRoutingContext lrc, AssetId assetId, UUID placementUuid) {
+		checkPerm(lrc, TAG_ASSET, () -> {
+			TagPlacementUpdateRequest request = lrc.requestBody(TagPlacementUpdateRequest.class);
+			validator.validate(request);
+
+			Asset asset = daos().assetDao().loadById(assetId);
+			if (asset == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Asset not found " + assetId);
+			}
+
+			AssetTag area = dao().createAssetTag(lrc.userUuid(), "", "");
+			applyArea(request.getArea(), area);
+
+			AssetTag updated = dao().updatePlacement(asset, placementUuid, area);
+			if (updated == null) {
+				// Also the answer when the placement belongs to a different asset, for the same reason the
+				// removal route gives it: saying otherwise would confirm a uuid the caller may not read.
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag placement not found " + placementUuid);
+			}
+			lrc.send(modelBuilder.toResponse(updated), 200);
 		});
 	}
 

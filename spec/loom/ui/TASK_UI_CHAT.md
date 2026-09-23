@@ -30,7 +30,8 @@
 | Session management (list, detail, publish, context refs, session files) | [api/chatSessions.ts](../../../loom-ui/src/api/chatSessions.ts), [ChatSessionsView.tsx](../../../loom-ui/src/features/chatSessions/ChatSessionsView.tsx), [ChatSessionDetail.tsx](../../../loom-ui/src/features/chatSessions/ChatSessionDetail.tsx) at `/chat/sessions[/:id]` |
 | Agent memory browser | [api/memory.ts](../../../loom-ui/src/api/memory.ts) + [MemoryView.tsx](../../../loom-ui/src/features/memory/MemoryView.tsx) at `/memory` |
 | Pipeline graph cards in chat | [PipelineGraphCard.tsx](../../../loom-ui/src/features/chat/PipelineGraphCard.tsx) + `pipelineGraphLayout.ts` (`pipelineGraphLayout.test.ts`) |
-| Chat/skills e2e | `e2e/chat-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts` (+ `chat-backend.spec.ts`, `skills-backend.spec.ts` needing a live server) |
+| Embedded asset viewer + search-result sync | [AssetViewerCard.tsx](../../../loom-ui/src/features/chat/AssetViewerCard.tsx), [AssetResults.tsx](../../../loom-ui/src/features/chat/AssetResults.tsx) — the `asset-viewer` and `asset-results` visuals; the workspace panel mirrors the agent's result set ([LOOM_UI_CHAT.md §6.2–6.3](../../chat/LOOM_UI_CHAT.md)) |
+| Chat/skills e2e | `e2e/chat-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `chat-asset-viewer-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts` (+ `chat-backend.spec.ts`, `skills-backend.spec.ts` needing a live server) |
 
 ---
 

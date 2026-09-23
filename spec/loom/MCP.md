@@ -227,7 +227,8 @@ Two optional extras — external clients ignore them, the loom chat extracts the
   filename / title / name. Rendered as entity chips ([ui/CHAT.md](ui/CHAT.md) §6).
 - **`visuals`** (`mcpResult(text, references, visuals)` + `MCPToolResults.visual`)
   — renderable payloads drawn inline: `{"type":"pipeline-graph","uuid":"…",
-  "label":"…","payload":{…}}`. Today only `pipeline-graph` exists.
+  "label":"…","payload":{…}}`. Four types exist: `pipeline-graph`, `job-card`,
+  `asset-viewer` (§5.1.1) and `asset-results` (§5.1.2).
 
 Two rules keep visuals safe on any tool: **the text stays complete** (the model
 never sees `visuals`, so dropping one never costs an answer) and **the payload is
@@ -238,15 +239,17 @@ bounded** (producer caps it — `GetPipelineTool.MAX_NODES`/`MAX_EDGES` — and
 
 ## 5. Registered Tools
 
-Twenty-two tool implementations in total — the eighteen core tools always, the four
+Twenty-three tool implementations in total — the nineteen core tools always, the four
 memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 
 | Tool                | Class                  | Module   | Permissions       | Identity | References | Visual |
 |---------------------|------------------------|----------|-------------------|----------|------------|--------|
-| `search_assets`     | `SearchAssetsTool`     | mcp      | `READ_ASSET`      | no       | asset      | —      |
-| `find_assets`       | `FindAssetsTool`       | mcp      | `READ_SEARCH` + `READ_ASSET` | **yes** | asset | —      |
+| `search_assets`     | `SearchAssetsTool`     | mcp      | `READ_ASSET`      | no       | asset      | `asset-results` |
+| `find_assets`       | `FindAssetsTool`       | mcp      | `READ_SEARCH` + `READ_ASSET` | **yes** | asset | `asset-results` |
 | `get_asset`         | `GetAssetTool`         | mcp      | `READ_ASSET`      | no       | asset      | —      |
-| `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | asset      | —      |
+| `show_asset`        | `ShowAssetTool`        | mcp      | `READ_ASSET` + `READ_ASSET_BINARY` | no | asset | `asset-viewer` |
+| `generate_image`    | `GenerateImageTool`    | mcp      | `READ_ASSET` + `READ_ASSET_BINARY` + `CREATE_ASSET` + `GENERATE_MCP_IMAGE` | **yes** | asset | `asset-viewer` |
+| `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | asset      | `asset-results` |
 | `list_collections`  | `ListCollectionsTool`  | mcp      | `READ_COLLECTION` | no       | collection | —      |
 | `asset_statistics`  | `AssetStatisticsTool`  | mcp      | `READ_ASSET`      | no       | —          | —      |
 | `list_pipelines`    | `ListPipelinesTool`    | mcp      | `READ_PIPELINE`   | no       | pipeline   | —      |
@@ -280,6 +283,8 @@ from any of them is a tool result, never a failed future.
 | `search_assets` | `query` (string, **required**), `mimeType` (string, prefix — a trailing `*` is stripped), `library` (uuid), `tag` (string), `limit` (int, 25), `offset` (int, 0) | `Found N of M matching assets for 'q'.` + JSON array (uuid, title, mimeType, size, score) | Served by `SearchProvider` ([../features/search/SEARCH.md](../features/search/SEARCH.md) §2.2). No result narrowing — see the note below the table |
 | `find_assets` | `text` (string, optional), `creator` / `collection` / `library` / `space` (string — **a name or a uuid**), `tags` (array of names), `when` / `createdFrom` / `createdTo` (string — `today`, `yesterday`, `last week`, `last 7 days`, a date, or an ISO instant), `mimeType` (prefix, trailing `*` stripped), `types` (`asset` \| `transcript`), `sort`, `mode`, `highlight`, `timezone`, `limit`, `offset` | `Found N assets (creator: Pete Miller (pete), created: yesterday).` + JSON array (uuid, title, mimeType, size, created, score, optional timeFromMs/snippet) | **Names are resolved server-side**, and an unknown or ambiguous one refuses the call rather than dropping the clause. `text` is optional — filters alone are a valid query. Closed key set: an unrecognised key is refused, naming the accepted ones |
 | `get_asset` | `assetId` (string, **required**) — UUID or SHA-512 via `AssetId.assetId()` | JSON object (uuid, filename, mimeType, size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath) | Description promises media properties, geo and components; they are not returned. Missing asset → text result, not an error |
+| `generate_image` | `prompt` (string, **required**), `assetIds` (array of uuid/SHA-512, 0..5 — **order matters**, the first is the image being edited), `maskPrompt` (string, names a region to confine the edit to), `width`/`height` (int, text-to-image only), `seed` (int) | `Edited boy.jpg, changing only the boy's hair. It is saved as the asset generated-….png (uuid) and is shown in the chat.` + an `asset` reference per input **and** for the result + one `asset-viewer` visual | **Feature-gated and off by default** (`LOOM_MCP_IMAGEGEN_ENABLED`); contributes no tool at all when disabled. Needs a sidecar serving `/edit` — in practice `qwen-image-sidecar` on 9230. A sidecar outage comes back as text, not a failed turn. Text-to-image needs `LOOM_MCP_IMAGEGEN_LIBRARY`, since there is no input asset to inherit a library from |
+| `show_asset` | `assetId` (string, **required**) — UUID or SHA-512, `startMs` (integer, optional — **milliseconds**, the search tools' own `timeFromMs`), `caption` (string, optional, clipped at 200 chars) | `Showing sg1-s03e17.mkv (video/x-matroska) in the chat viewer. It opens at 10:04.` + an `asset` reference + one `asset-viewer` visual | The only tool whose output is entirely the part the model cannot read. A missing asset → text result, no visual. Nothing checks that the bytes are actually reachable: a viewer for an asset whose binary is gone renders the type placeholder |
 | `search_transcript` | `query` (string, **required**), `limit` (int, 10), `offset` (int, 0) | `Found N of M transcript matches for 'q'.` + JSON array (assetUuid, title, timeFromMs, snippet, score) | `types=[TRANSCRIPT]`, `highlight=true`; `<b>` markers are stripped from the snippet — `ts_headline` output is unsanitised source text |
 | `list_collections` | `limit` (int, 25) | `Found N collections.` + JSON array (uuid, name) | No name filter, no space scoping |
 | `asset_statistics` | `collection` (string) | JSON object: totalAssets, totalStorageBytes, totalStorageMB, images, videos, audio, documents, other | `collection` is **ignored**; loads up to 10 000 assets and aggregates in memory instead of using SQL aggregates |
@@ -307,6 +312,96 @@ the UI rank one corpus. Three consequences worth knowing:
   both tools answer with the reason from `SearchProvider.info()` and say so in words. They never
   return an empty success, because "nothing matched" and "search is not running" are the same
   sentence to a model otherwise.
+
+#### 5.1.1 The `asset-viewer` visual
+
+`show_asset` and `generate_image` both emit it, and for both the envelope is most of the
+value: the model never sees a visual, so nothing in the conversation would notice one
+going missing. That is why the text still says what happened, and why the shape is pinned
+by a test on both sides.
+
+🟢 **`generate_image` reuses this type rather than introducing an `image` one**, and that is
+the decision that made it a backend-only change. Three constraints force it and each
+removes an alternative:
+
+1. MCP content items are text; an image cannot travel as content
+   (`AgentLoop.extractTextContent` drops anything else).
+2. `VisualExtractor.MAX_VISUAL_BYTES` is **32 KB** and oversize visuals are discarded
+   silently, so a base64 PNG in the payload is not an option.
+3. A node cannot produce it either: `ProbeEligibility` refuses any kind with an
+   `artifact/*` output port, because those bytes stay on the worker.
+
+So the tool calls the sidecar from inside Loom, ingests the PNG as a real asset
+(`ProducedAssetIngestor`), and points an `asset-viewer` at it. The UI already renders that
+type and already fetches image bytes over the authenticated binary route
+(`useAuthedImage.ts`), so **no `loom-ui` change was needed** — and the generated image is
+an ordinary asset, searchable and processed by whatever pipelines match it. What that does
+*not* do is solve produced-byte ingest generally; see Task EXE6.
+
+```json
+{ "assetUuid": "…", "filename": "sg1-s03e17.mkv", "mimeType": "video/x-matroska",
+  "kind": "video", "size": 1500000000, "startSeconds": 604.5,
+  "caption": "where Atlantis is first mentioned" }
+```
+
+- `kind ∈ video | audio | image | document | other`, decided server-side from the mime
+  type. The client could derive it and deliberately does not: a deployment storing
+  `application/octet-stream` is better served by one place deciding than by every client
+  guessing again.
+- **The parameter is `startMs`, the payload field is `startSeconds`, and the division
+  happens in the tool.** It was `startSeconds` on the wire for exactly one deployment, and
+  the first model to use it in anger passed `900416` — a transcript hit's raw `timeFromMs`,
+  undivided — opening the viewer ten days into a 43-minute episode while the same answer
+  said "15 minutes in". A small model asked to change units between one tool's output and
+  the next tool's input will eventually not, and no prompt wording removes an arithmetic
+  step that need not exist. Taking the offset in the unit it is copied from does.
+- The offset is dropped when it is negative, zero or not a number — a viewer opening at the
+  start is the right answer to a bad offset, and a refusal is not. Past `MAX_START_MS`
+  (24 h) it is dropped **and said out loud**, naming the unit: silently opening at zero
+  leaves the model free to report a position the viewer is not at, which is exactly how the
+  millisecond bug read from outside — two numbers in one answer that could not both be true.
+- `caption` is clipped at `MAX_CAPTION_CHARS` (200). A model handed an open-ended string
+  field will occasionally write its whole answer into it.
+- **Nothing here checks that the bytes are reachable.** The card asks the media routes for
+  a poster and a stream; an asset indexed by reference whose file has moved renders the
+  type placeholder. Declaring `READ_ASSET_BINARY` is what keeps the tool from being
+  advertised to a caller whose viewer could only ever 401 — and since tool advertisement
+  requires **all** declared permissions, that permission had to become grantable from the
+  admin ACL matrix, which it was not
+  ([../features/permissions/PERMISSIONS.md §6.2](../features/permissions/PERMISSIONS.md)).
+  Without that, the tool would have existed for the bootstrap admin and for nobody else.
+
+#### 5.1.2 The `asset-results` visual
+
+Every search tool attaches its result set, built by `AssetResultsVisual`.
+
+```json
+{ "query": "Atlantis", "criteria": "spoken content", "total": 35, "totalExact": true,
+  "items": [{ "uuid": "…", "title": "sg1-s03e17.mkv", "mimeType": "video/x-matroska",
+              "size": 1500000000, "score": 0.9, "timeFromMs": 604500,
+              "snippet": "the Atlantis expedition" }] }
+```
+
+This is **not** the `references` array in another shape. References are a bag of names;
+what a chip cannot carry is the ranking order, the score, the size of the corpus behind
+the page, and which passage matched at what offset — and those are exactly what the chat's
+workspace panel needs to show "the assets we are talking about" rather than an unordered
+list under no heading ([../chat/LOOM_UI_CHAT.md](../chat/LOOM_UI_CHAT.md) §6.3).
+
+- **Capped at `MAX_ITEMS` (24)**, below the 50 rows the tools will render as text.
+  `VisualExtractor` discards a visual over 32 KB *in silence*, so a payload sized to the
+  text limit would be the one that vanishes on exactly the searches worth looking at.
+- **One row per asset.** Several passages of one episode collapse; the offset kept is the
+  best-ranked one, which is the passage a click should open the player on.
+- **An empty result set carries no visual.** Nothing matched is reported in the text;
+  blanking the panel on top of that takes away the previous search the user is still
+  working with.
+- The visual's uuid is a name-based UUID over `type|label|criteria`, so two identical
+  searches inside one answer are one card — `VisualExtractor` dedupes on `(type, uuid)`,
+  which is what keeps a model that re-ran its own query from spending the four-visual
+  budget on four copies of one strip.
+- `find_assets` builds it from its **collapsed** rows, so the panel shows the same files
+  the answer counts. When the query was filters-only, `criteria` doubles as the heading.
 
 ### 5.2 Pipeline tools
 
@@ -595,6 +690,7 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | `SearchAssetsTool`, `GetAssetTool`, `SearchTranscriptTool`, `ListCollectionsTool`, `AssetStatisticsTool`, `ListPipelinesTool`, `GetPipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 7 read tools |
 | `ListNodeDescriptorsTool`, `GetNodeDescriptorTool`, `PipelineAuthoringGuideTool`, `ValidatePipelineTool`, `CreatePipelineTool`, `UpdatePipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 6 pipeline authoring tools |
 | `PipelineGraphRenderer` | `io.metaloom.loom.mcp.tool.impl` | uuid-or-name resolution, graph projection, text rendering, `pipeline-graph` payload |
+| `AssetResultsVisual` | `io.metaloom.loom.mcp.tool.impl` | the `asset-results` payload shared by the three search tools: one row per asset, ranking order, the 24-row cap, the name-based visual uuid |
 | `PipelineAuthoringService` | `io.metaloom.loom.rest.service.impl` | The single write path for definitions — REST and MCP both call it |
 | `BuiltinSkills` | `io.metaloom.loom.common.skill` | Instruction packages that ship with Loom; source of the authoring guide |
 | `AbstractMemoryTool`, `ListMemoryTool`, `GetMemoryTool`, `PutMemoryTool`, `DeleteMemoryTool` | `io.metaloom.loom.agent.memory.tool` | The 4 identity-scoped memory tools |
@@ -685,7 +781,9 @@ Unit tests (module `loom-service-mcp`, no database):
 | `PipelineAuthoringToolTest` | `validate`/`create`/`update` against a **real** validator and descriptor registry: port errors name the port, a rejected create stores nothing, an update appends, `requiresIdentity` + the two-permission declaration, the identity-free `execute` fails loudly |
 | `NodeDescriptorToolTest` | Listing projection, `category`/`query` filters, clipping reported not silent, resolved ports, availability, unknown kind |
 | `MCPToolPermissionTest` | `listDescriptorsFor`: null user sees everything, a caller sees only what they hold, **all** declared permissions are required |
-| `SearchToolTest` | The two search tools against a mocked `SearchProvider`: every declared filter reaches the `SearchRequest`, `video/*` is normalised, zero hits read as zero hits, a transcript hit carries snippet + `assetUuid` + `timeFromMs` with the `<b>` markers stripped, an unavailable provider is named rather than answered as empty, a rejected query comes back as text |
+| `SearchToolTest` | The two search tools against a mocked `SearchProvider`: every declared filter reaches the `SearchRequest`, `video/*` is normalised, zero hits read as zero hits, a transcript hit carries snippet + `assetUuid` + `timeFromMs` with the `<b>` markers stripped, an unavailable provider is named rather than answered as empty, a rejected query comes back as text; plus the `asset-results` envelope — ranking order, corpus total, offset, one row per asset, the `MAX_ITEMS` cap, and no visual for an empty result |
+| `GenerateImageToolTest` (14) | The envelope and the ingest, which are the two things nothing else would catch: the `asset-viewer` payload field by field, an `asset` reference for the result *and* each input, the generated bytes reaching `ProducedAssetIngestor` under the caller's identity, an edit being filed in its input's library rather than the configured default, an anonymous caller refused, and the four answer-not-failure paths (missing asset, non-image input, too many inputs, sidecar down) |
+| `ShowAssetToolTest` | The `asset-viewer` envelope: `kind` per mime type, `startMs` → `startSeconds`, an impossible offset dropped and a 24h-plus one reported in words, the caption clipped, a non-media asset saying so in the text, an unknown asset answering rather than failing |
 
 Integration tests (module `loom/core`, real PostgreSQL from the pooled test DB —
 run `./setup-pool.sh` first):
@@ -695,7 +793,7 @@ run `./setup-pool.sh` first):
 | `MCPAuthDisabledTest` | Unauthenticated tool call succeeds when auth is off |
 | `MCPAuthLenientTest` | Valid JWT, unprivileged JWT denied with structured error, missing credentials tolerated, API key path, `tools/list` exposes `requiredPermissions`, SSE `?token=`, CORS echo under wildcard |
 | `MCPAuthStrictTest` | Message/SSE rejection without credentials, invalid token rejected, WS 4401 vs. valid-token round trip, CORS allow/deny |
-| `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline` visual present/absent. The `search_assets` case is also the end-to-end proof that the tool reaches the real Postgres search backend |
+| `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline`, `show_asset` and `search_assets` visuals present/absent over real DAOs. The `search_assets` case is also the end-to-end proof that the tool reaches the real Postgres search backend |
 | `MCPPipelineAuthoringTest` | Authoring end to end: descriptors + guide, validate against the real registry, create persists pipeline + version 1 + `latest_version_uuid`, a broken definition leaves no row, update appends, and an unprivileged caller is neither listed nor allowed |
 | `MCPDirectToolCallTest` | Registry dispatch without HTTP, driven by an LLM tool-call loop |
 | `MCPServerToolCallTest` | Full HTTP JSON-RPC flow: `initialize` + `tools/list` (no LLM needed), then a full LLM tool-call loop |
@@ -748,6 +846,10 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 
 - [x] `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`
 - [x] `list_pipelines`, `get_pipeline` (+ `pipeline-graph` visual)
+- [x] `show_asset` (+ `asset-viewer` visual); the search tools carry an `asset-results` visual
+- [x] `generate_image` — text-to-image, multi-image composition and region-masked editing from the
+      chat, ingested as a real asset and shown through the existing `asset-viewer` visual (§5.1.1).
+      Feature-gated off by default; needs a sidecar serving `/edit`
 - [x] `list_node_descriptors`, `get_node_descriptor` (resolved ports), `pipeline_authoring_guide`
 - [x] `validate_pipeline` (dry run, warnings), `create_pipeline`, `update_pipeline`
 - [x] `list_memory`, `get_memory`, `put_memory`, `delete_memory` (feature-gated)
@@ -760,7 +862,8 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 - [ ] No `delete_pipeline`, and no restore of an earlier version
 - [ ] No write tools for assets, tags, tasks, comments or annotations
 - [ ] No tools for users/roles/groups, embeddings, GraphQL, processor status
-- [ ] No visual types beyond `pipeline-graph` (asset previews, run timelines, charts)
+- [x] Asset visuals — `show_asset` embeds a playable viewer, the search tools carry their result set
+- [ ] No visual types beyond those and `pipeline-graph` / `job-card` (run timelines, charts)
 
 ### 13.5 Resources
 
@@ -822,5 +925,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-_Git HEAD revision: `01802c07`_
-_Last updated: 2026-08-16 (`search_assets` and `search_transcript` moved onto the `SearchProvider` SPI: real terms, filters, paging, ranking, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; `SearchToolTest` added; the authorization limitation written down here and in RBAC.md). Earlier: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_
+_Git HEAD revision: `6653bbe8`_
+_Last updated: 2026-09-23 (`generate_image`: image generation and editing from the chat window, the `GENERATE_MCP_IMAGE` permission and `V2.111`, `ProducedAssetIngestor`, and §5.1.1 on why it reuses `asset-viewer` rather than adding an `image` visual). Earlier: 2026-08-16 (`search_assets` and `search_transcript` moved onto the `SearchProvider` SPI: real terms, filters, paging, ranking, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; `SearchToolTest` added; the authorization limitation written down here and in RBAC.md). Earlier: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

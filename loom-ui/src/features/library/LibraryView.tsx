@@ -5,7 +5,7 @@ import {
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
   InputAdornment,
 } from "@mui/material";
-import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined, EditOutlined } from "@mui/icons-material";
+import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, EditOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
 import DurationBadge from "../../components/DurationBadge";
@@ -23,12 +23,12 @@ import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
 import { assetTypeFromMime, durationSeconds } from "../assets/assetMapping";
 import { clampOffset, hasNextPage } from "../search/searchHits";
-import { useSpace } from "../../context/SpaceContext";
 import { useSearch } from "../../context/SearchContext";
 import { useToast } from "../../context/ToastContext";
 import { useFailure } from "../../context/FailureContext";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
+import HelpHint from "../../components/HelpHint";
 import { AssetType, SEARCH_PAGE_SIZE } from "../../types";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
@@ -111,7 +111,6 @@ function readLastLibrary(): string | null {
 }
 
 export default function LibraryView() {
-  const { activeSpace } = useSpace();
   const { showToast } = useToast();
   const { reportFailure } = useFailure();
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -413,9 +412,11 @@ export default function LibraryView() {
             <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("library.title")}</Typography>
-                <Tooltip title={t("library.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+                {/* Was an inert tooltip over a question mark, under a second line reading "All
+                    Spaces". The line said nothing — there is a space switcher — and the icon
+                    looked like a link and was not one. */}
+                <HelpHint topic="library" description={t("library.tooltip.info")} />
               </Box>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }} noWrap>{activeSpace?.name ?? "All Spaces"}</Typography>
             </Box>
           </Box>
           <Tooltip title={t("library.tooltip.newLibrary")}>

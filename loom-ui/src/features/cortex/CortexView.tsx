@@ -8,10 +8,11 @@ import {
   MemoryOutlined, StorageOutlined,
   MoreVertOutlined, PauseOutlined, PlayArrowOutlined,
   StopOutlined, RestartAltOutlined, DnsOutlined,
-  SearchOutlined, HelpOutlineOutlined, TuneOutlined, DeleteOutlineOutlined,
+  SearchOutlined, TuneOutlined, DeleteOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -22,6 +23,7 @@ import {
 import { subscribeProcessorEvents, ProcessorEventMessage } from "../../api/pipelineEvents";
 import { nodeIdOf } from "../pipeline/nodePicker";
 import { ListSortControl, sortLocally, type SortState } from "../../components/ListControls";
+import { gigabytes, loadColor, memoryPct, pct, pctOrNull, vramOf, type Vram } from "./workerStats";
 
 interface WorkerNode {
   id: string;
@@ -29,7 +31,15 @@ interface WorkerNode {
   host: string;
   priority: number;
   status: "online" | "offline" | "starting" | "terminating" | "paused";
-  stats: { cpu: number; gpu: number; io: number; memory: number };
+  stats: { cpu: number; gpu: number | null; io: number; memory: number };
+  /**
+   * Video memory, as the worker reported it.
+   *
+   * Null throughout when the worker has no card, which is not the same statement as 0% — a
+   * CPU-only worker with an empty VRAM bar would read as the emptiest GPU on the fleet.
+   */
+  vram: Vram | null;
+  gpuName?: string;
   capabilities: ("GPU" | "CPU" | "IO")[];
   nodeWhitelist: string[];
   nodeBlacklist: string[];
@@ -38,16 +48,6 @@ interface WorkerNode {
 }
 
 // ── Map a REST/live processor snapshot to the card render shape ────────────
-function pct(v?: number): number {
-  return Math.max(0, Math.min(100, Math.round(v ?? 0)));
-}
-
-function memoryPct(p: Processor): number {
-  const used = p.systemStatus?.memoryUsed;
-  const total = p.systemStatus?.memoryTotal;
-  if (!used || !total || total <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((used / total) * 100)));
-}
 
 function processorToWorker(p: Processor): WorkerNode {
   return {
@@ -58,10 +58,12 @@ function processorToWorker(p: Processor): WorkerNode {
     status: (p.state ? p.state.toLowerCase() : "offline") as WorkerNode["status"],
     stats: {
       cpu: pct(p.systemStatus?.cpuLoad),
-      gpu: pct(p.systemStatus?.gpuLoad),
+      gpu: pctOrNull(p.systemStatus?.gpuLoad),
       io: pct(p.systemStatus?.ioLoad),
       memory: memoryPct(p),
     },
+    vram: vramOf(p),
+    gpuName: p.systemStatus?.gpuName,
     capabilities: p.capabilities ?? [],
     nodeWhitelist: p.nodeWhitelist ?? [],
     nodeBlacklist: p.nodeBlacklist ?? [],
@@ -103,20 +105,22 @@ const ringColor = {
 };
 
 // ── Health Meter SVG — concentric ring arcs ───────────────────────────────
-function HealthMeter({ cpu, gpu, io, size = 48 }: { cpu: number; gpu: number; io: number; size?: number }) {
+function HealthMeter({ cpu, gpu, io, size = 48 }: { cpu: number; gpu: number | null; io: number; size?: number }) {
   const cx = size / 2;
   const cy = size / 2;
 
   const rings = [
-    { value: gpu, color: ringColor.gpu, label: "GPU", radius: size / 2 - 3 },
-    { value: cpu, color: ringColor.cpu, label: "CPU", radius: size / 2 - 8 },
-    { value: io, color: ringColor.io, label: "IO", radius: size / 2 - 13 },
-  ].filter(r => r.value > 0 || r.label === "CPU");
+    // A worker with no card draws no GPU ring at all. A ring at zero says "idle", which is a
+    // claim about a device that is not there.
+    { value: gpu ?? 0, color: ringColor.gpu, label: "GPU", radius: size / 2 - 3, present: gpu != null },
+    { value: cpu, color: ringColor.cpu, label: "CPU", radius: size / 2 - 8, present: true },
+    { value: io, color: ringColor.io, label: "IO", radius: size / 2 - 13, present: true },
+  ].filter(r => r.present && (r.value > 0 || r.label === "CPU"));
 
   const avg = Math.round(rings.reduce((s, r) => s + r.value, 0) / rings.length);
 
   return (
-    <Tooltip title={`CPU: ${cpu}% · GPU: ${gpu}% · IO: ${io}%`}>
+    <Tooltip title={`CPU: ${cpu}% · GPU: ${gpu == null ? "—" : `${gpu}%`} · IO: ${io}%`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={cx} cy={cy} r={size / 2 - 8} fill={tokens.bg.overlay} />
         {rings.map(r => (
@@ -290,10 +294,9 @@ function WorkerCard({ worker, now, nodeKinds, onChangeStatus, onSaveRestrictions
             </Tooltip>
           )}
         </Box>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           {[
             { label: "CPU", value: worker.stats.cpu, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
-            ...(worker.capabilities.includes("GPU") ? [{ label: "GPU", value: worker.stats.gpu, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> }] : []),
             { label: "IO", value: worker.stats.io, icon: <StorageOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
             { label: "MEM", value: worker.stats.memory, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
           ].map(s => (
@@ -302,6 +305,39 @@ function WorkerCard({ worker, now, nodeKinds, onChangeStatus, onSaveRestrictions
               <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>{s.label} {s.value}%</Typography>
             </Box>
           ))}
+
+          {/* GPU and VRAM, and only when the worker actually reported them.
+
+              Shown on their own terms rather than as two more entries in the row above, because
+              they are what decides whether a model will run here at all: utilisation says
+              whether the card is busy, video memory says whether there is room, and a card can
+              be idle with no room left — a model resident between jobs is exactly that. The
+              figures carry the colour rather than the label, so a saturated worker is findable
+              by scanning the column. The gate used to be `capabilities.includes("GPU")`, which
+              is what a worker advertises it can *run*, and the cortex daemon never filled the
+              load in at all, so this row was empty even on a box with four cards. */}
+          {worker.stats.gpu != null && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+              data-testid={`worker-gpu-${worker.id}`} data-gpu-load={worker.stats.gpu}>
+              <MemoryOutlined sx={{ fontSize: 12, color: tokens.primary.main }} />
+              <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 600, color: loadColor(worker.stats.gpu) }}>
+                GPU {worker.stats.gpu}%
+              </Typography>
+            </Box>
+          )}
+          {worker.vram && (
+            <Tooltip arrow title={worker.gpuName ?? t("cortex.vram.tooltip")}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                data-testid={`worker-vram-${worker.id}`} data-vram-pct={worker.vram.pct}>
+                <MemoryOutlined sx={{ fontSize: 12, color: tokens.primary.main }} />
+                <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 600, color: loadColor(worker.vram.pct) }}>
+                  {/* Both units, deliberately: the percentage is how full it is and the
+                      gigabytes are whether the next model fits, and neither answers the other. */}
+                  VRAM {worker.vram.pct}% · {gigabytes(worker.vram.usedBytes)} / {gigabytes(worker.vram.totalBytes)}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
         </Box>
       </Box>
 
@@ -504,7 +540,6 @@ export default function CortexView() {
     }
   };
 
-  const onlineCount = workers.filter(w => w.status === "online").length;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -512,8 +547,7 @@ export default function CortexView() {
       <ViewHeader
         icon={<DnsOutlined />}
         title={t("cortex.title")}
-        meta={<Tooltip title={t("cortex.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>}
-        subtitle={t("cortex.count.online", { online: onlineCount, total: workers.length })}
+        meta={<HelpHint topic="cortex" description={t("cortex.tooltip.info")} />}
       >
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <TextField

@@ -238,7 +238,7 @@ Port ids only; content types and cardinality are in
 | `sam2` | `Sam2Node` · sam2 | image, video | `image` \| `video`, `detections` (MANY, opt) → `masks` (MANY), `segments`, `overlay`, `mask_count`, `flag` | ledger only | sidecar `9130` |
 | `scene-layout` | `SceneLayoutNode` · scene-layout | image | `depth`, `detections` (MANY) → `result`, `object_count`, `relation_count` | `asset_json_comp` | **none** (geometry) |
 | `dominant-color` | `DominantColorNode` · dominant-color | image | `media`, `detections` (MANY, opt) → `result`, `hex`, `term`, `name_en`, `name_de`, `region_count` | `asset_json_comp` | **none** (arithmetic) |
-| `imagegen` | `ImageGenNode` · image-generation | image | `prompt`, `media` → `image`, `flag` | ledger only | sidecar `9200`/`9210` |
+| `imagegen` | `ImageGenNode` · image-generation | image | `prompt`, `media`, `references` (MANY), `mask` → `image`, `flag` | ledger only | sidecar `9200`/`9210`/`9230` |
 | `videogen` | `VideoGenNode` · video-generation | image | `prompt`, `media` → `video`, `flag` | ledger only | sidecar `9220` |
 | `watermark` | `WatermarkNode` · watermark | image, video | `media` → `image` \| `video`, `flag` | ledger only | **`ffmpeg`/`ffprobe`** |
 | `image-manipulation` | `ImageManipulationNode` · image-manipulation | image | `image`, `detections` (MANY, opt) → `image`, `geometry`, `flag` | ledger only | **none** (ImageIO/Graphics2D) |
@@ -304,8 +304,11 @@ Notes worth knowing:
 - **`move` and `assign` are two kinds on purpose.** A collection has no path and no bytes, so adding
   an asset to one is a join row, not a relocation. One kind doing either depending on a parameter
   would be a node nobody could reason about - and the failure modes are not comparable.
-- **Two sidecars serve `imagegen`**: `ideogram-sidecar` (`9200`, SDXL-Turbo, non-commercial weights)
-  and `mage-flow-sidecar` (`9210`, MIT weights). Same HTTP contract; pick via the `port` option.
+- **Three sidecars serve `imagegen`**: `ideogram-sidecar` (`9200`, SDXL-Turbo, non-commercial
+  weights), `mage-flow-sidecar` (`9210`, MIT weights) and `qwen-image-sidecar` (`9230`,
+  Qwen-Image-2.1, non-commercial). Same HTTP contract; pick via the `port` option. **Only the qwen
+  one serves `/edit` and `/mask`**, so the `EDIT` and `MASK` modes fail against the other two with
+  their 404 - the node never calls `/health`, so it cannot warn you first.
 
 ### 3.2 Source nodes (`AbstractPipelineNode implements MediaSourceNode`)
 
@@ -612,7 +615,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `metadata` | `includeRaw` (false), `rawMaxKeys` (500), `rawMaxValueBytes` (4096), `readXmpSidecar` (true), `writeGeoComponent` (true), `gpsTrackMaxSamples` (1000), `gpsPolicy` (`KEEP`\|`ROUND`\|`DROP`), `gpsRoundDecimals` (2), `emitText` (true), `licenseDetection` (true), `dateFallback` (`NONE`\|`FILESYSTEM`), `excludeKeys` (`[]`). ⚠️ Read from the **node definition**, not the worker YAML — see §6.5 |
 | `scene-layout` | `allowLoomFallback` (true), `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (true) |
 | `dominant-color` | `clusterCount` (5), `maxSamples` (40000), `maxIterations` (30), `convergenceEpsilon` (0.5), `seed` (42), `alphaThreshold` (128), `minRegionPixels` (64), `maxRegions` (32), `includeWholeImage` (true), `useDetections` (true), `regionX/Y/W/H` (0.0), `regionCoordinates` (`NORMALIZED`), `achromaticChroma` (12.0), `blackLightness` (20.0), `whiteLightness` (85.0), `emitPalette` (true) |
-| `imagegen` | `mode` (`GENERATE`\|`REMIX`), `prompt` (``), `host` (`localhost`), `port` (9200), `generateEndpoint` (`/generate`), `remixEndpoint` (`/remix`), `width`/`height` (1024), `strength` (0.6), `seed` (null), `steps` (30), `timeoutMs` (120000) |
+| `imagegen` | `mode` (`GENERATE`\|`REMIX`\|`EDIT`\|`MASK`), `prompt` (``), `maskPrompt` (``), `negativePrompt` (``), `trueCfgScale` (1.0), `host` (`localhost`), `port` (9200), `generateEndpoint` (`/generate`), `remixEndpoint` (`/remix`), `editEndpoint` (`/edit`), `maskEndpoint` (`/mask`), `width`/`height` (1024), `outputResolution` (1024), `composite` (false), `strength` (0.6), `seed` (null), `steps` (30), `timeoutMs` (120000) |
 | `videogen` | `mode` (`GENERATE`\|`ANIMATE`), `prompt`, `negativePrompt`, `host` (`localhost`), `port` (9220), `generateEndpoint` (`/generate`), `animateEndpoint` (`/animate`), `width` (768), `height` (512), `numFrames` (49), `fps` (24), `steps` (40), `guidance` (4.0), `seed` (null), `timeoutMs` (1800000) |
 | `watermark` | `watermarkBase64` (``), `relX`/`relY` (0.95), `scale` (0.20), `opacity` (1.0), `videoCodec` (`libx264`), `videoCrf` (23), `videoPreset` (`medium`), `ffmpegPath`/`ffprobePath`, `timeoutMs` (600000) |
 | `script` | `engine` (`js`), `script` (null), `outputs` (`[]` — declared `{key,type[,segmentType]}`), `params` (`{}`), `trusted` (true), `allowNetwork`/`allowFilesystem` (false), `statementLimit` (10_000_000), `maxOutputBytes` (1048576), `maxLogLines` (200), `timeoutMs` (10000), `requiredInputs` ⚠️ |
@@ -917,7 +920,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`, `bulkTagAsset`) |
 | Per-node end-to-end ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` |
 | Test scaffolding | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/` |
-| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `imagegen` 9200/9210, `videogen` 9220) |
+| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `imagegen` 9200/9210/9230, `videogen` 9220) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Customer-facing node docs | `website/content/english/docs/nodes/<kind>/index.adoc` |
 | Per-node design specs | `spec/features/nodes/<kind>/NODE_*.md` |

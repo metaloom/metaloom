@@ -188,6 +188,7 @@ import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagRatingRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingResponse;
+import io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.loom.rest.model.notification.NotificationListResponse;
@@ -533,6 +534,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> untagAsset(AssetId assetId, UUID tagUuid) {
 		return deleteRequest(assetPath(assetId) + "/tags/" + tagUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TagResponse> updateTagPlacement(AssetId assetId, UUID placementUuid, TagPlacementUpdateRequest request) {
+		return putRequest(assetPath(assetId) + "/tag-placements/" + placementUuid, request, TagResponse.class);
 	}
 
 	@Override

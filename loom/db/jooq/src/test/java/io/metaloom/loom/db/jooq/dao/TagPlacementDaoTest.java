@@ -170,6 +170,61 @@ public class TagPlacementDaoTest extends AbstractJooqTest {
 		assertNotNull(getDao().load(person.getUuid()), "Removing a placement must not delete the tag");
 	}
 
+	/**
+	 * Moving a placement keeps its identity, and keeps the fields the caller left alone.
+	 *
+	 * <p>
+	 * A reviewer dragging one end of a region tag along a video timeline sends that end and nothing else. The other end must survive, and so must
+	 * the placement uuid - re-attaching under a new one would replace who attached the tag and when with whoever happened to drag it.
+	 * </p>
+	 */
+	@Test
+	public void testUpdatePlacementMovesOneEdgeAndKeepsTheRest() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		AssetTag chorus = getDao().createAssetTag(user, "chorus", "music");
+		getDao().resolveOrCreateAssetTag(chorus);
+		chorus.setTimeFrom(10_000L);
+		chorus.setTimeTo(20_000L);
+		getDao().tagAsset(chorus, asset);
+		UUID placement = chorus.getPlacementUuid();
+
+		AssetTag move = getDao().createAssetTag(user, "", "");
+		move.setTimeTo(31_500L);
+		AssetTag moved = getDao().updatePlacement(asset, placement, move);
+
+		assertNotNull(moved, "Moving an existing placement must answer with it");
+		assertEquals(placement, moved.getPlacementUuid(), "The placement keeps its identity");
+		assertEquals(31_500L, moved.getTimeTo());
+		assertEquals(10_000L, moved.getTimeFrom(), "A field the caller left null keeps its stored value");
+		assertEquals(1, getDao().assetTags(asset).stream().filter(t -> t.getUuid().equals(chorus.getUuid())).count(),
+			"Moving must not create a second placement");
+	}
+
+	/** Moving a placement is scoped by asset for the same reason removing one is. */
+	@Test
+	public void testUpdatePlacementIsScopedByAsset() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		AssetTag tag = getDao().createAssetTag(user, "scoped-move", "quality");
+		getDao().resolveOrCreateAssetTag(tag);
+		tag.setTimeFrom(1_000L);
+		tag.setTimeTo(2_000L);
+		getDao().tagAsset(tag, asset);
+		UUID placement = tag.getPlacementUuid();
+
+		AssetTag move = getDao().createAssetTag(user, "", "");
+		move.setTimeTo(9_000L);
+		assertNull(getDao().updatePlacement(otherAsset(), placement, move),
+			"A placement of another asset must not be movable");
+		assertEquals(2_000L, getDao().assetTags(asset).stream()
+			.filter(t -> t.getUuid().equals(tag.getUuid()))
+			.findFirst().orElseThrow().getTimeTo(),
+			"The region must survive the attempt");
+	}
+
 	/** A placement uuid alone must not reach across assets. */
 	@Test
 	public void testRemovePlacementIsScopedByAsset() {

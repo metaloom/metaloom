@@ -34,8 +34,15 @@ export default function DetectionManagement() {
         </Tabs>
       </ViewHeader>
 
-      {/* Tab content */}
-      <Box sx={{ flex: 1, overflow: "hidden" }}>
+      {/* Tab content.
+
+          `overflow: visible`, not `hidden`: each panel below clips and scrolls itself, and the
+          only thing the hidden here ever cut off was the thumbnail slider's value bubble, which
+          pops *up* out of the toolbar and into this band's top edge. `minHeight: 0` is what the
+          hidden was silently providing — a column flex item defaults to `min-height: auto` and
+          would otherwise refuse to shrink below its content. The stacking context puts whatever
+          escapes above the header rather than behind it. */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
         {tab === 0 && <FaceDetectionManagement embedded />}
         {tab === 1 && <ObjectDetectionManagement />}
         {tab === 2 && <LLMDetectionManagement />}

@@ -156,6 +156,35 @@ export async function tagAsset(
   return handleResponse<TagResponse>(res);
 }
 
+/** Body for {@link updateTagPlacement}. Fields left unset keep their stored value. */
+export interface TagPlacementUpdateRequest {
+  area: AreaInfo;
+}
+
+/**
+ * Move one placement of a tag to a different region of the asset.
+ *
+ * Not "untag, then tag again with the new area": that would mint a new placement uuid and record
+ * whoever dragged the handle as the person who attached the tag. A region being wrong is a
+ * different statement from a tag being wrong.
+ */
+export async function updateTagPlacement(
+  token: string,
+  assetUuid: string,
+  placementUuid: string,
+  request: TagPlacementUpdateRequest,
+): Promise<TagResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tag-placements/${encodeURIComponent(placementUuid)}`,
+    {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    },
+  );
+  return handleResponse<TagResponse>(res);
+}
+
 /** Remove a tag from an asset (204). */
 export async function untagAsset(token: string, assetUuid: string, tagUuid: string): Promise<void> {
   const res = await fetch(

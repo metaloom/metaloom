@@ -695,8 +695,14 @@ function FaceDetectionMode({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
-      {/* The media, with the boxes that belong to the moment on screen. */}
-      <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden" }}>
+      {/* The media, with the boxes that belong to the moment on screen.
+
+          `flexShrink: 0` is load-bearing. This is a column flex item, and a flex item defaults to
+          shrinking when the column's contents do not fit — which they do not, once the timeline
+          and the cluster strip below are on screen. It shrank, and because it also clips, what it
+          cut off was the bottom of the player: the transport bar. Hence "the player is clipped and
+          I don't see the controls". The page scroller above is what should absorb the overflow. */}
+      <Box sx={{ position: "relative", flexShrink: 0, bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden" }}>
         {isVideo ? (
           <AssetVideoPlayer
             ref={playerRef}

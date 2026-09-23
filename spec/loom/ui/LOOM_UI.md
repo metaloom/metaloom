@@ -409,10 +409,31 @@ scrubber.
 
 Two consequences the player has to carry:
 
-* **Seeking is a re-request.** `seekTo` writes `currentTime` when the target is inside
-  `video.seekable` and otherwise sets `streamOffset`, which re-requests with `?t=`;
-  `key={streamUrl}` forces a fresh element, and `onTimeUpdate` adds the offset back so everything
+* **Seeking is a re-request, and the clock's origin comes from the server.** `seekTo` writes
+  `currentTime` when the target is inside `video.seekable`; otherwise it asks
+  `GET /assets/:uuid/stream-start?t=<target>` where a stream requested there would actually begin,
+  and re-requests **at `target`** with the clock's origin set to the answer. The component holds
+  the two as one piece of state (`{at, origin}`) precisely so they cannot drift apart:
+  `key={streamUrl}` forces a fresh element and `onTimeUpdate` adds `origin` back, so everything
   outside the component talks in absolute asset time.
+
+  Sending the answer back as `?t=` is the tempting simplification and is wrong: ffmpeg subtracts a
+  seek margin before it looks, so a keyframe time handed straight back lands on the keyframe
+  *before* it and the clock ends up further out than it started.
+
+  The origin must be the server's answer and never the position that was asked for. A stream copy
+  can only begin on a keyframe, so a request for 604.5 s yields a response beginning at 599.599 s;
+  taking the requested figure as the origin ran the clock up to five seconds fast for the whole of
+  that response, and every time-addressed thing beside the picture reads the clock — the transcript
+  highlighted a line nobody had reached, a face box appeared before the face, clicking a phrase
+  played something else. Reported as "the audio is out of sync with the transcript". The lookup is
+  an index seek (~30 ms), it is skipped entirely at offset zero, and a failed one falls back to the
+  requested offset rather than leaving the seek half-applied. Overlapping lookups are ordered by a
+  nonce, so a slow answer cannot overwrite a newer seek. Background:
+  [../../features/rest/REST_BINARY_HANDLING.md](../../features/rest/REST_BINARY_HANDLING.md) §7.3.3.
+
+  Offsets are **fractional** throughout — keyframes are. `seekTo` used to floor its target on the
+  way into the URL, a quarter-second error stacked on top of the keyframe one.
 * **The duration has to be supplied.** The element cannot answer — a pipe reports whatever has
   arrived, which made a 43-minute episode's timeline read `0:05`. Nor can the asset:
   **`asset_video_comp` has no producer**, so `asset.duration` is empty for every ingested file.
@@ -459,12 +480,19 @@ that clicking a face behaves the same in both. Three rules, each of which was a 
   keyframe still shows the box) plus whichever face was clicked, which is pinned. Without the
   window, every detection in an episode is drawn on one frame at once, which is what "the bounding
   boxes are just overlapped and make no sense" was.
-* **A click seeks a beat early and the box flashes on arrival.** `FACE_FLASH_MS` (250 ms) is both
-  the lead-in and the decay: seeking to the detection's own frame arrives with the moment already
-  past. `useFaceFlash` arms the highlight on a timer rather than watching `timeupdate` cross the
-  frame — a remuxed seek lands on a keyframe some seconds early, and with the player paused (the
-  usual case while picking through a cluster) the crossing never happens at all. The animation is
-  keyed on a nonce so clicking the same crop twice flashes twice.
+* **A click seeks a beat early and the box flashes on arrival.** `FACE_FLASH_MS` (250 ms) is the
+  **lead-in**: seeking to the detection's own frame arrives with the moment already past.
+  `useFaceFlash` arms the highlight on a timer rather than watching `timeupdate` cross the frame —
+  a remuxed seek lands on a keyframe some seconds early, and with the player paused (the usual
+  case while picking through a cluster) the crossing never happens at all. The animation is keyed
+  on a nonce so clicking the same crop twice flashes twice.
+* **The highlight is a gesture, not a state change.** `FACE_FLASH_DURATION_MS` (1200 ms) is how
+  long it runs, and it is deliberately *not* the lead-in. The two were one number, so the box
+  faded from a ring to nothing in 250 ms: by the time the eye reached the picture it had been and
+  gone, and what the reviewer saw was a box that had changed colour. The keyframes now fade the
+  box in from transparent, peak at a 11px ring around 40%, and fade back out — and `useFaceFlash`
+  holds the state for the full duration rather than dropping it at 250 ms, which used to cut the
+  animation off at its brightest point.
 * **The percentages are of the picture, not of the box around it.** A bounding box arrives as
   fractions of the *image*; the overlay used to position against the element containing it, and
   with `object-fit: contain` the two are only the same rectangle when the aspect ratios match. On
@@ -521,10 +549,29 @@ it directly rather than through a wrapper that would reintroduce the churn.
 
 ### 7.2.3 The asset-detail sidebar
 
-The split defaults to **70/30** and clamps to 30–94. The tab strip drops its labels below
-`SIDEBAR_ICON_ONLY_PX` (**380**) and keeps the icons, with the label surviving as the `title` and
-`aria-label`; `data-compact` on `[data-testid=asset-sidebar]` is what a test reads. The strip is
-`variant="scrollable"`, so the labels are no longer a floor on how far the divider can travel.
+The split defaults to **70/30** and clamps to 30–94 — and to a second ceiling the drag computes,
+below.
+
+The tab strip drops its labels below `SIDEBAR_ICON_ONLY_PX` (**380**) and keeps the icons, with
+the label surviving as the `title` and `aria-label`; `data-compact` on
+`[data-testid=asset-sidebar]` is what a test reads.
+
+**The constant is only the opening guess; the strip is measured.** It is `variant="scrollable"`,
+so when the words do not fit it neither wraps nor ellipsises — it scrolls, and the tabs past the
+edge are simply not there. At a width just above 380 that meant six labels of which two were off
+the end. An effect compares the scroller's `scrollWidth` against its `clientWidth` while the
+labels are up: too wide, and the labels go, with the width they needed remembered. Coming back
+needs that remembered figure plus `TAB_LABEL_SLACK_PX` (12), which is what stops the two states
+flip-flopping at the width where they meet — and the slack also absorbs a comment count gaining a
+digit.
+
+**The divider stops before the icons clip.** 94% was the whole ceiling and it was not enough: on a
+wide window 6% is 90 pixels and a strip of six icon-only tabs needs 256, so the last tabs scrolled
+out of the strip and the panels behind them could not be reached at all. The drag now takes
+whichever is tighter — the flat 94%, or the percentage that still leaves
+`tabs × TAB_ICON_ONLY_PX (40) + TAB_STRIP_PADDING_PX (16)` for the strip. Those two constants
+repeat the `minWidth` and `px` the icon-only `<Tab>` is given, because the divider has to know the
+answer before the strip is rendered at the new width.
 
 380, and bounded on both sides. At 300 the labels survived through the whole range anybody would
 call narrow and only vanished once the sidebar was a sliver; at 420 they were gone at the
@@ -569,9 +616,24 @@ off the bottom of an `overflow: hidden` pane with **no way to reach them at all*
 28px marker bar; the point markers moved to 25% so the two never overlap. They fade
 (`data-visible` on `[data-testid=video-timeline-transcript]`) rather than appear, and they are
 shown only while the transcript section below is unfolded — tiles that point into a panel nobody
-has open are decoration competing with the markers for the same bar. Clicking one seeks. The
-colours are `TRANSCRIPT_SECTION_COLORS`, exported from `TranscriptPanel` so the tile and its
-section are recognisably the same thing.
+has open are decoration competing with the markers for the same bar. The colours are
+`TRANSCRIPT_SECTION_COLORS`, exported from `TranscriptPanel` so the tile and its section are
+recognisably the same thing.
+
+**Clicking a tile does three things, and skipping any one of them is the bug.** `revealTranscriptAt`
+seeks, opens the transcript fold (`useSectionState.expand`, distinct from `toggle` — following a
+link into a section must not close one that is already open), and scrolls the chapter into view.
+The third is what was missing: on a 43-minute episode the chapter is several screens down the
+section scroller, so a click that silently repainted a highlight below the fold read as a click
+that did nothing. `TranscriptPanel` takes `reveal={{time, nonce}}`; the nonce is what makes the
+same tile clicked twice scroll twice, since the time alone would be an unchanged prop. The panel
+scrolls **twice** — once on the next frame and once after 340 ms — because the fold it is inside
+may still be animating open, and a `scrollIntoView` against a box that has not finished growing
+lands in the wrong place. The chapter wears a ring for `TRANSCRIPT_REVEAL_MS` (1600);
+`data-revealed` is what a test reads. The running highlight needs nothing extra — it follows
+`currentTime`, so it keeps up once playback resumes.
+
+`TranscriptSearchPanel` hits go through the same path, for the same reason.
 
 ### 7.2.4 Transcripts: two shapes, one panel
 
@@ -943,8 +1005,22 @@ HelpHint topic="pipeline.editing"
 > `DetectionManagement` picks by tab. One fixed hint per screen would point at the wrong review mode
 > five times out of six, which is the failure the feature exists to prevent.
 
-Who carries one today: `ChatWorkspace`, `MemoryView`, `SearchView`, `UploadView`, `PipelineEditor`,
-`DetectionManagement`, `WorkflowView`, `AccessControlAdmin`.
+**Every view header carries one.** Not a policy for new screens — the current state: `ChatWorkspace`,
+`MemoryView`, `SearchView`, `UploadView`, `PipelineEditor`, `DetectionManagement`, `WorkflowView`,
+`AssetBrowser`, `LibraryView`, `CollectionsView`, `TagsView`, `TasksView`, `MonitoringArea`,
+`CortexView`, `AssetPoolsView`, `SkillManagementView`, `ChatSessionsView` and `AdminArea`.
+
+`AdminArea` picks by tab the way `DetectionManagement` does, and for a stronger reason: eleven
+unrelated screens live behind one heading, so a single shortcut to the section landing page would
+be the least useful destination of the eleven. Users, groups, roles and API keys share
+`admin.acl` — they are one question — while spaces, the two deny lists, the search indices, the
+integrity report, the storage pools and the problem-report inbox each have their own topic.
+
+**The hint is also where a screen's one-line explanation lives.** `HelpHint` takes a `description`,
+rendered above the "read the documentation" line in its tooltip. That is where the subtitles went
+(§7.11): a sentence under every heading is a sentence nobody reads twice and a band that is taller
+on every screen, and inside the coachmark it is there the first time somebody wonders and out of
+the way afterwards.
 
 **Two gates, one from each end** — and between them a shortcut cannot break without something going
 red:
@@ -968,10 +1044,22 @@ like moving between applications, and there was nowhere to change "the header" b
 no header — there were twenty.
 
 `ViewHeader` is the band: `icon` (rendered at 20px in `tokens.primary.main`), `title`, and
-optional `meta` (a count or a `HelpHint`, beside the title at caption weight), `subtitle`,
-`actions` (pushed right) and `children` (the filter row, inside the same band). It is deliberately
-not configurable beyond those slots — a header that can be told its font size is one that will
-drift again. `data-testid=view-header` / `view-header-title` / `view-header-icon`.
+optional `meta` (beside the title at caption weight), `subtitle`, `actions` (pushed right) and
+`children` (the filter row, inside the same band). It is deliberately not configurable beyond
+those slots — a header that can be told its font size is one that will drift again.
+`data-testid=view-header` / `view-header-title` / `view-header-icon`.
+
+**What `meta` carries is a `HelpHint`, and nothing else.** The slot existed and three screens each
+put something different in it — Collections a count to the right of the title, Tasks the same count
+underneath it, Uploads, Libraries, Memory and Skills a sentence of description. All three are gone:
+
+* **No count in a header.** It restated the number the list below it already states, in a place
+  that differed per screen, and "how many are there" is not the question anybody opens a screen
+  with. The list owns its own total.
+* **No description under a title.** It moved into the hint's `description` (§7.10).
+* **No space name under a title.** Assets and Libraries each carried one, and the Library rail's
+  read `All Spaces` when none was selected. The active space is the same on every screen in the
+  session and the space switcher already shows it.
 
 The two narrow rails — the library list and the pipeline list — keep their own layout and gained
 only the glyph: a full-width header band does not belong in a 220px column.
@@ -988,6 +1076,66 @@ only the glyph: a full-width header band does not belong in a 220px column.
   three probes at a time, only for videos with no duration, each result remembered as a number or
   as "cannot be measured" so a failure is not retried on every render. The column answers from
   then on. A stored `PROXY`/component written by a node at ingest is still the durable answer.
+
+### 7.13 The timeline is editable, and the region tags on it are too
+
+`VideoTimeline` draws two kinds of thing: **points** and **spans**. Until now a span drew both —
+a band *and* a dot at its start — and the dot sat exactly on top of the band's 8px start handle,
+so the left edge of a region could not be picked up at all. Spans no longer draw a dot; the band
+itself is the click target and carries `data-marker-type`.
+
+**Layering on a 28px bar, and why the band deliberately has no `z-index`.** A positioned element
+with one creates a stacking context, and the band's two drag handles were trapped inside it —
+underneath the transcript tiles, which cover the lower half of the bar whenever the transcript
+fold is open. With the band at `auto` the handles compete in the bar's own context and can be
+raised over the tiles, while the translucent fill still paints below them:
+
+| Layer | `z-index` |
+|---|---|
+| Range band (fill) | auto |
+| Transcript chapter tiles | 2 |
+| Range drag handles (`video-timeline-range-handle`, `data-edge`) | 4 |
+| Point markers | 5, hovered 6 |
+| Playhead | 7 |
+
+**A region tag moves through its placement.** `PUT /assets/:uuid/tag-placements/:placementUuid`
+([RESTAPI.md](../RESTAPI.md)), never untag-and-retag: a tag may sit on one asset several times,
+and re-attaching would mint a new `placementUuid` and record whoever dragged the handle as the
+person who attached the tag.
+
+> **The final position travels as an argument, not as state.** `onMarkerDragEnd` is captured by
+> the drag's own mouse-up listener when the drag *starts*, so anything it reads out of component
+> state is the value from before the move. The annotation branch gets away with it because it
+> mutates its object in place; the tag branch replaces it, which is the correct thing to do to
+> React state and the reason `(markerId, edge, newTime)` carries the answer. `onMarkerDragEnd` is
+> also not called at all when the pointer never moved — a mouse-down and -up is a click, and
+> reporting 0 for it would persist the edge at second zero.
+
+Both the live repaint and the persisted write go through `movedArea` (`features/assetDetail/
+regionTag.ts`, unit-tested), which also keeps the two ends `MIN_REGION_MS` (100) apart. Dragging
+one edge past the other is easy on a timeline where a whole episode is 900 pixels wide, and the
+band then has a negative width — which renders as nothing, so the tag looks as though a slip of
+the mouse deleted it. Spatial fields ride through untouched: a tag can be a box *and* a timecode,
+and the timeline only ever edits the second.
+
+### 7.14 Two more list details
+
+* **A tag row wears its rating.** Ten stars, read-only, and only where there is one — the scale is
+  the server's (`TAG_RATING_MIN`/`MAX`), and a row of grey stars on every one of three hundred
+  tags defeats the point, which is seeing at a glance which ones anybody has judged. Rating one
+  stays in the detail panel; the tree is for reading. A rating is **per user** and `/tags` does
+  not carry one, so the tree asks per tag, `RATING_FETCH_BATCH` (25) at a time, and remembers
+  three states rather than two: a key present with `null` means "asked, unrated" and is what stops
+  the effect asking again on every render.
+* **A worker's GPU is two figures, and neither is a percentage of the other.** `CortexView` shows
+  utilisation *and* video memory — in gigabytes as well as a percentage — because a card can be
+  idle with no room left: a model resident between jobs is exactly that, and it is the state in
+  which the next model will not fit. Both are absent, not zero, on a worker with no card:
+  `pctOrNull` exists beside `pct` for that one reason, and an empty VRAM bar would advertise a
+  CPU-only worker as the emptiest GPU on the fleet. The old gate was
+  `capabilities.includes("GPU")` — which is what a worker advertises it can *run* — and the cortex
+  daemon never filled `gpuLoad` in at all, so the row was empty even on a box with four cards; see
+  `GpuProbe` in `cortex/core`.
 
 ---
 
@@ -1011,7 +1159,7 @@ only the glyph: a full-width header band does not belong in a 220px column.
 | `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `dedup`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
 | `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have; `useUnsavedChanges` — likewise the listener wiring and guard dispatch, not the hooks around them |
 | `src/help/` | `topics` — the coachmark registry, checked against the website's map and both locale files (§7.10). The one test in this tree that reads a file **outside `loom-ui/`**, which it can because the website is the same repository |
-| Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
+| Feature helpers | `assetDetail/regionTag`, `assets/assetMapping`, `chat/pipelineGraphLayout`, `cortex/workerStats`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
 | `src/` (root) | `sourceHygiene` — scans every non-test source through `import.meta.glob(…, { query: "?raw" })` and fails on a `console.*` call whose arguments mention a credential, or on the return of `src/Login/` / `src/index.js` |
 | `src/features/` (root) | `pagedListCoverage` — the same raw-glob trick over `features/**`: every view calling `usePagedList` must render a `<ListPaging>` carrying a unique testid, so a new paged view cannot ship without a way to reach page two (§11.3) |
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { FACE_FLASH_MS } from "../components/FaceBoxes";
+import { FACE_FLASH_DURATION_MS, FACE_FLASH_MS } from "../components/FaceBoxes";
 
 /** What {@link FaceBoxes} needs to animate one box: which, and a nonce to restart on. */
 export interface FaceFlash {
@@ -39,7 +39,10 @@ export function useFaceFlash(leadInMs: number = FACE_FLASH_MS) {
       setFlash({ faceId, nonce: nonce.current });
       timers.current.push(window.setTimeout(() => {
         setFlash(prev => (prev?.faceId === faceId ? null : prev));
-      }, FACE_FLASH_MS));
+        // The animation's length, not the lead-in's: dropping the flash after 250ms used to cut
+        // the fade-out off at its brightest point, which is what made it look like a colour
+        // change rather than a highlight.
+      }, FACE_FLASH_DURATION_MS));
     }, leadInMs));
   }, [clear, leadInMs]);
 

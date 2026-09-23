@@ -105,6 +105,9 @@ public class SearchAssetsTool implements MCPTool {
 
 			JsonArray items = new JsonArray();
 			JsonArray references = new JsonArray();
+			// The same rows a third time, in the shape the chat draws and mirrors into its workspace panel.
+			// Built here rather than derived from the references, which carry no order, no score and no total.
+			AssetResultsVisual visual = new AssetResultsVisual();
 			for (SearchHit hit : result.getHits()) {
 				// For an asset hit the two uuids are the same; reading assetUuid keeps this correct if
 				// the type filter is ever widened.
@@ -118,12 +121,14 @@ public class SearchAssetsTool implements MCPTool {
 				if (assetUuid != null) {
 					references.add(MCPToolResults.reference("asset", assetUuid.toString(), hit.getTitle()));
 				}
+				visual.add(assetUuid, hit.getTitle(), hit.getMimeType(), hit.getSize(), hit.getScore(), null, null);
 			}
 
 			String text = items.isEmpty()
 				? "No assets matched '" + query + "'."
 				: "Found " + items.size() + " of " + result.getTotalHits() + " matching assets for '" + query + "'.\n" + items.encodePrettily();
-			return Future.succeededFuture(MCPToolResults.mcpResultWithReferences(text, references));
+			return Future.succeededFuture(MCPToolResults.mcpResult(text, references,
+				visual.build(query, "search term", result.getTotalHits(), result.isTotalExact())));
 		} catch (Exception e) {
 			return Future.failedFuture(e);
 		}

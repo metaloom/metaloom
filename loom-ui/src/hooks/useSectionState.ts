@@ -51,5 +51,17 @@ export function useSectionState(storageKey: string, defaults: SectionState) {
     setState(prev => ({ ...prev, [id]: !(prev[id] ?? defaults[id] ?? true) }));
   }, [defaults]);
 
-  return { isExpanded, toggle };
+  /**
+   * Open a section without caring what it was.
+   *
+   * Distinct from {@link toggle} because the callers are different in kind: a toggle is somebody
+   * pressing the heading, and this is the screen following a link into a section's contents —
+   * "show me this moment in the transcript" must open the fold, and must not close it when it was
+   * already open.
+   */
+  const expand = useCallback((id: string) => {
+    setState(prev => (prev[id] === true ? prev : { ...prev, [id]: true }));
+  }, []);
+
+  return { isExpanded, toggle, expand };
 }

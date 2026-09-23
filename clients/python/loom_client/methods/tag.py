@@ -11,6 +11,7 @@ from ..models.tag import (
     AssetTagBulkResponse,
     TagCreateRequest,
     TagListResponse,
+    TagPlacementUpdateRequest,
     TagRatingRequest,
     TagRatingResponse,
     TagResponse,
@@ -83,6 +84,26 @@ class TagMethods:
         itself is not deleted.
         """
         return self._delete(f"{self._asset_sub(asset_id)}/tags/{self._uuid(tag_uuid)}")
+
+    def update_tag_placement(
+        self,
+        asset_id: AssetId | _uuid_mod.UUID | str,
+        placement_uuid: _uuid_mod.UUID | str,
+        request: TagPlacementUpdateRequest,
+    ) -> LoomRequest[TagResponse]:
+        """Move one placement of a tag to a different region of the asset.
+
+        Only the region changes: the placement keeps its uuid, who attached it and
+        when. A field the request leaves unset keeps its stored value, so moving one
+        edge of a time range need not restate the other.
+
+        Needs ``TAG_ASSET``.
+        """
+        return self._put(
+            f"{self._asset_sub(asset_id)}/tag-placements/{self._uuid(placement_uuid)}",
+            request,
+            TagResponse,
+        )
 
     def remove_tag_placement(
         self, asset_id: AssetId | _uuid_mod.UUID | str, placement_uuid: _uuid_mod.UUID | str

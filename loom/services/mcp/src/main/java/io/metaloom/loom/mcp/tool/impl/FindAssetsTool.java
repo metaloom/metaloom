@@ -187,6 +187,16 @@ public class FindAssetsTool implements MCPTool {
 
 		JsonArray rendered = new JsonArray(List.copyOf(items.values()));
 		String criteria = plan.applied().isEmpty() ? "no filters" : String.join(", ", plan.applied());
+
+		// The collapsed rows again, in the shape the chat draws and mirrors into its workspace panel.
+		// Built from the collapsed map rather than from the hits, so the panel shows the same files the
+		// answer counts - a transcript row and its asset row are one file in both.
+		AssetResultsVisual visual = new AssetResultsVisual();
+		for (Map.Entry<UUID, JsonObject> entry : items.entrySet()) {
+			JsonObject item = entry.getValue();
+			visual.add(entry.getKey(), item.getString("title"), item.getString("mimeType"), item.getLong("size"),
+				item.getDouble("score"), item.getLong("timeFromMs"), item.getString("snippet"));
+		}
 		// "More" is about the corpus, not about this page: rows already collapsed by dedup are not more
 		// results, and reporting them as such invites a pointless second page.
 		boolean more = result.getTotalHits() > (long) result.getHits().size() + plan.request().getOffset();
@@ -208,7 +218,10 @@ public class FindAssetsTool implements MCPTool {
 		for (String warning : result.getWarnings()) {
 			text.append("\nNote: ").append(warning);
 		}
-		return MCPToolResults.mcpResultWithReferences(text.toString(), references);
+		// The heading the strip and the panel carry: what was asked for, or the filters when there was no term.
+		String label = plan.request().getQuery() == null || plan.request().getQuery().isBlank() ? criteria : plan.request().getQuery();
+		return MCPToolResults.mcpResult(text.toString(), references,
+			visual.build(label, criteria, result.getTotalHits(), result.isTotalExact()));
 	}
 
 	/**

@@ -26,6 +26,7 @@ import io.metaloom.loom.mcp.tool.impl.RunNodeGraphTool;
 import io.metaloom.loom.mcp.tool.impl.RunNodeProbeTool;
 import io.metaloom.loom.mcp.tool.impl.SearchAssetsTool;
 import io.metaloom.loom.mcp.tool.impl.SearchTranscriptTool;
+import io.metaloom.loom.mcp.tool.impl.ShowAssetTool;
 import io.metaloom.loom.mcp.tool.impl.UpdatePipelineTool;
 import io.metaloom.loom.mcp.tool.impl.ValidatePipelineTool;
 
@@ -42,6 +43,7 @@ public class MCPToolModule {
 		SearchAssetsTool searchAssetsTool,
 		FindAssetsTool findAssetsTool,
 		GetAssetTool getAssetTool,
+		ShowAssetTool showAssetTool,
 		SearchTranscriptTool searchTranscriptTool,
 		ListCollectionsTool listCollectionsTool,
 		ListRemixesTool listRemixesTool,
@@ -64,6 +66,8 @@ public class MCPToolModule {
 			// Structured search: the whole question - who, when, where, what kind - not just a term.
 			findAssetsTool,
 			getAssetTool,
+			// The one tool whose answer is a picture rather than a sentence about one.
+			showAssetTool,
 			searchTranscriptTool,
 			listCollectionsTool,
 			// Remixes: the groups of assets that are versions of one another, and what is in one.

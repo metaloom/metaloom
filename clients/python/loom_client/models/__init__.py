@@ -244,6 +244,11 @@ from .library import (
     LibraryResponse,
     LibraryUpdateRequest,
 )
+from .media import (
+    MediaInfoResponse,
+    MediaTokenResponse,
+    StreamStartResponse,
+)
 from .memory import (
     MemoryDenyRuleCreateRequest,
     MemoryDenyRuleListResponse,
@@ -442,6 +447,7 @@ from .tag import (
     AssetTagBulkResponse,
     TagCreateRequest,
     TagListResponse,
+    TagPlacementUpdateRequest,
     TagRatingRequest,
     TagRatingResponse,
     TagReference,
@@ -635,6 +641,8 @@ __all__ = [
     "ListResponse",
     "MODEL_REGISTRY",
     "MediaInfo",
+    "MediaInfoResponse",
+    "MediaTokenResponse",
     "MemoryDenyRuleCreateRequest",
     "MemoryDenyRuleListResponse",
     "MemoryDenyRuleResponse",
@@ -792,9 +800,11 @@ __all__ = [
     "StorageCategoryModel",
     "StorageReportResponse",
     "StorageThresholdsModel",
+    "StreamStartResponse",
     "SystemStatusInfo",
     "TagCreateRequest",
     "TagListResponse",
+    "TagPlacementUpdateRequest",
     "TagRatingRequest",
     "TagRatingResponse",
     "TagReference",

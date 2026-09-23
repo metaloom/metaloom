@@ -53,6 +53,54 @@ export const HELP_TOPICS = {
   "admin.acl": {
     query: "roles and permissions decide who is allowed to do what",
   },
+  assets: {
+    query: "browse the media catalogue open a file and see what is known about it",
+  },
+  library: {
+    query: "organise media into libraries and see what each one holds",
+  },
+  collections: {
+    query: "gather assets into a named collection and share the set",
+  },
+  tags: {
+    query: "tag collections rename a tag move it between collections rate it",
+  },
+  tasks: {
+    query: "work assigned to people with a due date and a state",
+  },
+  persons: {
+    query: "people in your media and the pictures that belong to them",
+  },
+  skills: {
+    query: "instructions you give the agent for a job it should know",
+  },
+  chatSessions: {
+    query: "conversations with the agent kept and returned to later",
+  },
+  monitoring: {
+    query: "how the instance is doing ingest rates run outcomes storage growth",
+  },
+  cortex: {
+    query: "worker machines that run the processing and what they may run",
+  },
+  "admin.spaces": {
+    query: "separate one tenant of media from another with a space",
+  },
+  "admin.pools": {
+    query: "where the bytes live filesystem or object storage and how full",
+  },
+  "admin.denylist": {
+    query: "words and notes the agent must never keep or repeat",
+  },
+  "admin.indices": {
+    query: "the search index rebuilding it and watching it catch up",
+  },
+  "admin.integrity": {
+    query: "checks that look for rows pointing at things that are gone",
+  },
+  "admin.failureReports": {
+    query: "the inbox of problems people reported from inside the product",
+  },
 } as const;
 
 export type HelpTopic = keyof typeof HELP_TOPICS;

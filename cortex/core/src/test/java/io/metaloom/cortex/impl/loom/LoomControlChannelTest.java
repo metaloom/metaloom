@@ -507,6 +507,9 @@ public class LoomControlChannelTest {
 			"cortex_memory_max_bytes",
 			"cortex_cpu_load",
 			"cortex_io_load",
+			"cortex_gpu_load",
+			"cortex_gpu_memory_used_bytes",
+			"cortex_gpu_memory_total_bytes",
 			"cortex_disk_used_bytes",
 			"cortex_disk_total_bytes"), metrics.gauges.keySet());
 	}

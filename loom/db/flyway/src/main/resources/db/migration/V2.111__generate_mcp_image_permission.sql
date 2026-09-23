@@ -1,0 +1,16 @@
+-- Image generation through the assistant: the MCP `generate_image` tool, which calls the
+-- image-generation sidecar directly and ingests the produced PNG as a new asset.
+--
+-- Separate from EXECUTE_MCP_NODE (V2.82) even though both spend GPU time, because this one also
+-- *creates an asset*. A node run leaves a ledger row and some bytes on a worker; this leaves a
+-- permanent, indexable asset in a library that then triggers whatever pipelines match it. An
+-- operator has to be able to grant ad-hoc node execution while withholding the ability to fill a
+-- library from a chat window.
+--
+-- The tool requires this permission in addition to READ_ASSET, READ_ASSET_BINARY and CREATE_ASSET,
+-- so granting it on its own can never widen what a user may read or create.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'GENERATE_MCP_IMAGE';

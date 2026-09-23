@@ -13,6 +13,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { loadPipelineRunStats, PipelineRunDayStats } from "../../api/pipelines";
@@ -256,7 +257,8 @@ export default function MonitoringArea() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      <ViewHeader icon={<MonitorHeartOutlined />} title={t("monitoring.title")} subtitle={t("monitoring.subtitle")} />
+      <ViewHeader icon={<MonitorHeartOutlined />} title={t("monitoring.title")}
+        meta={<HelpHint topic="monitoring" description={t("monitoring.subtitle")} />} />
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         {runStatsError && (

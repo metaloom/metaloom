@@ -390,7 +390,7 @@ The wall is now on the node side only — the byte-ingest endpoints, attachment 
 multipart client methods all exist. Closing it is
 [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) Phase B.
 
-### 7.3 Derived media on demand (`/poster`, `/stream`)
+### 7.3 Derived media on demand (`/poster`, `/stream`, `/stream-start`)
 
 Built 2026-09-20, and it exists **because** §7.2 is still open. With no stored derivative, the UI
 had only the original to point at, which for a 4.5 GB Matroska file means an `<img>` opening a
@@ -400,7 +400,8 @@ tile downloaded the file *and* fell back to a placeholder. Loom now derives both
 | Route | Answers | Cost |
 |---|---|---|
 | `GET /assets/:uuid/poster?t=&w=` | One JPEG frame. `ffmpeg -ss <t> -i … -frames:v 1`, with `-ss` **before** `-i` so it seeks by index rather than decoding — 350 ms on a 4.5 GB file, then cached on disk keyed by `sha512+t+w` and served in 40 ms. An offset past the end falls back to frame 0, because "shorter than five seconds" describes a lot of real media. | one-off per (asset, t, w) |
-| `GET /assets/:uuid/stream?t=` | `video/mp4`, `inline`, chunked. Video is `-c:v copy`, audio `-c:a aac` (AC-3 in MP4 is not playable), `-movflags frag_keyframe+empty_moov+default_base_moof`. | one ffmpeg process **per viewer, for as long as they watch** |
+| `GET /assets/:uuid/stream?t=` | `video/mp4`, `inline`, chunked. Video is `-c:v copy`, audio `-c:a aac` (AC-3 in MP4 is not playable), `-movflags frag_keyframe+empty_moov+default_base_moof`, and `-noaccurate_seek` (§7.3.3). `t` is **fractional** — keyframes are. | one ffmpeg process **per viewer, for as long as they watch** |
+| `GET /assets/:uuid/stream-start?t=` | `{requested, start}`: where a stream requested at `t` will actually begin. Measured by **performing the seek** and reading the first frame (`-noaccurate_seek -ss <t> -copyts … -f framemd5`), not predicted from the index. §7.3.3. | ~180 ms, one decoded frame |
 
 Three limits, all deliberate and all visible rather than silent:
 
@@ -472,6 +473,72 @@ The one exception is `s3-sink`, which uploads to a bucket named in the pipeline 
 registers the artefact as a new asset — see that plan's §7 B5.
 
 ---
+
+#### 7.3.3 Where a stream really begins — `GET /assets/:uuid/stream-start`
+
+Added 2026-09-21, after "the video is out of sync with the audio, and the audio is out of sync with
+the transcript" turned out to be **one** defect with two faces.
+
+A stream-copied video can only begin on a keyframe. Asking `/stream?t=604.5` of a file whose
+keyframes fall every few seconds yields a response whose first picture is 599.599 — correct bytes,
+but the player had no way to learn it and therefore assumed the response began where it asked. The
+clock was then fast by the distance back to the keyframe for the whole of that response, and
+everything drawn against time read the clock: the transcript highlighted a line nobody had reached,
+a face box appeared before the face. Measured on an ordinary broadcast rip the keyframe spacing is
+2.7–5 s, which is exactly the size of error a viewer reads as "out of step" rather than "broken".
+
+Two changes, and both are needed — either alone leaves a visible defect:
+
+1. **`-noaccurate_seek` on the stream.** An input seek lands on the keyframe; with accurate seeking
+   ffmpeg then trims the *audio* — which it is decoding anyway — to the offset that was asked for,
+   so the tracks start in different places and ffmpeg fills the difference with silence. Measured
+   on a synthetic clip with 10 s keyframes and a frequency-coded soundtrack: seeking to 25 s gave
+   picture from 20 s and **no audio at all until 25 s**, then correct sync. That silent lead-in is
+   the "video out of sync with the audio" half. Turning accurate seeking off starts both tracks at
+   the keyframe together — drift measured at 0.00 s.
+2. **The route.** The player asks where a stream near `t` would start, and uses the answer as the
+   origin of its clock — while still requesting the stream at the offset it wanted. See the two
+   traps below; both were hit, and each is worth seconds.
+
+##### The two traps
+
+**Predicting the keyframe does not work.** The cheap implementation asks
+`ffprobe -read_intervals "<t>%+#1"` for the keyframe at or before `t` — one index seek, ~30 ms —
+and it disagrees with ffmpeg. For a container that cannot seek by presentation timestamp (Matroska
+among them) ffmpeg subtracts a margin of `3/23`s from the requested timestamp before seeking,
+whenever the video carries B-frames. An offset landing in that ~130 ms window goes back an extra
+group of pictures; ffprobe has no such margin. Measured on a real episode: `-ss 604.5` lands on the
+keyframe at 601.518, and so does the index prediction — they agree. But `-ss 601.518` lands on
+**596.513**, and the prediction still says 601.518.
+
+So the route performs the seek instead of predicting it — same binary, same input flags as the
+stream, one decoded frame, `-copyts` to keep the source's clock and `framemd5` to carry the
+timestamp on stdout rather than through a log level. ~180 ms on a 4.5 GB, 43-minute episode.
+`AssetMediaEndpointService.firstFramePts` parses it; the timebase header is the part that must not
+be dropped, since the raw timestamp of that frame is `14422` and only the `1001/24000` beside it
+makes it 601 seconds.
+
+**The client must not send the answer back as `t`.** It is the natural next thought — snap the
+request to the keyframe the server just named — and it is exactly the case above: the second seek
+subtracts the margin again and lands a whole group of pictures earlier, so the clock is wrong by
+*more* than before the route existed. `start` is the origin of the player's clock and nothing else;
+the request keeps carrying the position the viewer asked for.
+
+Session-authenticated, like `/media-info`: this is application code asking a question and able to
+send a header, and widening the `?mt=` set is how a narrowly scoped credential stops being narrow.
+
+Two fallbacks, both answering rather than failing, because a seek that errors leaves the player
+half-moved: a probe that cannot run answers with `start = requested` (the old behaviour, for that
+one request), and an offset past the end answers rather than 500s.
+
+`AssetMediaEndpointTest.shouldStartTheStreamWhereTheSeekPointSaid` is the test that ties the two
+routes together — `start` plus the length of what the stream delivers must equal the length of the
+file. Nothing else notices when the probe and the stream drift apart.
+
+**Rejected: absolute timestamps in the stream.** `-copyts`, `-output_ts_offset` and
+`-avoid_negative_ts disabled` were each tried against the fMP4 muxer; all three still emit a first
+fragment at zero, so `currentTime` cannot be made to mean asset time and the offset has to travel
+out of band.
 
 ## 8. Gaps
 

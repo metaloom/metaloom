@@ -43,7 +43,7 @@ public enum Permission {
 
 	// Asset Binary
 	CREATE_ASSET_BINARY,      // doc:yes  ui:no  test:AssetBinaryEndpointTest (403 cases)
-	READ_ASSET_BINARY,        // doc:yes  ui:no  test:AssetBinaryEndpointTest (403 cases)
+	READ_ASSET_BINARY,        // doc:yes  ui:yes test:AssetBinaryEndpointTest (403 cases)
 	DELETE_ASSET_BINARY,      // doc:yes  ui:no  test:AssetBinaryEndpointTest (403 cases)
 	UPDATE_ASSET_BINARY,      // doc:yes  ui:no  test:none
 
@@ -188,6 +188,14 @@ public enum Permission {
 	// permission that lets a caller occupy the GPU fleet. The tools require it in addition to
 	// READ_ASSET, so granting it alone can never widen what a user may read.
 	EXECUTE_MCP_NODE,         // doc:yes  ui:yes test:NodeRunEndpointTest, MCPNodeExecutionTest
+
+	// Image generation through the assistant — the MCP `generate_image` tool. Separate from
+	// EXECUTE_MCP_NODE even though both spend GPU time, because this one also CREATES AN ASSET: a
+	// node run leaves a ledger row and bytes on a worker, this leaves a permanent, indexable asset
+	// in a library that then triggers whatever pipelines match it. The tool requires it alongside
+	// READ_ASSET, READ_ASSET_BINARY and CREATE_ASSET, so granting it alone can never widen what a
+	// user may read or create.
+	GENERATE_MCP_IMAGE,       // doc:yes  ui:yes test:GenerateImageToolTest
 
 	// Asset Pool
 	CREATE_ASSET_POOL,        // doc:yes  ui:yes test:AssetPoolEndpointTest (403 cases)

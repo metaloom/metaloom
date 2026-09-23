@@ -191,7 +191,9 @@ test.describe("List paging – mocked e2e", () => {
     const recorder = await installMocks(page, { total: 250 });
     await open(page, "/collections");
 
-    await expect(page.getByTestId("collections-count")).toHaveText(/^250 /, { timeout: 10_000 });
+    // The header used to state the total. It carries no count now (LOOM_UI.md §7.11) — the
+    // paging footer is the one place a collection's size is reported.
+    await expect(page.getByTestId("collections-paging-count")).toHaveText("Showing 100 of 250", { timeout: 10_000 });
     await page.getByTestId("collections-paging-button").click();
 
     await expect(page.getByTestId("collections-paging-count")).toHaveText("Showing 200 of 250");

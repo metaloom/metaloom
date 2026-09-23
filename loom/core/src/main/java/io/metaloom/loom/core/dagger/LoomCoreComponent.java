@@ -22,6 +22,7 @@ import io.metaloom.loom.db.jooq.dagger.JooqIntegrityBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqStorageStatsBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqModule;
 import io.metaloom.loom.mcp.dagger.MCPModule;
+import io.metaloom.loom.mcp.dagger.ImageGenToolModule;
 import io.metaloom.loom.mcp.dagger.MCPToolModule;
 import io.metaloom.loom.monitoring.dagger.MonitoringModule;
 import io.metaloom.loom.rest.dagger.EndpointModule;
@@ -48,6 +49,7 @@ import io.metaloom.loom.rest.dagger.RESTModule;
 	RESTModule.class,
 	MCPModule.class,
 	MCPToolModule.class,
+	ImageGenToolModule.class,
 	MonitoringModule.class,
 	MemoryToolModule.class,
 	MemoryModule.class,

@@ -287,6 +287,24 @@ hundred-card grid needs more than one. Four additions, each aimed at a different
 * **Enter finishes every dialog on the screen.** They are all one field and two buttons, and none
   of them committed on Enter. Bound at the dialog, guarded on the same condition that disables the
   button, and skipped while an `Autocomplete` popup is open — there, Enter is picking an option.
+* **…except when there is nothing left to pick.** With the popup showing **one** option, "Enter is
+  picking an option" is a distinction without a difference: the reviewer had to arrow down to the
+  single match and press Enter a second time. The picker now takes Enter itself whenever the list
+  is down to one match or none — `useAutocomplete` calls a supplied `onKeyDown` before its own
+  switch and honours `defaultMuiPrevented`, which is the one place the key can be taken off the
+  popup. With several matches on screen it does nothing: the reviewer may be arrowing towards the
+  third of them. The save path resolves the same way — an exact name first, then the one person a
+  typed fragment can only mean — and an **ambiguous** fragment still creates the person that was
+  literally typed rather than guessing between two candidates.
+* **Assigning does not send the caret back to the top.** Confirming re-parents the card into its
+  new person's group, so React unmounts it from the unattributed band and mounts a fresh element
+  further up the page — and the browser's focus goes with the element that died. A reviewer three
+  rows into a sweep was put back at the top with a mouse in their hand. The panel arms a return
+  target *before* opening the picker (the next card in the unattributed band, or the previous one
+  when this was the last) and moves the caret there once the cluster actually gains a person.
+  Armed before, because by the time the assignment lands the card's neighbours are already the
+  wrong ones to ask; and only for a card that was in the unattributed band, because re-assigning
+  an already-named cluster is a correction rather than a sweep.
 
 > **The naming dialog is a plain field on purpose.** It only opens when *neither* dropped cluster
 > is attributed, so there is by definition nobody to suggest, and an `Autocomplete` popup in a

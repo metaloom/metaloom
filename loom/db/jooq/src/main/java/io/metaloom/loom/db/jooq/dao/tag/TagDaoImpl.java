@@ -313,6 +313,37 @@ public class TagDaoImpl extends AbstractJooqDao<Tag> implements TagDao {
 	}
 
 	@Override
+	public AssetTag updatePlacement(Asset asset, UUID placementUuid, AssetTag area) {
+		DaoUtils.requireUuid(asset, "asset");
+		Objects.requireNonNull(placementUuid, "The placement uuid must be provided");
+		Objects.requireNonNull(area, "The new area must be provided");
+
+		// COALESCE per column rather than one UPDATE built from the non-null fields: dragging one edge
+		// of a time range sends that edge alone, and a null there means "leave it" rather than "clear
+		// it". Clearing a region is what removing the placement is for.
+		int updated = ctx().update(TAG_ASSET)
+			.set(TAG_ASSET.TIME_FROM, DSL.coalesce(DSL.val(toInt(area.getTimeFrom())), TAG_ASSET.TIME_FROM))
+			.set(TAG_ASSET.TIME_TO, DSL.coalesce(DSL.val(toInt(area.getTimeTo())), TAG_ASSET.TIME_TO))
+			.set(TAG_ASSET.AREASTARTX, DSL.coalesce(DSL.val(area.getAreaStartX()), TAG_ASSET.AREASTARTX))
+			.set(TAG_ASSET.AREASTARTY, DSL.coalesce(DSL.val(area.getAreaStartY()), TAG_ASSET.AREASTARTY))
+			.set(TAG_ASSET.AREAWIDTH, DSL.coalesce(DSL.val(area.getAreaWidth()), TAG_ASSET.AREAWIDTH))
+			.set(TAG_ASSET.AREAHEIGHT, DSL.coalesce(DSL.val(area.getAreaHeight()), TAG_ASSET.AREAHEIGHT))
+			.where(TAG_ASSET.UUID.eq(placementUuid))
+			.and(TAG_ASSET.ASSET_UUID.eq(asset.getUuid()))
+			.execute();
+		if (updated == 0) {
+			return null;
+		}
+		// Read back rather than assembling the answer from the request: the row carries the tag's name,
+		// its provenance and the fields the request left alone, and a caller that just moved a region
+		// needs to see the whole placement to redraw it.
+		return assetTags(asset).stream()
+			.filter(tag -> placementUuid.equals(tag.getPlacementUuid()))
+			.findFirst()
+			.orElse(null);
+	}
+
+	@Override
 	public List<AssetTag> assetTagsByNode(Asset asset, String nodeId) {
 		DaoUtils.requireUuid(asset, "asset");
 		Objects.requireNonNull(nodeId, "The node id must be provided");

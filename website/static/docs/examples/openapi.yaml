@@ -6242,21 +6242,27 @@ paths:
     description: "The video remuxed into a fragmented MP4 a browser can play, with\
       \ the video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
       \ so the response is not seekable: a player seeks by re-requesting with a different\
-      \ 't'. Answers 415 for a codec that cannot be remuxed and 503 when too many\
-      \ streams are already in flight."
+      \ 't'. Because the copy can only start on a keyframe, the response begins at\
+      \ the keyframe at or before 't'; ask 'stream-start' where that is. Answers 415\
+      \ for a codec that cannot be remuxed and 503 when too many streams are already\
+      \ in flight."
     get:
       tags:
       - assets
       summary: "The video remuxed into a fragmented MP4 a browser can play, with the\
         \ video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
         \ so the response is not seekable: a player seeks by re-requesting with a\
-        \ different 't'. Answers 415 for a codec that cannot be remuxed and 503 when\
-        \ too many streams are already in flight."
+        \ different 't'. Because the copy can only start on a keyframe, the response\
+        \ begins at the keyframe at or before 't'; ask 'stream-start' where that is.\
+        \ Answers 415 for a codec that cannot be remuxed and 503 when too many streams\
+        \ are already in flight."
       description: "The video remuxed into a fragmented MP4 a browser can play, with\
         \ the video stream-copied and the audio re-encoded to AAC. A pipe has no index,\
         \ so the response is not seekable: a player seeks by re-requesting with a\
-        \ different 't'. Answers 415 for a codec that cannot be remuxed and 503 when\
-        \ too many streams are already in flight."
+        \ different 't'. Because the copy can only start on a keyframe, the response\
+        \ begins at the keyframe at or before 't'; ask 'stream-start' where that is.\
+        \ Answers 415 for a codec that cannot be remuxed and 503 when too many streams\
+        \ are already in flight."
       operationId: getAssetsByUuidStream
       responses:
         "400":
@@ -6297,8 +6303,120 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/stream-start:
+    description: "Where a stream asked to begin at 't' seconds will actually begin.\
+      \ A stream-copied video can only start on a keyframe, so the answer is the keyframe\
+      \ at or before 't' - up to several seconds earlier. A player must treat this,\
+      \ not what it asked for, as the origin of its clock, or everything drawn against\
+      \ time beside the picture is wrong by the difference. It must still request\
+      \ the stream at the offset it wanted: sending this answer back as 't' snaps\
+      \ a second time. Measured by performing the seek, not predicted from the index.\
+      \ Requires READ_ASSET_BINARY."
+    get:
+      tags:
+      - assets
+      summary: "Where a stream asked to begin at 't' seconds will actually begin.\
+        \ A stream-copied video can only start on a keyframe, so the answer is the\
+        \ keyframe at or before 't' - up to several seconds earlier. A player must\
+        \ treat this, not what it asked for, as the origin of its clock, or everything\
+        \ drawn against time beside the picture is wrong by the difference. It must\
+        \ still request the stream at the offset it wanted: sending this answer back\
+        \ as 't' snaps a second time. Measured by performing the seek, not predicted\
+        \ from the index. Requires READ_ASSET_BINARY."
+      description: "Where a stream asked to begin at 't' seconds will actually begin.\
+        \ A stream-copied video can only start on a keyframe, so the answer is the\
+        \ keyframe at or before 't' - up to several seconds earlier. A player must\
+        \ treat this, not what it asked for, as the origin of its clock, or everything\
+        \ drawn against time beside the picture is wrong by the difference. It must\
+        \ still request the stream at the offset it wanted: sending this answer back\
+        \ as 't' snaps a second time. Measured by performing the seek, not predicted\
+        \ from the index. Requires READ_ASSET_BINARY."
+      operationId: getAssetsByUuidStreamstart
+      responses:
+        "200":
+          description: Where a stream asked to start at that offset will really begin
+          content:
+            application/json:
+              example:
+                requested: 604.5
+                start: 599.599
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/tag-placements/{placementUuid}:
-    description: "Remove one placement of a tag from an asset, keeping its other placements"
+    description: Move one placement of a tag to a different region of the asset
+    put:
+      tags:
+      - assets
+      summary: Move one placement of a tag to a different region of the asset
+      description: Move one placement of a tag to a different region of the asset
+      operationId: putAssetsByUuidTagplacementsByPlacementUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
     delete:
       tags:
       - assets
@@ -17176,11 +17294,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 9a4922cc-779c-46d9-a19a-6e4a4fab6d0d
-                pipelineUuid: 8a582845-3991-495f-8447-875ebb2d9945
+                uuid: 62febd51-251f-4336-b8f8-9a1651991cfb
+                pipelineUuid: 6231a85c-db61-49ad-82b2-61e2c1e916b2
                 pipelineVersion: 1
-                started: 2026-09-20T16:02:36.295073909Z
-                finished: 2026-09-20T16:02:36.295076179Z
+                started: 2026-09-21T09:29:09.206655699Z
+                finished: 2026-09-21T09:29:09.206657839Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17429,7 +17547,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 6358de18-80af-4eab-b7a9-e8899ac6465d
+                  versionUuid: dfe705fa-ed4a-4569-81c0-aa43c81c36cf
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17450,7 +17568,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: c24694b1-269f-41a9-a045-3721ba59eff5
+                  versionUuid: b7f0122b-0f70-4255-a3c6-0566d14db881
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17523,7 +17641,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: cf1eebc4-e4f9-4183-8a01-99613038c68b
+                versionUuid: becefc53-3c8d-43c7-a83d-1539b27ab92b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17582,7 +17700,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 7a6b2bb7-cbc6-4124-9b69-8a7b5161024b
+                versionUuid: 94d128ef-c10e-472e-a314-9e0088e2050e
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17654,7 +17772,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 58cae639-4847-4ad2-a34a-45331d0da246
+                versionUuid: 2b5c6581-0457-4aef-904a-8b0e30ce961c
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17763,7 +17881,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 670642f0-224e-4fe5-a3db-a301b3540efe
+                runUuid: c92f5e83-7130-4bed-bebc-5ed12c75fc98
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -17851,11 +17969,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ff243e28-2de7-43ed-8e33-462f79b8fffa
-                  pipelineUuid: 013b2f90-4034-4c5d-afaa-b604c143a5f6
+                - uuid: a3bb81e1-34d9-43a8-abbb-c3d51e0f72ac
+                  pipelineUuid: 4dc95db9-29a7-4afb-b393-d19401b5a8ef
                   pipelineVersion: 1
-                  started: 2026-09-20T16:02:36.294948349Z
-                  finished: 2026-09-20T16:02:36.294964019Z
+                  started: 2026-09-21T09:29:09.206534669Z
+                  finished: 2026-09-21T09:29:09.206544649Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17863,11 +17981,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: da260999-9ead-4e4b-b0d8-4d4b71f62e1e
-                  pipelineUuid: 4f1a8ec6-fdcc-4cc6-bc18-0f0bee9ef871
+                - uuid: e3793b30-c12e-45f6-919b-0139eabd6b44
+                  pipelineUuid: da9d0770-8aec-49d6-9309-ccf24779d723
                   pipelineVersion: 1
-                  started: 2026-09-20T16:02:36.294981139Z
-                  finished: 2026-09-20T16:02:36.294983519Z
+                  started: 2026-09-21T09:29:09.206560589Z
+                  finished: 2026-09-21T09:29:09.206563049Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17930,11 +18048,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 79384a33-de86-4cac-8783-29ea56e6894b
-                pipelineUuid: 8400e8ce-6f14-4796-8b53-65dc708cedac
+                uuid: d9a28d80-b275-4b97-92ff-5b218bb7bd26
+                pipelineUuid: 9ba704f8-53b8-4b6f-8ef1-e4a904649a63
                 pipelineVersion: 1
-                started: 2026-09-20T16:02:36.295041869Z
-                finished: 2026-09-20T16:02:36.295044479Z
+                started: 2026-09-21T09:29:09.206621749Z
+                finished: 2026-09-21T09:29:09.206625189Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -18276,15 +18394,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 7979c2d1-1423-454c-86df-693cfc749f1f
-                  runUuid: 05e810f6-02d6-4817-a4aa-f920122cd089
+                - uuid: b2d01228-21f1-498f-88e4-a283b4f3dd37
+                  runUuid: e447583f-bd6f-492c-8248-17c1eca30058
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 21af042d-11ee-4b68-afde-3cd8253f36ed
-                  runUuid: 271a9c11-d6d3-466c-86a7-fa721e1e62a2
+                - uuid: 9cd6b454-6014-419e-a742-7714278e2079
+                  runUuid: ad6a8a5a-24ad-4919-a8b9-3c291889ca42
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -18356,9 +18474,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 56892301-819b-4d0c-bb50-7ec64d2f2ed9
-                  itemUuid: af0f3374-c605-46b0-a057-5fe71092d901
-                  runUuid: 03672883-826a-439b-82c9-c89c4cd15d60
+                - uuid: 20f66c03-ba50-48be-9f0e-0e1b8d3ea4c5
+                  itemUuid: 23329731-2c48-47e0-a69e-cad4799378aa
+                  runUuid: 0a0d1d9a-8cad-44ec-af8a-f5a229884abb
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -18821,7 +18939,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 5095b2ce-4cc8-4f9a-b730-2ba8eb822002
+                  versionUuid: 0db2e7f1-9b6b-4a55-8a0b-54d149ccf45f
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18842,7 +18960,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: a419c46a-5df1-4e85-9eb3-8572d774891b
+                  versionUuid: 6f5417d0-cfb0-4e00-b6ff-5f66c1a7d8c9
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18918,7 +19036,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: db7bbdfa-5d14-4c05-998c-aa72ca91d274
+                versionUuid: ea8618dd-8858-4ed7-b255-3779d863073e
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -19004,7 +19122,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 8418282f-423c-4c1b-8e65-559d926e9c1c
+                versionUuid: 97e25047-0a36-41b1-afea-dc074a2c0a69
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -19552,6 +19670,9 @@ paths:
                     memoryUsed: 4294967296
                     memoryTotal: 17179869184
                     gpuLoad: 78.0
+                    gpuMemoryUsed: 21474836480
+                    gpuMemoryTotal: 25769803776
+                    gpuName: NVIDIA GeForce RTX 4090
                     ioLoad: 31.0
                     diskUsed: 107374182400
                     diskTotal: 536870912000
@@ -19610,6 +19731,9 @@ paths:
                   memoryUsed: 4294967296
                   memoryTotal: 17179869184
                   gpuLoad: 78.0
+                  gpuMemoryUsed: 21474836480
+                  gpuMemoryTotal: 25769803776
+                  gpuName: NVIDIA GeForce RTX 4090
                   ioLoad: 31.0
                   diskUsed: 107374182400
                   diskTotal: 536870912000
@@ -19721,6 +19845,9 @@ paths:
                   memoryUsed: 4294967296
                   memoryTotal: 17179869184
                   gpuLoad: 78.0
+                  gpuMemoryUsed: 21474836480
+                  gpuMemoryTotal: 25769803776
+                  gpuName: NVIDIA GeForce RTX 4090
                   ioLoad: 31.0
                   diskUsed: 107374182400
                   diskTotal: 536870912000
@@ -21510,6 +21637,13 @@ paths:
         schema:
           type: string
         example: 2026-12-31T23:59:59Z
+      - name: asset
+        in: query
+        description: Restrict to the documents of one asset - what "search inside
+          this file" is
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
       - name: lang
         in: query
         description: Restrict to a language tag
@@ -21702,6 +21836,13 @@ paths:
         schema:
           type: string
         example: 2026-12-31T23:59:59Z
+      - name: asset
+        in: query
+        description: Restrict to the documents of one asset - what "search inside
+          this file" is
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
       - name: lang
         in: query
         description: Restrict to a language tag
@@ -21944,6 +22085,13 @@ paths:
         schema:
           type: string
         example: 2026-12-31T23:59:59Z
+      - name: asset
+        in: query
+        description: Restrict to the documents of one asset - what "search inside
+          this file" is
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
       - name: lang
         in: query
         description: Restrict to a language tag

@@ -442,6 +442,33 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     await expect(canvas).toBeHidden({ timeout: 10_000 });
   });
 
+  /**
+   * A panel that can be shut and not reopened is a panel that has been deleted.
+   *
+   * Collapsing used to take the whole thing to `height: 0`, and the toggle went with it. The one
+   * other way back was a chip in the canvas toolbar, which is itself only rendered while a
+   * pipeline is selected — so the log could be shut once and then lost.
+   */
+  test("the system log can be collapsed and opened again from its own title bar", async ({ page }) => {
+    await mockBackend(page);
+    await login(page);
+
+    const panel = page.getByTestId("pipeline-log-panel");
+    await expect(panel).toHaveAttribute("data-open", "true", { timeout: 10_000 });
+    const open = (await panel.boundingBox())!.height;
+
+    await page.getByTestId("pipeline-log-toggle").click();
+    await expect(panel).toHaveAttribute("data-open", "false");
+    const shut = (await panel.boundingBox())!.height;
+    expect(shut).toBeLessThan(open);
+
+    // The title bar stays, so the way back is where it was.
+    await expect(page.getByTestId("pipeline-log-toggle")).toBeVisible();
+    await page.getByTestId("pipeline-log-toggle").click();
+    await expect(panel).toHaveAttribute("data-open", "true");
+    expect((await panel.boundingBox())!.height).toBeGreaterThan(shut);
+  });
+
   test("switching pipelines without editing does not prompt", async ({ page }) => {
     const state = await mockBackend(page);
     state.pipelines.push(pipelineResponse("33333333-3333-3333-3333-333333333333", "Beta", { nodes: [], edges: [] }));

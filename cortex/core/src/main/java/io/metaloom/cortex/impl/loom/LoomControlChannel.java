@@ -65,6 +65,14 @@ public class LoomControlChannel {
 	 */
 	private final SystemLoadProbe loadProbe = new SystemLoadProbe();
 
+	/**
+	 * GPU utilisation and video memory, when this worker has a card.
+	 *
+	 * Stateful for the same reason the load probe is, though for a different reason: it forks
+	 * {@code nvidia-smi}, and two callers poll it on unrelated schedules.
+	 */
+	private final GpuProbe gpuProbe = new GpuProbe();
+
 	private final AtomicBoolean started = new AtomicBoolean(false);
 	private final AtomicBoolean connected = new AtomicBoolean(false);
 	private final AtomicBoolean registered = new AtomicBoolean(false);
@@ -248,6 +256,20 @@ public class LoomControlChannel {
 		metrics.bindGauge("cortex_io_load", () -> {
 			Double load = loadProbe.ioLoad();
 			return load == null ? 0d : load;
+		});
+		// Absent on a CPU worker, which scrapes as 0 like every other unknown here. The status
+		// message keeps the distinction between "idle" and "no card"; a gauge cannot.
+		metrics.bindGauge("cortex_gpu_load", () -> {
+			Double load = gpuProbe.status().load();
+			return load == null ? 0d : load;
+		});
+		metrics.bindGauge("cortex_gpu_memory_used_bytes", () -> {
+			Long used = gpuProbe.status().memoryUsed();
+			return used == null ? 0L : used;
+		});
+		metrics.bindGauge("cortex_gpu_memory_total_bytes", () -> {
+			Long total = gpuProbe.status().memoryTotal();
+			return total == null ? 0L : total;
 		});
 		metrics.bindGauge("cortex_disk_used_bytes", () -> diskSpace(true));
 		metrics.bindGauge("cortex_disk_total_bytes", () -> diskSpace(false));
@@ -565,11 +587,17 @@ public class LoomControlChannel {
 			log.debug("Unable to collect disk metrics", e);
 		}
 
+		GpuProbe.GpuStatus gpu = gpuProbe.status();
+
 		return new SystemStatusInfo()
 			.setCpuLoad(loadProbe.cpuLoad())
 			.setIoLoad(loadProbe.ioLoad())
 			.setMemoryUsed(usedMemory)
 			.setMemoryTotal(totalMemory)
+			.setGpuLoad(gpu.load())
+			.setGpuMemoryUsed(gpu.memoryUsed())
+			.setGpuMemoryTotal(gpu.memoryTotal())
+			.setGpuName(gpu.name())
 			.setDiskTotal(diskTotal)
 			.setDiskUsed(diskUsed);
 	}

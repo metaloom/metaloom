@@ -203,12 +203,16 @@ test.describe("Listing controls – server-backed views", () => {
     expect(query).toContain(encodeURIComponent("priority[eq]=HIGH"));
   });
 
-  test("tasks now page, so the header reports the collection rather than the rows fetched", async ({ page }) => {
-    await installMocks(page);
+  test("tasks now page, so the list asks for one page rather than fetching the lot", async ({ page }) => {
+    const recorder = await installMocks(page);
     await open(page, "/tasks");
+    await expect(page.getByTestId("tasks-search")).toBeVisible({ timeout: 10_000 });
 
-    // The screen used to fetch exactly one page and render it as the task list.
-    await expect(page.getByTestId("tasks-count")).toHaveText(/^2 /, { timeout: 10_000 });
+    // The screen used to fetch exactly one page and render it as the task list. What used to
+    // prove otherwise was the server's total in the view header; headers carry no counts any
+    // more (LOOM_UI.md §7.11), so the evidence is the request the paging hook makes — and the
+    // footer, which states "showing N of M" whenever there is more than one page.
+    expect(lastQuery(recorder, "tasks")).toContain("limit=");
   });
 
   test("skills: the enabled filter applies to whichever tab is showing", async ({ page }) => {

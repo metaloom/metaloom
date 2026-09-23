@@ -49,6 +49,8 @@
 - [x] Built-in skills shipped on the classpath, always active (`BuiltinSkills`, `AgentSkill`)
 - [x] Tool advertisement filtered by the caller's permissions (`listDescriptorsFor`)
 - [x] References (chips) and `visuals` (inline pipeline graph) envelopes
+- [x] Asset visuals — `show_asset` embeds a playable viewer in the transcript (§6.2), and every search
+      result set is carried as `asset-results` and mirrored into the workspace panel (§6.3)
 - [x] Auto title generation + auto session capture after the first exchange
 - [x] Agent memory bank wired into the system prompt and the tool set (see [CHAT_MEMORY.md](CHAT_MEMORY.md))
 - [x] Sandbox coding tools (`run_shell`, `read_file`, `write_file`, `list_files`) gated by `LOOM_AGENT_SANDBOX_ENABLED`
@@ -406,7 +408,7 @@ could not be refreshed.
 
 `ChatWorkspace.tsx` is the whole chat surface: sessions rail, resizable chat column
 (persisted percentage, collapsible workspace panel — [LOOM_UI.md §3.7](LOOM_UI.md)), right
-panel with overview / embedded `AssetBrowser` / asset detail card.
+panel with results / overview / embedded `AssetBrowser` / asset viewer.
 
 | Concern | Component / file | Notes |
 |---|---|---|
@@ -416,6 +418,8 @@ panel with overview / embedded `AssetBrowser` / asset detail card.
 | Tool activity | `ActionRow` in `ChatWorkspace.tsx` | fed by `tool_start` / `tool_end`. |
 | Chips | `RefChip` in `ChatWorkspace.tsx` | `asset · collection · task · comment · pipeline · annotation`; navigates per type. |
 | Inline visuals | `PipelineGraphCard.tsx` + `pipelineGraphLayout.ts` | §6.1. |
+| Embedded asset | `AssetViewerCard.tsx` | §6.2. A real `AssetVideoPlayer` over the on-demand remux, not a thumbnail. Also the panel's preview. Testids `chat-asset-viewer`, `-name`, `-start`, `-caption`, `-open`, `-close`, `chat-asset-video`. |
+| Result set | `AssetResults.tsx` | §6.3. `AssetResultsStrip` under the answer, `AssetResultsPanel` beside it — two renderings of one payload. Testids `chat-asset-results`, `chat-asset-result`, `chat-results-panel`, `chat-result-row`. |
 | Skills | `SkillsPanel.tsx` | per-session toggles → `chat.meta.activeSkillUuids`, sent with **every** stream request. |
 | Stream client | `api/agent.ts` | `streamChatMessage`, `cancelChatStream`, `createSseParser`, `AgentBusyError`. |
 | Session CRUD | `api/chat.ts` | title renames and `meta` only — the server owns the transcript. |
@@ -463,8 +467,62 @@ Rules:
   labels; horizontal scroll rather than shrinking labels; `truncated` payloads say so; an
   empty graph renders nothing. Testids `chat-pipeline-graph`, `-node`, `-edges`, `-open`.
 
-Adding a second visual type = produce the envelope in a tool, add the payload type in
-`types/index.ts`, render it in the message bubble's visuals block. No protocol change.
+Adding a further visual type = produce the envelope in a tool, add the payload type in
+`types/index.ts`, render it in the message bubble's visuals block. No protocol change. The
+bubble renders **nothing** for a type it does not know: a visual enhances a tool result
+whose text already carries the answer, so an unknown one must stay quiet rather than draw
+a broken card.
+
+### 6.2 `asset-viewer`
+
+Produced by `show_asset` ([MCP.md §5.1.1](../loom/MCP.md)), rendered by `AssetViewerCard`.
+The one thing the chat could never do: show the media it is talking about.
+
+```json
+{ "assetUuid":"…", "filename":"sg1-s03e17.mkv", "mimeType":"video/x-matroska",
+  "kind":"video", "size":1500000000, "startSeconds":604.5, "caption":"…" }
+```
+
+- **A real player, not a thumbnail.** Video renders the same `AssetVideoPlayer` the asset
+  detail view uses, over the same on-demand remux and the same `?mt=` media token
+  ([REST_BINARY_HANDLING.md §7](../features/rest/REST_BINARY_HANDLING.md)). A
+  `<video src={binary}>` would hand the browser a Matroska original no browser decodes,
+  after downloading several gigabytes of it.
+- `kind` decides the branch: `video` → player, `image` → `useAuthedImage` (the binary route
+  wants an `Authorization` header an `<img>` cannot send), `audio` → an `<audio>` on the
+  remux, anything else → the type placeholder. The card never claims a preview it does not
+  have, and the tool's own text says so too.
+- **`startSeconds` is applied once**, guarded by a ref that resets on a new asset. The card's
+  field is seconds; the *tool* takes `startMs`, and the conversion is server-side — see
+  [MCP.md §5.1.1](../loom/MCP.md) for why that is not a detail. The seek
+  has to wait for `useMediaInfo` to report a duration; without the guard every later
+  re-render would drag the viewer back to the agent's timestamp after the user had
+  scrubbed away from it — the same shape of bug as the asset view's deep link.
+- *Open* navigates to `/assets/:uuid?t=<startSeconds>`, so the full view lands where the
+  card was.
+
+### 6.3 `asset-results` and the workspace panel
+
+Produced by all three search tools ([MCP.md §5.1.2](../loom/MCP.md)), and drawn **twice**:
+`AssetResultsStrip` under the answer, `AssetResultsPanel` in the workspace panel.
+
+That second rendering is the point. The panel used to show the newest rows of the catalogue
+whatever the conversation was about — the chat found six files and the browser beside it
+listed six different ones. Both halves now read one payload, held as `results` state in
+`ChatWorkspace`:
+
+- Adopted in the **`tool_end` handler**, so the panel fills while the model is still
+  composing the sentence about it — which is when the user is already scanning for the file.
+- The panel **switches to it by itself**, and a `results` tab appears. The tab exists only
+  while there is a result set; a new conversation clears it and loading a session restores
+  the newest `asset-results` visual in that transcript, so the panel belongs to the
+  conversation rather than to the tab the user last clicked.
+- Clicking a tile or a row opens that asset in the panel as an `asset-viewer` (§6.2),
+  carrying `timeFromMs / 1000` as `startSeconds` — a transcript hit opens the player on the
+  passage that matched.
+- **Deleted with this**: `sendMessage` used to switch the panel to the asset browser when
+  the typed message contained the words "asset" or "show". It fired on "show me the
+  pipeline" and never reflected what the agent actually found.
 
 ## 7. Skills
 
@@ -611,7 +669,7 @@ incl. `_MAX_WRITES_PER_RUN` and `_PROMPT_MAX_ENTRIES`).
 | DAO | `ChatSessionDaoTest`, `SkillDaoTest`, `SkillVersionDaoTest`, `MemoryEntryDaoTest`, `MemoryDenyRuleDaoTest` in `loom/db/jooq/src/test` |
 | MCP | `MCPToolReferencesTest`, `PipelineToolTest` in `loom/services/mcp` |
 | UI unit | `api/agent.test.ts`, `api/chat.test.ts`, `api/chatMessageMapper.test.ts`, `api/skills.test.ts`, `features/chat/pipelineGraphLayout.test.ts` |
-| E2E mocked | `chat-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts`, `empty-states-mocked.spec.ts` |
+| E2E mocked | `chat-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `chat-asset-viewer-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts`, `empty-states-mocked.spec.ts` |
 | E2E backend | `chat-backend.spec.ts`, `skills-backend.spec.ts` — CRUD only, no live-LLM assertions |
 
 **Writing a loop test:** call `AgentService.setTurnStreamerFactory(...)` with a scripted

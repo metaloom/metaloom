@@ -37,6 +37,6 @@ public abstract class ImageGenNodeModule extends AbstractNodeModule {
 	@Provides
 	public static ImageGenClient imageGenClient(ImageGenNodeOptions options) {
 		return new ImageGenClient(options.getHost(), options.getPort(), options.getGenerateEndpoint(), options.getRemixEndpoint(),
-			(int) options.getTimeoutMs());
+			options.getEditEndpoint(), options.getMaskEndpoint(), (int) options.getTimeoutMs());
 	}
 }

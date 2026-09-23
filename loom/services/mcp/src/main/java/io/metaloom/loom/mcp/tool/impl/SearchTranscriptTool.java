@@ -89,22 +89,29 @@ public class SearchTranscriptTool implements MCPTool {
 
 			JsonArray items = new JsonArray();
 			JsonArray references = new JsonArray();
+			// The result set as the chat draws it. Several passages of one episode collapse to one row -
+			// the panel beside the conversation lists files, and the offset kept is the best-ranked one,
+			// which is the passage a click should open the player on.
+			AssetResultsVisual visual = new AssetResultsVisual();
 			for (SearchHit hit : result.getHits()) {
+				String snippet = snippet(hit);
 				items.add(new JsonObject()
 					.put("assetUuid", hit.getAssetUuid() == null ? null : hit.getAssetUuid().toString())
 					.put("title", hit.getTitle())
 					.put("timeFromMs", hit.getTimeFromMs())
-					.put("snippet", snippet(hit))
+					.put("snippet", snippet)
 					.put("score", hit.getScore()));
 				if (hit.getAssetUuid() != null) {
 					references.add(MCPToolResults.reference("asset", hit.getAssetUuid().toString(), hit.getTitle()));
 				}
+				visual.add(hit.getAssetUuid(), hit.getTitle(), hit.getMimeType(), hit.getSize(), hit.getScore(), hit.getTimeFromMs(), snippet);
 			}
 
 			String text = items.isEmpty()
 				? "No transcript matched '" + query + "'."
 				: "Found " + items.size() + " of " + result.getTotalHits() + " transcript matches for '" + query + "'.\n" + items.encodePrettily();
-			return Future.succeededFuture(MCPToolResults.mcpResultWithReferences(text, references));
+			return Future.succeededFuture(MCPToolResults.mcpResult(text, references,
+				visual.build(query, "spoken content", result.getTotalHits(), result.isTotalExact())));
 		} catch (Exception e) {
 			return Future.failedFuture(e);
 		}

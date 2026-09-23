@@ -115,6 +115,30 @@ active tasks and collections, and past conversations are listed for quick recall
 
 image::chat.png[Loom Agent chat interface,role=img-fluid]
 
+=== Seeing what the agent found
+
+The agent does not only name your media, it shows it.
+
+Ask it to find something and the panel on the right switches to *Results*: the hits of the search
+it just ran, in the order it ranked them, with the total it drew them from. The panel follows the
+conversation: a new conversation clears it, and reopening an older one brings back the search it
+was about.
+
+image::chat-asset-results.png[Chat search results shown as a strip and in the workspace panel,role=img-fluid]
+
+Ask it to *show* you one — "play the episode where they mention Atlantis" — and the agent embeds a
+real player in the chat, not a thumbnail. Video plays through the same on-demand conversion the
+asset view uses, so it works for the original files your archive holds rather than only for the
+web-friendly ones. If the agent is answering about a particular moment, the player opens there:
+a hit in a transcript carries its timecode into the viewer, so a 43-minute episode starts on the
+sentence and not at 0:00.
+
+image::chat-asset-viewer.png[A video asset embedded and playing inside the chat,role=img-fluid]
+
+Clicking any result — in the strip under the answer, or in the panel — opens it in the panel with
+the same player, so you can check a file and ask a follow-up about it without leaving the
+conversation.
+
 === Chat Sessions
 
 A conversation can be captured as a *chat session*: a named, describable record that survives the chat
@@ -309,11 +333,18 @@ transport below the picture — play, ten seconds back and forward, the clock, a
 mute, fullscreen — is Loom's own rather than the browser's. Scrubbing is the *timeline* under it:
 click anywhere on it to jump there, including the far end of a long file.
 
+*Where a jump lands.* Video is compressed in groups of frames, and a copy can only start at the
+head of one, so a jump lands on the nearest such point at or before the moment you asked for —
+usually well under five seconds earlier. The clock, the transcript highlight and the face boxes
+all follow the picture to that point rather than to the moment you clicked, so what you see, what
+you hear and what is highlighted stay in step with each other.
+
 *Making room.* Two handles shape the view, and both remember where you left them:
 
-* the divider between the media and the right-hand panel, dragged sideways. Past a point the tab
-  names step aside and leave their icons, so a panel you only need for reference can be a thin
-  strip;
+* the divider between the media and the right-hand panel, dragged sideways. The tab names step
+  aside and leave their icons as soon as they would no longer fit — so you never see half a
+  label — and the divider stops before the icons themselves would be pushed off the strip, so
+  every tab stays reachable however thin you make the panel;
 * the bar directly under the picture, dragged up or down, which makes the video as large or as
   small as you want it.
 
@@ -326,8 +357,8 @@ of working with the metadata shut carries to the next asset.
 
 When link:../nodes/facedetect/[Face Detection] has run, the *Faces* tab lists every face it found.
 Clicking one jumps the video to the moment it appears and outlines it on the picture — the outline
-flashes as the moment arrives and then settles, so you can see which of several faces on screen was
-the one you clicked. Only the faces belonging to the moment you are looking at are outlined; a
+fades in, flashes as the moment arrives and fades away again, so you can see which of several faces
+on screen was the one you clicked. Only the faces belonging to the moment you are looking at are outlined; a
 43-minute episode's worth of boxes drawn on one frame would tell you nothing.
 
 ==== Reading a transcript
@@ -339,7 +370,15 @@ rest, so the bar above stays true to the whole recording.
 
 While the transcript section is open, its chapters also appear as coloured tiles along the bottom
 half of the timeline, so you can see the shape of the conversation without scrolling down to it.
-Click a tile to jump to that chapter. Fold the transcript away and the tiles fade out with it.
+Clicking a tile does the whole gesture: it jumps the player to that chapter, opens the transcript
+if you had folded it away, and scrolls the chapter into view with a brief ring around it — on a
+43-minute episode the chapter you picked is usually several screens down. Searching the transcript
+lands the same way. Fold the transcript away and the tiles fade out with it.
+
+*Region tags can be adjusted in place.* A tag that covers a stretch of time is drawn as a band on
+the timeline; drag either end to change where it starts or stops. The tag itself is untouched —
+only this placement of it moves, so who attached it and when are preserved, and the same tag
+elsewhere on the file stays where it is.
 
 ==== Searching what was said
 
@@ -350,11 +389,11 @@ jump there.
 The difference from *Find in transcript* below it is worth knowing. That one looks for the letters
 you typed in the text already on screen — the right tool when you can see the word and want to get
 to it. This one searches the whole transcript on the server, and where your administrator has set
-up link:../../install/[an embedding service], it can also search by *Meaning*: ask for "the iris
+up an embedding service (see <<_searching_by_meaning>>), it can also search by *Meaning*: ask for "the iris
 device" and find the scene where somebody talks about it without ever using that phrase. The
 *Words* / *Meaning* / *Both* chips appear only when the server can actually do it.
 
-To search across your whole library instead, use the main link:#_search[Search] and narrow it to
+To search across your whole library instead, use the main <<search>> and narrow it to
 *transcript*. A result there carries its timecode too, and opens the episode at the moment rather
 than at the beginning.
 
@@ -433,9 +472,25 @@ only doing that.
 
 image::library.png[Library management,role=img-fluid]
 
+[#collections]
+=== Collections
+
+A collection is a named set of assets that belongs together for a reason the catalogue itself cannot
+see — an episode's rushes, a client's approved selects, everything going into next week's cut. An
+asset may sit in as many collections as it needs to, and joining one changes nothing about where its
+bytes live or which library it belongs to.
+
+Collections are the unit several other parts of the product take as their input: a pipeline can be
+pointed at one, a share link can publish one, and the review queues can be narrowed to one. That is
+the practical difference from a tag — a tag describes what something *is*, a collection is a set
+somebody assembled on purpose.
+
 === Tags
 
-Tags are managed in a tree grouped by collection, with drag-to-move and inline creation.
+Tags are managed in a tree grouped by collection, with drag-to-move and inline creation. Each row
+carries the rating *you* gave that tag — a rating is personal, not shared — so a tree of three
+hundred shows at a glance which ones you have judged. A tag you have not rated shows no stars at
+all rather than an empty row of them; rating one is done in the detail panel on the right.
 
 image::tags.png[Tag management,role=img-fluid]
 
@@ -734,7 +789,15 @@ image::pipeline-versions.png[Pipeline version history,role=img-fluid]
 
 The Cortex view monitors the worker daemons connected to Loom. Each registered worker shows its
 online status, host, priority, live CPU/IO/memory metrics, advertised capabilities and the node
-kinds it is allowed to run. From here you can pause, resume or forget a worker and edit its node
+kinds it is allowed to run.
+
+A worker with a graphics card also reports **GPU load** and **video memory** — the latter both as a
+percentage and in gigabytes, because the two answer different questions: how busy the card is, and
+whether the next model will fit. They are separate readings on purpose. A model left resident
+between jobs pins the memory at ninety per cent while the card itself reads as idle, and that is
+exactly the state in which nothing else can be loaded. Both figures change colour as they climb, so
+a saturated worker is findable by scanning the column. A worker with no card says nothing rather
+than reporting nought per cent, which would make it look like the emptiest GPU on the fleet. From here you can pause, resume or forget a worker and edit its node
 restrictions. Workers appear automatically once a link:../cortex/[Cortex] daemon registers with the
 server.
 
@@ -782,6 +845,59 @@ but no group grants nothing.
 link:../loom/authentication/[Authentication].
 
 image::api-keys.png[API key management,role=img-fluid]
+
+[#spaces]
+=== Spaces
+
+A space is the outermost container: every library, asset and collection belongs to exactly one, and
+nothing is visible across the boundary. It is what keeps one client's material apart from another's
+inside a single installation.
+
+Permissions are account-wide rather than per-object (see above), so a space is also the answer to
+"how do I keep this set of media away from that role" — separate by space, not by permission.
+
+[#storage-pools]
+=== Storage Pools
+
+A storage pool is *where the bytes actually live*: a directory on a filesystem, or a bucket in S3-
+compatible object storage. Libraries name a pool, and an upload into a library lands in that
+library's pool unless the request names another one.
+
+The pool list reports how many assets each pool holds and how much space they take, which is the
+figure to watch before an ingest rather than after one. Deleting a pool is refused while assets still
+reference it — the rows would otherwise point at bytes nothing can reach.
+
+[#deny-lists]
+=== Deny Lists
+
+Two lists, for two different kinds of "never".
+
+The *blacklist* is about content: hashes and fingerprints that must not be ingested, so a file that
+has already been rejected once does not come back through another folder scan.
+
+The *memory deny list* is about the agent: words, names and phrases it must never write into its
+long-term memory, and never repeat back. It is checked when a memory is written rather than when it
+is read, so adding an entry does not retroactively clean what is already stored — the existing note
+has to be deleted as well.
+
+[#search-indices]
+=== Search Indices
+
+Search runs against an index, and the index is built after the fact — a freshly ingested asset is in
+the catalogue before it is findable. This screen shows how far behind each index is and lets one be
+rebuilt when it has drifted, which is the thing to do after a bulk import or a schema migration.
+
+A rebuild is safe to run on a live instance: search keeps answering from what is already indexed
+while the new pass catches up.
+
+[#database-integrity]
+=== Database Integrity
+
+A set of checks that look for rows pointing at things that no longer exist — a search document for a
+deleted asset, a cluster whose person is gone. Each check reports a count and a sample of the
+offending rows, so a number that is not zero can be investigated rather than merely worried about.
+
+The checks are read-only. They say what is wrong; they never repair it.
 
 === Problem Reports
 

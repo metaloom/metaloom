@@ -10,6 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { tokens } from "../../theme";
+import HelpHint from "../../components/HelpHint";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import EmptyState from "../../components/EmptyState";
@@ -190,9 +191,14 @@ export default function PersonDetail() {
         </IconButton>
         <Avatar src={person.avatarUrl ?? undefined} sx={{ width: 72, height: 72 }} data-testid="person-detail-avatar" />
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" fontWeight={700} data-testid="person-detail-name" sx={{ color: tokens.text.primary }}>
-            {displayName}
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} data-testid="person-detail-name" sx={{ color: tokens.text.primary }}>
+              {displayName}
+            </Typography>
+            {/* Beside the name rather than in a header band: this screen is a person, not a
+                list, and it is the only place the documentation on people is reachable from. */}
+            <HelpHint topic="persons" />
+          </Box>
           <Typography variant="body2" data-testid="person-detail-alias" sx={{ color: tokens.text.secondary }}>
             {person.alias}
           </Typography>

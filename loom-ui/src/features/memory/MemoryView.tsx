@@ -176,9 +176,9 @@ export default function MemoryView() {
       <ViewHeader
         icon={<PsychologyOutlined />}
         title={t("memory.title", "Agent memory")}
-        meta={<HelpHint topic="memory" size={16} />}
-        subtitle={t("memory.subtitle",
-          "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.")}
+        meta={<HelpHint topic="memory" size={16}
+          description={t("memory.subtitle",
+            "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.")} />}
       />
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
 

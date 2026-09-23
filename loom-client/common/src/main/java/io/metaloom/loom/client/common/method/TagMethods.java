@@ -13,6 +13,7 @@ import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagRatingRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingResponse;
+import io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.utils.hash.SHA512;
@@ -91,6 +92,24 @@ public interface TagMethods {
 
 	default LoomClientRequest<NoResponse> untagAsset(UUID assetUuid, UUID tagUuid) {
 		return untagAsset(assetId(assetUuid), tagUuid);
+	}
+
+	/**
+	 * Move one placement of a tag to a different region of the asset.
+	 *
+	 * <p>
+	 * Only the region changes: the placement keeps its uuid, who attached it and when. A field the request leaves unset keeps its stored value, so
+	 * dragging one edge of a time range need not restate the other.
+	 * </p>
+	 */
+	LoomClientRequest<TagResponse> updateTagPlacement(AssetId assetId, UUID placementUuid, TagPlacementUpdateRequest request);
+
+	default LoomClientRequest<TagResponse> updateTagPlacement(SHA512 assetHash, UUID placementUuid, TagPlacementUpdateRequest request) {
+		return updateTagPlacement(assetId(assetHash), placementUuid, request);
+	}
+
+	default LoomClientRequest<TagResponse> updateTagPlacement(UUID assetUuid, UUID placementUuid, TagPlacementUpdateRequest request) {
+		return updateTagPlacement(assetId(assetUuid), placementUuid, request);
 	}
 
 	/**

@@ -27,11 +27,32 @@ export const FACE_BOX_WINDOW_SECONDS = 2.5;
  */
 export const FACE_FLASH_MS = 250;
 
-/** Keyframes for the flash. Shared, because two views animate the same thing. */
+/**
+ * How long the highlight itself runs, in milliseconds.
+ *
+ * Separate from {@link FACE_FLASH_MS}, which is the lead-in, because the two answer different
+ * questions: the lead-in is how early to arrive, this is how long the gesture takes once it does.
+ * They used to be the same number and the result was a 250ms decay that read as the box changing
+ * colour rather than as anything being pointed at — by the time the eye reached the picture the
+ * highlight had already been and gone.
+ */
+export const FACE_FLASH_DURATION_MS = 1200;
+
+/**
+ * Keyframes for the flash. Shared, because two views animate the same thing.
+ *
+ * Fade in, flash, fade out — in that order and over a period somebody can actually follow. The
+ * box's own opacity is part of it: a click seeks and the box for the face that was clicked is
+ * usually one that has just appeared, so growing it in is what makes "this one" legible among
+ * the others that were already on screen.
+ */
 const FLASH_KEYFRAMES = {
   "@keyframes loomFaceFlash": {
-    "0%": { boxShadow: `0 0 0 7px ${tokens.primary.main}99`, borderColor: "#fff" },
-    "100%": { boxShadow: `0 0 0 0 ${tokens.primary.main}00`, borderColor: "currentColor" },
+    "0%": { opacity: 0, boxShadow: `0 0 0 0 ${tokens.primary.main}00`, borderColor: "currentColor" },
+    "20%": { opacity: 1, boxShadow: `0 0 0 5px ${tokens.primary.main}55`, borderColor: "#fff" },
+    "40%": { opacity: 1, boxShadow: `0 0 0 11px ${tokens.primary.main}cc`, borderColor: "#fff" },
+    "60%": { opacity: 1, boxShadow: `0 0 0 5px ${tokens.primary.main}77`, borderColor: "#fff" },
+    "100%": { opacity: 1, boxShadow: `0 0 0 0 ${tokens.primary.main}00`, borderColor: "currentColor" },
   },
 };
 
@@ -109,7 +130,7 @@ export function FaceBoxes({ faces, selectedClusterId, clusterDecisions, hoveredF
               borderRadius: tokens.radius.sm, pointerEvents: "none",
               transition: "box-shadow 120ms ease, border-color 120ms ease",
               ...FLASH_KEYFRAMES,
-              ...(flashing ? { animation: `loomFaceFlash ${FACE_FLASH_MS}ms ease-out` } : {}),
+              ...(flashing ? { animation: `loomFaceFlash ${FACE_FLASH_DURATION_MS}ms ease-in-out` } : {}),
             }}>
             {clusterDecisions && (
               <Box sx={{ position: "absolute", top: -16, right: 0 }}>

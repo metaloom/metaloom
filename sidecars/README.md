@@ -24,6 +24,7 @@ production.
 | [`ideogram-sidecar/`](./ideogram-sidecar) | `imagegen` (`io.metaloom.cortex.node.imagegen`) | Image generation — SDXL-Turbo by default, Ideogram 4 if you accept its gate, `POST /generate` + `/remix` | `9200` |
 | [`mage-flow-sidecar/`](./mage-flow-sidecar) | `imagegen` (same node, `port` option) | Image generation + instruction editing — Mage-Flow 4B, **MIT weights**, `POST /generate` + `/remix` | `9210` |
 | [`ltx2-sidecar/`](./ltx2-sidecar) | `videogen` (`io.metaloom.cortex.node.videogen`) | Text/image-to-video — LTX-2 19B, `POST /generate` + `/animate` → `video/mp4` | `9220` |
+| [`qwen-image-sidecar/`](./qwen-image-sidecar) | `imagegen` (same node, `port` option) + MCP `generate_image` | Multi-image editing and prompted masks — Qwen-Image-2.1, **non-commercial weights**, `POST /generate` + `/remix` + `/edit` + `/mask` | `9230` |
 | [`llamacpp/`](./llamacpp) | `llm` (`io.metaloom.cortex.node.llm`), `translate`, `guard` | LLM — llama.cpp's official server image, OpenAI chat-completions at `/v1` | `8080` |
 | [`llamacpp-embeddings/`](./llamacpp-embeddings) | none — **Loom itself**, for semantic search | Text embeddings — nomic-embed-text-v1.5, OpenAI `POST /v1/embeddings` | `8090` |
 | [`tei/`](./tei) | none — **Loom itself**, for semantic and transcript search | Text embeddings — BGE-M3, multilingual, 8192-token context, OpenAI `POST /v1/embeddings` | `8091` |
@@ -39,12 +40,21 @@ which embeds `search_document` rows for semantic search. They serve the same rou
 models, so running both at once is how you compare them — see [`tei/README.md`](./tei) for which
 to pick and why transcript search wants the multilingual one.
 
-Two sidecars serve the same `imagegen` node on purpose. The ideogram one's practical
+Three sidecars serve the same `imagegen` node on purpose. The ideogram one's practical
 default is SDXL-Turbo, whose weights are **non-commercial** (as are Ideogram 4's, which
 are additionally gated); `mage-flow-sidecar` is the first image model here whose weights
 are MIT and can therefore ship in a commercial deployment. It is also the stronger model
 (GenEval 0.90 vs SDXL-Turbo's ~0.55). Point the node at one or the other by changing its
 `port` option — the HTTP contract is identical.
+
+`qwen-image-sidecar` is the third, and it is not interchangeable in the same way. It
+answers `/generate` and `/remix` like the other two, so it is a drop-in for those, but it
+**also** answers `/edit` and `/mask` — combining up to ten pictures into one, and confining
+a change to a region you name in words. Nothing else here does either. The catch is its
+licence: Qwen-Image-2.1 is **non-commercial** (Qwen Research License), so the only backend
+that can do those two things is the one a commercial deployment may not use. Measured VRAM is
+~46 GB at the default resolution and ~66 GB at 2K — well above its 33 GB of weights — so it
+wants an 80 GB card, or `QWENIMAGE_OFFLOAD=1` below ~48 GB.
 
 Each sidecar directory is self-contained (`setup.sh`, `run.sh`, `server.py`, `requirements.txt`,
 `README.md` — `llamacpp/` has no `server.py`/`requirements.txt`, and adds a `stop.sh`) and
@@ -71,9 +81,11 @@ came out of.
 In production a sidecar runs alongside the Cortex worker (same pod / host). The node points at it via
 its own host/port options (for `tts`: `ttsHost` / `ttsPort`, default `localhost:9100`; for
 `sentiment`: `sentimentHost` / `sentimentPort`, default `localhost:9110`; for `imagegen`: `host` /
-`port`, default `localhost:9200` — set `9210` for `mage-flow-sidecar`), while the sidecar binds
+`port`, default `localhost:9200` — set `9210` for `mage-flow-sidecar`, `9230` for
+`qwen-image-sidecar`), while the sidecar binds
 its listener via its own env vars (`TTS_HOST` / `TTS_PORT`, `SENTIMENT_HOST` / `SENTIMENT_PORT`,
 `DEPTH_HOST` / `DEPTH_PORT`, `SAM2_HOST` / `SAM2_PORT`, `MAGEFLOW_HOST` / `MAGEFLOW_PORT`,
+`QWENIMAGE_HOST` / `QWENIMAGE_PORT`,
 `LTX2_HOST` / `LTX2_PORT`,
 `LLAMACPP_HOST` / `LLAMACPP_PORT`). See the [Cortex Helm chart](../helm/cortex) for deploying
 workers. `ltx2-sidecar` is the model server for the `videogen` Cortex node

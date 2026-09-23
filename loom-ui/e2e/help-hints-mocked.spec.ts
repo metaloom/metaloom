@@ -30,6 +30,19 @@ async function installMocks(page: Page) {
       provider: "lucene", available: true, reason: "", capabilities: ["FACETS"],
       documentCount: 0, dirtyCount: 0,
     }));
+  // Not a list route, so the catch-all `{data: []}` gives it a report with no `results` array at
+  // all — the screen throws while rendering and the error boundary replaces the whole route,
+  // header included. The hint would then be missing for a reason that has nothing to do with it.
+  await page.route(/\/api\/v1\/db-integrity$/, route =>
+    json(route, { generatedAt: "2026-02-03T00:00:00Z", durationMs: 12, results: [] }));
+  await page.route(/\/api\/v1\/db-integrity\/checks$/, route => json(route, { data: [] }));
+  // Same reason: the storage report is an object, not a list.
+  const thresholds = { minFreeSpaceBytes: 1, warnFreeSpaceBytes: 2, maxUploadSizeBytes: 3 };
+  await page.route(/\/api\/v1\/storage\/backends$/, route => json(route, { backends: [], thresholds }));
+  await page.route(/\/api\/v1\/storage$/, route => json(route, {
+    timestamp: "2026-02-03T00:00:00Z", thresholds, categories: [], backends: [],
+    objects: 0, distinctBytes: 0, orphanObjects: 0, orphanBytes: 0,
+  }));
 }
 
 /**
@@ -100,6 +113,15 @@ test.describe("documentation coachmarks", () => {
     ["/uploads", "uploads"],
     ["/pipelines", "pipeline.editing"],
     ["/admin/permissions", "admin.acl"],
+    ["/assets", "assets"],
+    ["/library", "library"],
+    ["/collections", "collections"],
+    ["/tags", "tags"],
+    ["/tasks", "tasks"],
+    ["/monitoring", "monitoring"],
+    ["/cortex", "cortex"],
+    ["/skills", "skills"],
+    ["/chat/sessions", "chatSessions"],
   ];
 
   for (const [path, topic] of FLAGSHIP) {
@@ -123,6 +145,50 @@ test.describe("documentation coachmarks", () => {
     await page.getByRole("tab", { name: /llm/i }).click();
     await expectHint(page, "detection.results");
   });
+
+  /**
+   * Administration is eleven unrelated screens behind one heading, so one shortcut to the section
+   * landing page would be the least useful destination of the eleven.
+   */
+  const ADMIN_TABS: [string, string][] = [
+    ["/admin/spaces", "admin.spaces"],
+    ["/admin/users", "admin.acl"],
+    ["/admin/blacklist", "admin.denylist"],
+    ["/admin/memory-denylist", "admin.denylist"],
+    ["/admin/indices", "admin.indices"],
+    ["/admin/db-integrity", "admin.integrity"],
+    ["/admin/storage", "admin.pools"],
+    ["/admin/failure-reports", "admin.failureReports"],
+  ];
+
+  for (const [path, topic] of ADMIN_TABS) {
+    test(`${path} carries the ${topic} hint`, async ({ page }) => {
+      await open(page, path);
+      await expectHint(page, topic);
+    });
+  }
+
+  /**
+   * The header is a glyph, a name and a hint — and nothing else.
+   *
+   * Every screen had put something different in the slot beside the title: Collections a count to
+   * the right of it, Tasks the same count underneath, Uploads and Libraries and Memory a sentence
+   * of description. The result was that moving between views felt like moving between
+   * applications. The explanation now lives inside the hint's tooltip, and the count lives in the
+   * list that owns it.
+   */
+  for (const path of ["/collections", "/tasks", "/uploads", "/memory", "/skills", "/monitoring", "/cortex", "/tags"]) {
+    test(`the header on ${path} is a glyph, a name and a hint`, async ({ page }) => {
+      await open(page, path);
+      const header = page.getByTestId("view-header");
+      await expect(header).toBeVisible({ timeout: 10_000 });
+      await expect(header.getByTestId("view-header-icon")).toBeVisible();
+      await expect(header.locator("[data-testid^=help-hint-]")).toHaveCount(1);
+      // Neither a count nor a sentence of description under the name.
+      const title = (await header.getByTestId("view-header-title").textContent()) ?? "";
+      expect(title.trim()).not.toMatch(/\d+\s*$/);
+    });
+  }
 
   test("the workflow hint follows the review mode", async ({ page }) => {
     await open(page, "/workflow");

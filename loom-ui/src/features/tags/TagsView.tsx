@@ -6,11 +6,12 @@ import {
 import {
   ExpandMore, ChevronRight, AddOutlined, EditOutlined,
   DeleteOutlineOutlined, LocalOfferOutlined, MoreVertOutlined,
-  FolderOutlined, SearchOutlined, HelpOutlineOutlined,
+  FolderOutlined, SearchOutlined,
   SaveOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -25,6 +26,16 @@ import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 import { useFailure } from "../../context/FailureContext";
+
+/**
+ * How many tag ratings to ask for in one pass.
+ *
+ * One request per tag and no bulk route, so this is the ceiling on how many connections a freshly
+ * loaded page opens at once. A page of the tag list is 25 rows; the effect runs again for the
+ * next batch as soon as this one lands, so a "load more" fills in behind the reader rather than
+ * opening three hundred sockets at once.
+ */
+const RATING_FETCH_BATCH = 25;
 
 // Backend tags are flat with a "collection" grouper.
 // We present them as a two-level tree: collection → tag leaf nodes.
@@ -75,7 +86,7 @@ function countDescendants(node: TagNode): number {
 
 // ── Tag tree row ──────────────────────────────────────────────────────
 function TagTreeRow({
-  node, depth, expanded, selectedId,
+  node, depth, expanded, selectedId, ratings,
   onToggle, onSelect, onDelete,
   onDragStart, onDragOver, onDrop,
 }: {
@@ -83,6 +94,8 @@ function TagTreeRow({
   depth: number;
   expanded: Set<string>;
   selectedId: string | null;
+  /** The signed-in user's rating per tag uuid; absent means "not loaded", null means "unrated". */
+  ratings: Record<string, number | null>;
   onToggle: (id: string) => void;
   onSelect: (node: TagNode) => void;
   onDelete: (node: TagNode) => void;
@@ -138,13 +151,39 @@ function TagTreeRow({
         {/* Icon for collections */}
         {!node.isTag && <FolderOutlined sx={{ fontSize: 15, color: tokens.primary.main, flexShrink: 0 }} />}
 
-        {/* Label */}
-        <Typography
-          variant="body2"
-          sx={{ fontSize: "0.82rem", fontWeight: !node.isTag ? 600 : 400, color: tokens.text.primary, flex: 1, userSelect: "none" }}
-        >
-          {node.label}
-        </Typography>
+        {/* Label, with the rating beside it rather than adrift at the other end of a wide pane. */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{ fontSize: "0.82rem", fontWeight: !node.isTag ? 600 : 400, color: tokens.text.primary, userSelect: "none" }}
+          >
+            {node.label}
+          </Typography>
+
+        {/* The rating, where there is one.
+
+            Read-only here: rating is a deliberate act and belongs in the detail panel, while the
+            tree's job is to let somebody see at a glance which of three hundred tags anybody has
+            judged. Ten stars is the scale the server enforces (TAG_RATING_MIN/MAX), drawn small
+            enough to sit in a row without crowding the name. */}
+        {node.isTag && ratings[node.id] != null && (
+          <Rating
+            value={ratings[node.id]}
+            max={10}
+            readOnly
+            size="small"
+            data-testid="tag-row-rating"
+            data-tag-id={node.id}
+            data-rating={ratings[node.id]}
+            sx={{
+              flexShrink: 0, fontSize: 11,
+              "& .MuiRating-iconFilled": { color: tokens.accent.amber },
+              "& .MuiRating-iconEmpty": { color: tokens.text.tertiary, opacity: 0.4 },
+            }}
+          />
+        )}
+        </Box>
 
         {/* Child count badge */}
         {!node.isTag && (
@@ -174,6 +213,7 @@ function TagTreeRow({
           depth={depth + 1}
           expanded={expanded}
           selectedId={selectedId}
+          ratings={ratings}
           onToggle={onToggle}
           onSelect={onSelect}
           onDelete={onDelete}
@@ -226,6 +266,14 @@ export default function TagsView() {
   const [editName, setEditName] = useState("");
   const [editCollection, setEditCollection] = useState("");
   const [rating, setRating] = useState<number | null>(null);
+  /**
+   * The signed-in user's rating per tag, for the stars in the tree.
+   *
+   * A key present with a null value means "asked, and this user has not rated it"; a key that is
+   * absent means "not asked yet". Keeping the two apart is what stops the effect below asking
+   * again on every render for every unrated tag in the list.
+   */
+  const [ratings, setRatings] = useState<Record<string, number | null>>({});
   const [dragId, setDragId] = useState<string | null>(null);
 
   const reload = page.reload;
@@ -238,6 +286,35 @@ export default function TagsView() {
     // Auto-expand all collections on first load.
     setExpanded(prev => prev.size > 0 ? prev : new Set(next.map(n => n.id)));
   }, [allTags]);
+
+  /**
+   * Fetch the ratings for tags that have arrived and have not been asked about.
+   *
+   * There is no bulk rating route and the list route does not carry one - a rating is per user,
+   * and `/tags` is not. So it is one request per tag, paced, and only for the page that is
+   * actually on screen; the same shape the face screen uses for a person's clusters. Failures are
+   * recorded as "unrated" rather than retried: a row with no stars is the correct thing to draw
+   * when the answer cannot be had, and a retry loop over three hundred tags is not.
+   */
+  useEffect(() => {
+    if (!token) return;
+    const pending = allTags.filter(t => !(t.uuid in ratings)).slice(0, RATING_FETCH_BATCH);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    Promise.all(pending.map(t =>
+      loadTagRating(token, t.uuid)
+        .then(r => [t.uuid, r.rating ?? null] as const)
+        .catch(() => [t.uuid, null] as const),
+    )).then(entries => {
+      if (cancelled) return;
+      setRatings(prev => {
+        const next = { ...prev };
+        for (const [uuid, value] of entries) next[uuid] = value;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [token, allTags, ratings]);
 
   // ── Create tag ──────────────────────────────────────────────────────
   const handleCreateTag = async () => {
@@ -344,6 +421,9 @@ export default function TagsView() {
   const handleRate = async (value: number | null) => {
     if (!selectedNode?.isTag || !token) return;
     setRating(value);
+    // The tree reads the map, not this field, so a rating set here has to land in both or the
+    // stars beside the row stay at whatever they were when the page loaded.
+    setRatings(prev => ({ ...prev, [selectedNode.id]: value }));
     try {
       if (value === null) {
         await deleteTagRating(token, selectedNode.id);
@@ -353,15 +433,15 @@ export default function TagsView() {
     } catch {
       // Reload the persisted value on failure to keep the widget in sync.
       loadTagRating(token, selectedNode.id)
-        .then(r => setRating(r.rating ?? null))
+        .then(r => {
+          setRating(r.rating ?? null);
+          setRatings(prev => ({ ...prev, [selectedNode.id]: r.rating ?? null }));
+        })
         .catch(() => setRating(null));
     }
   };
 
   // ── Derived state ──────────────────────────────────────────────────
-  // The server's total, not the number of rows fetched — the tree below may still be partial.
-  const totalTags = page.totalCount;
-  const collections = new Set(allTags.map(t => t.collection || "uncategorized"));
 
   // Filter tree: keep nodes (and parents) matching the query
   const filterTree = (nodes: TagNode[], q: string): TagNode[] => {
@@ -386,12 +466,7 @@ export default function TagsView() {
       <ViewHeader
         icon={<LocalOfferOutlined />}
         title={t("tags.title")}
-        meta={
-          <Tooltip title={t("tags.tooltip.info")} arrow>
-            <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
-          </Tooltip>
-        }
-        subtitle={`${totalTags} ${t("tags.count", { collections: collections.size })}`}
+        meta={<HelpHint topic="tags" description={t("tags.tooltip.info")} />}
         actions={
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <TextField
@@ -467,6 +542,7 @@ export default function TagsView() {
                 depth={0}
                 expanded={expanded}
                 selectedId={selectedNode?.id ?? null}
+                ratings={ratings}
                 onToggle={toggleExpand}
                 onSelect={handleSelectNode}
                 onDelete={handleDeleteTag}

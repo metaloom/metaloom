@@ -46,8 +46,10 @@ The harness is built. The catalog access is not.
       `*_bin` directories; Loom has no byte-ingest endpoint for produced media ([NODES.md §2.1](../features/nodes/NODES.md))
 - [ ] **The agent cannot see.** The loop is text-only — `genai-utils` has no `image_url` content
       part, so the model can never look at an asset, only at text somebody else wrote about it (§5.3)
-- [ ] **The chat cannot show an asset.** The only visual type is `pipeline-graph`; `RefChip`
-      renders `asset | collection | task | pipeline | annotation` as a chip with no thumbnail (§5.2)
+- [x] **The chat can show an asset.** `show_asset` embeds a real player or picture in the transcript
+      (`asset-viewer`), and every search carries its result set (`asset-results`), which fills both a
+      thumbnail strip under the answer and the workspace panel beside it
+      ([LOOM_UI_CHAT.md §6.2–6.3](LOOM_UI_CHAT.md)). `RefChip` still has no thumbnail (§5.2)
 - [x] **No long-running work model.** Bridged for ad-hoc work: `run_node_graph` returns a job handle
       inside the turn, `get_job` reads it in a later one, and completion writes a `NODE_RUN_COMPLETED`
       notification. Resumption is user-driven in v1 — see
@@ -229,13 +231,13 @@ Closing this is a prerequisite for every "make me a…" prompt. The design alrea
 
 | Gap | Detail |
 |---|---|
-| **No asset visual** | `visuals` supports exactly one type, `pipeline-graph`. Adding `asset-grid` / `asset-card` / `image` is explicitly a no-protocol-change extension ([LOOM_UI_CHAT.md §6](LOOM_UI_CHAT.md)) — do this early, it changes how the feature *feels* more than anything else on this page |
+| ~~No asset visual~~ | **Done.** `asset-viewer` (one asset, playable) and `asset-results` (the result set) landed as the no-protocol-change extension this row called for. An `image` visual for *produced* bytes is still open and waits on byte ingest (EXE6) |
 | **Chips are thumbnail-less** | `RefChip` renders `asset · collection · task · pipeline · annotation` as an icon + label. An asset chip should carry its thumbnail |
 | **`memory` chips are inert** | The memory tools emit `type: "memory"` references; `RefType` has no such member, so they render unstyled and do nothing ([CHAT_MEMORY.md §8](CHAT_MEMORY.md)) |
 | **`comment` chips are documented but absent** | Spec lists `comment` in the chip set; the code's `RefType` union does not have it |
 | **No progress surface for long work** | An `ActionRow` is running-or-done. A pipeline run needs percent, item counts and a cancel button — §7 |
 | **No confirm/approve control** | The counterpart to the loop gap above |
-| **No selection → chat handoff** | The user cannot select assets in `AssetBrowser` and say "these" |
+| **No selection → chat handoff** | The user cannot select assets in `AssetBrowser` and say "these". The reverse direction now works: a search the agent ran fills the panel |
 | **No result → collection button** | The most common next action after a good search has no one-click path |
 
 ### 5.3 Multimodality is the highest-leverage single change

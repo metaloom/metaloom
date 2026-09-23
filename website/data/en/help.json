@@ -77,6 +77,102 @@
       "url": "/docs/ui/#administration",
       "title": "Users, groups and permissions",
       "summary": "Roles, permissions and deciding who is allowed to do what."
+    },
+    {
+      "id": "assets",
+      "url": "/docs/ui/#assets",
+      "title": "Assets",
+      "summary": "The media catalogue: find a file, open it, and see everything that is known about it."
+    },
+    {
+      "id": "library",
+      "url": "/docs/ui/#_library",
+      "title": "Libraries",
+      "summary": "Group media into libraries, and see what each one holds and where its bytes live."
+    },
+    {
+      "id": "collections",
+      "url": "/docs/ui/#collections",
+      "title": "Collections",
+      "summary": "Gather assets into a named set that can be worked on, shared or processed together."
+    },
+    {
+      "id": "tags",
+      "url": "/docs/ui/#_tags",
+      "title": "Tags",
+      "summary": "Tag collections, renaming and moving a tag, and rating how well one fits."
+    },
+    {
+      "id": "tasks",
+      "url": "/docs/ui/#_tasks",
+      "title": "Tasks",
+      "summary": "Work assigned to people: who is doing what, by when, and what state it is in."
+    },
+    {
+      "id": "persons",
+      "url": "/docs/ui/#persons",
+      "title": "People",
+      "summary": "The people in your media, and the pictures that belong to each of them."
+    },
+    {
+      "id": "skills",
+      "url": "/docs/ui/#_skills",
+      "title": "Skills",
+      "summary": "Written instructions the agent loads when a job calls for them."
+    },
+    {
+      "id": "chatSessions",
+      "url": "/docs/ui/#_chat_sessions",
+      "title": "Chat sessions",
+      "summary": "Conversations with the agent, kept so they can be returned to."
+    },
+    {
+      "id": "monitoring",
+      "url": "/docs/ui/#monitoring",
+      "title": "Monitoring",
+      "summary": "How the instance is doing: ingest, run outcomes, latency and storage over time."
+    },
+    {
+      "id": "cortex",
+      "url": "/docs/ui/#_cortex_instances",
+      "title": "Cortex workers",
+      "summary": "The machines that run the processing, what they are doing, and what they may run."
+    },
+    {
+      "id": "admin.spaces",
+      "url": "/docs/ui/#spaces",
+      "title": "Spaces",
+      "summary": "Keeping one tenant's media apart from another's."
+    },
+    {
+      "id": "admin.pools",
+      "url": "/docs/ui/#storage-pools",
+      "title": "Storage pools",
+      "summary": "Where the bytes live - a filesystem or object storage - and how full each pool is."
+    },
+    {
+      "id": "admin.denylist",
+      "url": "/docs/ui/#deny-lists",
+      "title": "Deny lists",
+      "summary": "Words and notes the agent must never store or repeat."
+    },
+    {
+      "id": "admin.indices",
+      "url": "/docs/ui/#search-indices",
+      "title": "Search indices",
+      "summary": "The state of the search index, and rebuilding it when it falls behind."
+    },
+    {
+      "id": "admin.integrity",
+      "url": "/docs/ui/#database-integrity",
+      "title": "Database integrity",
+      "summary": "Checks that look for rows pointing at things that no longer exist."
+    },
+    {
+      "id": "admin.failureReports",
+      "url": "/docs/ui/#_problem_reports",
+      "title": "Problem reports",
+      "summary": "The inbox of failures people reported from inside the product."
     }
   ]
 }

@@ -5,34 +5,47 @@ its own model weights**; no sidecar shares a runtime with the JVM, and none of t
 Maven reactor.
 
 One file per sidecar in this directory carries the full contract. This page is the router, plus the
-facts that are only visible when you look at all seven at once.
+facts that are only visible when you look at all of them at once.
 
 **Related:** [../features/nodes/NODES.md](../features/nodes/NODES.md) (the nodes that call them) ·
 [../cortex/CORTEX.md](../cortex/CORTEX.md) · [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md)
 
-## The seven sidecars
+## The ten sidecars
 
 | Sidecar | Port | Spec | Calling node (kind) | Purpose |
 |---|---|---|---|---|
 | `sidecars/tts` | 9100 | [TTS_SIDECAR.md](TTS_SIDECAR.md) | `TtsNode` (`tts`) | Orpheus (DE) / Kokoro (EN) speech synthesis |
 | `sidecars/sentiment` | 9110 | [SENTIMENT_SIDECAR.md](SENTIMENT_SIDECAR.md) | `SentimentNode` (`sentiment`) | DE/EN/multilingual 3-class sentiment |
 | `sidecars/depth` | 9120 | [DEPTH_SIDECAR.md](DEPTH_SIDECAR.md) | `DepthmapNode` (`depthmap`) | Monocular depth → 16-bit NEARNESS map |
+| `sidecars/sam2` | 9130 | *(none — see [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md))* | `Sam2Node` (`sam2`) | SAM 2 segmentation, prompted cut-outs, video tracking |
 | `sidecars/ideogram-sidecar` | 9200 | [IDEOGRAM_SIDECAR.md](IDEOGRAM_SIDECAR.md) | `ImageGenNode` (`imagegen`) | SDXL-Turbo / Ideogram-4 nf4 image generation |
 | `sidecars/mage-flow-sidecar` | 9210 | [MAGE_FLOW_SIDECAR.md](MAGE_FLOW_SIDECAR.md) | `ImageGenNode` (`imagegen`) | Mage-Flow 4B — **MIT weights**, the commercially usable backend |
 | `sidecars/ltx2-sidecar` | 9220 | [LTX2_SIDECAR.md](LTX2_SIDECAR.md) | `VideoGenNode` (`videogen`) | LTX-2 video **with synchronised audio** |
+| `sidecars/qwen-image-sidecar` | 9230 | [QWEN_IMAGE_SIDECAR.md](QWEN_IMAGE_SIDECAR.md) | `ImageGenNode` (`imagegen`), MCP `generate_image` | Qwen-Image-2.1 - multi-image editing and prompted masks. **Non-commercial weights** |
 | `sidecars/llamacpp` | **8080** | [LLAMACPP_SIDECAR.md](LLAMACPP_SIDECAR.md) | `LLMNode` (`llm`), `TranslateNode` (`translate`) | llama.cpp — OpenAI-compatible chat completions |
+| `sidecars/llamacpp-embeddings` | **8090** | *(none)* | *(none — Loom semantic search)* | llama.cpp wrapper re-run with `--embeddings` |
+| `sidecars/tei` | **8091** | *(none)* | *(none — Loom semantic/transcript search)* | HuggingFace text-embeddings-inference |
 
-`imagegen` has two interchangeable backends. You pick one by setting the node's `port` option —
-`9200` for Ideogram, `9210` for Mage-Flow. There is no backend enum; the port *is* the selector.
+`imagegen` has **three** interchangeable backends. You pick one by setting the node's `port` option —
+`9200` for Ideogram, `9210` for Mage-Flow, `9230` for Qwen-Image-2.1. There is no backend enum; the
+port *is* the selector.
+
+They are not equal in what they serve. All three answer `/generate` and `/remix`; **only the qwen
+sidecar answers `/edit` and `/mask`**, so the node's `EDIT` and `MASK` modes fail against the other
+two with that sidecar's own 404. The node cannot warn you in advance, because no node calls
+`/health`.
+
+Nor are they equal in licence: Mage-Flow's weights are MIT and remain the documented default for
+shipping deployments, while SDXL-Turbo, Ideogram-4 and Qwen-Image-2.1 are all non-commercial.
 
 ### `llamacpp` is the odd one out — read this before generalising
 
-Six of the seven are **our** FastAPI servers: a `.venv`, a `requirements.txt`, a `server.py` we
-wrote, a bespoke `POST /v1/<thing>` contract, and a port from the 9100–9220 block. `llamacpp` is
+Seven of the ten are **our** FastAPI servers: a `.venv`, a `requirements.txt`, a `server.py` we
+wrote, a bespoke `POST /v1/<thing>` contract, and a port from the 9100–9230 block. `llamacpp` is
 none of that — it is three shell scripts around llama.cpp's **official container image**, speaking a
 protocol we do not own, on **8080** because that is already
 `AbstractLlmNodeOptions.DEFAULT_OPENAI_URL`. Every statement below about venvs, `server.py`,
-`--workers 1`, `<NAME>_PORT` or lazy model loading applies to the six, **not** to it.
+`--workers 1`, `<NAME>_PORT` or lazy model loading applies to those seven, **not** to it.
 
 ## Architecture
 
@@ -62,12 +75,12 @@ unreachable. The sidecars hold no Loom state and never call back.
 
 | Property | Reality at this revision |
 |---|---|
-| **Helm** | 🔴 **No sidecar appears in any chart.** `helm/` contains zero references to ports 9100–9220 or 8080 |
+| **Helm** | 🔴 **No sidecar appears in any chart.** `helm/` contains zero references to ports 9100–9230 or 8080 |
 | **Compose** | 🔴 No `docker-compose` file references any sidecar |
-| **Container image** | 🟡 `ideogram-sidecar`, `mage-flow-sidecar`, `ltx2-sidecar` ship a `Dockerfile`; `llamacpp` uses **upstream's official image**. `depth`, `sentiment`, `tts` have **no** container build at all |
+| **Container image** | 🟡 `ideogram-sidecar`, `mage-flow-sidecar`, `ltx2-sidecar`, `qwen-image-sidecar` ship a `Dockerfile`; `llamacpp` uses **upstream's official image**. `depth`, `sentiment`, `tts` have **no** container build at all |
 | **Container runtime** | 🟡 Only `llamacpp` runs under both **docker and podman**; the three with a Dockerfile assume docker |
 | **Start path** | Manual `setup.sh` then `run.sh` (except `ideogram-sidecar`, which has neither — see its spec). Only `llamacpp`'s `run.sh` **blocks until healthy**; the rest return immediately |
-| **Python tests** | 🔴 **Zero.** No sidecar has a single Python test (`llamacpp` has no Python at all) |
+| **Python tests** | 🟡 32, all in `qwen-image-sidecar` (mask arithmetic + routes, model stubbed). Every other sidecar has none |
 | **Java-side tests** | All stub the client. No test in the repo exercises a live sidecar over the wire |
 | **Live bring-up observed** | 🟡 `llamacpp` only — chat completion + tool call verified on this checkout. The other six have never been started here |
 | **Auth** | 🔴 None. Every sidecar binds `0.0.0.0` with no token, no TLS, no allow-list |

@@ -1058,6 +1058,33 @@ inside the bundle of the page that uses it — the same reason the two search-in
 * The demo database is expected to pass all 28 checks. If `db-integrity-clean.png` is not clean, that
   is a finding about the demo seed, not a capture problem — fix the seed.
 
+## Capturing the chat's asset visuals (`docs/ui/`)
+
+Two shots of the chat's asset cards — `chat-asset-results.png` (a search result set, drawn as a
+strip under the answer and mirrored into the workspace panel) and `chat-asset-viewer.png` (one
+asset embedded and playing) — refreshed by
+`loom-ui/scripts/capture-chat-visual-screenshots.mjs`. **No demo container, no Postgres and no
+LLM**: it intercepts every REST call the way the mocked specs in `loom-ui/e2e/` do, plays the
+agent's side of the conversation as a canned SSE stream, and starts a Vite dev server if one is
+not already listening.
+
+```bash
+cd loom-ui && node scripts/capture-chat-visual-screenshots.mjs   # env: VITE_PORT, OUT_DIR
+```
+
+* **Mocking is the point, not a shortcut.** Photographing these two cards against a live stack
+  needs a model that decides, of its own accord, to call `show_asset` on the asset the caption
+  talks about — so every run would produce a different picture, or none at all. What is not faked
+  is the part being photographed: the real `ChatWorkspace`, `AssetViewerCard`, `AssetResults` and
+  `AssetVideoPlayer`, reading the real `api/` clients.
+* **The media is `demo-content/`'s own footage**, served through the intercepted poster and stream
+  routes, so the reader sees the same clips the demo container ships. A `<video>` handed invalid
+  bytes paints its buffering spinner for ever and the picture is then of a player that looks
+  broken; the script also parks the element on a decoded frame for the same reason.
+* **The split is set to 62 % in `localStorage`.** The 80/20 default is right for working, and at
+  1600 px it leaves the panel ~290 px wide — enough to clip the filenames and half the tab bar,
+  when both halves of the screen are the subject.
+
 ## Capturing Debug Mode screenshots (`docs/pipeline/`)
 
 `docs/pipeline/` holds 5 screenshots of the pipeline debugger, refreshed by
@@ -1177,6 +1204,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
 | Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
 | Refresh the upload screenshots | [Capturing the upload screen](#capturing-the-upload-screen-docsui) — mocked, no container |
+| Refresh the chat asset-visual screenshots | [Capturing the chat's asset visuals](#capturing-the-chats-asset-visuals-docsui) — mocked, no container and no LLM |
 | Refresh the storage screenshot | [Capturing the storage screen](#capturing-the-storage-screen-docsloomstorage) — one shot per run |
 | Refresh the database integrity screenshots | [Capturing the database integrity screen](#capturing-the-database-integrity-screen-docsloomdatabase-integrity) — one shot per run, breaks the demo DB between two of them |
 | Refresh a node page's settings picture | `cd loom-ui && node scripts/capture-node-config-screenshots.mjs [page]` |

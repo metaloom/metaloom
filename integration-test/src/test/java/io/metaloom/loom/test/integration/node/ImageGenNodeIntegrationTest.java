@@ -2,7 +2,6 @@ package io.metaloom.loom.test.integration.node;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -15,8 +14,10 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.imagegen.ImageGenClient;
 import io.metaloom.cortex.node.imagegen.ImageGenNode;
 import io.metaloom.cortex.node.imagegen.ImageGenNodeOptions;
+import io.metaloom.cortex.node.imagegen.ImageGenResult;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Integration test for {@code ImageGenNode}. The node runs its real prompt-in / image-out + persistence path against a real image asset, but its
@@ -29,16 +30,17 @@ public class ImageGenNodeIntegrationTest extends AbstractNodeIntegrationTest {
 	private static final byte[] FAKE_PNG = "PNG\r\n\nfake-generated-image".getBytes();
 
 	/** An ImageGenClient that returns fixed PNG bytes instead of calling the FastAPI sidecar. */
+	/**
+	 * Subclassing the client is how the sidecar boundary is replaced here - it is a non-final class
+	 * with non-final methods for exactly this. Overriding {@code post} rather than the four public
+	 * methods covers every mode in one place, including the two that did not exist when this test
+	 * was written.
+	 */
 	private static ImageGenClient stubClient() {
-		return new ImageGenClient("localhost", 0, "/generate", "/remix", 0) {
+		return new ImageGenClient("localhost", 0, "/generate", "/remix", "/edit", "/mask", 0) {
 			@Override
-			public byte[] generate(String prompt, int width, int height, Integer seed, int steps) {
-				return FAKE_PNG;
-			}
-
-			@Override
-			public byte[] remix(BufferedImage source, String prompt, double strength, Integer seed, int steps) {
-				return FAKE_PNG;
+			protected ImageGenResult post(String endpoint, JsonObject json) {
+				return new ImageGenResult(FAKE_PNG, "Qwen/Qwen-Image-2.1");
 			}
 		};
 	}

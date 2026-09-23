@@ -2,6 +2,7 @@ package io.metaloom.loom.rest.validation;
 
 import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
@@ -13,6 +14,19 @@ public interface TagModelValidator extends ModelValidator {
 
 	default void validate(TagUpdateRequest request) {
 
+	}
+
+	/**
+	 * A placement move carries a region and nothing else, and every field of it is optional.
+	 *
+	 * <p>
+	 * Deliberately permissive: a caller dragging one edge of a time range sends that edge alone, and an area with no fields set is a no-op rather than
+	 * a malformed request - the same call twice has to mean the same thing. What the region may <em>not</em> be is checked where it can be: the DAO
+	 * keeps a field the request left unset at its stored value.
+	 * </p>
+	 */
+	default void validate(TagPlacementUpdateRequest request) {
+		requireNonNull(request.getArea(), "The area was not set");
 	}
 
 	default void validate(TagRatingRequest request) {

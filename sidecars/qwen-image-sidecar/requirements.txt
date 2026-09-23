@@ -1,0 +1,36 @@
+# Cortex Qwen-Image-2.1 sidecar. Python 3.10+.
+#
+# torch and torchvision are intentionally absent here and are installed FIRST, matched
+# to your CUDA, by setup.sh / the Dockerfile. A CUDA mismatch fails late and confusingly
+# (a kernel error thirty seconds into the first generation), so it is not left to pip
+# to guess.
+#
+# torchvision is required even though this sidecar never touches video: the Qwen3-VL
+# processor loaded as part of the pipeline pulls in Qwen3VLVideoProcessor, which
+# hard-requires it. Without it the model load dies with "Qwen3VLVideoProcessor requires
+# the Torchvision library but it was not found". Install it from the SAME index as
+# torch, or the compiled ABIs will not match.
+
+# --- HTTP layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.9
+
+# --- diffusion + HF model stack ---
+#
+# diffusers is NOT listed here, and that is the single most important line in this
+# file. QwenImage21Pipeline was merged on 2026-09-18 (PR #14804); the newest release,
+# 0.40.0, shipped 2026-08-20 and cannot contain it. `pip install diffusers` therefore
+# produces an ImportError that reads like a typo. setup.sh and the Dockerfile install
+# it from git, pinned to the merge commit - see qwen_loader.DIFFUSERS_GIT_REF.
+#
+# transformers >=5.17 is the model card's floor: the text encoder is a Qwen3-VL and
+# Qwen3VLProcessor/Qwen3VLForConditionalGeneration have to be present. 5.17.0 is on
+# PyPI, so this resolves normally.
+transformers>=5.17
+accelerate>=1.0
+safetensors>=0.4
+huggingface_hub>=0.20
+
+# --- image io ---
+pillow>=10.0

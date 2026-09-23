@@ -13,9 +13,14 @@ import { test, expect, Page, WebSocketRoute } from "@playwright/test";
 interface ProcOpts {
   state?: string;
   cpu?: number;
-  gpu?: number;
+  /** Absent means the worker has no card at all — which is not the same as an idle one. */
+  gpu?: number | null;
   io?: number;
   caps?: string[];
+  /** Video memory in bytes. Reported apart from the load: a card can be idle with no room left. */
+  vramUsed?: number;
+  vramTotal?: number;
+  gpuName?: string;
 }
 
 /** Build a ProcessorResponse-shaped snapshot as the REST list / events return it. */
@@ -28,7 +33,16 @@ function proc(nodeId: string, name: string, o: ProcOpts = {}) {
     priority: 1,
     state: o.state ?? "ONLINE",
     capabilities: o.caps ?? ["CPU"],
-    systemStatus: { cpuLoad: o.cpu ?? 10, gpuLoad: o.gpu ?? 0, ioLoad: o.io ?? 0, memoryUsed: 512, memoryTotal: 1024 },
+    systemStatus: {
+      cpuLoad: o.cpu ?? 10,
+      ...(o.gpu == null ? {} : { gpuLoad: o.gpu }),
+      ioLoad: o.io ?? 0,
+      memoryUsed: 512,
+      memoryTotal: 1024,
+      ...(o.vramUsed == null ? {} : { gpuMemoryUsed: o.vramUsed }),
+      ...(o.vramTotal == null ? {} : { gpuMemoryTotal: o.vramTotal }),
+      ...(o.gpuName == null ? {} : { gpuName: o.gpuName }),
+    },
     lastSeen: new Date().toISOString(),
   };
 }
@@ -87,6 +101,46 @@ test.describe("Cortex live updates – mocked", () => {
     const card = page.getByTestId("worker-card-node-1");
     await expect(card).toContainText("cortex-gpu-01");
     await expect(page.getByTestId("worker-status-node-1")).toHaveText("online");
+  });
+
+  /**
+   * Both GPU figures, and only when the worker reported them.
+   *
+   * The screen used to gate the GPU readout on `capabilities.includes("GPU")` — which is what a
+   * worker advertises it can *run*, not what it has — and the cortex daemon never filled the
+   * load in at all, so the row was empty even on a box with four cards.
+   */
+  test("a worker with a card reports its load and its video memory", async ({ page }) => {
+    await page.route("**/api/v1/**", route =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) }));
+    await page.route("**/api/v1/login", route =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "fake-jwt" }) }));
+    await page.route("**/api/v1/processors", route =>
+      route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ data: [
+          proc("node-1", "cortex-gpu-01", {
+            gpu: 37, caps: ["GPU", "CPU"],
+            // 8 GiB of 24 GiB — a third, and the gigabytes are what say whether the next model fits.
+            vramUsed: 8 * 1024 ** 3, vramTotal: 24 * 1024 ** 3, gpuName: "NVIDIA GeForce RTX 4090",
+          }),
+          proc("node-2", "cortex-cpu-01", { caps: ["CPU"] }),
+        ] }),
+      }));
+    await mockEventsSocket(page).registered;
+    await loginAndOpenCortex(page);
+
+    const gpu = page.getByTestId("worker-gpu-node-1");
+    await expect(gpu).toContainText("GPU 37%");
+    const vram = page.getByTestId("worker-vram-node-1");
+    await expect(vram).toContainText("VRAM 33%");
+    await expect(vram).toContainText("8.0 GB / 24.0 GB");
+
+    // The CPU-only worker says nothing about a GPU rather than claiming an idle one — an empty
+    // bar reads as "plenty of room", which would make it the most attractive target on the fleet.
+    await expect(page.getByTestId("worker-card-node-2")).toBeVisible();
+    await expect(page.getByTestId("worker-gpu-node-2")).toHaveCount(0);
+    await expect(page.getByTestId("worker-vram-node-2")).toHaveCount(0);
   });
 
   test("reflects live processor events without a reload", async ({ page }) => {

@@ -333,6 +333,7 @@ The node needed the tag write path fixed before it could exist at all. The curre
 | `POST /assets/:uuid/tags` | `TAG_ASSET` | **Resolves** the tag on `(name, collection)` and creates the placement |
 | `PUT /assets/:uuid/tags` | `TAG_ASSET`, plus `UNTAG_ASSET` when `withdraw` is non-empty | The whole set in one transaction. What the node uses |
 | `DELETE /assets/:uuid/tags/:tagUuid` | `UNTAG_ASSET` | Removes **every** placement of that tag on the asset |
+| `PUT /assets/:uuid/tag-placements/:placementUuid` | `TAG_ASSET` | Moves **one** placement to a new region. Fields the body omits keep their stored value; the placement uuid and its provenance survive |
 | `DELETE /assets/:uuid/tag-placements/:placementUuid` | `UNTAG_ASSET` | Removes **one** placement; 404 when it belongs to another asset |
 
 **`TagDao.resolveOrCreateAssetTag`** is an `INSERT … ON CONFLICT (name, collection) DO UPDATE …

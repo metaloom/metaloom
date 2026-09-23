@@ -39,11 +39,11 @@ import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
-import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 import { useUploads } from "../uploads/UploadContext";
 import { enqueue } from "../uploads/uploadQueue";
 import { useTranslation } from "react-i18next";
+import HelpHint from "../../components/HelpHint";
 import { useSearchParams } from "react-router-dom";
 import RemixCard from "../remix/RemixCard";
 import RemixDialog from "../remix/RemixDialog";
@@ -290,7 +290,6 @@ interface Props {
 }
 
 export default function AssetBrowser({ embedded = false }: Props) {
-  const { activeSpace } = useSpace();
   const { token } = useAuth();
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -684,17 +683,20 @@ export default function AssetBrowser({ embedded = false }: Props) {
           gap: 1.25,
         }}
       >
-        {/* Icon, title, subtitle — the same three things, in the same order and at the same
-            size, as every other view. This row used to be a title and a subtitle with no glyph,
-            which is why moving between Assets and Collections felt like two applications. */}
+        {/* Icon and title at the same size and in the same order as every other view. This row
+            used to be a title and a subtitle with no glyph, which is why moving between Assets
+            and Collections felt like two applications. */}
         {!embedded && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minHeight: 28 }}>
             <Box sx={{ display: "flex", alignItems: "center", color: tokens.primary.main, "& > *": { fontSize: 20 } }}>
               <PermMediaOutlined />
             </Box>
-            <Box sx={{ minWidth: 0 }}>
+            {/* Glyph, name, hint — and nothing else, the way every header reads now
+                (LOOM_UI.md §7.11). What used to sit under the name was the active space, which
+                is the same on every screen in the session and is already in the space switcher. */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{t("assets.title")}</Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }}>{activeSpace?.name}</Typography>
+              <HelpHint topic="assets" />
             </Box>
           </Box>
         )}

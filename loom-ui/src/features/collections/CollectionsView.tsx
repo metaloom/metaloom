@@ -7,6 +7,7 @@ import {
 import { AddOutlined, CollectionsOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ShareOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
@@ -231,7 +232,7 @@ export default function CollectionsView() {
       <ViewHeader
         icon={<CollectionsOutlined />}
         title={t("collections.title")}
-        meta={<span data-testid="collections-count">{page.totalCount} {t("collections.count.collections")}</span>}
+        meta={<HelpHint topic="collections" />}
         actions={
           <Chip
             icon={<AddOutlined sx={{ fontSize: 14 }} />}

@@ -293,6 +293,12 @@ public class AssetEndpoint extends AbstractEndpoint {
 				tagService.untagAsset(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("tagUuid"));
 			});
 
+		addRoute(basePath() + "/:uuid/tag-placements/:placementUuid", PUT,
+			"Move one placement of a tag to a different region of the asset",
+			lrc -> {
+				tagService.updateTagPlacement(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("placementUuid"));
+			});
+
 		addRoute(basePath() + "/:uuid/tag-placements/:placementUuid", DELETE,
 			"Remove one placement of a tag from an asset, keeping its other placements",
 			lrc -> {
@@ -782,12 +788,25 @@ public class AssetEndpoint extends AbstractEndpoint {
 				mediaService.poster(lrc, lrc.pathParamUUID("uuid"), intParam(lrc, "t"), intParam(lrc, "w"));
 			});
 
+		addRoute(basePath() + "/:uuid/stream-start", GET,
+			"Where a stream asked to begin at 't' seconds will actually begin. A stream-copied video can only start on a keyframe, so the "
+				+ "answer is the keyframe at or before 't' - up to several seconds earlier. A player must treat this, not what it asked for, "
+				+ "as the origin of its clock, or everything drawn against time beside the picture is wrong by the difference. It must still "
+				+ "request the stream at the offset it wanted: sending this answer back as 't' snaps a second time. Measured by performing "
+				+ "the seek, not predicted from the index. Requires READ_ASSET_BINARY.",
+			null,
+			examples.streamStartResponseExample(),
+			lrc -> {
+				mediaService.streamStart(lrc, lrc.pathParamUUID("uuid"), doubleParam(lrc, "t"));
+			});
+
 		addDownloadRoute(basePath() + "/:uuid/stream",
 			"The video remuxed into a fragmented MP4 a browser can play, with the video stream-copied and the audio re-encoded to AAC. "
-				+ "A pipe has no index, so the response is not seekable: a player seeks by re-requesting with a different 't'. "
+				+ "A pipe has no index, so the response is not seekable: a player seeks by re-requesting with a different 't'. Because the "
+				+ "copy can only start on a keyframe, the response begins at the keyframe at or before 't'; ask 'stream-start' where that is. "
 				+ "Answers 415 for a codec that cannot be remuxed and 503 when too many streams are already in flight.",
 			lrc -> {
-				mediaService.stream(lrc, lrc.pathParamUUID("uuid"), intParam(lrc, "t"));
+				mediaService.stream(lrc, lrc.pathParamUUID("uuid"), doubleParam(lrc, "t"));
 			});
 
 	}
@@ -807,6 +826,28 @@ public class AssetEndpoint extends AbstractEndpoint {
 		}
 		try {
 			return Integer.parseInt(raw.trim());
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	/**
+	 * An optional non-negative fractional query parameter, or null when absent or unparseable.
+	 *
+	 * <p>
+	 * Seconds are fractional because keyframes are: a stream offset is normally a value the seek-point route handed back, and those land on
+	 * times like 599.599. Truncating one to an integer would put the request on the wrong side of a keyframe and reintroduce exactly the drift
+	 * the route exists to remove.
+	 * </p>
+	 */
+	private static Double doubleParam(io.metaloom.loom.rest.LoomRoutingContext lrc, String name) {
+		String raw = lrc.routingContext().request().getParam(name);
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		try {
+			double value = Double.parseDouble(raw.trim());
+			return Double.isFinite(value) ? value : null;
 		} catch (NumberFormatException e) {
 			return null;
 		}

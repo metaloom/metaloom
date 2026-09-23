@@ -30,6 +30,11 @@ public interface ProcessorExamples extends ExampleValues {
 		model.setSystemStatus(new SystemStatusInfo()
 			.setCpuLoad(45.2)
 			.setGpuLoad(78.0)
+			// A card busy and nearly full, which is the pair of figures a reader of this example
+			// most needs to see are independent of each other.
+			.setGpuMemoryUsed(21_474_836_480L)
+			.setGpuMemoryTotal(25_769_803_776L)
+			.setGpuName("NVIDIA GeForce RTX 4090")
 			.setIoLoad(31.0)
 			.setMemoryUsed(4_294_967_296L)
 			.setMemoryTotal(17_179_869_184L)

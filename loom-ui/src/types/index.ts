@@ -311,15 +311,65 @@ export interface PipelineGraphPayload {
 }
 
 /**
+ * One asset embedded in the transcript, from the `show_asset` tool (CHAT.md §6.2).
+ *
+ * The card builds a player, a picture or a details row from `kind` — decided server-side from the
+ * mime type, because a deployment that stores an unhelpful `application/octet-stream` is better
+ * served by one place deciding than by every client guessing again.
+ */
+export interface AssetViewerPayload {
+  assetUuid: string;
+  filename?: string;
+  mimeType?: string;
+  kind?: "video" | "audio" | "image" | "document" | "other";
+  size?: number;
+  /** Where a player should open, in seconds. Set when the model is talking about a moment, not a file. */
+  startSeconds?: number;
+  /** One line under the viewer saying why this asset is on screen. */
+  caption?: string;
+}
+
+/** One row of an `asset-results` payload: an asset, and why it is in the result set. */
+export interface AssetResultItem {
+  uuid: string;
+  title?: string;
+  mimeType?: string;
+  size?: number;
+  score?: number;
+  /** Offset of the matching passage, for a transcript hit. Opens the player where the words were said. */
+  timeFromMs?: number;
+  snippet?: string;
+}
+
+/**
+ * The result set of a search run by the agent (CHAT.md §6.3).
+ *
+ * Carried as a visual rather than read off the `references`, because the references are a bag of
+ * names: no ranking order, no score, no corpus total and no matched passage. The workspace panel
+ * mirrors this payload so the browser beside the conversation shows the assets being discussed.
+ */
+export interface AssetResultsPayload {
+  /** What was searched for, as the user would say it. The heading of the strip and of the panel. */
+  query?: string;
+  /** The filters that were applied, for the subheading. */
+  criteria?: string;
+  /** Matches in the corpus, usually more than `items.length`. */
+  total?: number;
+  /** False when the provider only estimated `total`, so the card can say "about". */
+  totalExact?: boolean;
+  items: AssetResultItem[];
+}
+
+/**
  * A renderable payload attached to a tool result, drawn inline in the transcript instead of only
  * being described in text (CHAT.md §6.1). `type` discriminates the payload shape.
  */
 export interface ChatVisual {
-  type: "pipeline-graph" | string;
+  type: "pipeline-graph" | "asset-viewer" | "asset-results" | string;
   /** Uuid of the entity depicted, so the card can link into the matching view. */
   id: string;
   label: string;
-  payload: PipelineGraphPayload | Record<string, unknown>;
+  payload: PipelineGraphPayload | AssetViewerPayload | AssetResultsPayload | Record<string, unknown>;
 }
 
 export interface ChatMessage {

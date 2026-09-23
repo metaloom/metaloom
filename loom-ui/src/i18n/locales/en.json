@@ -18,8 +18,24 @@
         "editing": "Pipeline editing"
       },
       "admin": {
-        "acl": "Users, groups and permissions"
-      }
+        "acl": "Users, groups and permissions",
+        "spaces": "Spaces",
+        "pools": "Storage pools",
+        "denylist": "Deny lists",
+        "indices": "Search indices",
+        "integrity": "Database integrity",
+        "failureReports": "Problem reports"
+      },
+      "assets": "Assets",
+      "library": "Libraries",
+      "collections": "Collections",
+      "tags": "Tags",
+      "tasks": "Tasks",
+      "persons": "People",
+      "skills": "Skills",
+      "monitoring": "Monitoring",
+      "cortex": "Cortex workers",
+      "chatSessions": "Chat sessions"
     }
   },
   "common": {
@@ -319,7 +335,6 @@
   "collections": {
     "title": "Collections",
     "count": {
-      "collections": "collections",
       "results": "results"
     },
     "button": {
@@ -377,7 +392,6 @@
   },
   "tasks": {
     "title": "Tasks",
-    "count": "tasks",
     "button": {
       "new": "New Task",
       "create": "Create",
@@ -522,7 +536,6 @@
       "info": "Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it.",
       "create": "Create tag"
     },
-    "count": "tags across {{count}} collections",
     "placeholder": {
       "name": "Tag name…",
       "collection": "Collection…",
@@ -635,7 +648,8 @@
     },
     "tab": {
       "overview": "Overview",
-      "assets": "Assets"
+      "assets": "Assets",
+      "results": "Results ({{n}})"
     },
     "detail": {
       "size": "Size",
@@ -673,6 +687,17 @@
       "hello": "Hello {{name}}",
       "helloAnonymous": "Hello there",
       "subtitle": "Ask about your assets, tasks, collections or transcripts — the Loom Agent searches your space and answers with the entities it finds."
+    },
+    "viewer": {
+      "open": "Open in the asset view"
+    },
+    "results": {
+      "count_one": "{{count}} result",
+      "count_other": "{{count}} results",
+      "of": "{{shown}} of {{total}}",
+      "ofAbout": "{{shown}} of about {{total}}",
+      "untitled": "Search results",
+      "empty": "The search returned nothing."
     }
   },
   "admin": {
@@ -1496,13 +1521,15 @@
     }
   },
   "cortex": {
+    "vram": {
+      "tooltip": "Video memory in use across every device this worker can see"
+    },
     "title": "Cortex Workers",
     "tooltip": {
       "info": "Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks.",
       "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
     },
     "count": {
-      "online": "{{online}} / {{total}} online",
       "workers": "{{count}} workers"
     },
     "search": {
@@ -2039,6 +2066,7 @@
       "regionHintVideo": "Drag a range on the timeline…",
       "regionCaptured": "Region captured — type a name and press Enter",
       "regionTooltip": "Region tag (time / area)",
+      "moveError": "The region could not be moved.",
       "newRegion": "new region"
     },
     "detection": {

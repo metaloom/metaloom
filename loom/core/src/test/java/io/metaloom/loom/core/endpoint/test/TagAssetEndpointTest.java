@@ -19,6 +19,7 @@ import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
 import io.metaloom.loom.rest.model.tag.AssetTagBulkResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagReference;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.utils.hash.SHA512;
@@ -336,6 +337,83 @@ public class TagAssetEndpointTest extends AbstractEndpointTest {
 			org.assertj.core.api.Assertions.assertThat(left).as("The person's placement must survive").hasSize(1);
 			org.assertj.core.api.Assertions.assertThat(left.get(0).getNodeKind()).isEqualTo("manual");
 			org.assertj.core.api.Assertions.assertThat(left.get(0).getArea().getStartX()).isEqualTo(5);
+		}
+	}
+
+	/**
+	 * Moving a region tag keeps the placement it moves.
+	 *
+	 * <p>
+	 * The write behind dragging the edge of a region tag along the video timeline. The alternative implementation - untag, then tag again with the
+	 * new area - is what this test exists to rule out: it would mint a new placement uuid and record whoever dragged the handle as the person who
+	 * attached the tag, so the placement uuid is asserted to be the same one afterwards.
+	 * </p>
+	 */
+	@Test
+	public void testMoveATagPlacement() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			client.tagAsset(ASSET_UUID, new TagCreateRequest().setName("chorus").setCollection("music")
+				.setArea(new AreaInfo().setFrom(10_000L).setTo(20_000L))).sync().body();
+			TagReference before = client.loadAsset(ASSET_UUID).sync().body().getTags().stream()
+				.filter(t -> "chorus".equals(t.getName()))
+				.findFirst().orElseThrow();
+
+			// Only the end moves. The start is deliberately absent from the request, which is what
+			// dragging one handle sends - and it must not be cleared.
+			client.updateTagPlacement(ASSET_UUID, before.getPlacementUuid(),
+				new TagPlacementUpdateRequest().setArea(new AreaInfo().setTo(31_500L))).sync().body();
+
+			TagReference after = client.loadAsset(ASSET_UUID).sync().body().getTags().stream()
+				.filter(t -> "chorus".equals(t.getName()))
+				.findFirst().orElseThrow();
+			org.assertj.core.api.Assertions.assertThat(after.getPlacementUuid())
+				.as("Moving a region must not re-attach the tag under a new placement").isEqualTo(before.getPlacementUuid());
+			org.assertj.core.api.Assertions.assertThat(after.getArea().getTo()).isEqualTo(31_500L);
+			org.assertj.core.api.Assertions.assertThat(after.getArea().getFrom())
+				.as("A field the request left out keeps its stored value").isEqualTo(10_000L);
+		}
+	}
+
+	/** Moving a placement is an act of tagging, so it needs the tagging permission. */
+	@Test
+	public void testMoveTagPlacementRequiresPermission() throws Exception {
+		UUID placement;
+		try (LoomHttpClient admin = loom.httpClient()) {
+			loginAdmin(admin);
+			admin.tagAsset(ASSET_UUID, new TagCreateRequest().setName("immovable").setCollection("quality")
+				.setArea(new AreaInfo().setFrom(1_000L).setTo(2_000L))).sync().body();
+			placement = admin.loadAsset(ASSET_UUID).sync().body().getTags().stream()
+				.filter(t -> "immovable".equals(t.getName()))
+				.findFirst().orElseThrow().getPlacementUuid();
+		}
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.updateTagPlacement(ASSET_UUID, placement,
+				new TagPlacementUpdateRequest().setArea(new AreaInfo().setTo(9_000L))));
+		}
+	}
+
+	/** A placement uuid from another asset must not be movable through this one either. */
+	@Test
+	public void testMoveTagPlacementIsScopedByAsset() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			client.tagAsset(ASSET_UUID, new TagCreateRequest().setName("faraway").setCollection("quality")
+				.setArea(new AreaInfo().setFrom(1_000L).setTo(2_000L))).sync().body();
+			UUID placement = client.loadAsset(ASSET_UUID).sync().body().getTags().stream()
+				.filter(t -> "faraway".equals(t.getName()))
+				.findFirst().orElseThrow().getPlacementUuid();
+
+			UUID otherAsset = createAsset(client, "c2", "tag-c2.png");
+			expect(404, "Not Found", client.updateTagPlacement(otherAsset, placement,
+				new TagPlacementUpdateRequest().setArea(new AreaInfo().setTo(9_000L))));
+
+			org.assertj.core.api.Assertions.assertThat(client.loadAsset(ASSET_UUID).sync().body().getTags().stream()
+				.filter(t -> "faraway".equals(t.getName()))
+				.findFirst().orElseThrow().getArea().getTo())
+				.as("The region must survive the attempt").isEqualTo(2_000L);
 		}
 	}
 

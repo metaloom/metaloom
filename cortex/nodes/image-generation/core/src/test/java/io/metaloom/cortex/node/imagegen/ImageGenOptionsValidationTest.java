@@ -19,7 +19,14 @@ public class ImageGenOptionsValidationTest {
 			.hasPort(9200)
 			.hasWidth(1024)
 			.hasHeight(1024)
-			.hasSteps(30);
+			.hasSteps(30)
+			.hasEditEndpoint("/edit")
+			.hasMaskEndpoint("/mask")
+			.hasMaskPrompt("")
+			.hasNegativePrompt("")
+			.hasTrueCfgScale(1.0)
+			.hasOutputResolution(1024)
+			.hasComposite(false);
 	}
 
 	@Test
@@ -92,5 +99,85 @@ public class ImageGenOptionsValidationTest {
 		ImageGenNodeOptions valid = new ImageGenNodeOptions().setPrompt("x");
 		ValidationResult validResult = valid.validate();
 		assertThat(validResult).isValid().hasNoErrors();
+	}
+
+	@Test
+	public void testEditOptionsValid() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions()
+			.setMode(ImageGenMode.EDIT)
+			.setPrompt("give him dark brown hair")
+			.setPort(9230)
+			.setMaskPrompt("the boy's hair")
+			.setNegativePrompt("blurry, distorted")
+			.setTrueCfgScale(4.0)
+			.setOutputResolution(2048)
+			.setComposite(true);
+		assertThat(options).isValid()
+			.hasMode(ImageGenMode.EDIT)
+			.hasPort(9230)
+			.hasMaskPrompt("the boy's hair")
+			.hasNegativePrompt("blurry, distorted")
+			.hasTrueCfgScale(4.0)
+			.hasOutputResolution(2048)
+			.hasComposite(true);
+	}
+
+	/**
+	 * MASK has nothing to segment without a subject, and unlike EDIT it has no port to take one
+	 * from at pipeline-start time - so this is the one new required field.
+	 */
+	@Test
+	public void testMaskModeRejectsBlankMaskPrompt() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions()
+			.setMode(ImageGenMode.MASK)
+			.setPrompt("unused in this mode")
+			.setMaskPrompt("   ");
+		assertThat(options).isInvalid().hasError("maskPrompt must not be empty in MASK mode");
+	}
+
+	@Test
+	public void testMaskModeAcceptsAMaskPrompt() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions()
+			.setMode(ImageGenMode.MASK)
+			.setPrompt("unused in this mode")
+			.setMaskPrompt("the boy's hair");
+		assertThat(options).isValid().hasMode(ImageGenMode.MASK).hasMaskPrompt("the boy's hair");
+	}
+
+	/**
+	 * A blank maskPrompt is fine in every other mode: EDIT may be fed one through the mask port,
+	 * and an edit with no mask at all is the ordinary multi-image compose.
+	 */
+	@Test
+	public void testBlankMaskPromptIsFineOutsideMaskMode() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions()
+			.setMode(ImageGenMode.EDIT)
+			.setPrompt("combine these");
+		assertThat(options).isValid();
+	}
+
+	@Test
+	public void testTrueCfgScaleBelowOneRejected() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions().setPrompt("a red apple").setTrueCfgScale(0.5);
+		assertThat(options).isInvalid().hasError("trueCfgScale must be in [1, 10], got 0.5");
+	}
+
+	@Test
+	public void testTrueCfgScaleAboveTenRejected() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions().setPrompt("a red apple").setTrueCfgScale(12.0);
+		assertThat(options).isInvalid().hasError("trueCfgScale must be in [1, 10], got 12.0");
+	}
+
+	/**
+	 * 2752 is the longest side in the model card's aspect-ratio table. Above it the model is out of
+	 * distribution, so this is a rejection rather than a clamp.
+	 */
+	@Test
+	public void testOutputResolutionOutOfRangeRejected() {
+		ImageGenNodeOptions options = new ImageGenNodeOptions().setPrompt("a red apple").setOutputResolution(4096);
+		assertThat(options).isInvalid().hasError("outputResolution must be in [256, 2752], got 4096");
+
+		ImageGenNodeOptions tooSmall = new ImageGenNodeOptions().setPrompt("a red apple").setOutputResolution(64);
+		assertThat(tooSmall).isInvalid().hasError("outputResolution must be in [256, 2752], got 64");
 	}
 }

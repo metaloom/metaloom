@@ -59,6 +59,11 @@ public class BuiltinSkillsTest {
 		// nothing is never widened to produce results.
 		assertTrue(skill.content().contains("no search term"));
 		assertTrue(skill.content().contains("Never widen a filter"));
+		// Finding the file and showing it are one workflow, and the model will not reach for a tool the
+		// guide never names: the chat could embed a player long before anything told the agent to.
+		assertTrue(skill.content().contains("show_asset"));
+		assertTrue(skill.content().contains("startMs"), "A viewer that opens at 0:00 is the wrong answer to a transcript hit");
+		assertTrue(skill.content().contains("timeFromMs"), "The guide has to name the field the offset is copied from, in its own unit");
 	}
 
 	@Test

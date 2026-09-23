@@ -237,8 +237,10 @@ export default function UploadView() {
       <ViewHeader
         icon={<CloudUploadOutlined />}
         title={t("uploads.title")}
-        meta={<HelpHint topic="uploads" size={16} />}
-        subtitle={t("uploads.subtitle")}
+        // The explanation moved into the hint. A sentence under every heading is a sentence
+        // nobody reads twice and a band that is taller on every screen; inside the coachmark it
+        // is there the first time somebody wonders, and out of the way afterwards.
+        meta={<HelpHint topic="uploads" size={16} description={t("uploads.subtitle")} />}
       />
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
 

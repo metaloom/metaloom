@@ -80,7 +80,7 @@ Non-CRUD and partial-quad constants:
 
 | Constant(s) | Note |
 |---|---|
-| `TAG_ASSET`, `UNTAG_ASSET` | Relationship verbs. `UNTAG_ASSET` also guards `DELETE /assets/:uuid/tag-placements/:placementUuid`, which removes one placement of a tag rather than all of them (`V2.71`) |
+| `TAG_ASSET`, `UNTAG_ASSET` | Relationship verbs. `UNTAG_ASSET` also guards `DELETE /assets/:uuid/tag-placements/:placementUuid`, which removes one placement of a tag rather than all of them (`V2.71`). `TAG_ASSET` guards the `PUT` on the same path, which **moves** a placement: what changes is the asset's relationship to the tag, not the tag — which other assets share — so somebody allowed to place a region may correct one |
 | `CREATE/READ/UPDATE/DELETE_PIPELINE_RUN` | Run lifecycle; `UPDATE_PIPELINE_RUN` governs pause/resume/cancel |
 | `READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` | No `CREATE`/`UPDATE`/`DELETE` on the Java side |
 | `READ_SKILL_VERSION`, `RESTORE_SKILL_VERSION` | Same shape |
@@ -472,7 +472,12 @@ the admin ACL matrix at `/admin/permissions` drives. What still does **not** exi
 
 The matrix's hard-coded `PERMISSION_GROUPS` list covers 20 of the 28 entities — the
 newer ones (skill, memory, chat session, search, person, detection) cannot be granted
-from the admin area, only over REST. **Dedup was added on 2026-08-08** when its review
+from the admin area, only over REST. **`READ_ASSET_BINARY` was added to the `Asset`
+group on 2026-09-21**: it had been `ui:no` while gating the poster and stream routes, so a
+role built in this matrix could list assets and then see neither a thumbnail nor a frame of
+video, and the chat's `show_asset` tool — which declares it — was not advertised to that
+user at all. Its `admin.roles.permission.READ_ASSET_BINARY` description already existed in
+both locale files, so the fix was the group entry alone. **Dedup was added on 2026-08-08** when its review
 screen shipped; note that adding a group is only half the job — the four
 `admin.roles.permission.<NAME>` strings have to go into **both** locale files at the same
 time, or the matrix renders rows with no description at all (the DEDUP constants were
@@ -801,7 +806,8 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
 _Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-18 (`READ_FAILURE_REPORT` / `UPDATE_FAILURE_REPORT` / `DELETE_FAILURE_REPORT`
+_Last updated: 2026-09-21 (`READ_ASSET_BINARY` became `ui:yes` — see §6.2; no enum, migration or
+count change, only the ACL matrix group. Earlier: 2026-08-18 (`READ_FAILURE_REPORT` / `UPDATE_FAILURE_REPORT` / `DELETE_FAILURE_REPORT`
 added by `V2.106` for `/api/v1/failure-reports`, granted to the existing admin role by `V2.108`.
 `ui:yes`, in `PERMISSION_GROUPS` under "Problem report" and both locale files, with RBAC cases in
 `FailureReportEndpointTest` - including the one that matters most, `testCreateNeedsNoPermission`,

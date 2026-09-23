@@ -76,4 +76,60 @@ public class ImageGenOptionsAssert extends AbstractCortexNodeOptionsAssert<Image
 		}
 		return this;
 	}
+
+	public ImageGenOptionsAssert hasMaskPrompt(String expected) {
+		isNotNull();
+		if (!expected.equals(actual.getMaskPrompt())) {
+			failWithMessage("Expected maskPrompt to be '%s' but was '%s'", expected, actual.getMaskPrompt());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasNegativePrompt(String expected) {
+		isNotNull();
+		if (!expected.equals(actual.getNegativePrompt())) {
+			failWithMessage("Expected negativePrompt to be '%s' but was '%s'", expected, actual.getNegativePrompt());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasTrueCfgScale(double expected) {
+		isNotNull();
+		if (actual.getTrueCfgScale() != expected) {
+			failWithMessage("Expected trueCfgScale to be %s but was %s", expected, actual.getTrueCfgScale());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasOutputResolution(int expected) {
+		isNotNull();
+		if (actual.getOutputResolution() != expected) {
+			failWithMessage("Expected outputResolution to be %d but was %d", expected, actual.getOutputResolution());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasComposite(boolean expected) {
+		isNotNull();
+		if (actual.isComposite() != expected) {
+			failWithMessage("Expected composite to be %s but was %s", expected, actual.isComposite());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasEditEndpoint(String expected) {
+		isNotNull();
+		if (!expected.equals(actual.getEditEndpoint())) {
+			failWithMessage("Expected editEndpoint to be '%s' but was '%s'", expected, actual.getEditEndpoint());
+		}
+		return this;
+	}
+
+	public ImageGenOptionsAssert hasMaskEndpoint(String expected) {
+		isNotNull();
+		if (!expected.equals(actual.getMaskEndpoint())) {
+			failWithMessage("Expected maskEndpoint to be '%s' but was '%s'", expected, actual.getMaskEndpoint());
+		}
+		return this;
+	}
 }

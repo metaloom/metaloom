@@ -246,6 +246,47 @@ public class FindAssetsToolTest {
 		assertTrue(text.startsWith("Showing 1 of 412 matches"), text);
 	}
 
+	/**
+	 * The result set travels to the client as an {@code asset-results} visual, built from the <em>collapsed</em> rows.
+	 *
+	 * <p>
+	 * Collapsed rather than raw, because the panel beside the conversation has to show the same files the answer counts: a transcript row and its
+	 * asset row are one file in the text, and two rows in the panel would read as two files.
+	 * </p>
+	 */
+	@Test
+	public void testTheResultSetTravelsAsAVisual() {
+		SearchHit transcript = new SearchHit()
+			.setType(SearchEntityType.TRANSCRIPT)
+			.setUuid(UUID.randomUUID())
+			.setAssetUuid(ASSET)
+			.setTitle("harbour.mp4")
+			.setTimeFromMs(12000L);
+		answerWith(assetHit(ASSET, "harbour.mp4"), transcript);
+
+		JsonArray visuals = call(new JsonObject().put("text", "harbour")).getJsonArray("visuals");
+		assertNotNull(visuals, "The panel has nothing to sync to without this");
+		JsonObject payload = visuals.getJsonObject(0).getJsonObject("payload");
+		assertEquals("asset-results", visuals.getJsonObject(0).getString("type"));
+		assertEquals("harbour", payload.getString("query"));
+
+		JsonArray items = payload.getJsonArray("items");
+		assertEquals(1, items.size(), "Two hits, one file");
+		assertEquals(ASSET.toString(), items.getJsonObject(0).getString("uuid"));
+		assertEquals(12000L, items.getJsonObject(0).getLong("timeFromMs"), "The collapsed row's timecode reaches the card");
+	}
+
+	/** Filters alone are a valid query here, so the heading falls back to what was filtered on — "" is not a heading. */
+	@Test
+	public void testAFilterOnlySearchIsHeadedByItsFilters() {
+		when(vocabulary.resolveUser("pete")).thenReturn(Match.of(PETE, "pete"));
+		answerWith(assetHit(ASSET, "harbour.jpg"));
+
+		JsonObject visual = call(new JsonObject().put("creator", "pete")).getJsonArray("visuals").getJsonObject(0);
+		assertEquals(visual.getJsonObject("payload").getString("criteria"), visual.getString("label"));
+		assertTrue(visual.getString("label").contains("pete"), visual.getString("label"));
+	}
+
 	@Test
 	public void testARefusalNeverReachesTheProvider() {
 		when(vocabulary.resolveUser("pete")).thenReturn(Match.none());

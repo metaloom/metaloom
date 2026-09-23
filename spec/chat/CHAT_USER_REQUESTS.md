@@ -57,7 +57,10 @@ What is missing:
 - `search_assets` applies its query, MIME-type, library and tag filters through `SearchProvider`
   since 2026-08-16, but there is still no sort parameter and no date filter ([MCP.md §5.1](../loom/MCP.md)).
 - `SearchSortMode.NEWEST` exists in the SPI and no MCP tool exposes it.
-- The chat cannot render a thumbnail — the only visual type is `pipeline-graph`.
+- ~~The chat cannot render a thumbnail~~ — since the `asset-results` visual it renders the whole
+  result set as a thumbnail strip, and mirrors it into the workspace panel
+  ([LOOM_UI_CHAT.md §6.3](LOOM_UI_CHAT.md)). `show_asset` embeds a playable viewer for one asset.
+  The sort and date gaps above are what is left of this request.
 
 Verdict: **`P1`** for the answer, **`P2`** for an answer that looks like a DAM.
 

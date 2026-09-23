@@ -69,6 +69,56 @@ public class MCPToolReferencesTest implements TestValues {
 		assertReferences(result, "asset");
 	}
 
+	/**
+	 * The same call again, asserting the half a chip cannot carry: a result set has an order, a total and a mime type per row, and the workspace panel
+	 * beside the conversation is built from those rather than from the references.
+	 */
+	@Test
+	public void testSearchAssetsCarriesItsResultSetAsAVisual() throws Exception {
+		JsonObject result = callTool("search_assets", new JsonObject().put("query", "bigbuckbunny").put("limit", 5));
+
+		JsonArray visuals = result.getJsonArray("visuals");
+		assertNotNull(visuals, "A search result must carry the strip the chat draws and the panel mirrors");
+		JsonObject visual = visuals.getJsonObject(0);
+		assertEquals("asset-results", visual.getString("type"));
+		assertEquals("bigbuckbunny", visual.getString("label"));
+
+		JsonObject payload = visual.getJsonObject("payload");
+		assertTrue(payload.getLong("total") >= 1, "The corpus total, not the page size");
+		JsonArray items = payload.getJsonArray("items");
+		assertFalse(items.isEmpty());
+		assertEquals(result.getJsonArray("references").getJsonObject(0).getString("uuid"), items.getJsonObject(0).getString("uuid"),
+			"The strip and the chips must be about the same assets, in the same order");
+		assertNotNull(items.getJsonObject(0).getString("mimeType"), "The mime type decides a tile from a player");
+	}
+
+	/**
+	 * {@code show_asset} against real DAOs. It is the only tool whose entire output is the part the model never sees, so nothing in a conversation
+	 * would notice this envelope going missing.
+	 */
+	@Test
+	public void testShowAssetCarriesAViewerVisual() throws Exception {
+		JsonObject result = callTool("show_asset", new JsonObject().put("assetId", ASSET_UUID.toString()).put("startMs", 12_500));
+		assertReferences(result, "asset");
+
+		JsonObject visual = result.getJsonArray("visuals").getJsonObject(0);
+		assertEquals("asset-viewer", visual.getString("type"));
+		assertEquals(ASSET_UUID.toString(), visual.getString("uuid"));
+
+		JsonObject payload = visual.getJsonObject("payload");
+		assertEquals(ASSET_UUID.toString(), payload.getString("assetUuid"));
+		assertNotNull(payload.getString("kind"), "Without a kind the card cannot decide between a player, a picture and a row");
+		assertNotNull(payload.getString("mimeType"));
+		assertEquals(12.5d, payload.getDouble("startSeconds"), "Milliseconds in, seconds out — the card speaks seconds");
+	}
+
+	@Test
+	public void testShowAssetForAnUnknownAssetHasNoVisual() throws Exception {
+		JsonObject result = callTool("show_asset", new JsonObject().put("assetId", UUID.randomUUID().toString()));
+		assertNull(result.getJsonArray("visuals"), "Nothing to show means no viewer, not an empty one");
+		assertTrue(result.getJsonArray("content").getJsonObject(0).getString("text").contains("not found"));
+	}
+
 	@Test
 	public void testGetAssetReferences() throws Exception {
 		JsonObject result = callTool("get_asset", new JsonObject().put("assetId", ASSET_UUID.toString()));

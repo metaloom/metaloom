@@ -62,6 +62,38 @@ public class ImageGenNodeOptions extends AbstractNodeOptions<ImageGenNodeOptions
 	@ParamDoc(label = "Steps", description = "Diffusion steps. More steps cost proportionally more time", min = "1", order = 190)
 	private int steps = 30;
 
+	@ParamDoc(label = "Edit Endpoint", description = "Sidecar path called in EDIT mode", order = 152)
+	private String editEndpoint = "/edit";
+
+	@ParamDoc(label = "Mask Endpoint", description = "Sidecar path called in MASK mode", order = 154)
+	private String maskEndpoint = "/mask";
+
+	@ParamDoc(label = "Mask Prompt",
+		description = "The region to confine an edit to, named in words - \"the boy's hair\". Required in MASK mode; "
+			+ "in EDIT mode it is used only when the Mask port is not wired",
+		order = 112)
+	private String maskPrompt = "";
+
+	@ParamDoc(label = "Negative Prompt",
+		description = "What to steer away from. Has no effect unless True CFG Scale is above 1.0", order = 114)
+	private String negativePrompt = "";
+
+	@ParamDoc(label = "True CFG Scale",
+		description = "Strength of the negative-prompt guidance. At 1.0 the negative branch is not evaluated at all",
+		min = "1.0", max = "10.0", step = "0.5", order = 116)
+	private double trueCfgScale = 1.0;
+
+	@ParamDoc(label = "Output Resolution",
+		description = "Target side length the model renders at, and what an edit's size is derived from. 2048 is native 2K at roughly four times the cost",
+		min = "256", max = "2752", order = 175)
+	private int outputResolution = 1024;
+
+	@ParamDoc(label = "Composite Through Mask",
+		description = "Blend the edit back over the original through the mask, so nothing outside the region can change. "
+			+ "Off by default: passing the mask to the model is usually enough, and compositing costs a rescale",
+		order = 178)
+	private boolean composite = false;
+
 	public ImageGenNodeOptions() {
 		setTimeoutMs(120_000);
 	}
@@ -170,6 +202,69 @@ public class ImageGenNodeOptions extends AbstractNodeOptions<ImageGenNodeOptions
 		return this;
 	}
 
+	public String getEditEndpoint() {
+		return editEndpoint;
+	}
+
+	public ImageGenNodeOptions setEditEndpoint(String editEndpoint) {
+		this.editEndpoint = editEndpoint;
+		return this;
+	}
+
+	public String getMaskEndpoint() {
+		return maskEndpoint;
+	}
+
+	public ImageGenNodeOptions setMaskEndpoint(String maskEndpoint) {
+		this.maskEndpoint = maskEndpoint;
+		return this;
+	}
+
+	public String getMaskPrompt() {
+		return maskPrompt;
+	}
+
+	public ImageGenNodeOptions setMaskPrompt(String maskPrompt) {
+		this.maskPrompt = maskPrompt;
+		return this;
+	}
+
+	public String getNegativePrompt() {
+		return negativePrompt;
+	}
+
+	public ImageGenNodeOptions setNegativePrompt(String negativePrompt) {
+		this.negativePrompt = negativePrompt;
+		return this;
+	}
+
+	public double getTrueCfgScale() {
+		return trueCfgScale;
+	}
+
+	public ImageGenNodeOptions setTrueCfgScale(double trueCfgScale) {
+		this.trueCfgScale = trueCfgScale;
+		return this;
+	}
+
+	public int getOutputResolution() {
+		return outputResolution;
+	}
+
+	public ImageGenNodeOptions setOutputResolution(int outputResolution) {
+		this.outputResolution = outputResolution;
+		return this;
+	}
+
+	public boolean isComposite() {
+		return composite;
+	}
+
+	public ImageGenNodeOptions setComposite(boolean composite) {
+		this.composite = composite;
+		return this;
+	}
+
 	@Override
 	public ValidationResult validate() {
 		List<String> errors = new ArrayList<>();
@@ -198,6 +293,18 @@ public class ImageGenNodeOptions extends AbstractNodeOptions<ImageGenNodeOptions
 		}
 		if (strength <= 0 || strength > 1) {
 			errors.add("strength must be in (0, 1], got " + strength);
+		}
+		// MASK has nothing to segment without one. EDIT does not need it: the mask port
+		// may be wired instead, and an edit with no mask at all is the ordinary
+		// multi-image compose.
+		if (mode == ImageGenMode.MASK && (maskPrompt == null || maskPrompt.isBlank())) {
+			errors.add("maskPrompt must not be empty in MASK mode");
+		}
+		if (trueCfgScale < 1 || trueCfgScale > 10) {
+			errors.add("trueCfgScale must be in [1, 10], got " + trueCfgScale);
+		}
+		if (outputResolution < 256 || outputResolution > 2752) {
+			errors.add("outputResolution must be in [256, 2752], got " + outputResolution);
 		}
 
 		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);

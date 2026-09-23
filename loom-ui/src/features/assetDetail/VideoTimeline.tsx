@@ -73,6 +73,14 @@ export function VideoTimeline({
   const barRef = useRef<HTMLDivElement>(null);
   const markerBarRef = useRef<HTMLDivElement>(null);
   const [draggingMarker, setDraggingMarker] = useState<{ id: string; edge: "start" | "end" } | null>(null);
+  /**
+   * A handle was dragged, and the `click` that follows the mouse-up must be ignored.
+   *
+   * A ref rather than the state above: `click` is dispatched right after `mouseup`, and whether
+   * React has re-rendered with the cleared state by then is not something to rely on. Released on
+   * the next tick, which is the same trick the range selection below uses.
+   */
+  const draggedHandle = useRef(false);
   const ranging = useRef(false);
   const [rangeSel, setRangeSel] = useState<{ start: number; end: number } | null>(null);
 
@@ -129,7 +137,10 @@ export function VideoTimeline({
     e.stopPropagation();
     e.preventDefault();
     setDraggingMarker({ id: markerId, edge });
-    let lastTime = 0;
+    draggedHandle.current = true;
+    // Null rather than 0 until the pointer actually moves: a mouse-down and -up with nothing in
+    // between is a click, and reporting 0 for it would persist the edge at second zero.
+    let lastTime: number | null = null;
     const onMove = (ev: MouseEvent) => {
       if (!markerBarRef.current) return;
       const rect = markerBarRef.current.getBoundingClientRect();
@@ -143,7 +154,8 @@ export function VideoTimeline({
       setDraggingMarker(null);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      onMarkerDragEnd?.(markerId, edge, lastTime);
+      if (lastTime !== null) onMarkerDragEnd?.(markerId, edge, lastTime);
+      setTimeout(() => { draggedHandle.current = false; }, 0);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -195,7 +207,15 @@ export function VideoTimeline({
             />
           );
         })()}
-        {/* Range highlights for all annotations with endTime */}
+        {/* Range highlights for every marker that spans time — an annotation, or a region tag.
+
+            Deliberately *no* `z-index` on the band. A positioned element with one creates a
+            stacking context, and its two drag handles were then trapped inside it underneath the
+            transcript tiles, which cover the lower half of the bar whenever the transcript fold
+            is open. With the band at `auto` the handles compete in the bar's own stacking
+            context and can be raised over the tiles, while the translucent fill still paints
+            below them. That, plus the point dot that used to sit exactly on top of the start
+            handle, is why a region tag could not be grabbed. */}
         {markers.filter(m => m.endTime && m.endTime > m.time).map(m => {
           const left = (m.time / duration) * 100;
           const width = ((m.endTime! - m.time) / duration) * 100;
@@ -205,6 +225,15 @@ export function VideoTimeline({
               key={`range_${m.id}`}
               data-testid="video-timeline-range"
               data-marker-id={m.id}
+              data-marker-type={m.type}
+              // The band is the only thing left to click now that ranged markers draw no dot —
+              // except right after a handle drag, whose mouse-up produces a click on the band
+              // that would otherwise jump the sidebar to another tab on every resize.
+              onClick={e => {
+                e.stopPropagation();
+                if (draggedHandle.current) return;
+                onMarkerClick(m.id, m.type);
+              }}
               sx={{
                 position: "absolute",
                 left: `${left}%`,
@@ -213,18 +242,21 @@ export function VideoTimeline({
                 bottom: 4,
                 bgcolor: isHovered ? `${m.color}44` : `${m.color}22`,
                 borderRadius: 1,
+                cursor: "pointer",
                 transition: "background-color 120ms ease",
-                zIndex: 1,
               }}
               onMouseEnter={() => onMarkerHover(m.id)}
               onMouseLeave={() => onMarkerHover(null)}
             >
               {/* Draggable start handle */}
               <Box
+                data-testid="video-timeline-range-handle"
+                data-marker-id={m.id}
+                data-edge="start"
                 onMouseDown={(e) => handleMarkerDragStart(e, m.id, "start")}
                 sx={{
-                  position: "absolute", left: -4, top: 0, bottom: 0, width: 8,
-                  cursor: "ew-resize", zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center",
+                  position: "absolute", left: -6, top: 0, bottom: 0, width: 12,
+                  cursor: "ew-resize", zIndex: 4, display: "flex", alignItems: "center", justifyContent: "center",
                   "&:hover .handle-line": { bgcolor: m.color },
                 }}
               >
@@ -232,10 +264,13 @@ export function VideoTimeline({
               </Box>
               {/* Draggable end handle */}
               <Box
+                data-testid="video-timeline-range-handle"
+                data-marker-id={m.id}
+                data-edge="end"
                 onMouseDown={(e) => handleMarkerDragStart(e, m.id, "end")}
                 sx={{
-                  position: "absolute", right: -4, top: 0, bottom: 0, width: 8,
-                  cursor: "ew-resize", zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center",
+                  position: "absolute", right: -6, top: 0, bottom: 0, width: 12,
+                  cursor: "ew-resize", zIndex: 4, display: "flex", alignItems: "center", justifyContent: "center",
                   "&:hover .handle-line": { bgcolor: m.color },
                 }}
               >
@@ -260,7 +295,8 @@ export function VideoTimeline({
               opacity: showTranscript ? 1 : 0,
               pointerEvents: showTranscript ? "auto" : "none",
               transition: "opacity 220ms ease",
-              zIndex: 3,
+              // Below the range handles (4), above the range fill (auto).
+              zIndex: 2,
             }}
           >
             {transcriptSpans.map(span => {
@@ -290,8 +326,13 @@ export function VideoTimeline({
           </Box>
         )}
 
-        {/* Point markers */}
-        {markers.map(m => {
+        {/* Point markers.
+
+            Only for markers that are a point. A ranged marker already draws a band with a handle
+            at each end, and the dot it also drew sat exactly on the start handle — 8 pixels of
+            circle over 8 pixels of grab area, which is why the left edge of a region tag could
+            never be picked up. */}
+        {markers.filter(m => !(m.endTime && m.endTime > m.time)).map(m => {
           const isHovered = hoveredMarkerId === m.id;
           return (
             <Tooltip key={m.id} title={m.label}>
@@ -320,7 +361,7 @@ export function VideoTimeline({
                   border: `2px solid ${isHovered ? tokens.bg.base : tokens.bg.elevated}`,
                   boxShadow: isHovered ? `0 0 8px ${m.color}` : "none",
                   cursor: "pointer",
-                  zIndex: isHovered ? 5 : 4,
+                  zIndex: isHovered ? 6 : 5,
                   transition: "width 100ms, height 100ms, box-shadow 100ms",
                 }}
               />
@@ -329,7 +370,7 @@ export function VideoTimeline({
         })}
 
         {/* Playhead indicator */}
-        <Box data-testid="video-timeline-playhead" sx={{ position: "absolute", left: `${(currentTime / duration) * 100}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 6, pointerEvents: "none", transition: "left 50ms linear" }} />
+        <Box data-testid="video-timeline-playhead" sx={{ position: "absolute", left: `${(currentTime / duration) * 100}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 7, pointerEvents: "none", transition: "left 50ms linear" }} />
       </Box>
 
       <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.25 }}>

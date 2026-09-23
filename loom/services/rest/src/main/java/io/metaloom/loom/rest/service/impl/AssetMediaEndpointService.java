@@ -38,6 +38,7 @@ import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.media.MediaInfoResponse;
 import io.metaloom.loom.rest.model.media.MediaTokenResponse;
+import io.metaloom.loom.rest.model.media.StreamStartResponse;
 import io.metaloom.loom.rest.service.AbstractEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.storage.BinaryStorage;
@@ -96,6 +97,9 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	private final AuthenticationService authService;
 	private final LoomOptions options;
 	private final Vertx vertx;
+
+	/** An index seek and one packet. Generous by an order of magnitude; it exists so a wedged probe cannot pin a worker thread. */
+	private static final int SEEK_PROBE_TIMEOUT_SECONDS = 10;
 
 	/** Bounds concurrent ffmpeg stream processes; see {@link MediaOptions#getMaxConcurrentStreams()}. */
 	private final Semaphore streamSlots;
@@ -454,6 +458,135 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 		return null;
 	}
 
+	// ── Seek point ───────────────────────────────────────────────────────
+
+	/**
+	 * Where a stream asked to begin at {@code second} will really begin.
+	 *
+	 * <p>
+	 * The stream copies the video instead of re-encoding it, which means it can only begin on a keyframe. A player that assumes otherwise runs a
+	 * clock that is wrong by the distance back to the preceding keyframe - up to five seconds on an ordinary broadcast rip - and every
+	 * time-addressed thing drawn beside the picture inherits that error: the transcript highlights a line nobody has reached, a face box appears
+	 * before the face. So the player asks first, and treats the answer as the origin of its clock.
+	 * </p>
+	 *
+	 * <p>
+	 * Session-authenticated, like {@code media-info}: the media token exists so an {@code <img>} or {@code <video>} element can fetch bytes it
+	 * cannot put a header on, and this is an ordinary JSON call the application makes for itself.
+	 * </p>
+	 */
+	public void streamStart(LoomRoutingContext lrc, UUID assetUuid, Double second) {
+		checkPerm(lrc, READ_ASSET_BINARY, () -> {
+			MediaOptions media = requireMedia();
+			double at = second == null ? 0d : Math.max(0d, second);
+			Path source = requireLocalSource(assetUuid);
+
+			vertx.executeBlocking(() -> probeSeekPoint(media, source, at), false)
+				.onSuccess(start -> lrc.send(new StreamStartResponse().setRequested(at).setStart(start)))
+				.onFailure(err -> {
+					// Falling back to the requested offset restores the old behaviour for this one
+					// request rather than failing the seek: the clock is then as wrong as it used to
+					// be, which is worse than right and far better than a player that cannot move.
+					log.warn("Seek point probe failed for asset {}: {}", assetUuid, err.getMessage());
+					lrc.send(new StreamStartResponse().setRequested(at).setStart(at));
+				});
+		});
+	}
+
+	/**
+	 * Where ffmpeg's own seek to {@code second} lands, measured by performing it.
+	 *
+	 * <p>
+	 * <b>Measured, not predicted, and that distinction is the whole method.</b> The obvious implementation asks ffprobe for the keyframe at or
+	 * before the offset - one index seek, ~30ms - and it is wrong often enough to matter: for a container that cannot seek by presentation
+	 * timestamp (Matroska among them) ffmpeg subtracts a safety margin of {@code 3/23}s from the requested timestamp before seeking whenever the
+	 * video has B-frames. A request landing inside that ~130ms window goes back a whole extra group of pictures, and ffprobe has no such margin,
+	 * so the two disagree - rarely for an arbitrary offset, and <em>always</em> if a caller feeds a keyframe time straight back in.
+	 * </p>
+	 *
+	 * <p>
+	 * So this runs the same binary with the same input flags the stream will use and reads the first frame it produces. One decoded frame after
+	 * an index seek: ~180ms on a 4.5 GB, 43-minute episode, against a class of error worth several seconds. {@code -copyts} keeps the frame's
+	 * presentation time in the source's own clock, which is the number the player needs; {@code framemd5} carries it on stdout, so it does not
+	 * depend on a log level.
+	 * </p>
+	 *
+	 * <p>
+	 * Returns the requested offset unchanged when the probe says nothing usable - past the end of the file, or no video stream at all. That is
+	 * the honest answer for a file this route cannot reason about, and it leaves the caller exactly where it would have been.
+	 * </p>
+	 */
+	private Double probeSeekPoint(MediaOptions media, Path source, double second) throws IOException, InterruptedException {
+		if (second <= 0d) {
+			return 0d;
+		}
+		Process probe = new ProcessBuilder(media.getFfmpegPath(),
+			"-v", "error",
+			// Exactly the input flags pumpStream uses; anything else measures a different seek.
+			"-noaccurate_seek", "-ss", formatSeconds(second),
+			"-copyts",
+			"-i", source.toString(),
+			"-map", "0:v:0",
+			"-frames:v", "1",
+			"-f", "framemd5", "pipe:1")
+			.redirectError(ProcessBuilder.Redirect.DISCARD).start();
+		String out = drain(probe.getInputStream());
+		if (!probe.waitFor(SEEK_PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+			probe.destroyForcibly();
+			return second;
+		}
+		if (probe.exitValue() != 0) {
+			return second;
+		}
+		Double landed = firstFramePts(out);
+		// A seek never lands after what was asked for; if it reads that way the file's timestamps
+		// are not what this route assumes and the requested offset is the safer answer.
+		return landed != null && landed >= 0d && landed <= second ? landed : second;
+	}
+
+	/**
+	 * The presentation time, in seconds, of the first frame in a {@code framemd5} report.
+	 *
+	 * <p>
+	 * The format is a {@code #tb <stream>: <num>/<den>} header giving the timebase, then one comma-separated line per frame whose second field
+	 * is the presentation timestamp in those units. Both are needed: the timestamp alone is 14422, which is 601.5s only once the 1001/24000 is
+	 * applied.
+	 * </p>
+	 */
+	static Double firstFramePts(String report) {
+		long num = 0;
+		long den = 0;
+		for (String line : report.split("\\R")) {
+			String value = line.strip();
+			if (value.startsWith("#tb")) {
+				int colon = value.indexOf(':');
+				String[] ratio = colon < 0 ? new String[0] : value.substring(colon + 1).strip().split("/");
+				if (ratio.length == 2) {
+					try {
+						num = Long.parseLong(ratio[0].strip());
+						den = Long.parseLong(ratio[1].strip());
+					} catch (NumberFormatException e) {
+						return null;
+					}
+				}
+				continue;
+			}
+			if (value.isEmpty() || value.startsWith("#")) {
+				continue;
+			}
+			String[] fields = value.split(",");
+			if (fields.length < 2 || den == 0) {
+				return null;
+			}
+			try {
+				return Long.parseLong(fields[1].strip()) * (double) num / den;
+			} catch (NumberFormatException e) {
+				return null;
+			}
+		}
+		return null;
+	}
+
 	// ── Stream ───────────────────────────────────────────────────────────
 
 	/**
@@ -466,12 +599,13 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	 * </p>
 	 *
 	 * @param second
-	 *            where to start, for a client implementing seek-by-request
+	 *            where to start, for a client implementing seek-by-request. Fractional, because keyframes are: the offset a player should pass
+	 *            here is one {@link #streamStart} handed it, and those land on values like 599.599.
 	 */
-	public void stream(LoomRoutingContext lrc, UUID assetUuid, Integer second) {
+	public void stream(LoomRoutingContext lrc, UUID assetUuid, Double second) {
 		checkPerm(lrc, READ_ASSET_BINARY, () -> {
 			MediaOptions media = requireMedia();
-			int at = second == null ? 0 : Math.max(0, second);
+			double at = second == null ? 0d : Math.max(0d, second);
 			Path source = requireLocalSource(assetUuid);
 
 			String codec = probeVideoCodec(media, source);
@@ -510,10 +644,16 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 		});
 	}
 
-	private Void pumpStream(MediaOptions media, Path source, int second, HttpServerResponse response) throws IOException, InterruptedException {
+	private Void pumpStream(MediaOptions media, Path source, double second, HttpServerResponse response) throws IOException, InterruptedException {
 		List<String> cmd = new ArrayList<>(List.of(media.getFfmpegPath()));
 		if (second > 0) {
-			cmd.addAll(List.of("-ss", String.valueOf(second)));
+			// -noaccurate_seek is not an optimisation, it is the difference between a stream that
+			// plays and one that is silent for a few seconds after every seek. An input seek lands
+			// on the keyframe at or before the offset, and the video is copied from there; with
+			// accurate seeking ffmpeg then trims the *audio* - which it is decoding anyway - to the
+			// offset that was asked for, so the two tracks start in different places and the gap is
+			// filled with silence. Turning it off starts both at the keyframe, together.
+			cmd.addAll(List.of("-noaccurate_seek", "-ss", formatSeconds(second)));
 		}
 		cmd.addAll(List.of(
 			"-i", source.toString(),
@@ -604,6 +744,18 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 			log.debug("Could not probe the video codec of {}", source, e);
 			return null;
 		}
+	}
+
+	/**
+	 * An offset in seconds as ffmpeg should read it.
+	 *
+	 * <p>
+	 * Fixed notation and a dot, always: {@code Double.toString} renders a small offset as {@code 1.0E-4}, which ffmpeg parses as zero, and a
+	 * locale-sensitive format would render the decimal separator as a comma on a host configured for one.
+	 * </p>
+	 */
+	private static String formatSeconds(double seconds) {
+		return java.math.BigDecimal.valueOf(seconds).setScale(3, java.math.RoundingMode.DOWN).toPlainString();
 	}
 
 	/** ffprobe lives beside ffmpeg; only the configured ffmpeg path is an option, because they ship together. */

@@ -59,8 +59,22 @@ const DETECTION_B = "44444444-4444-4444-4444-444444444444";
 const FRAME_A = 240;
 const FRAME_B = 24_000;
 
+/**
+ * Where a stream asked to start at `t` really starts, for the mocked server.
+ *
+ * Keyframes every five seconds, landing on a fraction rather than a round number, because that is
+ * what a real broadcast rip does — 599.599, not 600 — and an integer grid would let a player that
+ * truncates to whole seconds pass.
+ */
+export function mockKeyframeFor(t: number): number {
+  if (!(t > 0)) return 0;
+  return Math.max(0, Math.floor(t / 5) * 5 - 0.401);
+}
+
 interface Recorder {
   streamRequests: string[];
+  /** Every `/stream-start` URL the player asked before switching source. */
+  seekPointRequests: string[];
   tagPosts: { name: string }[];
   /** Every `/search/results` URL the transcript search box produced. */
   searchRequests: string[];
@@ -141,6 +155,14 @@ async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = 
     rec.streamRequests.push(route.request().url());
     return route.fulfill({ status: 200, contentType: "video/mp4", body: Buffer.from("") });
   });
+  // Registered after the stream route on purpose — the pattern above matches this path too, and
+  // Playwright gives the last registration first refusal.
+  await page.route(/\/api\/v1\/assets\/[^/]+\/stream-start/, route => {
+    const url = route.request().url();
+    rec.seekPointRequests.push(url);
+    const requested = Number(new URL(url).searchParams.get("t") ?? "0");
+    return json(route, { requested, start: mockKeyframeFor(requested) });
+  });
 
   await page.route(/\/api\/v1\/assets\/[^/]+\/detections(\?|$)/, route =>
     json(route, { data: detections(), _metainfo: { totalCount: 2 } })
@@ -180,7 +202,7 @@ async function installMocks(page: Page, rec: Recorder, opts: { probe?: null } = 
 }
 
 function recorder(): Recorder {
-  return { streamRequests: [], tagPosts: [], searchRequests: [] };
+  return { streamRequests: [], seekPointRequests: [], tagPosts: [], searchRequests: [] };
 }
 
 /**
@@ -250,6 +272,51 @@ test.describe("Asset detail player – mocked e2e", () => {
     }, { timeout: 10_000 }).toBeLessThan(60);
   });
 
+  /**
+   * The defect this pins: the player used to treat the offset it *asked for* as the origin of its
+   * clock, but a stream-copied video can only begin on a keyframe, so the response starts earlier
+   * — up to five seconds on a broadcast rip. Every position the player then reported was that much
+   * too large, and everything drawn against time inherited it: the transcript highlighted a line
+   * the viewer had not reached, and clicking a phrase played something else. On a 43-minute
+   * episode with 1055 utterances it reads as "the audio is out of step with the transcript".
+   */
+  test("the clock starts where the response starts, not where the seek asked", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    await expect(page.getByTestId("video-timeline-bar")).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => rec.streamRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+    const bar = (await page.getByTestId("video-timeline-bar").boundingBox())!;
+    await page.getByTestId("video-timeline-bar").click({ position: { x: bar.width / 2, y: 14 } });
+
+    // The player must ask before it switches source: the answer has to be in hand when the new
+    // element is built, or there is a window in which the clock is wrong again.
+    await expect.poll(() => rec.seekPointRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+    const asked = Number(new URL(rec.seekPointRequests.at(-1)!).searchParams.get("t") ?? "0");
+    // Not "roughly the middle" — exactly the keyframe the server named, to the fraction. A player
+    // rounding this to a whole second is the same bug with a smaller error.
+    await expect(page.getByTestId("asset-video"))
+      .toHaveAttribute("data-stream-offset", String(mockKeyframeFor(asked)), { timeout: 10_000 });
+    // And the request still carries the position that was *asked for*, not the keyframe that came
+    // back. Sending the answer back looks tidier and snaps a second time: ffmpeg subtracts a seek
+    // margin before it looks, so a keyframe time handed straight back lands on the one before it.
+    await expect.poll(() => {
+      const last = rec.streamRequests.at(-1) ?? "";
+      return new URL(last, "http://x").searchParams.get("t");
+    }, { timeout: 10_000 }).toBe(String(asked));
+  });
+
+  test("a seek to the top of the file needs no round trip", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+    await expect(page.getByTestId("asset-video")).toBeVisible({ timeout: 10_000 });
+
+    // Nothing to snap to at zero, and the first request must not wait on a probe to find that out.
+    await expect(page.getByTestId("asset-video")).toHaveAttribute("data-stream-offset", "0");
+    expect(rec.seekPointRequests).toEqual([]);
+  });
+
   test("with no probe the player still renders and the timeline says nothing false", async ({ page }) => {
     const rec = recorder();
     await open(page, rec, { probe: null });
@@ -301,35 +368,54 @@ test.describe("Asset detail player – mocked e2e", () => {
     expect(video!.height).toBeLessThanOrEqual(outer!.height + 1);
   });
 
-  test("dragging the divider past the tab labels leaves the icons", async ({ page }) => {
-    // Pinned, because what is under test is a pixel threshold and the default viewport sits right
-    // on it. 1920 rather than 1600: the body excludes the app's nav rail, so at 1600 the sidebar
-    // starts at about 410px — already under SIDEBAR_ICON_ONLY_PX, which is the point of raising
-    // that constant to just under the width six tab labels need.
+  test("the tab labels appear exactly when they fit, and never clipped", async ({ page }) => {
+    // Pinned, because what is under test is a measurement against a pixel width.
     await page.setViewportSize({ width: 1920, height: 900 });
     const rec = recorder();
     await open(page, rec);
 
     const sidebar = page.getByTestId("asset-sidebar");
     await expect(sidebar).toBeVisible({ timeout: 10_000 });
-    const wide = await sidebar.boundingBox();
+    const strip = page.locator("[data-testid=asset-sidebar] .MuiTabs-scroller");
 
-    // The labels used to be the floor on how narrow the sidebar could go: six words of tab text
-    // is around 420px, and the divider simply stopped there however far it was dragged.
-    await expect(sidebar).toHaveAttribute("data-compact", "false");
-    await expect(page.getByRole("tab", { name: /overview/i })).toContainText(/overview/i);
+    // Whatever state the default split lands in, the invariant is the same and it is the one
+    // that was broken: the strip is `variant="scrollable"`, so labels that do not fit are not
+    // ellipsised — the tabs past the edge are simply not there. Six labels in a 30% sidebar
+    // used to mean two panels that could not be reached.
+    const fits = async () => {
+      const { scrollWidth, clientWidth } = await strip.evaluate((el) => ({
+        scrollWidth: el.scrollWidth, clientWidth: el.clientWidth,
+      }));
+      return scrollWidth <= clientWidth + 1;
+    };
+    await expect.poll(fits, { timeout: 5_000 }).toBe(true);
 
-    const body = await page.getByTestId("asset-video-container").boundingBox();
-    await page.mouse.move(wide!.x - 3, wide!.y + 100);
+    // Widen the sidebar until the words fit, and they come back on their own — the threshold is
+    // measured from what the strip needed, not read off a constant.
+    const body = (await page.getByTestId("asset-video-container").boundingBox())!;
+    const before = (await sidebar.boundingBox())!;
+    await page.mouse.move(before.x - 3, before.y + 100);
     await page.mouse.down();
-    await page.mouse.move(body!.x + body!.width * 2, wide!.y + 100, { steps: 10 });
+    await page.mouse.move(body.x + 200, before.y + 100, { steps: 10 });
+    await page.mouse.up();
+
+    await expect(sidebar).toHaveAttribute("data-compact", "false", { timeout: 5_000 });
+    await expect(page.getByRole("tab", { name: /overview/i })).toContainText(/overview/i);
+    expect(await fits()).toBe(true);
+
+    // And all the way the other way: the labels go, the icons stay, every tab is still on the
+    // strip, and the divider stops before the icons themselves would scroll out of view.
+    const wide = (await sidebar.boundingBox())!;
+    await page.mouse.move(wide.x - 3, wide.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(body.x + body.width * 3, wide.y + 100, { steps: 10 });
     await page.mouse.up();
 
     await expect(sidebar).toHaveAttribute("data-compact", "true", { timeout: 5_000 });
-    const narrow = await sidebar.boundingBox();
-    expect(narrow!.width).toBeLessThan(wide!.width);
-    // The label is gone but the tab is still identifiable and still reachable.
+    const narrow = (await sidebar.boundingBox())!;
+    expect(narrow.width).toBeLessThan(wide.width);
     await expect(page.getByRole("tab", { name: /overview/i })).toBeVisible();
+    expect(await fits()).toBe(true);
   });
 
   // ── Faces ──────────────────────────────────────────────────
@@ -346,13 +432,25 @@ test.describe("Asset detail player – mocked e2e", () => {
 
     await page.getByTestId("asset-face-tile").nth(1).click();
 
-    // Frame 24000 at 23.976fps is second 1001, and the request asks for 1000: a click lands a
+    // Frame 24000 at 23.976fps is second 1001.001, and the seek asks for 1000.751: a click lands a
     // quarter second early so the box lights up as the face comes round. Before this the panel
     // handed the frame *number* to the seek, which asked for second 24000 of a 43-minute file.
+    //
+    // Read off the seek-point request rather than the stream URL: the stream can only begin on a
+    // keyframe, so the position the player *wants* and the offset it ends up fetching are two
+    // different numbers, and this test is about the first of them.
+    //
+    // 1000.751 and not 1000: the seek carries the fraction now. It used to be floored on its way
+    // into the stream URL, which is a quarter-second error on top of the keyframe one and pointless
+    // when the server takes a fractional offset.
+    await expect.poll(() => {
+      const last = rec.seekPointRequests[rec.seekPointRequests.length - 1] ?? "";
+      return Number(new URL(last, "http://x").searchParams.get("t") ?? "-1");
+    }, { timeout: 10_000 }).toBeCloseTo(1000.751, 3);
     await expect.poll(() => {
       const last = rec.streamRequests[rec.streamRequests.length - 1] ?? "";
       return Number(new URL(last, "http://x").searchParams.get("t") ?? "-1");
-    }, { timeout: 10_000 }).toBe(1000);
+    }, { timeout: 10_000 }).toBeCloseTo(1000.751, 3);
   });
 
   test("the face that was clicked gets a box, and it flashes once", async ({ page }) => {
@@ -413,12 +511,23 @@ test.describe("Asset detail player – mocked e2e", () => {
     await expect(hit).toHaveAttribute("data-time-ms", "125000");
     await hit.click();
 
-    // 125000ms is second 125, and the stream is re-requested there. Before the transcript index
-    // was windowed every hit reported offset 0 and this could only ever have asked for t=0.
+    // 125000ms is second 125, and that is where the player is asked to go. Before the transcript
+    // index was windowed every hit reported offset 0 and this could only ever have asked for 0.
     await expect.poll(() => {
-      const last = rec.streamRequests[rec.streamRequests.length - 1] ?? "";
+      const last = rec.seekPointRequests[rec.seekPointRequests.length - 1] ?? "";
       return Number(new URL(last, "http://x").searchParams.get("t") ?? "-1");
     }, { timeout: 10_000 }).toBe(125);
+    // The stream then comes from the keyframe before it, and the player's clock is set to *that*.
+    // Adding the two together as though the response began at 125 is the drift this pins.
+    await expect(page.getByTestId("asset-video"))
+      .toHaveAttribute("data-stream-offset", String(mockKeyframeFor(125)), { timeout: 10_000 });
+
+    // And it takes the reader to the chapter, not only the playhead: a hit several screens down
+    // a 43-minute transcript that quietly repainted a highlight below the fold read as a click
+    // that had done nothing.
+    const revealed = page.locator("[data-testid=transcript-section][data-revealed=true]");
+    await expect(revealed).toHaveCount(1, { timeout: 5_000 });
+    await expect(page.getByTestId("transcript-section").nth(1)).toHaveAttribute("data-revealed", "true");
   });
 
   test("the semantic mode chip is absent while the provider cannot serve it", async ({ page }) => {
@@ -463,6 +572,37 @@ test.describe("Asset detail player – mocked e2e", () => {
 
     await page.locator("[data-section-id='transcript']").getByTestId("asset-section-toggle").click();
     await expect(tiles).toHaveAttribute("data-visible", "false");
+  });
+
+  test("clicking a chapter tile opens the transcript and takes the reader to that chapter", async ({ page }) => {
+    const rec = recorder();
+    await open(page, rec);
+
+    const section = page.locator("[data-section-id='transcript']");
+    await expect(section).toHaveAttribute("data-expanded", "true", { timeout: 10_000 });
+
+    // Shut it first, because the fold being closed is the case that used to look like a click
+    // that did nothing: the tile seeked, the highlight moved, and all of it happened inside a
+    // panel that was not in the document.
+    await section.getByTestId("asset-section-toggle").click();
+    await expect(section).toHaveAttribute("data-expanded", "false");
+
+    // With the fold shut the tiles are faded out and ignore the pointer, so this is the reverse
+    // trip: open it, click the second chapter, and the panel must both open and land on it.
+    await section.getByTestId("asset-section-toggle").click();
+    await expect(section).toHaveAttribute("data-expanded", "true");
+
+    await page.getByTestId("video-timeline-transcript-tile").nth(1).click();
+
+    // Exactly one chapter is ringed, and it is the one the tile pointed at — the second.
+    const revealed = page.locator("[data-testid=transcript-section][data-revealed=true]");
+    await expect(revealed).toHaveCount(1, { timeout: 5_000 });
+    const all = page.getByTestId("transcript-section");
+    await expect(all.nth(1)).toHaveAttribute("data-revealed", "true");
+
+    // And the playhead moved with it: the running highlight in the transcript is driven by the
+    // current time, so a reveal that did not seek would stop following as soon as play resumed.
+    await expect(page.getByTestId("video-timeline-current-time")).not.toHaveText("0:00");
   });
 
   test("the media area can be dragged taller and remembers it", async ({ page }) => {

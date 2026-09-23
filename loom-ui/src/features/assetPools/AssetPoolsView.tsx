@@ -6,10 +6,11 @@ import {
 } from "@mui/material";
 import {
   AddOutlined, DeleteOutlined, SearchOutlined, EditOutlined,
-  FolderOutlined, CloudOutlined, StorageOutlined, HelpOutlineOutlined,
+  FolderOutlined, CloudOutlined, StorageOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { AssetPool, AssetPoolType } from "../../types";
 import { useToast } from "../../context/ToastContext";
@@ -378,11 +379,7 @@ export default function AssetPoolsView() {
       <ViewHeader
         icon={<StorageOutlined />}
         title={t("assetPools.title")}
-        meta={
-          <Tooltip title={t("assetPools.tooltip.info")} arrow>
-            <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
-          </Tooltip>
-        }
+        meta={<HelpHint topic="admin.pools" description={t("assetPools.tooltip.info")} />}
         actions={
           <>
             <Chip label={`${fsCount} ${t("assetPools.chip.filesystem")}`} size="small" icon={<FolderOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />

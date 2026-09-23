@@ -39,7 +39,11 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: against ``LoomHttpClientImpl``, which implements exactly these.
 #: Counted by distinct method *name*, so a set of overloads contributes one - which is
 #: why ``tools/generate_models.py`` reports a different number and this one wins.
-#: Last raised from 339 by ``ClusterMethods.detachClusterPerson`` (+1): ``DELETE
+#: Last raised from 340 by ``TagMethods.updateTagPlacement`` (+1): ``PUT
+#: /assets/{uuid}/tag-placements/{placementUuid}``, which moves a region tag rather than
+#: withdrawing it and re-attaching it - dragging a region on the video timeline must not mint a
+#: new placement uuid or rewrite who attached it.
+#: Before that, 339 -> 340 by ``ClusterMethods.detachClusterPerson`` (+1): ``DELETE
 #: /clusters/{uuid}/person``, the inverse of ``confirm``, so a reviewer who stacked two clusters
 #: onto the wrong person can take it back. ``PipelineMethods.loadPipelineRun(UUID)`` landed in the
 #: same change and added nothing here, being an overload of a name that already counted.
@@ -51,7 +55,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: ``listAssetRemixes`` on ``/assets/{uuid}/remixes``. Before that, 301 -> 324 by
 #: ``ShareMethods`` (+23): eight owner-side calls on ``/share-links`` and fifteen
 #: customer-side ones on ``/shares/{slug}``.
-EXPECTED_JAVA_METHOD_COUNT = 340
+EXPECTED_JAVA_METHOD_COUNT = 341
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -330,8 +334,8 @@ class ServerRouteParityTest(unittest.TestCase):
         rejected = {n for n, verb, p in self.routes if verb == "ERROR"}
         self.assertEqual(
             len(rejected),
-            25,
-            f"expected the 25 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
+            26,
+            f"expected the 26 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
         )
         for name, verb, path in self.routes:
             if verb == "ERROR":

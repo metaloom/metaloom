@@ -1,18 +1,36 @@
 ---
 title: Image Generation
-description: "Makes a new picture from a prompt, or from the asset's own image."
+description: "Makes a new picture from a prompt, from the asset's own image, or by combining several pictures — optionally changing only one region."
 ---
 
 The image-generation node **generates a new image with a diffusion model**. Unlike the analysis
-nodes, which describe a property of the media itself, `imagegen` produces a fresh image — either
-from a text prompt (`GENERATE`) or by remixing the asset's own image guided by a prompt (`REMIX`) —
-and attaches it to the asset.
+nodes, which describe a property of the media itself, `imagegen` produces a fresh image and attaches
+it to the asset. It works in four ways:
+
+* **`GENERATE`** — draw a picture from a text prompt alone.
+* **`REMIX`** — repaint the asset's own image, steered by a prompt.
+* **`EDIT`** — combine the asset's image with other pictures wired into it, so you can say
+  "the person from the first image holding the product from the second". Give it a mask and the
+  change is confined to that one region, leaving the rest of the picture alone.
+* **`MASK`** — produce a black-and-white mask of a region you name in words. **Experimental:** the
+  model is often imprecise about which region it marks, so prefer a plain `EDIT` instruction, which
+  handles "change only her hair" well on its own.
 
 The diffusion model runs behind a small HTTP sidecar, so the node stays a pure client and needs no
-model runtime of its own. The sidecar is model-agnostic, and two are shipped: one serving
-**SDXL-Turbo** by default (ungated, fast) and one serving **Mage-Flow**, whose weights are MIT
-licensed and may therefore be used commercially. Both speak the same contract — pick one with the
-`port` option.
+model runtime of its own. The sidecar is model-agnostic, and three are shipped — pick one with the
+`port` option. They differ in what they can do and in what their licences allow, so read
+<<choosing-the-model>> before deciding.
+
+[IMPORTANT]
+====
+`EDIT` and `MASK` need the **Qwen-Image-2.1** sidecar; the other two backends do not offer them and
+the node will report an error. Those weights are **non-commercial** — see
+link:../../legal/model-licenses/[Model Licenses].
+
+To change one part of a picture, describe the change and say what to leave alone — "change her hair
+colour to dark brown, keep everything else exactly the same". That works well. You do not need a
+mask for it, and `MASK` mode is not yet accurate enough to rely on.
+====
 
 ++++
 <div class="ml-nodeviz" data-nodeviz='{"kind":"imagegen","applies":"Image","badge":"image sidecar","persist":"asset_node_result ledger (the PNG stays in the local imagegen_bin cache)","configs":[{"name":"generate (text-to-image)","note":"mode GENERATE · prompt from node config","inputs":[{"t":"text","l":"prompt","d":"the prompt set on the node — nothing upstream is needed"}],"outputs":[{"t":"artifact","l":"image","ct":"artifact/image","d":"the generated PNG, in the worker local imagegen_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]},{"name":"remix (image-to-image)","note":"mode REMIX · source image + prompt","inputs":[{"t":"image","l":"media","d":"the source picture, repainted rather than replaced"},{"t":"text","l":"prompt","d":"the prompt set on the node, steering the repaint"}],"outputs":[{"t":"artifact","l":"image","ct":"artifact/image","d":"the generated PNG, in the worker local imagegen_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
@@ -22,9 +40,9 @@ licensed and may therefore be used commercially. Both speak the same contract �
 |===
 | Kind | `imagegen`
 | Applies to | Image assets
-| Input ports | A generation `prompt` from the node configuration; in `REMIX` mode also `media`, the asset's own image
+| Input ports | A generation `prompt` from the node configuration; in `REMIX` mode also `media`, the asset's own image; in `EDIT` mode `references` (other pictures to combine in) and `mask` (the region to change)
 | Output ports | `image` (the generated PNG, ready for link:../s3-sink/[S3 Sink]), `flag` (String)
-| Requirements | A running **image sidecar** (`/generate`, `/remix`). A GPU is recommended for interactive latency.
+| Requirements | A running **image sidecar**. A GPU is recommended for interactive latency; `EDIT` additionally needs the Qwen-Image-2.1 sidecar, which uses about 46 GB of video memory at the default resolution and 66 GB at 2K.
 | Persists to | `asset_node_result` ledger only — the generated PNG stays in the worker's local `imagegen_bin` cache (as with thumbnails)
 |===
 
@@ -41,11 +59,16 @@ side; `host`/`port` are worker settings:
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
-| `mode` | `GENERATE` (text-to-image) or `REMIX` (image-to-image) (default `GENERATE`)
+| `mode` | `GENERATE`, `REMIX`, `EDIT` or `MASK` (default `GENERATE`)
 | `prompt` | The generation prompt (required)
+| `maskPrompt` | The region to confine an edit to, in plain words — "the boy's hair". Required in `MASK` mode; in `EDIT` it is used only when nothing is wired into the mask port
 | `host` / `port` | Address of the image sidecar (default `localhost:9200`)
 | `width` / `height` | Output size for `GENERATE` (default `1024` × `1024`)
+| `outputResolution` | What the model renders at, and what an edit's size follows from (default `1024`; `2048` gives 2K at around four times the cost)
 | `strength` | Denoise strength for `REMIX`, in `(0, 1]` (default `0.6`)
+| `negativePrompt` | What to steer away from. Has no effect unless `trueCfgScale` is above `1.0`
+| `trueCfgScale` | How strongly the negative prompt is applied, `1.0`–`10.0` (default `1.0`, which switches it off)
+| `composite` | Blend an edit back through the mask so nothing outside the region can change (default off)
 | `steps` | Number of inference steps (default `30`)
 | `seed` | Optional RNG seed for reproducible output
 |===
@@ -79,6 +102,7 @@ curl -s -X POST localhost:9200/generate \
   -d '{"prompt":"a red panda astronaut, studio lighting"}' -o out.png
 ----
 
+[#choosing-the-model]
 === Choosing the model
 
 [options="header",cols="1,1,2"]
@@ -86,7 +110,12 @@ curl -s -X POST localhost:9200/generate \
 | Sidecar | Default port | Weights
 | `sidecars/ideogram-sidecar` | `9200` | SDXL-Turbo — **non-commercial** community licence (Ideogram 4 optional, gated, also non-commercial)
 | `sidecars/mage-flow-sidecar` | `9210` | Mage-Flow 4B — **MIT**, commercial use permitted. Stronger prompt following and legible text, and it also handles `REMIX` as an instruction edit
+| `sidecars/qwen-image-sidecar` | `9230` | Qwen-Image-2.1 — **non-commercial** research licence. The only backend offering `EDIT` and `MASK`: combining up to ten pictures, and confining a change to a named region. Uses about 46 GB of video memory, or 66 GB at 2K
 |===
+
+There is a trade-off here and it is worth stating plainly: the only backend that can combine images
+or edit a region is also the only one you may not use commercially. If you need a commercial
+deployment, use Mage-Flow and do without those two modes.
 
 For Mage-Flow, set `steps` to match the checkpoint: `4` for the default Turbo variant, `20` for the
 RL-aligned one, `30` for Base. The node always sends `steps`, so leaving it at the `30` default would

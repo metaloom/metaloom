@@ -34,7 +34,7 @@ import { useFaceFlash } from "../../hooks/useFaceFlash";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
-import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, loadTagVocabulary, DEFAULT_TAG_COLLECTION } from "../../api/tags";
+import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, updateTagPlacement, loadTagVocabulary, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { toUiPerson } from "../faceDetection/personMapping";
@@ -63,6 +63,7 @@ import { PAGE_SIZE } from "../../hooks/pagedList";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import { useSectionState } from "../../hooks/useSectionState";
 import { useAuthedImage } from "../../hooks/useAuthedImage";
+import { movedArea } from "./regionTag";
 
 
 /**
@@ -79,6 +80,26 @@ import { useAuthedImage } from "../../hooks/useAuthedImage";
  * drag — this is about what is worth reading in a column this thin.
  */
 const SIDEBAR_ICON_ONLY_PX = 380;
+
+/**
+ * How wide one tab is once the labels are gone, and the padding around the strip.
+ *
+ * These are the `minWidth` and `px` the icon-only `<Tab>` below is given, repeated here because
+ * the divider has to know the answer *before* the strip is rendered at the new width. Together
+ * they are the floor a drag may not cross: below it the last tab is scrolled out of the strip and
+ * the panel behind it becomes unreachable, which is what "the tab icons vanish" was.
+ */
+const TAB_ICON_ONLY_PX = 40;
+const TAB_STRIP_PADDING_PX = 16;
+
+/**
+ * Slack between "the labels fit" and "show the labels".
+ *
+ * Without it the strip flips back to words at the exact width they need and clips again the
+ * moment a comment count gains a digit. The measurement decides the threshold; this keeps the
+ * decision from sitting on the boundary.
+ */
+const TAB_LABEL_SLACK_PX = 12;
 
 /** Where the fold state of the left column's sections is remembered. */
 const SECTION_STATE_KEY = "loom.assetDetail.sections";
@@ -295,6 +316,18 @@ export default function AssetDetail() {
    * it actually has.
    */
   const [sidebarPx, setSidebarPx] = useState(0);
+  /**
+   * The measured verdict on the tab labels; null until the strip has been looked at.
+   *
+   * Separate from the width so the guess based on {@link SIDEBAR_ICON_ONLY_PX} can render first
+   * and be replaced rather than fought with.
+   */
+  const [labelsHiddenState, setLabelsHidden] = useState<boolean | null>(null);
+  /** What the strip needed when the labels were last on screen. Zero means "never seen". */
+  const neededLabelPx = useRef(0);
+  const tabStripRef = useRef<HTMLDivElement | null>(null);
+  /** How many tabs there are, for the divider's floor. Set during render, read during a drag. */
+  const tabCountRef = useRef(0);
   const sidebarObserver = useRef<ResizeObserver | null>(null);
   const sidebarRef = useCallback((node: HTMLDivElement | null) => {
     sidebarObserver.current?.disconnect();
@@ -310,6 +343,33 @@ export default function AssetDetail() {
     sidebarObserver.current = observer;
     setSidebarPx(node.getBoundingClientRect().width);
   }, []);
+
+  /**
+   * Decide whether the tab labels fit, by looking at whether they did.
+   *
+   * The strip is `variant="scrollable"`, so when the words do not fit it does not wrap or
+   * ellipsise — it scrolls, and the tabs past the edge are simply not there. That is the
+   * "initially the labels are also clipped" case: a width just above the constant showed six
+   * labels of which two were off the end.
+   *
+   * So the constant is only the opening guess. While the labels are up, `scrollWidth` says what
+   * the strip would need; if that is more than it has, the labels go. Coming back needs the
+   * remembered requirement plus a little slack, which is what stops the two states flip-flopping
+   * at the width where they meet.
+   */
+  useEffect(() => {
+    const scroller = tabStripRef.current?.querySelector<HTMLElement>(".MuiTabs-scroller");
+    if (!scroller || sidebarPx <= 0) return;
+    if (!labelsHiddenState) {
+      // Rounded up: a sub-pixel scroller width reads as "one pixel short" forever otherwise.
+      const needed = Math.ceil(scroller.scrollWidth);
+      if (needed > 0) neededLabelPx.current = needed;
+      if (needed > Math.ceil(scroller.clientWidth) + 1) setLabelsHidden(true);
+    } else if (neededLabelPx.current > 0 && sidebarPx >= neededLabelPx.current + TAB_LABEL_SLACK_PX) {
+      setLabelsHidden(false);
+    }
+  }, [sidebarPx, labelsHiddenState, comments.length, annotations.length, reactions.length, tasks.length, detectedFaces.length]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
   const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
@@ -669,9 +729,13 @@ export default function AssetDetail() {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      // 94 rather than 88: with the labels gone at SIDEBAR_ICON_ONLY_PX there is no longer a
-      // word-width floor, and the point of a strip of icons is that you can push past it.
-      setLeftPct(Math.min(Math.max(pct, 30), 94));
+      // 94 was the whole story and it was not enough: on a wide window 6% is still 90 pixels,
+      // and a strip of six icons needs 256. Past that the last tabs scroll out of the strip and
+      // the panels behind them cannot be reached at all. So the ceiling is whichever is tighter
+      // — the flat 94%, or the percentage that still leaves the icons room to stand in.
+      const floorPx = tabCountRef.current * TAB_ICON_ONLY_PX + TAB_STRIP_PADDING_PX;
+      const iconCeiling = rect.width > 0 ? 100 - (floorPx / rect.width) * 100 : 94;
+      setLeftPct(Math.min(Math.max(pct, 30), Math.min(94, iconCeiling)));
     };
     const onUp = () => { isDragging.current = false; window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
     window.addEventListener("mousemove", onMove);
@@ -710,7 +774,17 @@ export default function AssetDetail() {
   }, [mediaPx]);
 
   /** Which of the left column's sections are open. See {@link useSectionState}. */
-  const { isExpanded: sectionExpanded, toggle: toggleSection } = useSectionState(SECTION_STATE_KEY, SECTION_DEFAULTS);
+  const { isExpanded: sectionExpanded, toggle: toggleSection, expand: expandSection } = useSectionState(SECTION_STATE_KEY, SECTION_DEFAULTS);
+  /**
+   * The moment a chapter tile or a search hit asked the transcript to show.
+   *
+   * Seeking is only half of what those clicks mean: the chapter they point at may be several
+   * screens down the section scroller, or behind a fold that is shut, and a panel that quietly
+   * repainted a highlight nobody can see reads as a click that did nothing. The nonce makes the
+   * same tile clicked twice scroll twice.
+   */
+  const [transcriptReveal, setTranscriptReveal] = useState<{ time: number; nonce: number } | null>(null);
+  const revealNonce = useRef(0);
 
   /**
    * The player, which owns the stream offset and the transport.
@@ -786,6 +860,23 @@ export default function AssetDetail() {
     setCurrentTime(time);
     playerRef.current?.seekTo(time);
   }, []);
+
+  /**
+   * Seek to a moment *and* take the reader to what was said there.
+   *
+   * What a chapter tile in the timeline and a transcript search hit both mean. Three steps, and
+   * skipping any one of them was the complaint: the fold has to open, because the transcript is
+   * shut by default on a screen this tall; the panel has to scroll, because the chapter is not on
+   * screen; and the playhead has to move, because the running highlight in the transcript is
+   * driven by `currentTime` and is what keeps following along once playback resumes.
+   */
+  const revealTranscriptAt = useCallback((time: number) => {
+    if (!Number.isFinite(time)) return;
+    seekTo(time);
+    expandSection("transcript");
+    revealNonce.current += 1;
+    setTranscriptReveal({ time, nonce: revealNonce.current });
+  }, [seekTo, expandSection]);
 
   /**
    * Where a face detection sits in the video, in seconds.
@@ -1048,8 +1139,20 @@ export default function AssetDetail() {
     ...(detectedFaces.length > 0 ? [{ label: tAD("tab.faces", { count: detectedFaces.length }), icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
   ];
 
-  /** See {@link SIDEBAR_ICON_ONLY_PX}. Zero means "not measured yet", not "zero wide". */
-  const labelsHidden = sidebarPx > 0 && sidebarPx < SIDEBAR_ICON_ONLY_PX;
+  // The divider reads this at drag time, so it has to be the count from the last render rather
+  // than a value captured when the handler was created.
+  tabCountRef.current = tabs.length;
+
+  /**
+   * Whether the tab strip is down to icons — decided by measurement, not only by a constant.
+   *
+   * {@link SIDEBAR_ICON_ONLY_PX} is the first guess, and it is only ever a guess: how much room
+   * six labels need depends on the language, on the font, and on whether a count is one digit or
+   * three. The effect below corrects it from what the strip actually did, which is the only
+   * thing that knows. The remembered width is captured while the labels are *on screen*, so the
+   * way back is a comparison against a real measurement rather than against the same guess.
+   */
+  const labelsHidden = labelsHiddenState ?? (sidebarPx > 0 && sidebarPx < SIDEBAR_ICON_ONLY_PX);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -1310,7 +1413,7 @@ export default function AssetDetail() {
                 onMarkerHover={setHoveredMarkerId}
                 transcriptSpans={transcriptSpans}
                 showTranscript={transcriptOpen}
-                onTranscriptClick={seekTo}
+                onTranscriptClick={revealTranscriptAt}
                 rangeMode={regionMode}
                 onRangeSelect={(from, to) => {
                   setPendingArea({ from: Math.round(from * 1000), to: Math.round(to * 1000) });
@@ -1330,20 +1433,49 @@ export default function AssetDetail() {
                     if (edge === "start") ann.timestampStart = newTime;
                     else if (edge === "end") ann.timestampEnd = newTime;
                     setAnnotations([...annotations]);
+                    return;
                   }
+                  // A region tag. The bar has drawn these since region tagging shipped and the
+                  // handles moved nothing: this branch did not exist, so the drag repainted from
+                  // state that never changed and the handle sprang back on release.
+                  setAssetTags(prev => prev.map(tag => (tag.uuid === markerId && tag.area
+                    ? { ...tag, area: movedArea(tag.area, edge, newTime) }
+                    : tag)));
                 }}
-                onMarkerDragEnd={(markerId) => {
-                  // Persist annotation time-range edits to the backend on drag release.
+                onMarkerDragEnd={(markerId, edge, newTime) => {
                   if (!token) return;
                   const ann = annotations.find(a => a.id === markerId);
-                  if (!ann) return; // comments have no time-persist endpoint wired
-                  const area: AreaInfo = {
-                    ...(ann.timestampStart != null ? { from: Math.round(ann.timestampStart * 1000) } : {}),
-                    ...(ann.timestampEnd != null ? { to: Math.round(ann.timestampEnd * 1000) } : {}),
-                  };
-                  updateAnnotation(token, markerId, { area }).catch(() => {
-                    showToast(tAD("annotation.editError"), "error");
-                  });
+                  if (ann) {
+                    const area: AreaInfo = {
+                      ...(ann.timestampStart != null ? { from: Math.round(ann.timestampStart * 1000) } : {}),
+                      ...(ann.timestampEnd != null ? { to: Math.round(ann.timestampEnd * 1000) } : {}),
+                    };
+                    updateAnnotation(token, markerId, { area }).catch(() => {
+                      showToast(tAD("annotation.editError"), "error");
+                    });
+                    return;
+                  }
+                  // A region tag moves through its *placement*, not by being withdrawn and
+                  // re-attached: the same tag may sit on the asset several times, and a
+                  // re-attach would mint a new placement uuid and record the person dragging
+                  // the handle as the one who attached it.
+                  const tag = assetTags.find(t => t.uuid === markerId);
+                  if (!tag?.placementUuid || !tag.area || !id) return; // comments have no time-persist route
+                  // `newTime`, not the tag we just found: this handler was captured by the
+                  // drag's mouse-up listener when the drag *started*, so `assetTags` here is
+                  // the array from before the move. The annotation branch above gets away with
+                  // reading its object because it mutates it in place; the tag branch replaces
+                  // it, which is the correct thing to do to React state and the reason the
+                  // final position has to travel as an argument.
+                  const moved = movedArea(tag.area, edge, newTime);
+                  updateTagPlacement(token, id, tag.placementUuid, {
+                    area: {
+                      ...(moved.from != null ? { from: moved.from } : {}),
+                      ...(moved.to != null ? { to: moved.to } : {}),
+                    },
+                  })
+                    .then(() => reloadTags())
+                    .catch(() => showToast(tAD("tag.moveError"), "error"));
                 }}
               />
             </Box>
@@ -1644,7 +1776,7 @@ export default function AssetDetail() {
               {/* Server-side search over this asset's transcript windows, above the panels. The
                   "find in transcript" box inside each panel is a literal scan of what is already
                   loaded and stays — this answers the question that one cannot. */}
-              <TranscriptSearchPanel assetUuid={asset.id} onSeek={seekTo} />
+              <TranscriptSearchPanel assetUuid={asset.id} onSeek={revealTranscriptAt} />
               {transcripts.map(tr => (
                 <Box key={tr.uuid} sx={{ mb: 2, "&:last-of-type": { mb: 0 } }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
@@ -1666,6 +1798,7 @@ export default function AssetDetail() {
                     sections={tr.sections}
                     currentTime={currentTime}
                     onSeek={seekTo}
+                    reveal={transcriptReveal}
                     onSectionsChange={sections => handleTranscriptSectionsChange(tr.uuid, sections)}
                   />
                 </Box>
@@ -1710,7 +1843,7 @@ export default function AssetDetail() {
           {/* Below SIDEBAR_ICON_ONLY_PX the labels go and the icons stay, which is what lets the
               divider keep going past the width six words need. `scrollButtons` because the strip
               is then narrow enough that even icons can outrun it. */}
-          <Tabs value={tab} onChange={(_, v) => { setTab(v); setSidebarQuery(""); }}
+          <Tabs ref={tabStripRef} value={tab} onChange={(_, v) => { setTab(v); setSidebarQuery(""); }}
             variant="scrollable" scrollButtons={false}
             sx={{ px: labelsHidden ? 0.5 : 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, minHeight: 40 }}>
             {tabs.map((t, i) => (

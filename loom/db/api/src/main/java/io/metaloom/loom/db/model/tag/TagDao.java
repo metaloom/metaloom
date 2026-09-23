@@ -126,6 +126,27 @@ public interface TagDao extends CRUDDao<Tag> {
 	boolean removePlacement(Asset asset, UUID placementUuid);
 
 	/**
+	 * Move one placement to a different region, leaving every other placement of the same tag alone.
+	 *
+	 * <p>
+	 * The counterpart of {@link #removePlacement(Asset, UUID)} for the case where the region is wrong rather than the tag: a reviewer dragging the end
+	 * of a region tag along a video timeline is not withdrawing it and re-attaching it, and treating it as though they were would mint a new placement
+	 * uuid and lose who attached the original and when.
+	 * </p>
+	 *
+	 * <p>
+	 * Scoped by asset for the same reason the removal is: a placement uuid on its own would let a caller permitted to edit one asset move a region on
+	 * another.
+	 * </p>
+	 *
+	 * @param area
+	 *            carries the new region in its area and time fields. A field left <code>null</code> keeps the stored value, so an edit to one edge of a
+	 *            time range need not restate the other
+	 * @return the placement as it now stands, or <code>null</code> when it does not exist or belongs to a different asset
+	 */
+	AssetTag updatePlacement(Asset asset, UUID placementUuid, AssetTag area);
+
+	/**
 	 * The placements on this asset written by one pipeline node instance.
 	 *
 	 * <p>

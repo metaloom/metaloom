@@ -272,6 +272,43 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
   };
 
   /**
+   * Where the caret goes once the card under it is attributed and leaves the band.
+   *
+   * Assigning re-parents the card into its new person's group, so React unmounts it from the
+   * unattributed band and mounts a fresh element somewhere further up — the browser's focus goes
+   * with the element that died, and the reviewer who was three rows into a sweep is back at the
+   * top with a mouse in their hand. Armed before the dialog opens, because by the time the
+   * assignment lands the card's neighbours are already the wrong ones to ask.
+   */
+  const returnFocusRef = useRef<{ assigned: string; next: string } | null>(null);
+
+  const armReturnFocus = (id: string) => {
+    const loose = groups.find(g => g.personId === null)?.cards.map(c => c.id) ?? [];
+    const at = loose.indexOf(id);
+    // Not in the unattributed band: re-assigning an already-named cluster is a correction, not a
+    // sweep, and moving the caret off it afterwards would be the surprising thing to do.
+    if (at < 0) {
+      returnFocusRef.current = null;
+      return;
+    }
+    // The card that slides into this one's place, or the one before it when this was the last.
+    const next = loose[at + 1] ?? loose[at - 1];
+    returnFocusRef.current = next ? { assigned: id, next } : null;
+  };
+
+  useEffect(() => {
+    const pending = returnFocusRef.current;
+    if (!pending) return;
+    const moved = clusters.find(c => c.id === pending.assigned);
+    // Still unattributed: the dialog is open, or the reviewer cancelled. Either way, wait.
+    if (!moved || !moved.personId) return;
+    returnFocusRef.current = null;
+    focusCard(pending.next);
+    // `focusCard` is re-created every render and only touches refs and state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clusters]);
+
+  /**
    * An arrow key with nothing focused enters the grid at the top left.
    *
    * Without this the keyboard was only usable after a click, which made it useless for the job
@@ -352,6 +389,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
     }
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      armReturnFocus(cluster.id);
       onAssignCluster(cluster.id);
     }
   };
@@ -449,7 +487,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                     onKeyDown={e => handleCardKeyDown(e, cluster)}
                     // Double-click rather than single: a single click on a card is how you pick it
                     // up to drag, and opening a dialog on that would make the grid unusable.
-                    onDoubleClick={() => onAssignCluster(cluster.id)}
+                    onDoubleClick={() => { armReturnFocus(cluster.id); onAssignCluster(cluster.id); }}
                     // Native HTML5 drag and drop, following TagsView: the repo carries no DnD library and
                     // MUI ships none, and reactflow is a graph canvas rather than a list primitive.
                     draggable={!!onMergeClusters}

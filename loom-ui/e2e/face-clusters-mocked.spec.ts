@@ -547,6 +547,77 @@ test.describe("Face cluster review – mocked e2e", () => {
     await expect(first).toBeFocused();
   });
 
+  test("the thumbnail slider's pixel bubble is readable, not cut off by the heading above it", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card").first()).toBeVisible({ timeout: 10_000 });
+
+    // The bubble pops *up* out of the toolbar, and the toolbar sits inside the tab-content box.
+    // That box used to be `overflow: hidden`, so the one thing the clipping ever cut off was the
+    // only readout of what the slider is set to.
+    const slider = page.getByTestId("facedetection-card-size-slider").locator("input");
+    await slider.focus();
+
+    const bubble = page.locator("[data-testid=facedetection-card-size-slider] .MuiSlider-valueLabel");
+    await expect(bubble).toBeVisible({ timeout: 5_000 });
+    await expect(bubble).toHaveText(/\d+px/);
+
+    // Fully on screen, and above the heading band rather than behind or under it.
+    const box = (await bubble.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.height).toBeGreaterThan(8);
+    const header = (await page.getByTestId("view-header").boundingBox())!;
+    expect(box.y).toBeLessThan(header.y + header.height);
+  });
+
+  test("the caret stays in the unattributed band after a cluster is assigned", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    const cards = page.getByTestId("cluster-card");
+    await expect(cards).toHaveCount(2, { timeout: 10_000 });
+
+    // Enter on the first card, name a person, save. Confirming re-parents that card into its new
+    // person's group, so React unmounts it from the unattributed band and mounts a fresh element
+    // further up the page — and the browser's focus went with the element that died. A reviewer
+    // three rows into a sweep was put back at the top with a mouse in their hand.
+    await cards.first().focus();
+    await page.keyboard.press("Enter");
+    const input = page.getByTestId("facedetection-assign-input");
+    await input.fill("Anna Meyer");
+    // Enter rather than the Save button: the open popup sits over it, which is the friction the
+    // sole-match shortcut below exists to remove.
+    await input.press("Enter");
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
+
+    // The caret lands on the card that took the assigned one's place, which is the next piece of
+    // work — not on the card that just left the band, and not at the top of the page.
+    const loose = page.getByTestId("cluster-loose-group").getByTestId("cluster-card");
+    await expect(loose).toHaveCount(1, { timeout: 10_000 });
+    await expect(loose.first()).toBeFocused();
+    await expect(loose.first()).toHaveAttribute("data-focused", "true");
+  });
+
+  test("Enter takes the only matching person without a second keystroke", async ({ page }) => {
+    const rec = recorder();
+    await openFaces(page, rec);
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    await page.getByTestId("cluster-card").first().dblclick();
+    const input = page.getByTestId("facedetection-assign-input");
+    await expect(input).toBeVisible({ timeout: 5_000 });
+
+    // A fragment that can only mean one person. The popup owns Enter while it is open, so this
+    // used to do nothing at all: the reviewer had to pick the single option off a list of one
+    // and then press Enter again. One option is not a choice.
+    await input.fill("anna");
+    await input.press("Enter");
+
+    await expect.poll(() => rec.confirms.length, { timeout: 10_000 }).toBe(1);
+    // Resolved to the existing person rather than coining a second one called "anna".
+    expect(rec.confirms[0].body.personUuid).toBe(PERSON_UUID);
+    expect(rec.confirms[0].body.alias).toBeUndefined();
+  });
+
   test("typing in the search box still gets its own arrow keys", async ({ page }) => {
     const rec = recorder();
     await openFaces(page, rec);

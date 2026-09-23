@@ -22,8 +22,8 @@ exact revision you deploy.
 [#restricted]
 == Models Restricted to Non-Commercial Use
 
-Two components in the catalogue may **not** be used in a commercial deployment. Both are usable for
-research, evaluation and personal projects.
+Three components in the catalogue may **not** be used in a commercial deployment. All three are
+usable for research, evaluation and personal projects.
 
 [WARNING]
 ====
@@ -52,6 +52,26 @@ Agreement**. Using them in a commercial MetaLoom deployment would violate the we
 
 The node talks to a sidecar over a deliberately model-agnostic HTTP contract, so a permissively
 licensed image model can be dropped in behind the same endpoint without touching the node.
+====
+
+[WARNING]
+====
+**Qwen-Image-2.1 — Qwen Research License, non-commercial.** The
+link:../../nodes/imagegen/[Image Generation] node's `EDIT` and `MASK` modes, and the image generation
+available in the chat assistant, are built around **Qwen-Image-2.1** (`Qwen/Qwen-Image-2.1`). Its
+weights are released under the **Qwen Research License**, which grants use "for non-commercial
+purposes only", defined as research or evaluation. Commercial use requires a separate license from
+Hangzhou Tongyi Laboratory.
+
+Note that this is *stricter than its predecessor*: Qwen-Image 1.0 was Apache-2.0, and 2.1 is not.
+The difference is easy to miss when upgrading.
+
+These are the only features that combine several images into one, or confine an edit to a named
+region — no permissively licensed model in the catalogue does either today. Plain text-to-image and
+single-image editing have a commercially usable alternative, below.
+
+Redistributing the weights additionally requires passing on the agreement, marking modified files,
+and displaying "Built with Qwen" on anything trained or fine-tuned from it.
 ====
 
 [#conditional]
@@ -224,6 +244,16 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | Ideogram 4.0 (`ideogram-ai/ideogram-4-nf4`) behind a Python sidecar
 | Code Apache-2.0; **weights under the Ideogram 4 Non-Commercial Model Agreement**
 | ❌ **No** — see link:#restricted[restrictions]
+
+| link:../../nodes/imagegen/[Image Generation] — alternative backend
+| Mage-Flow 4B (`microsoft/Mage-Flow-Turbo`) behind a Python sidecar
+| **MIT** — code *and* checkpoints
+| ✅ **Yes** — the recommended backend for a commercial deployment
+
+| link:../../nodes/imagegen/[Image Generation] — `EDIT` / `MASK` modes, and chat image generation
+| Qwen-Image-2.1 (`Qwen/Qwen-Image-2.1`) behind a Python sidecar
+| **Qwen Research License — non-commercial**
+| ❌ **No** — see link:#restricted[restrictions]
 |===
 
 === The Loom chat agent
@@ -285,7 +315,12 @@ configuration stays inside permissive licenses:
 * **Drop** link:../../nodes/facedetect/[Face Detection] and
   link:../../nodes/facedescription/[Face Description], or replace the InspireFace pack with a
   commercially licensed face model.
-* **Do not deploy** the link:../../nodes/imagegen/[Image Generation] node against Ideogram 4.0 weights.
+* **Point** the link:../../nodes/imagegen/[Image Generation] node at the **Mage-Flow** sidecar
+  (`port: 9210`), whose code and checkpoints are both MIT. Do not deploy it against Ideogram 4.0 or
+  Qwen-Image-2.1 weights. This costs you the `EDIT` and `MASK` modes — combining several images, and
+  confining an edit to a named region — which only Qwen-Image-2.1 provides.
+* **Leave the assistant's image generation off** (`LOOM_MCP_IMAGEGEN_ENABLED`, off by default): it
+  needs a sidecar serving the multi-image edit endpoint, which today means Qwen-Image-2.1.
 * **Set `ORPHEUS_REPO_DE=Thorsten-Voice/tv-orpheus-v1`** for German
   link:../../nodes/tts/[Text-to-Speech] (Apache-2.0, ungated) instead of the Kartoffel checkpoint.
 * **Replace the Gemma defaults** in the link:../../nodes/llm/[LLM] node with an Apache-2.0 or

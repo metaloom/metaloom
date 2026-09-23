@@ -19,6 +19,7 @@ import {
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import type { HelpTopic } from "../../help/topics";
 import HelpHint from "../../components/HelpHint";
 import SearchIndicesAdmin from "./SearchIndicesAdmin";
 import DbIntegrityAdmin from "./DbIntegrityAdmin";
@@ -825,10 +826,10 @@ function AccessControlAdmin() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
-            <HelpHint topic="admin.acl" />
-          </Box>
+          {/* No hint here any more: the view header above now carries one per tab, and two
+              `help-hint-admin.acl` anchors on one page is an ambiguous locator as well as a
+              second thing to click for the same destination. */}
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
           <Typography variant="caption" color="text.secondary" data-testid="admin-roles-count">
             {page.totalCount} {t("admin.roles.count")}
             {saving && " · " + t("admin.roles.saving")}
@@ -1045,7 +1046,11 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   Annotation: ["CREATE_ANNOTATION", "READ_ANNOTATION", "DELETE_ANNOTATION", "UPDATE_ANNOTATION"],
   // Three, not four: notifications are dispatched server-side, so there is no CREATE.
   Notification: ["READ_NOTIFICATION", "UPDATE_NOTIFICATION", "DELETE_NOTIFICATION"],
-  Asset: ["CREATE_ASSET", "READ_ASSET", "DELETE_ASSET", "UPDATE_ASSET"],
+  // READ_ASSET_BINARY belongs here and was missing: it gates the poster and stream routes, so
+  // without it a role built in this matrix can list assets and then see neither a thumbnail
+  // nor a frame of video — and the chat's show_asset tool, which declares it, is not even
+  // advertised to that user. It was grantable over REST only, which no operator does by hand.
+  Asset: ["CREATE_ASSET", "READ_ASSET", "READ_ASSET_BINARY", "DELETE_ASSET", "UPDATE_ASSET"],
   "Asset Location": ["CREATE_ASSET_LOCATION", "READ_ASSET_LOCATION", "DELETE_ASSET_LOCATION", "UPDATE_ASSET_LOCATION"],
   Attachment: ["CREATE_ATTACHMENT", "READ_ATTACHMENT", "DELETE_ATTACHMENT", "UPDATE_ATTACHMENT"],
   User: ["CREATE_USER", "READ_USER", "DELETE_USER", "UPDATE_USER"],
@@ -1082,7 +1087,7 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   Pipeline: ["CREATE_PIPELINE", "READ_PIPELINE", "DELETE_PIPELINE", "UPDATE_PIPELINE"],
   // Authoring a pipeline through the assistant is granted separately from authoring one in the
   // editor. Both are needed to write: these never widen what the Pipeline group above allows.
-  "Pipeline (assistant)": ["CREATE_MCP_PIPELINE", "UPDATE_MCP_PIPELINE", "VALIDATE_MCP_PIPELINE", "EXECUTE_MCP_NODE"],
+  "Pipeline (assistant)": ["CREATE_MCP_PIPELINE", "UPDATE_MCP_PIPELINE", "VALIDATE_MCP_PIPELINE", "EXECUTE_MCP_NODE", "GENERATE_MCP_IMAGE"],
   "Asset Pool": ["CREATE_ASSET_POOL", "READ_ASSET_POOL", "DELETE_ASSET_POOL", "UPDATE_ASSET_POOL"],
   // One, not four: metrics are produced by the running instance, so there is nothing to create,
   // edit or delete. This gates the monitoring screen's read of `GET /metrics`.
@@ -1657,18 +1662,20 @@ export default function AdminArea() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const ADMIN_TABS = [
-    { label: t("admin.tab.spaces"), path: "/admin/spaces" },
-    { label: t("admin.tab.users"), path: "/admin/users" },
-    { label: t("admin.tab.groups"), path: "/admin/groups" },
-    { label: t("admin.tab.permissions"), path: "/admin/permissions" },
-    { label: t("admin.tab.apiKeys"), path: "/admin/api-keys" },
-    { label: t("admin.tab.blacklist"), path: "/admin/blacklist" },
-    { label: t("admin.tab.memoryDenylist"), path: "/admin/memory-denylist" },
-    { label: t("admin.tab.searchIndices"), path: "/admin/indices" },
-    { label: t("admin.tab.dbIntegrity"), path: "/admin/db-integrity" },
-    { label: t("admin.tab.storage"), path: "/admin/storage" },
-    { label: t("admin.tab.failureReports"), path: "/admin/failure-reports" },
+  const ADMIN_TABS: Array<{ label: string; path: string; topic: HelpTopic }> = [
+    { label: t("admin.tab.spaces"), path: "/admin/spaces", topic: "admin.spaces" },
+    // Users, groups, roles and keys are all one question — who may do what — and the
+    // documentation answers them in one section.
+    { label: t("admin.tab.users"), path: "/admin/users", topic: "admin.acl" },
+    { label: t("admin.tab.groups"), path: "/admin/groups", topic: "admin.acl" },
+    { label: t("admin.tab.permissions"), path: "/admin/permissions", topic: "admin.acl" },
+    { label: t("admin.tab.apiKeys"), path: "/admin/api-keys", topic: "admin.acl" },
+    { label: t("admin.tab.blacklist"), path: "/admin/blacklist", topic: "admin.denylist" },
+    { label: t("admin.tab.memoryDenylist"), path: "/admin/memory-denylist", topic: "admin.denylist" },
+    { label: t("admin.tab.searchIndices"), path: "/admin/indices", topic: "admin.indices" },
+    { label: t("admin.tab.dbIntegrity"), path: "/admin/db-integrity", topic: "admin.integrity" },
+    { label: t("admin.tab.storage"), path: "/admin/storage", topic: "admin.pools" },
+    { label: t("admin.tab.failureReports"), path: "/admin/failure-reports", topic: "admin.failureReports" },
   ];
 
   const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
@@ -1685,7 +1692,11 @@ export default function AdminArea() {
       {/* One header band with the tab strip inside it, rather than a title band and a second
           band for the tabs. Every management screen below this — spaces, users, roles, the deny
           lists, the ACL editor — then carries its own section heading inside the same frame. */}
-      <ViewHeader icon={<AdminPanelSettingsOutlined />} title={t("admin.title")} subtitle={t("admin.subtitle")}>
+      {/* The hint follows the tab, the way the detection screen's does: "Administration" is
+          eleven unrelated screens behind one heading, and a single shortcut to the section
+          landing page would be the least useful destination of the eleven. */}
+      <ViewHeader icon={<AdminPanelSettingsOutlined />} title={t("admin.title")}
+        meta={<HelpHint topic={ADMIN_TABS[activeTab].topic} description={t("admin.subtitle")} />}>
         <Tabs value={activeTab} onChange={(_, i) => navigate(ADMIN_TABS[i].path)} variant="scrollable" scrollButtons="auto"
           sx={{ minHeight: 34, "& .MuiTab-root": { minHeight: 34 } }}>
           {ADMIN_TABS.map(tab => <Tab key={tab.path} label={tab.label} sx={{ fontSize: "0.8rem" }} />)}

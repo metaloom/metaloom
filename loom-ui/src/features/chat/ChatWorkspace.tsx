@@ -8,14 +8,14 @@ import {
   Send, AutoAwesome, CheckCircleOutline, ErrorOutline,
   PlayCircleOutline, ImageOutlined, TaskAltOutlined,
   AccountTreeOutlined, CollectionsOutlined, AccessTimeOutlined,
-  ArrowForwardIos, DragIndicator, StopCircleOutlined,
+  StopCircleOutlined,
   Add, ChatBubbleOutline, DeleteOutline, ViewSidebarOutlined,
   SpaceDashboardOutlined, KeyboardDoubleArrowRight,
   SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import HelpHint from "../../components/HelpHint";
-import { AgentAction, ChatMessage, ChatReference, ChatVisual } from "../../types";
+import { AgentAction, AssetResultsPayload, AssetViewerPayload, ChatMessage, ChatReference, ChatVisual } from "../../types";
 import {
   listChats, loadChat, createChat, updateChat, deleteChat, ChatResponse,
   toChatMessage, toChatReference, toChatVisual, BackendChatReference, BackendChatVisual,
@@ -27,6 +27,8 @@ import {
 } from "../../api/agent";
 import MarkdownContent from "./MarkdownContent";
 import PipelineGraphCard from "./PipelineGraphCard";
+import AssetViewerCard from "./AssetViewerCard";
+import { AssetResultsPanel, AssetResultsStrip } from "./AssetResults";
 import ReasoningSection from "./ReasoningSection";
 import SkillsPanel from "./SkillsPanel";
 import ChatGreeting from "./ChatGreeting";
@@ -36,12 +38,13 @@ import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+import { assetTypeFromMime } from "../assets/assetMapping";
 import { listCollections, CollectionResponse } from "../../api/collections";
 import { listTasks, TaskResponse } from "../../api/tasks";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
-function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string) => void }) {
+function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string, startSeconds?: number) => void }) {
   const navigate = useNavigate();
   type RefType = "asset" | "collection" | "task" | "pipeline" | "annotation";
   const iconMap: Record<RefType, React.ReactNode> = {
@@ -118,7 +121,8 @@ function ActionRow({ action }: { action: NonNullable<ChatMessage["actions"]>[0] 
 function MessageBubble({ msg, onFollowUp, onAssetClick, reasoningStreaming = false }: {
   msg: ChatMessage;
   onFollowUp: (text: string) => void;
-  onAssetClick?: (id: string) => void;
+  /** Open an asset in the workspace panel; `startSeconds` carries the moment a transcript hit matched. */
+  onAssetClick?: (id: string, startSeconds?: number) => void;
   /** True while the agent is streaming reasoning deltas for this (in-flight) message. */
   reasoningStreaming?: boolean;
 }) {
@@ -206,12 +210,21 @@ function MessageBubble({ msg, onFollowUp, onAssetClick, reasoningStreaming = fal
           </Box>
         )}
 
-        {/* Inline visualizations (pipeline graphs) — rendered as soon as the tool returns them */}
+        {/* Inline visualizations — rendered as soon as the tool returns them, before the answer exists.
+            An unknown type renders nothing: a visual is an enhancement of a tool result whose text
+            already carries the answer, so a client that does not know a type must stay quiet rather
+            than draw a broken card. */}
         {msg.visuals && msg.visuals.length > 0 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, width: "100%", maxWidth: "100%" }}>
-            {msg.visuals
-              .filter(v => v.type === "pipeline-graph")
-              .map((v, i) => <PipelineGraphCard key={`${v.type}-${v.id}-${i}`} visual={v} />)}
+            {msg.visuals.map((v, i) => {
+              const key = `${v.type}-${v.id}-${i}`;
+              if (v.type === "pipeline-graph") return <PipelineGraphCard key={key} visual={v} />;
+              if (v.type === "asset-viewer") return <AssetViewerCard key={key} payload={v.payload as AssetViewerPayload} />;
+              if (v.type === "asset-results") {
+                return <AssetResultsStrip key={key} payload={v.payload as AssetResultsPayload} onSelect={onAssetClick} />;
+              }
+              return null;
+            })}
           </Box>
         )}
 
@@ -251,8 +264,26 @@ function MessageBubble({ msg, onFollowUp, onAssetClick, reasoningStreaming = fal
 }
 
 // ── Right panel — context-driven workspace ────────────────────────────────
-function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets" | "overview"; selectedAssetId?: string | null; onClearAsset?: () => void }) {
-  const navigate = useNavigate();
+
+/** The panel's tabs. `results` only exists once the agent has run a search, and is then the default. */
+type WorkspaceMode = "overview" | "assets" | "results";
+
+/** The payload `kind` for a mime type, so a panel preview builds the same viewer an inline card does. */
+function viewerKindOf(mimeType: string | undefined): AssetViewerPayload["kind"] {
+  const type = assetTypeFromMime(mimeType);
+  return type === "unknown" ? "other" : type;
+}
+
+function WorkspacePanel({ mode, results, selectedAssetId, selectedAssetStart, onSelectAsset, onClearAsset }: {
+  mode: WorkspaceMode;
+  /** The last result set the agent produced, mirrored from an `asset-results` visual. */
+  results: AssetResultsPayload | null;
+  selectedAssetId?: string | null;
+  /** Where a player opened from a result should start — the moment a transcript hit matched. */
+  selectedAssetStart?: number;
+  onSelectAsset?: (uuid: string, startSeconds?: number) => void;
+  onClearAsset?: () => void;
+}) {
   const { t } = useTranslation();
   const { token } = useAuth();
   const [assets, setAssets] = useState<AssetResponse[]>([]);
@@ -283,24 +314,24 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
     const duration = selectedAsset.videoComponents?.[0]?.duration ?? selectedAsset.audioComponents?.[0]?.duration;
     return (
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          <Box sx={{ width: 40, height: 28, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }} />
-          <Box sx={{ flex: 1, overflow: "hidden" }}>
-            <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.82rem" }}>{filename}</Typography>
-            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{mime}</Typography>
-          </Box>
-          <Chip
-            label={t("chat.panel.open")}
-            size="small"
-            onClick={() => navigate(`/assets/${selectedAsset.uuid}`)}
-            sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light, fontWeight: 600, fontSize: "0.72rem" }}
+        {/* The same viewer the transcript embeds. This slot used to be a 40x28 grey rectangle — a
+            panel headed "Open" beside a chat that had just found the file, showing nothing of it. */}
+        <Box sx={{ p: 1.25, flexShrink: 0 }}>
+          <AssetViewerCard
+            testId="chat-panel-asset-viewer"
+            payload={{
+              assetUuid: selectedAsset.uuid,
+              filename,
+              mimeType: mime,
+              kind: viewerKindOf(mime),
+              size: fileSize,
+              startSeconds: selectedAssetStart,
+            }}
+            onClose={onClearAsset}
           />
-          <IconButton size="small" onClick={onClearAsset} sx={{ ml: 0.5 }}>
-            <ArrowForwardIos sx={{ fontSize: 10, transform: "rotate(180deg)" }} />
-          </IconButton>
         </Box>
         <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
-          <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Box sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
             <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
               {tags.map(tg => (
                 <Chip key={tg} label={tg} size="small" sx={{ height: 20, fontSize: "0.68rem", bgcolor: tokens.bg.elevated }} />
@@ -322,6 +353,11 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
         </Box>
       </Box>
     );
+  }
+
+  // The result set the agent is talking about, not the newest rows in the catalogue.
+  if (mode === "results" && results) {
+    return <AssetResultsPanel payload={results} selectedUuid={selectedAssetId} onSelect={onSelectAsset} />;
   }
 
   if (mode === "assets") return <AssetBrowser embedded />;
@@ -442,6 +478,22 @@ function readStoredPanelOpen(): boolean {
   return localStorage.getItem(PANEL_STORAGE_KEY) !== "false";
 }
 
+/**
+ * The newest `asset-results` payload in a transcript, or null.
+ *
+ * Read on session load so reopening a conversation restores the panel to the search it was about.
+ * Newest wins: a conversation that searched three times is about the third search.
+ */
+function latestResults(messages: ChatMessage[]): AssetResultsPayload | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const visuals = messages[i].visuals ?? [];
+    for (let j = visuals.length - 1; j >= 0; j--) {
+      if (visuals[j].type === "asset-results") return visuals[j].payload as AssetResultsPayload;
+    }
+  }
+  return null;
+}
+
 // ── Streaming state of the in-flight assistant message ────────────────────
 type StreamPhase = "idle" | "reasoning" | "answering" | "tool";
 
@@ -461,10 +513,20 @@ export default function ChatWorkspace() {
   const [sending, setSending] = useState(false);
   const [streaming, setStreaming] = useState<StreamingState | null>(null);
   const [activeSkillUuids, setActiveSkillUuids] = useState<string[]>([]);
-  const [workspaceMode, setWorkspaceMode] = useState<"overview" | "assets">("overview");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("overview");
+  /**
+   * The last result set the agent produced, mirrored out of an `asset-results` visual.
+   *
+   * Kept here rather than in the panel because both halves of the screen read it: the strip under
+   * the answer and the browser beside it are two renderings of one payload, which is what keeps
+   * them talking about the same assets.
+   */
+  const [results, setResults] = useState<AssetResultsPayload | null>(null);
   const [chatPct, setChatPct] = useState(readStoredSplit);
   const [panelOpen, setPanelOpen] = useState(readStoredPanelOpen);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  /** Where the panel's player should open, when the asset was picked from a transcript hit. */
+  const [selectedAssetStart, setSelectedAssetStart] = useState<number | undefined>(undefined);
   const [sessions, setSessions] = useState<ChatResponse[]>([]);
   const [railQuery, setRailQuery] = useState("");
 
@@ -532,11 +594,26 @@ export default function ChatWorkspace() {
 
   // Start a fresh, empty conversation. The backend session is created lazily
   // on the first sendMessage, so we never persist empty sessions.
+  /**
+   * Point the workspace panel at a result set, or back at the overview.
+   *
+   * The panel switches to it by itself, and that is the feature: a user who has just asked the
+   * agent to find something is looking at the answer, not at a tab bar. It only ever switches
+   * *to* results — leaving the tab they chose alone once they have chosen one is handled by the
+   * caller, which only calls this when a new search has actually run.
+   */
+  const showResults = useCallback((payload: AssetResultsPayload | null) => {
+    setResults(payload);
+    setWorkspaceMode(mode => (payload ? "results" : mode === "results" ? "overview" : mode));
+  }, []);
+
   const newChat = () => {
     abortRef.current?.abort();
     setSessionId(null);
     setMessages([]);
     setActiveSkillUuids([]);
+    showResults(null);
+    setSelectedAssetId(null);
   };
 
   const loadSession = async (uuid: string) => {
@@ -546,6 +623,10 @@ export default function ChatWorkspace() {
       const res = await loadChat(token, uuid);
       setMessages(res.messages ?? []);
       setSessionId(uuid);
+      // The panel belongs to the conversation, so it is restored with it rather than left
+      // showing the previous session's search.
+      setSelectedAssetId(null);
+      showResults(latestResults(res.messages ?? []));
       // Restore the per-session skill toggles from the chat meta
       const metaSkills = res.meta?.activeSkillUuids;
       setActiveSkillUuids(Array.isArray(metaSkills) ? (metaSkills as string[]) : []);
@@ -589,10 +670,10 @@ export default function ChatWorkspace() {
     setInput("");
     setSending(true);
 
-    // Drive workspace from chat
-    if (trimmed.toLowerCase().includes("asset") || trimmed.toLowerCase().includes("show")) {
-      setWorkspaceMode("assets");
-    }
+    // The panel used to be driven from here, by looking for the words "asset" or "show" in what
+    // was typed. It opened the asset browser on "show me the pipeline" and left it on the
+    // catalogue's newest rows whatever the agent then found. The panel now follows the agent's
+    // actual result set instead — see the asset-results visual in the tool_end handler below.
 
     try {
       // The backend persists the transcript onto the chat row, so the session
@@ -672,6 +753,12 @@ export default function ChatWorkspace() {
               if (vis.type && !acc.visuals.some(v => v.id === vis.id && v.type === vis.type)) {
                 acc.visuals.push(vis);
               }
+              // A search result set also drives the panel beside the conversation, and it does so
+              // the moment the tool returns — while the model is still composing the sentence
+              // about it, which is when the user is already scanning for the file.
+              if (vis.type === "asset-results") {
+                showResults(vis.payload as AssetResultsPayload);
+              }
             }
             break;
           }
@@ -739,6 +826,18 @@ export default function ChatWorkspace() {
       setSending(false);
     }
   };
+
+  /**
+   * Put one asset in the workspace panel, optionally at a position.
+   *
+   * The panel rather than the asset detail route, because the conversation is the context: opening
+   * `/assets/:uuid` navigates away from the transcript that named the file, and the next thing a
+   * reviewer does is ask a follow-up about it.
+   */
+  const openAsset = useCallback((uuid: string, startSeconds?: number) => {
+    setSelectedAssetId(uuid);
+    setSelectedAssetStart(startSeconds);
+  }, []);
 
   const stopStreaming = () => {
     abortRef.current?.abort();
@@ -918,14 +1017,14 @@ export default function ChatWorkspace() {
           {/* Fresh session: greet the user instead of showing an empty transcript */}
           {messages.length === 0 && !streaming && !sending && <ChatGreeting username={username} />}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} onFollowUp={sendMessage} onAssetClick={(id) => setSelectedAssetId(id)} />
+            <MessageBubble key={msg.id} msg={msg} onFollowUp={sendMessage} onAssetClick={openAsset} />
           ))}
           {/* In-flight assistant message driven by the event stream */}
           {streaming && (
             <MessageBubble
               msg={streaming.msg}
               onFollowUp={sendMessage}
-              onAssetClick={(id) => setSelectedAssetId(id)}
+              onAssetClick={openAsset}
               reasoningStreaming={streaming.phase === "reasoning"}
             />
           )}
@@ -1047,12 +1146,15 @@ export default function ChatWorkspace() {
       <Box data-testid="chat-workspace-panel" sx={{ flex: 1, minWidth: 0, overflow: "auto", display: { xs: "none", md: "flex" }, flexDirection: "column", bgcolor: tokens.bg.base }}>
         {/* Workspace tab bar */}
         <Box sx={{ px: 2.5, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          {(["overview", "assets"] as const).map((mode) => (
+          {/* `results` is only a tab once there is a result set; it disappears with the conversation
+              it belongs to rather than sitting there empty. */}
+          {((results ? ["results", "overview", "assets"] : ["overview", "assets"]) as WorkspaceMode[]).map((mode) => (
             <Chip
               key={mode}
-              label={t(`chat.tab.${mode}`)}
+              label={mode === "results" ? t("chat.tab.results", { n: results?.items?.length ?? 0 }) : t(`chat.tab.${mode}`)}
               size="small"
-              onClick={() => setWorkspaceMode(mode)}
+              data-testid={`chat-tab-${mode}`}
+              onClick={() => { setWorkspaceMode(mode); setSelectedAssetId(null); }}
               sx={{
                 bgcolor: workspaceMode === mode ? tokens.primary.subtle : "transparent",
                 border: `1px solid ${workspaceMode === mode ? tokens.primary.main : tokens.border.subtle}`,
@@ -1075,7 +1177,14 @@ export default function ChatWorkspace() {
           </Tooltip>
         </Box>
         <Box sx={{ flex: 1, overflow: "auto" }}>
-          <WorkspacePanel mode={workspaceMode} selectedAssetId={selectedAssetId} onClearAsset={() => setSelectedAssetId(null)} />
+          <WorkspacePanel
+            mode={workspaceMode}
+            results={results}
+            selectedAssetId={selectedAssetId}
+            selectedAssetStart={selectedAssetStart}
+            onSelectAsset={openAsset}
+            onClearAsset={() => setSelectedAssetId(null)}
+          />
         </Box>
       </Box>
       )}

@@ -192,7 +192,7 @@ payloads and asset lookups** only, via `loom-client` (`LoomHttpClient`):
 
 ## 5. Status, load and metrics
 
-`STATUS_UPDATE` carries `SystemStatusInfo`, produced by `SystemLoadProbe`:
+`STATUS_UPDATE` carries `SystemStatusInfo`, produced by `SystemLoadProbe` and `GpuProbe`:
 
 | Field | Reality |
 |---|---|
@@ -200,7 +200,19 @@ payloads and asset lookups** only, via `loom-client` (`LoomHttpClient`):
 | `ioLoad` | busiest physical device `%util` from `/proc/diskstats`, re-sampled at most every 2 s. Linux-only, `null` elsewhere. **Stateful** — the first update after connect has none |
 | `memoryUsed` / `memoryTotal` | **JVM heap only**, despite the naming |
 | `diskUsed` / `diskTotal` | filesystem of the process working directory, not necessarily where media lives |
-| `gpuLoad` | 🔴 **never populated** — the field exists only in the shared model |
+| `gpuLoad` | busiest device's utilisation from `nvidia-smi`, re-sampled at most every 2 s. `null` on a worker with no card, which is **not** the same as an idle one |
+| `gpuMemoryUsed` / `gpuMemoryTotal` | video memory in bytes, **summed** over every visible device. The asymmetry with `gpuLoad` is deliberate: one saturated card stalls every task that wants a GPU, so averaging it against an idle sibling hides exactly the worker that should stop receiving work, while memory is a pool a scheduler draws from |
+| `gpuName` | the model, or `"2 × <name>"` on a multi-card box |
+
+> **Why a subprocess.** There is no JDK API for this and no NVML binding on the cortex classpath,
+> so the honest options are a JNI library nobody maintains or the tool every driver installation
+> already ships. `nvidia-smi` is the same numbers the operator reads by hand, and it costs a fork
+> every twenty seconds — the interval the status update already runs on. Everything about it is
+> optional and silent: no binary, no device, no permission, a hung driver, all answer `null`, and
+> none of them log a warning, because a CPU-only worker is the ordinary case and a warning every
+> twenty seconds would bury the log of a fleet that mostly has no cards in it. `[N/A]`, which the
+> driver prints for a figure it will not give, parses as absent rather than as zero. The binary is
+> overridable through the `loom.cortex.nvidiaSmiPath` system property.
 
 **Metrics exist.** `MicrometerCortexMetrics` (Micrometer + `PrometheusMeterRegistry`)
 is scraped at `GET /metrics` on the monitoring port, alongside JVM and Vert.x binders.
@@ -412,7 +424,8 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 - [x] Helm charts for Loom and Cortex
 - [x] Heartbeat/`lastSeen` expiry sweep (`ProcessorPresenceReaper`) — a silent worker is evicted after 6 missed beats and its leases reclaimed at once
 - [ ] 🔴 **Control channel is unauthenticated by default** (`LOOM_WS_STRICT_AUTH=false`) and has **no TLS**
-- [ ] 🔴 `gpuLoad` never populated and `GPU` never advertised — GPU routing matches nothing
+- [x] `gpuLoad`, `gpuMemoryUsed`/`gpuMemoryTotal` and `gpuName` are populated by `GpuProbe` (`nvidia-smi`), and the Cortex view shows load and VRAM per worker — in gigabytes as well as a percentage
+- [ ] 🔴 `GPU` is still never **advertised** as a capability (`capabilities` is a hardcoded `CPU` + `IO`), so GPU routing still matches nothing
 - [ ] `PipelineEventBroadcaster` has no bounded queue despite its Javadoc; drops newest
 - [ ] `syncToLoom` not settable from the UI editor
 - [ ] 9 palette kinds (8 `filter-*`, `facedescription`) have descriptors but no producer — savable, then 503 at run start. `loom-fetch` is no longer one of them: Loom executes it itself as the source of an ad-hoc node run ([AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md))

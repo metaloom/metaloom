@@ -13,6 +13,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
+import HelpHint from "../../components/HelpHint";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -676,7 +677,10 @@ export default function TasksView() {
       <ViewHeader
         icon={<TaskAltOutlined />}
         title={t("tasks.title")}
-        subtitle={<span data-testid="tasks-count">{page.totalCount} {t("tasks.count")}</span>}
+        // The count went with the subtitle. It was the same number the list below states, said a
+        // second time in a different place from where every other view said it, and "how many
+        // tasks are there" is not the question somebody opens this screen with.
+        meta={<HelpHint topic="tasks" />}
       >
       <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
         <TextField

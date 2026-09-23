@@ -1614,7 +1614,7 @@
     "nodeId" : "imagegen",
     "kind" : "imagegen",
     "name" : "Image Generation",
-    "description" : "Generate an image through the image-generation sidecar - text-to-image from a prompt, or image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a sink to keep it.",
+    "description" : "Generate an image through the image-generation sidecar - text-to-image from a prompt, image-to-image from the source asset, a multi-image edit combining wired reference images, or a binary mask of a named region. The PNG is written to the worker's local cache; wire it into a sink to keep it.",
     "icon" : "auto_awesome",
     "category" : "TRANSFORM",
     "inputPorts" : [ {
@@ -1631,6 +1631,20 @@
       "cardinality" : "ONE",
       "required" : false,
       "description" : "The image to remix. Required in REMIX mode and ignored in GENERATE mode"
+    }, {
+      "id" : "references",
+      "label" : "Reference Images",
+      "contentType" : "artifact/image",
+      "cardinality" : "MANY",
+      "required" : false,
+      "description" : "Further images combined into the result alongside the asset's own picture. Up to nine, in EDIT mode"
+    }, {
+      "id" : "mask",
+      "label" : "Region Mask",
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "required" : false,
+      "description" : "A binary mask, white where the edit applies. Wire a MASK-mode instance of this node here"
     } ],
     "outputPorts" : [ {
       "id" : "image",
@@ -1674,13 +1688,34 @@
       "defaultValue" : "GENERATE",
       "label" : "Mode",
       "description" : "GENERATE ignores the source pixels and works from the prompt; REMIX feeds the source image in too",
-      "values" : [ "GENERATE", "REMIX" ]
+      "values" : [ "GENERATE", "REMIX", "EDIT", "MASK" ]
     }, {
       "key" : "prompt",
       "type" : "STRING",
       "defaultValue" : "",
       "label" : "Prompt",
       "description" : "What to draw. Used unless the Prompt input port is wired"
+    }, {
+      "key" : "maskPrompt",
+      "type" : "STRING",
+      "defaultValue" : "",
+      "label" : "Mask Prompt",
+      "description" : "The region to confine an edit to, named in words - \"the boy's hair\". Required in MASK mode; in EDIT mode it is used only when the Mask port is not wired"
+    }, {
+      "key" : "negativePrompt",
+      "type" : "STRING",
+      "defaultValue" : "",
+      "label" : "Negative Prompt",
+      "description" : "What to steer away from. Has no effect unless True CFG Scale is above 1.0"
+    }, {
+      "key" : "trueCfgScale",
+      "type" : "NUMBER",
+      "defaultValue" : 1.0,
+      "label" : "True CFG Scale",
+      "description" : "Strength of the negative-prompt guidance. At 1.0 the negative branch is not evaluated at all",
+      "min" : 1.0,
+      "max" : 10.0,
+      "step" : 0.5
     }, {
       "key" : "host",
       "type" : "STRING",
@@ -1707,6 +1742,18 @@
       "label" : "Remix Endpoint",
       "description" : "Sidecar path called in REMIX mode"
     }, {
+      "key" : "editEndpoint",
+      "type" : "STRING",
+      "defaultValue" : "/edit",
+      "label" : "Edit Endpoint",
+      "description" : "Sidecar path called in EDIT mode"
+    }, {
+      "key" : "maskEndpoint",
+      "type" : "STRING",
+      "defaultValue" : "/mask",
+      "label" : "Mask Endpoint",
+      "description" : "Sidecar path called in MASK mode"
+    }, {
       "key" : "width",
       "type" : "INTEGER",
       "defaultValue" : 1024,
@@ -1720,6 +1767,20 @@
       "label" : "Height (px)",
       "description" : "Height of the generated image",
       "min" : 1
+    }, {
+      "key" : "outputResolution",
+      "type" : "INTEGER",
+      "defaultValue" : 1024,
+      "label" : "Output Resolution",
+      "description" : "Target side length the model renders at, and what an edit's size is derived from. 2048 is native 2K at roughly four times the cost",
+      "min" : 256,
+      "max" : 2752
+    }, {
+      "key" : "composite",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Composite Through Mask",
+      "description" : "Blend the edit back over the original through the mask, so nothing outside the region can change. Off by default: passing the mask to the model is usually enough, and compositing costs a rescale"
     }, {
       "key" : "strength",
       "type" : "NUMBER",

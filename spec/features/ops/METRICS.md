@@ -239,6 +239,8 @@ whole response down with it, and "no reading" is the honest translation.
 | `cortex_memory_max_bytes` | gauge | — | `LoomControlChannel:234` |
 | `cortex_cpu_load` | gauge | — | `LoomControlChannel:238` (`SystemLoadProbe`, 0 when unknown) |
 | `cortex_io_load` | gauge | — | `LoomControlChannel:242` (busiest disk `%util`, 0 when unknown) |
+| `cortex_gpu_load` | gauge | — | `LoomControlChannel` (`GpuProbe`, busiest device; 0 when there is no card) |
+| `cortex_gpu_memory_used_bytes` / `cortex_gpu_memory_total_bytes` | gauge | — | `LoomControlChannel` (`GpuProbe`, summed over devices; 0 when there is no card) |
 | `cortex_disk_used_bytes` / `cortex_disk_total_bytes` | gauge | — | `LoomControlChannel:246,247` |
 | `jvm_*`, `process_cpu_usage`, `vertx_*` | auto | — | `CortexBindModule.provideMeterRegistry()` + Vert.x built-ins |
 

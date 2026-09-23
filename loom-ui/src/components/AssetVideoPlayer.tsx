@@ -6,7 +6,8 @@ import {
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 
-import { assetPosterUrl, assetStreamUrl } from "../api/assets";
+import { assetPosterUrl, assetStreamUrl, loadStreamStart } from "../api/assets";
+import { useAuth } from "../context/AuthContext";
 import { useMediaToken } from "../hooks/useMediaToken";
 import { tokens } from "../theme";
 import ContainFrame from "./ContainFrame";
@@ -93,18 +94,34 @@ interface AssetVideoPlayerProps {
 export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPlayerProps>(
   function AssetVideoPlayer({ assetUuid, duration, onTimeUpdate, overlay, autoPlay, testId = "asset-video", sx }, ref) {
     const { t } = useTranslation();
+    const { token } = useAuth();
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    /** Orders overlapping seek-point lookups, so a slow answer cannot overwrite a newer one. */
+    const restartNonce = useRef(0);
     const mediaToken = useMediaToken(assetUuid);
 
     /**
-     * Where the current response starts, in asset seconds.
+     * The current response: what was asked for, and where it actually begins.
      *
-     * Every position the element reports is relative to this, and every position anybody outside
-     * this component talks about is absolute. Getting that wrong is how a seek to minute twenty
-     * lands at minute forty.
+     * Two numbers, and conflating them is the bug this exists to prevent. `at` is the offset the
+     * request carries — the position the viewer asked for. `origin` is where the response really
+     * starts, which the server measures and hands back: a stream-copied video can only begin on a
+     * keyframe, so a request for 604.5s yields a response whose first picture is 601.518s.
+     *
+     * Every position the element reports is relative to `origin`, and every position anybody
+     * outside this component talks about is absolute. Taking the requested offset as the origin
+     * ran the clock seconds fast for the whole of that response, and everything drawn against
+     * time reads the clock — the transcript highlighted a line nobody had reached, and clicking a
+     * phrase played something else.
+     *
+     * The request keeps carrying `at` and never `origin`. Asking for the keyframe the server just
+     * named looks tidier and is worse: ffmpeg subtracts a seek margin before looking, so a
+     * keyframe time handed straight back lands on the keyframe *before* it — the same error again
+     * and a whole group of pictures wide.
      */
-    const [streamOffset, setStreamOffset] = useState(0);
+    const [stream, setStream] = useState<{ at: number; origin: number }>({ at: 0, origin: 0 });
+    const streamOffset = stream.origin;
     const [paused, setPaused] = useState(!autoPlay);
     const [muted, setMuted] = useState(false);
     const [volume, setVolume] = useState(readStoredVolume);
@@ -124,14 +141,38 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
     useEffect(() => {
       const video = videoRef.current;
       if (video) video.volume = volume;
-    }, [volume, streamOffset]);
+    }, [volume, stream]);
 
     useEffect(() => {
       try { window.localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* private mode */ }
     }, [volume]);
 
-    const streamUrl = mediaToken ? assetStreamUrl(assetUuid, mediaToken, streamOffset) : null;
+    const streamUrl = mediaToken ? assetStreamUrl(assetUuid, mediaToken, stream.at) : null;
     const posterUrl = mediaToken ? assetPosterUrl(assetUuid, mediaToken, undefined, 960) : undefined;
+
+    /**
+     * Point the element at a fresh response covering `target`, and set the clock to where that
+     * response really begins.
+     *
+     * Two round trips' worth of care for one seek, and both are needed: the server is the only
+     * thing that knows where the keyframes are, and the answer has to be in hand *before* the
+     * element is rebuilt, or there is a window in which the clock is wrong again.
+     */
+    const restartAt = useCallback((target: number) => {
+      // Without an answer the origin is the best guess there is, which is what this did before the
+      // route existed: the clock is then as wrong as it used to be, rather than the seek failing.
+      const fallback = () => setStream({ at: target, origin: target });
+      if (!token) { fallback(); return; }
+      const request = ++restartNonce.current;
+      void loadStreamStart(token, assetUuid, target)
+        .then(start => {
+          // A later seek has already been asked for; this answer is about a position nobody is
+          // going to.
+          if (restartNonce.current !== request) return;
+          setStream({ at: target, origin: Math.min(start, target) });
+        })
+        .catch(fallback);
+    }, [token, assetUuid]);
 
     const seekTo = useCallback((seconds: number) => {
       if (!Number.isFinite(seconds)) return;
@@ -140,7 +181,7 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
       onTimeUpdate?.(target);
       const video = videoRef.current;
       if (!video) {
-        setStreamOffset(Math.floor(target));
+        restartAt(target);
         return;
       }
       const relative = target - streamOffset;
@@ -153,8 +194,8 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
       }
       // Outside what arrived: a different response, starting there. `key` on the element makes
       // React build a new one, or the browser keeps playing the old body.
-      setStreamOffset(Math.floor(target));
-    }, [streamOffset, onTimeUpdate]);
+      restartAt(target);
+    }, [streamOffset, onTimeUpdate, restartAt]);
 
     useImperativeHandle(ref, () => ({
       seekTo,

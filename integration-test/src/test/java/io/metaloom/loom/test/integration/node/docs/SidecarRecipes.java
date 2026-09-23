@@ -294,7 +294,8 @@ public final class SidecarRecipes {
 					.setSeed(7);
 				ImageGenNode node = new ImageGenNode(null, env.cortexOptions("imagegen"), options,
 					new ImageGenClient(options.getHost(), options.getPort(),
-						options.getGenerateEndpoint(), options.getRemixEndpoint(), (int) options.getTimeoutMs()));
+						options.getGenerateEndpoint(), options.getRemixEndpoint(), options.getEditEndpoint(), options.getMaskEndpoint(),
+						(int) options.getTimeoutMs()));
 				node.initialize();
 				var media = env.image1();
 				return new Outcome(node.process(context(env.media(media))), env.displayPath(media),

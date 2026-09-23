@@ -62,6 +62,19 @@ public class SearchToolTest {
 		when(provider.search(any())).thenReturn(result);
 	}
 
+	/** A second asset, so a result set can be more than one row and its order can be asserted. */
+	private SearchHit assetHit2(String title, double score) {
+		UUID other = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000002");
+		return new SearchHit()
+			.setType(SearchEntityType.ASSET)
+			.setUuid(other)
+			.setAssetUuid(other)
+			.setTitle(title)
+			.setMimeType("image/jpeg")
+			.setSize(9000L)
+			.setScore(score);
+	}
+
 	private SearchHit assetHit(String title, double score) {
 		return new SearchHit()
 			.setType(SearchEntityType.ASSET)
@@ -253,6 +266,118 @@ public class SearchToolTest {
 	@Test
 	public void testSearchTranscriptWithoutAQuery() {
 		assertTrue(new SearchTranscriptTool(provider).execute(new JsonObject()).failed(), "A missing query should fail the call");
+	}
+
+	// --- the asset-results visual ------------------------------------------------------------
+
+	private static JsonObject resultsVisual(JsonObject result) {
+		JsonArray visuals = result.getJsonArray("visuals");
+		assertNotNull(visuals, "A search result must carry the strip the chat draws and mirrors into its panel");
+		assertEquals(1, visuals.size());
+		JsonObject visual = visuals.getJsonObject(0);
+		assertEquals("asset-results", visual.getString("type"));
+		return visual;
+	}
+
+	/**
+	 * The rows the panel shows, in ranking order, with the total they were drawn from.
+	 *
+	 * <p>
+	 * The references already name these assets. What they cannot carry is the order, the score and the size of the corpus behind them — and without
+	 * those the panel can only show an unordered bag of files under no heading.
+	 * </p>
+	 */
+	@Test
+	public void testSearchAssetsCarriesItsResultSetAsAVisual() {
+		SearchResult result = new SearchResult()
+			.setHits(List.of(assetHit("harbour-at-dawn.mp4", 0.9), assetHit2("harbour-crane.jpg", 0.4)))
+			.setTotalHits(37)
+			.setTotalExact(true)
+			.setProviderName("postgres");
+		when(provider.search(any())).thenReturn(result);
+
+		JsonObject visual = resultsVisual(new SearchAssetsTool(provider).execute(new JsonObject().put("query", "harbour")).result());
+
+		assertEquals("harbour", visual.getString("label"));
+		JsonObject payload = visual.getJsonObject("payload");
+		assertEquals("harbour", payload.getString("query"));
+		assertEquals(37L, payload.getLong("total"), "How many matched, not how many are shown");
+		assertTrue(payload.getBoolean("totalExact"));
+
+		JsonArray items = payload.getJsonArray("items");
+		assertEquals(2, items.size());
+		assertEquals("harbour-at-dawn.mp4", items.getJsonObject(0).getString("title"), "Ranking order is the order the panel lists them in");
+		assertEquals(ASSET_UUID.toString(), items.getJsonObject(0).getString("uuid"));
+		assertEquals("video/mp4", items.getJsonObject(0).getString("mimeType"), "The mime type is what decides a tile from a player");
+	}
+
+	/** Nothing matched is reported in the text. Blanking the panel on top of that takes away the previous result the user is still working with. */
+	@Test
+	public void testAnEmptySearchCarriesNoVisual() {
+		answerWith();
+		JsonObject result = new SearchAssetsTool(provider).execute(new JsonObject().put("query", "nothing")).result();
+		assertNull(result.getJsonArray("visuals"));
+	}
+
+	/** A transcript row is a moment in a file: the offset travels with it, so a click can open the player where the words were said. */
+	@Test
+	public void testSearchTranscriptCarriesTheOffsetIntoTheVisual() {
+		answerWith(new SearchHit()
+			.setType(SearchEntityType.TRANSCRIPT)
+			.setUuid(TRANSCRIPT_UUID)
+			.setAssetUuid(ASSET_UUID)
+			.setTitle("sg1-s03e17.mkv")
+			.setMimeType("video/x-matroska")
+			.setTimeFromMs(604_500L)
+			.setHighlights(List.of("the <b>Atlantis</b> expedition"))
+			.setScore(0.7));
+
+		JsonObject payload = resultsVisual(
+			new SearchTranscriptTool(provider).execute(new JsonObject().put("query", "Atlantis")).result()).getJsonObject("payload");
+
+		JsonObject item = payload.getJsonArray("items").getJsonObject(0);
+		assertEquals(604_500L, item.getLong("timeFromMs"));
+		assertEquals("the Atlantis expedition", item.getString("snippet"), "The same de-marked snippet the text carries, not the raw headline");
+	}
+
+	/** Several passages of one episode are one file. The panel lists files, and one file twice reads as two files. */
+	@Test
+	public void testRepeatedHitsOnOneAssetCollapseToOneRow() {
+		answerWith(
+			new SearchHit().setType(SearchEntityType.TRANSCRIPT).setUuid(UUID.randomUUID()).setAssetUuid(ASSET_UUID)
+				.setTitle("sg1-s03e17.mkv").setTimeFromMs(100L).setScore(0.9),
+			new SearchHit().setType(SearchEntityType.TRANSCRIPT).setUuid(UUID.randomUUID()).setAssetUuid(ASSET_UUID)
+				.setTitle("sg1-s03e17.mkv").setTimeFromMs(900L).setScore(0.2));
+
+		JsonObject payload = resultsVisual(
+			new SearchTranscriptTool(provider).execute(new JsonObject().put("query", "Atlantis")).result()).getJsonObject("payload");
+
+		JsonArray items = payload.getJsonArray("items");
+		assertEquals(1, items.size());
+		assertEquals(100L, items.getJsonObject(0).getLong("timeFromMs"), "The best-ranked passage is the one a click should open");
+	}
+
+	/**
+	 * The visual is capped well below the 50 rows a tool will render as text, because {@code VisualExtractor} discards a visual over 32 KB in silence —
+	 * a payload sized to the text limit would be the one that vanishes on exactly the searches worth looking at.
+	 */
+	@Test
+	public void testTheVisualIsCappedBelowTheTextRendering() {
+		SearchHit[] many = new SearchHit[AssetResultsVisual.MAX_ITEMS + 10];
+		for (int i = 0; i < many.length; i++) {
+			many[i] = new SearchHit()
+				.setType(SearchEntityType.ASSET)
+				.setUuid(UUID.randomUUID())
+				.setAssetUuid(UUID.randomUUID())
+				.setTitle("clip-" + i + ".mp4")
+				.setMimeType("video/mp4")
+				.setScore(1.0 - i / 100d);
+		}
+		answerWith(many);
+
+		JsonObject payload = resultsVisual(
+			new SearchAssetsTool(provider).execute(new JsonObject().put("query", "clip")).result()).getJsonObject("payload");
+		assertEquals(AssetResultsVisual.MAX_ITEMS, payload.getJsonArray("items").size());
 	}
 
 	// --- degradation -------------------------------------------------------------------------

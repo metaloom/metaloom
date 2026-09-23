@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Chip, IconButton, InputBase, Tooltip, Typography } from "@mui/material";
 import { ArrowUpwardOutlined, ArrowDownwardOutlined, SearchOutlined } from "@mui/icons-material";
@@ -14,16 +14,46 @@ import { formatDuration } from "./helpers";
  */
 export const TRANSCRIPT_SECTION_COLORS = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
 
+/**
+ * How long a scrolled-to chapter stays ringed, in milliseconds.
+ *
+ * Long enough to find after the scroll settles, short enough that it is gone before it starts
+ * reading as a selection - the playhead tint is what says "this is the chapter now", and two
+ * permanent highlights on one panel would be one too many.
+ */
+export const TRANSCRIPT_REVEAL_MS = 1600;
+
+/** Keyframes for the ring a revealed chapter wears. */
+const REVEAL_KEYFRAMES = {
+  "@keyframes loomTranscriptReveal": {
+    "0%": { boxShadow: `0 0 0 0 ${tokens.primary.main}00` },
+    "18%": { boxShadow: `0 0 0 4px ${tokens.primary.main}88` },
+    "55%": { boxShadow: `0 0 0 4px ${tokens.primary.main}55` },
+    "100%": { boxShadow: `0 0 0 0 ${tokens.primary.main}00` },
+  },
+};
+
 export function TranscriptPanel({
   sections,
   currentTime,
   onSeek,
   onSectionsChange,
+  reveal,
 }: {
   sections: TranscriptSection[];
   currentTime: number;
   onSeek: (t: number) => void;
   onSectionsChange: (s: TranscriptSection[]) => void;
+  /**
+   * A moment somewhere else on the screen asked this panel to show.
+   *
+   * A timeline chapter tile and a transcript search hit both point at a second of audio, and
+   * seeking to it is only half of what they mean: on a 43-minute episode the chapter they picked
+   * is several screens down a scroller, and a panel that silently repainted a highlight far below
+   * the fold looked like it had ignored the click. The nonce is what makes clicking the same tile
+   * twice scroll twice — the time alone would be an unchanged prop.
+   */
+  reveal?: { time: number; nonce: number } | null;
 }) {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const sectionColors = TRANSCRIPT_SECTION_COLORS;
@@ -62,6 +92,41 @@ export function TranscriptPanel({
     onSectionsChange(sections.map((s, i) => (i === idx ? { ...s, title: value } : s)));
   };
 
+  /**
+   * Scroll the chapter holding {@link reveal} into view, and ring it while the eye catches up.
+   *
+   * Two scrolls rather than one: the fold above may have been shut when the click happened, so
+   * this panel is mounting inside a `Collapse` that is still animating and the first
+   * `scrollIntoView` measures a box that has not finished growing. The second one, after the
+   * animation, lands it. Scrolling twice to the same place is invisible; scrolling to the wrong
+   * place once is the bug.
+   */
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [revealedId, setRevealedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!reveal) return;
+    const at = reveal.time;
+    const hit = sections.find(s => at >= s.startTime - 0.05 && at <= s.endTime)
+      // Past the end of this transcript - a second transcript on the asset covers the moment, or
+      // the chapter boundaries and the player disagree by a frame. Either way, do not scroll.
+      ?? null;
+    if (!hit) {
+      setRevealedId(null);
+      return;
+    }
+    setRevealedId(hit.id);
+    const scroll = () => sectionRefs.current[hit.id]?.scrollIntoView({ block: "center", behavior: "smooth" });
+    const raf = window.requestAnimationFrame(scroll);
+    const settle = window.setTimeout(scroll, 340);
+    const clear = window.setTimeout(() => setRevealedId(null), TRANSCRIPT_REVEAL_MS);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
+      window.clearTimeout(clear);
+    };
+  }, [reveal, sections]);
+
   const moveBoundary = (idx: number, direction: "up" | "down") => {
     const updated = [...sections];
     const step = 0.5;
@@ -80,7 +145,8 @@ export function TranscriptPanel({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0, overflow: "auto" }}>
       {sections.length > 0 && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, px: 0.5 }}>
+        /* `pt`, because this panel sits directly under the fold heading and the box was against it. */
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1, mb: 1, px: 0.5 }}>
           <InputBase
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -161,11 +227,18 @@ export function TranscriptPanel({
             {/* Section block */}
             <Box
               data-testid="transcript-section"
+              data-section-id={section.id}
+              data-revealed={revealedId === section.id ? "true" : "false"}
+              ref={(el: HTMLElement | null) => { sectionRefs.current[section.id] = el; }}
               data-matched={matchedSections ? String(matchedSections.has(section.id)) : undefined}
               sx={{
                 p: 1.5, borderRadius: tokens.radius.md,
                 borderLeft: `3px solid ${color}`,
                 bgcolor: active ? `${color}11` : "transparent",
+                ...REVEAL_KEYFRAMES,
+                ...(revealedId === section.id
+                  ? { animation: `loomTranscriptReveal ${TRANSCRIPT_REVEAL_MS}ms ease-out` }
+                  : {}),
                 // Dimmed rather than hidden: the boundary arrows above each block move a section
                 // relative to its neighbour, so removing one from the flow would have them
                 // adjusting a pair that is no longer adjacent.

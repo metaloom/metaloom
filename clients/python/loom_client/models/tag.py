@@ -79,6 +79,14 @@ class TagListResponse(ListResponse):
 
 
 @dataclass
+class TagPlacementUpdateRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.tag.TagPlacementUpdateRequest``."""
+
+    #: The region the placement moves to. Fields left unset keep their stored value.
+    area: AreaInfo | None = None
+
+
+@dataclass
 class TagRatingRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.tag.TagRatingRequest``."""
 

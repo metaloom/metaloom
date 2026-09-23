@@ -44,11 +44,17 @@ const ANNOTATION_RANGE_START = 30;
 const ANNOTATION_RANGE_END = 45;
 const ANNOTATION_POINT = 90;
 const TAG_POINT = 60;
+/** A region tag: a tag with a *span*, which is the thing a reviewer drags. */
+const REGION_TAG_START = 70;
+const REGION_TAG_END = 100;
 
 const ANNOTATION_RANGE_UUID = "aaaaaaaa-0000-0000-0000-000000000001";
 const ANNOTATION_POINT_UUID = "aaaaaaaa-0000-0000-0000-000000000002";
 const TEMPORAL_TAG_UUID = "bbbbbbbb-0000-0000-0000-000000000001";
 const PLAIN_TAG_UUID = "bbbbbbbb-0000-0000-0000-000000000002";
+const REGION_TAG_UUID = "bbbbbbbb-0000-0000-0000-000000000003";
+/** A placement has an identity of its own: a tag may sit on one asset several times. */
+const REGION_PLACEMENT_UUID = "cccccccc-0000-0000-0000-000000000001";
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -74,6 +80,13 @@ function asset() {
       },
       // No area at all: a plain label on the whole asset, and never a marker.
       { uuid: PLAIN_TAG_UUID, name: "approved", collection: "review" },
+      {
+        uuid: REGION_TAG_UUID,
+        name: "solo",
+        collection: "music",
+        placementUuid: REGION_PLACEMENT_UUID,
+        area: { from: REGION_TAG_START * 1000, to: REGION_TAG_END * 1000 },
+      },
     ],
     annotations: [
       {
@@ -96,7 +109,10 @@ function asset() {
   };
 }
 
-async function installMocks(page: Page) {
+/** What a placement move sent, so a drag can be checked against the wire rather than the pixels. */
+interface PlacementRecorder { moves: { path: string; body: unknown }[] }
+
+async function installMocks(page: Page, rec?: PlacementRecorder) {
   // Catch-all first (lowest priority) — empty collections for the many list endpoints
   // AssetDetail fans out to (reactions, comments, tasks, transcripts, detections, …).
   await page.route(/\/api\/v1\//, route => json(route, { data: [] }));
@@ -109,11 +125,18 @@ async function installMocks(page: Page) {
   await page.route(/\/api\/v1\/assets(\?|$)/, route =>
     json(route, { data: [asset()], _metainfo: { totalCount: 1 } })
   );
+  await page.route(/\/api\/v1\/assets\/[^/]+\/tag-placements\/[^/]+$/, route => {
+    rec?.moves.push({
+      path: new URL(route.request().url()).pathname,
+      body: route.request().postDataJSON(),
+    });
+    return json(route, { uuid: REGION_TAG_UUID, name: "solo", collection: "music" });
+  });
   await page.route(/\/api\/v1\/assets\/[^/]+$/, route => json(route, asset()));
 }
 
-async function loginAndOpenAssetDetail(page: Page) {
-  await installMocks(page);
+async function loginAndOpenAssetDetail(page: Page, rec?: PlacementRecorder) {
+  await installMocks(page, rec);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -152,23 +175,27 @@ test.describe("Asset timeline – mocked e2e", () => {
   test("one marker per timed annotation and temporal tag, positioned by timecode", async ({ page }) => {
     await loginAndOpenAssetDetail(page);
 
-    // Two annotations and one temporal tag. The plain tag has no area and must not appear —
-    // the timeline is a time axis, and a whole-asset label has no place on it.
-    await expect(page.getByTestId("video-timeline-marker")).toHaveCount(3);
+    // Two of the three are points, and only those draw a dot. The one carrying an end time is
+    // drawn as a band instead: the dot used to be drawn as well, sitting exactly on top of the
+    // band's 8px start handle, which is why the left edge of a region could never be grabbed.
+    // The plain tag has no area and must not appear at all — the timeline is a time axis, and a
+    // whole-asset label has no place on it.
+    await expect(page.getByTestId("video-timeline-marker")).toHaveCount(2);
 
     for (const [uuid, time] of [
-      [ANNOTATION_RANGE_UUID, ANNOTATION_RANGE_START],
       [ANNOTATION_POINT_UUID, ANNOTATION_POINT],
       [TEMPORAL_TAG_UUID, TAG_POINT],
     ] as const) {
       expect(await centreFraction(page, "video-timeline-marker", uuid)).toBeCloseTo(time / DURATION, 2);
     }
 
-    // Only the annotation carrying an end time draws a range behind its marker, and it spans
-    // from → to rather than starting at zero.
-    const range = page.getByTestId("video-timeline-range");
+    // Two things carry an end time — an annotation and a region tag — and each draws a band.
+    await expect(page.getByTestId("video-timeline-range")).toHaveCount(2);
+    const range = page.locator(`[data-testid=video-timeline-range][data-marker-id="${ANNOTATION_RANGE_UUID}"]`);
     await expect(range).toHaveCount(1);
-    await expect(range).toHaveAttribute("data-marker-id", ANNOTATION_RANGE_UUID);
+
+    // Two handles per band, and they are the thing that makes a region editable at all.
+    await expect(page.getByTestId("video-timeline-range-handle")).toHaveCount(4);
 
     const bar = (await page.getByTestId("video-timeline-bar").boundingBox())!;
     const rangeBox = (await range.boundingBox())!;
@@ -199,6 +226,39 @@ test.describe("Asset timeline – mocked e2e", () => {
     // slides there over a 50ms transition, which is why this polls rather than reads once.
     await expect.poll(() => centreFraction(page, "video-timeline-playhead"))
       .toBeCloseTo(offsetX / bar.width, 2);
+  });
+
+  test("a region tag's end handle can be grabbed, and the drag is persisted as a placement move", async ({ page }) => {
+    const rec: PlacementRecorder = { moves: [] };
+    await loginAndOpenAssetDetail(page, rec);
+
+    const handle = page.locator(
+      `[data-testid=video-timeline-range-handle][data-marker-id="${REGION_TAG_UUID}"][data-edge=end]`);
+    await expect(handle).toBeVisible({ timeout: 10_000 });
+
+    // Grab it and drag it a fifth of the bar to the right. Three separate things used to stop
+    // this: the band's own `z-index` trapped its handles underneath the transcript tiles that
+    // cover the lower half of the bar, the marker dot for the same tag sat exactly on the start
+    // handle, and the drag handler in the asset view only knew about annotations, so a tag's
+    // handle sprang back on release having changed nothing.
+    const bar = (await page.getByTestId("video-timeline-bar").boundingBox())!;
+    const grip = (await handle.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 + bar.width * 0.1, grip.y + grip.height / 2, { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(() => rec.moves.length, { timeout: 5_000 }).toBe(1);
+    // The *placement* uuid, not the tag's: a tag may sit on this asset several times, and
+    // re-attaching under a new placement would replace who attached it and when.
+    expect(rec.moves[0].path).toContain(REGION_PLACEMENT_UUID);
+
+    const area = (rec.moves[0].body as { area: { from?: number; to?: number } }).area;
+    // Milliseconds on the wire, and the end moved right by roughly a tenth of the duration.
+    expect(area.to).toBeGreaterThan(REGION_TAG_END * 1000);
+    expect(area.to! / 1000).toBeCloseTo(REGION_TAG_END + DURATION * 0.1, -1);
+    // The other edge travels unchanged rather than being left out or reset.
+    expect(area.from).toBe(REGION_TAG_START * 1000);
   });
 
   test("clicking past the last marker seeks near the end rather than clamping to zero", async ({ page }) => {

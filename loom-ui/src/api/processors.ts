@@ -17,6 +17,18 @@ export type ProcessorCapability = "GPU" | "CPU" | "IO";
 export interface SystemStatusInfo {
   cpuLoad?: number;
   gpuLoad?: number;
+  /**
+   * Video memory, in bytes, summed over every device the worker can see.
+   *
+   * Reported apart from `gpuLoad` because the two answer different questions and a worker can be
+   * at either extreme of one while at the other extreme of the other: a model left resident
+   * between jobs pins VRAM at 90% while the card reads as idle, and that is precisely the state
+   * in which a second model will not fit.
+   */
+  gpuMemoryUsed?: number;
+  gpuMemoryTotal?: number;
+  /** What the card is, or "2 × <name>" when the worker has several. */
+  gpuName?: string;
   ioLoad?: number;
   memoryUsed?: number;
   memoryTotal?: number;

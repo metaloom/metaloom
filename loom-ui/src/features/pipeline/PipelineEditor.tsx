@@ -4719,28 +4719,39 @@ export default function PipelineEditor() {
               </ClickAwayListener>
             )}
 
-            {/* Log panel drag handle */}
-            <Box
-              onMouseDown={handleLogDividerMouseDown}
-              sx={{
-                height: 6, cursor: "row-resize", bgcolor: tokens.border.subtle,
-                borderTop: `1px solid ${tokens.border.subtle}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                "&:hover": { bgcolor: tokens.primary.subtle },
-                flexShrink: 0,
-              }}
-            >
-              <Box sx={{ width: 28, height: 2, borderRadius: 1, bgcolor: tokens.border.strong }} />
-            </Box>
+            {/* Log panel drag handle. Gone while the panel is shut: there is nothing to resize,
+                and a row-resize cursor over a collapsed panel is an invitation to a drag that
+                does nothing. */}
+            {logOpen && (
+              <Box
+                onMouseDown={handleLogDividerMouseDown}
+                sx={{
+                  height: 6, cursor: "row-resize", bgcolor: tokens.border.subtle,
+                  borderTop: `1px solid ${tokens.border.subtle}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  "&:hover": { bgcolor: tokens.primary.subtle },
+                  flexShrink: 0,
+                }}
+              >
+                <Box sx={{ width: 28, height: 2, borderRadius: 1, bgcolor: tokens.border.strong }} />
+              </Box>
+            )}
 
-            {/* Log panel */}
+            {/* Log panel.
+
+                Collapsing hides the *body*, never the title bar — the title bar carries the only
+                control that opens it again. It used to take the whole panel to `height: 0`, which
+                took the toggle with it: the log could be shut once and then not reopened, because
+                the one other way back was a chip in the canvas toolbar that is itself only
+                rendered when a pipeline is selected. */}
             <Box
               ref={logRef}
+              data-testid="pipeline-log-panel"
+              data-open={logOpen ? "true" : "false"}
               sx={{
-                height: logOpen ? logHeight : 0,
+                height: logOpen ? logHeight : "auto",
                 minHeight: logOpen ? 80 : 0,
                 overflow: "hidden",
-                transition: logOpen ? "none" : "height 200ms ease",
                 display: "flex",
                 flexDirection: "column",
                 bgcolor: tokens.bg.base,
@@ -4756,11 +4767,15 @@ export default function PipelineEditor() {
                     {selected.name} · {pipelineRuns[0]?.status ?? t("pipeline.editor.noRuns")}
                   </Typography>
                 )}
-                <IconButton size="small" onClick={() => setLogOpen(v => !v)} sx={{ width: 20, height: 20 }}>
+                <IconButton size="small" onClick={() => setLogOpen(v => !v)}
+                  aria-expanded={logOpen}
+                  aria-label={t("pipeline.editor.systemLog")}
+                  data-testid="pipeline-log-toggle"
+                  sx={{ width: 20, height: 20 }}>
                   {logOpen ? <ExpandMoreOutlined sx={{ fontSize: 14 }} /> : <ExpandLessOutlined sx={{ fontSize: 14 }} />}
                 </IconButton>
               </Box>
-              <Box sx={{ flex: 1, overflow: "auto", p: 1.5 }}>
+              <Box sx={{ flex: 1, overflow: "auto", p: 1.5, display: logOpen ? "block" : "none" }}>
                 {selected ? (
                   pipelineRuns.length > 0 ? (
                     pipelineRuns.map(r => {

@@ -70,6 +70,12 @@ class SystemStatusInfo(Model):
     memory_total: int | None = None
     #: GPU load percentage (0-100)
     gpu_load: float | None = None
+    #: Used GPU memory in bytes, summed over every visible device
+    gpu_memory_used: int | None = None
+    #: Total GPU memory in bytes, summed over every visible device
+    gpu_memory_total: int | None = None
+    #: Model name of the GPU, or a count and the first name when the worker has several
+    gpu_name: str | None = None
     #: I/O load percentage (0-100)
     io_load: float | None = None
     #: Used disk space in bytes

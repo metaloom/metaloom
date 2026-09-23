@@ -18,8 +18,24 @@
         "editing": "Pipelines bearbeiten"
       },
       "admin": {
-        "acl": "Benutzer, Gruppen und Berechtigungen"
-      }
+        "acl": "Benutzer, Gruppen und Berechtigungen",
+        "spaces": "Spaces",
+        "pools": "Speicher-Pools",
+        "denylist": "Sperrlisten",
+        "indices": "Suchindizes",
+        "integrity": "Datenbank-Integrität",
+        "failureReports": "Problemmeldungen"
+      },
+      "assets": "Assets",
+      "library": "Bibliotheken",
+      "collections": "Sammlungen",
+      "tags": "Tags",
+      "tasks": "Aufgaben",
+      "persons": "Personen",
+      "skills": "Skills",
+      "monitoring": "Monitoring",
+      "cortex": "Cortex-Worker",
+      "chatSessions": "Chat-Sitzungen"
     }
   },
   "common": {
@@ -319,7 +335,6 @@
   "collections": {
     "title": "Sammlungen",
     "count": {
-      "collections": "Sammlungen",
       "results": "Ergebnisse"
     },
     "button": {
@@ -368,7 +383,6 @@
   },
   "tasks": {
     "title": "Aufgaben",
-    "count": "Aufgaben",
     "button": {
       "new": "Neue Aufgabe",
       "create": "Erstellen",
@@ -513,7 +527,6 @@
       "info": "Tags sind flache Bezeichnungen, die nach Sammlung gruppiert sind. Ziehen Sie einen Tag auf einen Sammlungs-Header, um ihn zu verschieben.",
       "create": "Tag erstellen"
     },
-    "count": "Tags in {{count}} Sammlungen",
     "placeholder": {
       "name": "Tag-Name…",
       "collection": "Sammlung…",
@@ -626,7 +639,8 @@
     },
     "tab": {
       "overview": "Übersicht",
-      "assets": "Assets"
+      "assets": "Assets",
+      "results": "Ergebnisse ({{n}})"
     },
     "detail": {
       "size": "Größe",
@@ -664,6 +678,17 @@
       "hello": "Hallo {{name}}",
       "helloAnonymous": "Hallo",
       "subtitle": "Frag nach deinen Assets, Aufgaben, Kollektionen oder Transkripten — der Loom Agent durchsucht deinen Space und antwortet mit den gefundenen Objekten."
+    },
+    "viewer": {
+      "open": "In der Asset-Ansicht öffnen"
+    },
+    "results": {
+      "count_one": "{{count}} Treffer",
+      "count_other": "{{count}} Treffer",
+      "of": "{{shown}} von {{total}}",
+      "ofAbout": "{{shown}} von etwa {{total}}",
+      "untitled": "Suchergebnisse",
+      "empty": "Die Suche hat nichts gefunden."
     }
   },
   "admin": {
@@ -1487,13 +1512,15 @@
     }
   },
   "cortex": {
+    "vram": {
+      "tooltip": "Belegter Grafikspeicher über alle Geräte dieses Workers"
+    },
     "title": "Cortex-Worker",
     "tooltip": {
       "info": "Cortex-Worker sind verteilte Verarbeitungsknoten für Medienanalyse, Transcodierung und KI-Inferenz.",
       "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
     },
     "count": {
-      "online": "{{online}} / {{total}} online",
       "workers": "{{count}} Worker"
     },
     "search": {
@@ -2030,6 +2057,7 @@
       "regionHintVideo": "Bereich auf der Zeitleiste ziehen…",
       "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
       "regionTooltip": "Region-Tag (Zeit / Bereich)",
+      "moveError": "Der Bereich konnte nicht verschoben werden.",
       "newRegion": "neue Region"
     },
     "detection": {
