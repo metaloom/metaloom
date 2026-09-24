@@ -184,9 +184,36 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 		}
 	}
 
+	/**
+	 * Execute a request whose body is raw bytes.
+	 *
+	 * <p>
+	 * Unlike {@link #executeSyncModel} the response is deliberately <em>not</em> closed here: the caller reads it through
+	 * {@link LoomBinaryResponse#getStream()} and closes it afterwards. That is also why the failure branch has to close it by hand.
+	 * </p>
+	 *
+	 * <p>
+	 * The status check is the point. Without it a 404 or a 403 was handed back as a successful download whose "file content" was the error JSON — so a
+	 * caller asserting that a forbidden binary is unreachable saw the request succeed, and a caller saving the bytes wrote an error message to disk
+	 * under the file's name. Failing the same way {@code executeSyncModel} does keeps the two transports telling the same story.
+	 * </p>
+	 */
 	private LoomClientResponse<T> executeSyncBinary(Request request) throws LoomHttpClientException {
 		try {
 			Response response = okClient.newCall(request).execute();
+			if (!response.isSuccessful()) {
+				String bodyStr = "";
+				try (ResponseBody body = response.body()) {
+					if (body != null) {
+						bodyStr = body.string();
+					}
+				} catch (Exception e) {
+					// The status is the useful part; a body that cannot be read must not mask it.
+					log.debug("Could not read the error body of a failed download", e);
+				}
+				response.close();
+				throw new LoomHttpClientException("Request failed {" + response.message() + "}", response.code(), response.message(), bodyStr);
+			}
 			@SuppressWarnings("unchecked")
 			T binaryBody = (T) new LoomBinaryResponseImpl(response);
 			return new LoomClientResponseImpl<>(binaryBody, response.code(), response.message(), extractHeaders(response));

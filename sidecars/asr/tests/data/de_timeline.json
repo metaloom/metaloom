@@ -1,0 +1,31 @@
+{
+  "sample_rate": 16000,
+  "duration": 25.052,
+  "language": "de",
+  "clips": [
+    {
+      "index": 0,
+      "start": 1.5,
+      "end": 6.78,
+      "text": "casablanca ist einer der uninteressantesten orte zum shoppen in ganz marokko",
+      "source": "FLEURS (google/fleurs), CC-BY-4.0",
+      "source_id": "1100650137365357330"
+    },
+    {
+      "index": 1,
+      "start": 9.28,
+      "end": 14.872,
+      "text": "Für Stromausfälle hat Inge ein Wörterbuch zur Übersetzung in den Koffer gepackt.",
+      "source": "Common Voice 17 (Mozilla), CC0-1.0",
+      "source_id": "common_voice_de_17301738"
+    },
+    {
+      "index": 2,
+      "start": 17.372,
+      "end": 23.552,
+      "text": "der schengen-raum funktioniert in dieser hinsicht jedoch ein wenig wie ein land",
+      "source": "FLEURS (google/fleurs), CC-BY-4.0",
+      "source_id": "11833581125162793735"
+    }
+  ]
+}

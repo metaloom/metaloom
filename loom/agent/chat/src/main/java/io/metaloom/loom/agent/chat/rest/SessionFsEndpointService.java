@@ -20,6 +20,7 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.rest.LoomRoutingContext;
+import io.metaloom.loom.rest.service.impl.ChatOwnership;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerResponse;
@@ -45,12 +46,14 @@ public class SessionFsEndpointService {
 	private final Vertx vertx;
 	private final DaoCollection daos;
 	private final SandboxOrchestrator sandbox;
+	private final ChatOwnership chatOwnership;
 
 	@Inject
-	public SessionFsEndpointService(Vertx vertx, DaoCollection daos, SandboxOrchestrator sandbox) {
+	public SessionFsEndpointService(Vertx vertx, DaoCollection daos, SandboxOrchestrator sandbox, ChatOwnership chatOwnership) {
 		this.vertx = vertx;
 		this.daos = daos;
 		this.sandbox = sandbox;
+		this.chatOwnership = chatOwnership;
 	}
 
 	/** {@code GET /sessions/:uuid/files?path=} — list a workspace directory. */
@@ -123,13 +126,9 @@ public class SessionFsEndpointService {
 		return client;
 	}
 
+	/** Delegates to {@link ChatOwnership}, which owns this rule for every chat sub-resource. */
 	private Chat loadOwnedChat(LoomRoutingContext lrc, UUID chatUuid) {
-		Chat chat = daos.chatDao().load(chatUuid);
-		// Foreign chats must be indistinguishable from missing ones.
-		if (chat == null || !chat.getCreatorUuid().equals(lrc.userUuid())) {
-			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
-		}
-		return chat;
+		return chatOwnership.loadOwned(chatUuid, lrc.userUuid());
 	}
 
 	private static String firstQuery(LoomRoutingContext lrc, String key, String def) {

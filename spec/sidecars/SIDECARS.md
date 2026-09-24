@@ -10,7 +10,7 @@ facts that are only visible when you look at all of them at once.
 **Related:** [../features/nodes/NODES.md](../features/nodes/NODES.md) (the nodes that call them) ·
 [../cortex/CORTEX.md](../cortex/CORTEX.md) · [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md)
 
-## The ten sidecars
+## The eleven sidecars
 
 | Sidecar | Port | Spec | Calling node (kind) | Purpose |
 |---|---|---|---|---|
@@ -18,6 +18,7 @@ facts that are only visible when you look at all of them at once.
 | `sidecars/sentiment` | 9110 | [SENTIMENT_SIDECAR.md](SENTIMENT_SIDECAR.md) | `SentimentNode` (`sentiment`) | DE/EN/multilingual 3-class sentiment |
 | `sidecars/depth` | 9120 | [DEPTH_SIDECAR.md](DEPTH_SIDECAR.md) | `DepthmapNode` (`depthmap`) | Monocular depth → 16-bit NEARNESS map |
 | `sidecars/sam2` | 9130 | *(none — see [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md))* | `Sam2Node` (`sam2`) | SAM 2 segmentation, prompted cut-outs, video tracking |
+| `sidecars/asr` | 9140 | [ASR_SIDECAR.md](ASR_SIDECAR.md) | *(none yet — the `whisper` node still runs whisper.cpp in-process)* | Time-coded speech recognition: Whisper, Parakeet (CPU), Voxtral Realtime (streaming). HTTP + WebSocket, container |
 | `sidecars/ideogram-sidecar` | 9200 | [IDEOGRAM_SIDECAR.md](IDEOGRAM_SIDECAR.md) | `ImageGenNode` (`imagegen`) | SDXL-Turbo / Ideogram-4 nf4 image generation |
 | `sidecars/mage-flow-sidecar` | 9210 | [MAGE_FLOW_SIDECAR.md](MAGE_FLOW_SIDECAR.md) | `ImageGenNode` (`imagegen`) | Mage-Flow 4B — **MIT weights**, the commercially usable backend |
 | `sidecars/ltx2-sidecar` | 9220 | [LTX2_SIDECAR.md](LTX2_SIDECAR.md) | `VideoGenNode` (`videogen`) | LTX-2 video **with synchronised audio** |
@@ -77,12 +78,12 @@ unreachable. The sidecars hold no Loom state and never call back.
 |---|---|
 | **Helm** | 🔴 **No sidecar appears in any chart.** `helm/` contains zero references to ports 9100–9230 or 8080 |
 | **Compose** | 🔴 No `docker-compose` file references any sidecar |
-| **Container image** | 🟡 `ideogram-sidecar`, `mage-flow-sidecar`, `ltx2-sidecar`, `qwen-image-sidecar` ship a `Dockerfile`; `llamacpp` uses **upstream's official image**. `depth`, `sentiment`, `tts` have **no** container build at all |
+| **Container image** | 🟡 `ideogram-sidecar`, `mage-flow-sidecar`, `ltx2-sidecar`, `qwen-image-sidecar`, `asr` ship a `Dockerfile` (`asr` also a `container.sh` for docker or podman); `llamacpp` uses **upstream's official image**. `depth`, `sentiment`, `tts` have **no** container build at all |
 | **Container runtime** | 🟡 Only `llamacpp` runs under both **docker and podman**; the three with a Dockerfile assume docker |
 | **Start path** | Manual `setup.sh` then `run.sh` (except `ideogram-sidecar`, which has neither — see its spec). Only `llamacpp`'s `run.sh` **blocks until healthy**; the rest return immediately |
-| **Python tests** | 🟡 32, all in `qwen-image-sidecar` (mask arithmetic + routes, model stubbed). Every other sidecar has none |
+| **Python tests** | 🟡 `qwen-image-sidecar`: 32 (mask arithmetic + routes, model stubbed). `asr`: 36 unit/contract tests plus 20 live tests against the running container with the real models. Every other sidecar has none |
 | **Java-side tests** | All stub the client. No test in the repo exercises a live sidecar over the wire |
-| **Live bring-up observed** | 🟡 `llamacpp` only — chat completion + tool call verified on this checkout. The other six have never been started here |
+| **Live bring-up observed** | 🟡 `llamacpp` (chat completion + tool call) and `asr` (all three backends, HTTP and realtime, via its live tests) on this checkout. The others have never been started here |
 | **Auth** | 🔴 None. Every sidecar binds `0.0.0.0` with no token, no TLS, no allow-list |
 
 The practical consequence: **the wire formats in the six Python specs are derived from reading both
@@ -177,6 +178,8 @@ needs no such test (the schema is upstream's), but nothing starts it either.
 ## Progress Assessment
 
 - [x] All seven sidecars have a dedicated spec verified against both sides of the code
+- [x] `asr` (:9140): containerised, time-coded ASR with its own unit and live tests — see
+      [ASR_SIDECAR.md](ASR_SIDECAR.md). No node calls it yet
 - [x] Ports, endpoints, consumers and env vars recorded per sidecar
 - [x] `llm`/`translate` have an in-repo backend (`sidecars/llamacpp`), runnable under docker or
       podman and verified live
@@ -198,5 +201,5 @@ needs no such test (the schema is upstream's), but nothing starts it either.
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (added `sidecars/llamacpp` — seventh sidecar, first container-based one and the first verified live)_
+_Git HEAD revision: `52631fca`_
+_Last updated: 2026-09-24 (added `sidecars/asr` on :9140 — Whisper/Parakeet/Voxtral with time codes, container, live-tested. Earlier: 2026-08-04 added `sidecars/llamacpp`)_

@@ -396,11 +396,42 @@ Notes are scoped to you, to a group or to a space, and a client can only ever na
 your account already has. The memory bank itself is described on the
 link:../chat/[Chat & AI Agent] page.
 
+=== Files people attached to a chat
+
+A file dropped into a Loom chat is available to an MCP client too, as a **resource** — the protocol's
+way of offering content a client can pull in when it needs it.
+
+`resources/list` returns the files *you* attached, across your own conversations, newest first. Each
+one carries a `loom://attachment/<id>` uri, its name, its type and which chat it came from.
+`resources/read` fetches one: text comes back as text, anything else as encoded bytes.
+
+There is also a tool for the same thing, for clients that prefer tools to resources:
+
+[options="header",cols="1,3,1"]
+|===
+| Tool | What it does | Permission
+
+| `read_attachment`
+| Reads a file attached to a conversation. Long files come back a portion at a time, and the reply
+  says where to continue from. Images cannot be read as text — use `generate_image` on those.
+| `READ_CHAT`, `READ_ATTACHMENT`
+|===
+
+You only ever see your own files. A uri belonging to somebody else's conversation reads as though it
+does not exist, and listing returns nothing rather than an error when your key lacks the permission —
+so a refusal never confirms that a guessed id is real.
+
+Assets are deliberately *not* resources: a library of millions is not a list, and the search tools
+answer questions about it far better than an enumeration would.
+
 == Good to Know
 
 * *The write surface is deliberately small.* Pipelines and memory notes are the only things an MCP
   client can create or change. Assets, tags, tasks, comments and users are read-only over this
   protocol.
+* *Resources are chat attachments and nothing else.* Loom does not advertise its library as a list
+  of resources, and `resources/subscribe` is not supported — a client polls `resources/list` if it
+  wants to notice new files.
 * *A request body may be up to 1 MB.* That is ample for a pipeline definition and is not a limit on
   results.
 * *Long-lived streams need a tolerant path.* Loom does not send keepalive traffic on an idle SSE

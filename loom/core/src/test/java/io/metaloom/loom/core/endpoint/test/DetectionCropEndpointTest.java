@@ -57,11 +57,8 @@ public class DetectionCropEndpointTest extends AbstractEndpointTest {
 			loginAdmin(client);
 			DetectionResponse detection = createFaceDetection(client);
 
-			// A binary download request does not throw on a non-2xx the way a JSON one does, so the status is
-			// read off the response rather than asserted with expect(...).
-			try (var response = client.loadDetectionCrop(ASSET_UUID, detection.getUuid()).sync().body()) {
-				assertEquals(404, response.code(), "a detection with no stored crop has nothing to serve");
-			}
+			// A detection with no stored crop has nothing to serve.
+			expect(404, "Not Found", client.loadDetectionCrop(ASSET_UUID, detection.getUuid()));
 		}
 	}
 
@@ -75,9 +72,8 @@ public class DetectionCropEndpointTest extends AbstractEndpointTest {
 			loginAdmin(client);
 			DetectionResponse detection = createFaceDetection(client);
 
-			try (var response = client.loadDetectionCrop(UUID.randomUUID(), detection.getUuid()).sync().body()) {
-				assertEquals(404, response.code(), "the (asset, detection) pair is the address; a mismatch is missing, not forbidden");
-			}
+			// The (asset, detection) pair is the address; a mismatch is missing, not forbidden.
+			expect(404, "Not Found", client.loadDetectionCrop(UUID.randomUUID(), detection.getUuid()));
 		}
 	}
 

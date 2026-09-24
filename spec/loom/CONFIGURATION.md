@@ -247,6 +247,17 @@ and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they a
 | `LOOM_AGENT_MEMORY_SHARED_SCOPES_ENABLED` | `true` | `MemoryOptions` | Allow group/space scopes at all |
 | `LOOM_AGENT_MEMORY_SHARED_WRITE_ENABLED` | `true` | `MemoryOptions` | Allow the agent to write shared scopes |
 
+### 4.9a `chatAttachment` — `ChatAttachmentOptions` (files dropped into a chat)
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_CHAT_ATTACHMENT_ENABLED` | `true` | `ChatAttachmentOptions` | Allow files to be attached to a chat. Off hides the control, refuses the routes, drops `read_attachment` and omits the `<attachments>` manifest |
+| `LOOM_CHAT_ATTACHMENT_MAX_FILES` | `10` | `ChatAttachmentOptions` | Files per chat. **A recurring context cost** — each one contributes a manifest line to every turn |
+| `LOOM_CHAT_ATTACHMENT_MAX_BYTES` | `26214400` | `ChatAttachmentOptions` | Largest single file; `LOOM_STORAGE_MAX_UPLOAD_SIZE` still applies on top |
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_CHARS` | `20000` | `ChatAttachmentOptions` | Default window of one `read_attachment` call |
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_BYTES` | `8388608` | `ChatAttachmentOptions` | Largest attachment MCP `resources/read` will base64-encode |
+| `LOOM_CHAT_ATTACHMENT_LIBRARY` | *(unset)* | `ChatAttachmentOptions` | Library **Save to library** files into when the caller names none |
+
 ### 4.10 `search` — `SearchOptions`
 
 | Variable | Default | Options | Purpose |
@@ -631,5 +642,5 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `52631fca`_
+_Last updated: 2026-09-24 (`LOOM_CHAT_ATTACHMENT_*` — `ChatAttachmentOptions`, §4.9a)_

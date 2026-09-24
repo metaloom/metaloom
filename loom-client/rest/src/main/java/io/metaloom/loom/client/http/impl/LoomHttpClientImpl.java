@@ -2041,6 +2041,47 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return getDownloadRequest("attachments/" + uuid + "/data");
 	}
 
+	// ---- chat attachments ------------------------------------------------------------------
+
+	@Override
+	public LoomClientHttpRequest<AttachmentResponse> uploadChatAttachment(UUID chatUuid, java.io.File file, String mimeType) {
+		// No libraryUuid: a chat file is filed nowhere. That is the difference from an asset upload,
+		// and the reason it needs its own route rather than a flag on the existing one.
+		return multipartRequest(chatAttachmentsPath(chatUuid), AttachmentResponse.class, file, mimeType);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AttachmentListResponse> listChatAttachments(UUID chatUuid) {
+		return getRequest("/" + chatAttachmentsPath(chatUuid), AttachmentListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteChatAttachment(UUID chatUuid, UUID attachmentUuid) {
+		return deleteRequest("/" + chatAttachmentsPath(chatUuid) + "/" + attachmentUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadChatAttachment(UUID chatUuid, UUID attachmentUuid) {
+		return getDownloadRequest(chatAttachmentsPath(chatUuid) + "/" + attachmentUuid + "/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetResponse> saveChatAttachmentToLibrary(UUID chatUuid, UUID attachmentUuid, UUID libraryUuid) {
+		LoomClientHttpRequest<AssetResponse> request = postRequest(
+			"/" + chatAttachmentsPath(chatUuid) + "/" + attachmentUuid + "/asset", AssetResponse.class);
+		if (libraryUuid != null) {
+			// A real query parameter, never appended to the path: the request builder encodes the path,
+			// so a "?" baked into it arrives as %3F and the route does not match. Same trap as
+			// withSearchParams below.
+			request.addQueryParameter("libraryUuid", libraryUuid.toString());
+		}
+		return request;
+	}
+
+	private static String chatAttachmentsPath(UUID chatUuid) {
+		return "chats/" + chatUuid + "/attachments";
+	}
+
 	@Override
 	public LoomClientHttpRequest<AttachmentResponse> uploadAttachment(java.io.File file, String mimeType, UUID assetUuid, String type) {
 		return multipartRequest("attachments", AttachmentResponse.class, file, mimeType,

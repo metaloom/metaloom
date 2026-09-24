@@ -1096,6 +1096,18 @@ public class DemoDatabaseInitializer {
 					.add(new JsonObject().put("type", "skill").put("label", "hierarchical-tagging")))));
 		log.info("Created {} demo chats", 3);
 
+		// One conversation carries a dropped file, so the demo container shows what an attachment
+		// looks like without needing an upload. Text rather than a picture on purpose: it is the kind
+		// the agent can actually read, so read_attachment is exercisable here with no sidecar.
+		createChatAttachment(admin, exportChat, "q3-campaign-brief.md", "text/markdown", """
+			# Q3 campaign brief
+
+			Tone: warm, late afternoon, unhurried. Faces in half profile where possible.
+			Avoid: hard midday light, visible branding other than ours, crowds.
+
+			Deliverables: 7 stills, 2 of them vertical for social.
+			""");
+
 		// The two earlier conversations are published so the third can pull them in as context:
 		// this is what the Chat Sessions detail view is built to show, and an unpublished session
 		// cannot be referenced at all.
@@ -1552,6 +1564,42 @@ public class DemoDatabaseInitializer {
 		userDao.update(owner);
 		log.info("Created demo account picture: {} for {} ({} bytes)", filename, owner.getUsername(), bytes.length);
 		return avatar;
+	}
+
+	/**
+	 * Attach a file to a demo chat.
+	 *
+	 * <p>
+	 * A {@code CHAT_FILE} attachment (V2.112/V2.113): it belongs to the conversation rather than to the library, so it is deliberately <em>not</em> an
+	 * asset and will not appear in the catalogue. It is what the agent's {@code <attachments>} manifest lists and what {@code read_attachment} reads.
+	 * </p>
+	 *
+	 * <p>
+	 * Degrades to nothing rather than failing: demo seeding must never break a boot, and a chat without its file is still a usable demo chat.
+	 * </p>
+	 */
+	private Attachment createChatAttachment(User admin, Chat chat, String filename, String mimeType, String content) {
+		try {
+			byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+			SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+			storeBinary(bytes, sha512);
+
+			Attachment attachment = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, mimeType,
+				AttachmentType.CHAT_FILE);
+			attachment.setUuid(LoomUUID.timeOrdered());
+			attachment.setChatUuid(chat.getUuid());
+			attachment.setVariant("");
+			attachment.setCreator(admin);
+			attachment.setEditor(admin);
+			attachment.setCreated(Instant.now());
+			attachment.setEdited(Instant.now());
+			attachmentDao.store(attachment);
+			log.info("Attached demo file {} ({} bytes) to chat '{}'", filename, bytes.length, chat.getTitle());
+			return attachment;
+		} catch (Exception e) {
+			log.warn("Could not attach the demo file {} to chat '{}' — continuing without it", filename, chat.getTitle(), e);
+			return null;
+		}
 	}
 
 	private Person createPerson(User admin, String alias, String firstname, String lastname) {

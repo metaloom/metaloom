@@ -42,6 +42,28 @@ public enum AttachmentType {
 	 * of appending to a gallery. A person is a subject face detection keeps finding in new material; an account is not.
 	 * </p>
 	 */
-	USER_AVATAR;
+	USER_AVATAR,
+
+	/**
+	 * A file the user dropped into a chat, owned by that chat.
+	 *
+	 * <p>
+	 * Like {@link #PERSON_IMAGE} and {@link #USER_AVATAR} it is derived from nothing - it was handed to the agent mid-conversation - so it carries
+	 * {@code chat_uuid} and leaves the asset, embedding and detection pointers null (V2.113). Unlike either of them it is <em>conversational</em>: the
+	 * chat is the only thing that owns it, and deleting the chat deletes it.
+	 * </p>
+	 *
+	 * <p>
+	 * Deliberately not an asset. Filing a dropped reference photo in the catalog would run whatever ingest pipelines match it and make "do we already
+	 * have this picture?" answer yes because the user had just dropped it. A file worth keeping is promoted into the library explicitly, which copies
+	 * it into a real asset and leaves that asset outside this type's lifetime.
+	 * </p>
+	 *
+	 * <p>
+	 * Chat files are private correspondence rather than material derived from catalogued assets, so unlike every other type here they are hidden on
+	 * the generic {@code /attachments} routes from everyone but the owner of their chat.
+	 * </p>
+	 */
+	CHAT_FILE;
 
 }

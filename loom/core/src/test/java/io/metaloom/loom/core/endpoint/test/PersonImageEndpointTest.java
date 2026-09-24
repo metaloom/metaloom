@@ -82,9 +82,8 @@ public class PersonImageEndpointTest extends AbstractEndpointTest {
 			assertEquals(0, client.listPersonImages(stranger.getUuid()).sync().body().getData().size(),
 				"the stranger has no images of their own");
 
-			try (var response = client.downloadPersonImage(stranger.getUuid(), image.getUuid()).sync().body()) {
-				assertEquals(404, response.code(), "an image of another person is missing at this address, not forbidden");
-			}
+			// An image of another person is missing at this address, not forbidden.
+			expect(404, "Not Found", client.downloadPersonImage(stranger.getUuid(), image.getUuid()));
 			expect(404, "Not Found", client.deletePersonImage(stranger.getUuid(), image.getUuid()));
 
 			PersonAvatarRequest avatar = new PersonAvatarRequest().setImageUuid(image.getUuid().toString());

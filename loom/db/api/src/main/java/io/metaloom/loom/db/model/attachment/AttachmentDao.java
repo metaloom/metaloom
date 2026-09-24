@@ -47,4 +47,31 @@ public interface AttachmentDao extends CRUDDao<Attachment> {
 	 */
 	Attachment loadAvatarByUser(UUID userUuid);
 
+	/**
+	 * Every file dropped into a chat, newest first.
+	 *
+	 * <p>
+	 * Read on every turn of a chat that has files, because the agent's system prompt lists them. It is the {@link #listByPerson} shape rather than the
+	 * {@link #loadAvatarByUser} one: many rows, no idempotency key, and two byte-identical files are two things the user did.
+	 * </p>
+	 *
+	 * @param chatUuid the owning chat
+	 * @return the files, newest first, or an empty list
+	 */
+	List<Attachment> listByChat(UUID chatUuid);
+
+	/**
+	 * Chat files created by one user, across all of their chats, newest first.
+	 *
+	 * <p>
+	 * Backs MCP {@code resources/list}, where the caller is a user rather than a conversation: an external client has no chat, so the only scope that
+	 * can be resolved server-side is "yours". Creator-scoped rather than chat-scoped for exactly that reason, which also keeps it off {@code ChatDao},
+	 * which has no query by creator.
+	 * </p>
+	 *
+	 * @param userUuid the creator
+	 * @param limit hard cap on the rows returned - this feeds a protocol listing, not a page
+	 */
+	List<Attachment> listChatFilesByCreator(UUID userUuid, int limit);
+
 }

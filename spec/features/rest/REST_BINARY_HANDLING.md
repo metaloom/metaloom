@@ -24,7 +24,7 @@ paging and OpenAPI mechanics live in [../../loom/RESTAPI.md](../../loom/RESTAPI.
 | Question | Answer |
 |---|---|
 | Create the asset first, or upload bytes first? | **Both work.** One-step: `POST /api/v1/assets/upload` (multipart) creates asset + `asset_location` row + stored bytes and auto-triggers a pipeline. Two-step: `POST /api/v1/assets` (JSON, client-computed SHA-512 required) then `POST /api/v1/assets/:uuid/binary/data`. |
-| Which endpoints move actual bytes? | **Five**: `POST /assets/upload`, `POST /assets/:uuid/binary/data`, `GET /assets/:uuid/binary/data`, `POST /attachments`, `GET /attachments/:uuid/data`. Everything else under `/binaries` and `/assets/:uuid/binary` is **JSON metadata only**. |
+| Which endpoints move actual bytes? | **Seven**: `POST /assets/upload`, `POST /assets/:uuid/binary/data`, `GET /assets/:uuid/binary/data`, `POST /attachments`, `GET /attachments/:uuid/data`, `POST /chats/:uuid/attachments`, `GET /chats/:uuid/attachments/:auuid/data`. Everything else under `/binaries` and `/assets/:uuid/binary` is **JSON metadata only**. |
 | Is binary handling S3-aware? | **Yes.** A library points at an `asset_pool`; the pool's `fs_path` XOR `s3_bucket` decides the backend. Credentials come from `LOOM_S3_*`, never the database. §5. |
 | Does replacing a binary update the S3 object? | **Yes.** `POST /assets/:uuid/binary/data` PUTs the object, rewrites `asset_location.path` to the new `s3://bucket/key` and reclaims the previous object when nothing else references it. |
 | Can Cortex upload binary data to Loom? | **The client can express it** — `uploadAsset`, `uploadAssetBinary`, `uploadAttachment(File,…)`, `downloadAssetBinary`, `downloadAttachment`. **No node calls them yet** (§7.2, G2). |
@@ -47,6 +47,8 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
 | GET | `/assets/:uuid/binary/data` | optional `Range: bytes=` | raw bytes, **200**/**206**/**416**; `Content-Type` from `asset_location.mime_type`, `Content-Disposition: attachment`, `Accept-Ranges: bytes` | `READ_ASSET_BINARY` | `AssetBinaryEndpointService.downloadByAssetUuid` |
 | POST | `/attachments` | `multipart/form-data`: one file part + optional `assetUuid`, `embeddingUuid`, `type`, `poolUuid` | `AttachmentResponse` | `CREATE_ATTACHMENT` | `AttachmentEndpointService.create` |
 | GET | `/attachments/:uuid/data` | — (**no `Range` support**) | raw bytes, `Content-Type` + `Content-Disposition` from the row | `READ_ATTACHMENT` | `AttachmentEndpointService.download` |
+| POST | `/chats/:uuid/attachments` | `multipart/form-data`: one file part + optional `poolUuid` | `AttachmentResponse` | `CREATE_ATTACHMENT` **+ chat ownership** | `ChatAttachmentEndpointService.create` |
+| GET | `/chats/:uuid/attachments/:auuid/data` | — (**no `Range` support**) | raw bytes, `Content-Disposition: inline` | `READ_ATTACHMENT` **+ chat ownership** | `ChatAttachmentEndpointService.download` |
 | POST | `/persons/:uuid/images` | `multipart/form-data`: one file part + optional `poolUuid` | `PersonImageResponse`, **201** | `UPDATE_PERSON` | `PersonEndpointService.uploadImage` |
 | GET | `/persons/:uuid/images/:imageUuid/data` | — | raw bytes, ETag + `Cache-Control: private` | `READ_PERSON` | `PersonEndpointService.downloadImage` |
 | POST | `/users/:uuid/avatar` · `/me/avatar` | `multipart/form-data`: one file part + optional `poolUuid` | `UserAvatarResponse`, **201**; **replaces** any previous picture | `UPDATE_USER`, or none for your own | `UserEndpointService.uploadAvatar` |
@@ -64,7 +66,21 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
   fall-back to local disk) and a malformed uuid is a **400** naming the field. The UI side of this —
   including why the pool selector is only rendered for callers who can read `/pools` — is in
   [../../loom/ui/LOOM_UI_UPLOAD.md](../../loom/ui/LOOM_UI_UPLOAD.md).
-- `POST /attachments` with no `type` form field defaults to `AttachmentType.EMBEDDING_ATTACHMENT`
+- `POST /attachments` with no `type` form field defaults to `AttachmentType.EMBEDDING_ATTACHMENT`,
+  and **refuses `CHAT_FILE` outright**: that route has no chat to attach one to, and a `CHAT_FILE`
+  with a null `chat_uuid` is an orphan no ownership check can admit and no cascade can clean up.
+  Chat files are created through `POST /chats/:uuid/attachments`
+- **A chat file is hidden from every generic `/attachments` route unless the caller owns its chat.**
+  It shares a table with thumbnails and face crops, which are derived from catalogued material and
+  are an ordinary `READ_ATTACHMENT` read; a chat file is private correspondence and no permission
+  can express "your own conversations". `load`/`download`/`update`/`delete` answer **404** for a
+  foreign one, and `AttachmentDaoImpl.loadPage` drops `CHAT_FILE` rows from the generic listing
+  outright — excluded rather than filtered by owner, because that query is keyset-paged and dropping
+  rows after the fact would return short pages
+- **`Content-Disposition: inline`** on the chat route, unlike every other binary route here: the
+  chat renders a dropped picture in place rather than downloading it. It is fetched through a blob
+  URL with the `Authorization` header, not an `<img src>` — the `?mt=` media token is scoped to
+  asset uuids and deliberately mounted on two asset routes only
   (historic behaviour, kept so pre-existing callers are unaffected).
 - 🔴 **Every one of these paths is capacity-checked** by `StorageCapacityGuard` (§11, G11). Until it
   existed only the two asset routes were, so an attachment or a person image could fill a volume
@@ -164,6 +180,8 @@ UNIQUE). `POST /assets/upload` answers 200 rather than 201 and does **not** re-p
 | `DELETE /assets/:uuid/binary` | all of the asset's rows | each reclaimed if unreferenced |
 | `DELETE /assets/:uuid` | rows via FK `ON DELETE CASCADE` | **leaked** (`AssetEndpointService.delete` does not call the reclaimer) |
 | `DELETE /attachments/:uuid` | the attachment row | **leaked** (deliberate — see below) |
+| `DELETE /chats/:uuid/attachments/:auuid` | the attachment row | **leaked**, same reason |
+| `DELETE /chats/:uuid` | every `CHAT_FILE` row of that chat (FK cascade, V2.113) | **leaked**, same reason |
 | `DELETE /persons/:uuid/images/:imageUuid` | the person's image row (an attachment) | **leaked**, same reason |
 | `DELETE /persons/:uuid` | the person's image rows via FK `ON DELETE CASCADE` (V2.90) | **leaked** |
 
@@ -834,3 +852,6 @@ the `USER_AVATAR` type and its routes, `StorageCapacityGuard`, `StorageSpaceMoni
 `countByPoolAndPath` for both the null-pool and pooled cases, and `deleteByAssetUuid`; the duplicate
 `AssetLocationDao` over the same table was deleted and `AssetBinary` grew the
 `state`/`license`/`locked_by_uuid` accessors it had been missing. Earlier: reference sweep — no content changes)_
+
+_Git HEAD revision: `52631fca`_
+_Last updated: 2026-09-24 (the two chat-attachment byte routes, and the rule that a `CHAT_FILE` is hidden on the generic `/attachments` routes)_

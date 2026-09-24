@@ -324,14 +324,23 @@ Requests that do not fit the DAM frame and are exactly where an agentic system e
 | 83 | "Draft the press release from these assets" | comprehension → generation, output is text not media | `P1` — genuinely near, and a good early demo |
 | 84 | "Watch the storage trend and warn me before we run out" | monitoring + a standing rule | `NEW N14` + `NEW N21` |
 | 85 | "Explain this asset to a five-year-old / to a lawyer" | audience-adapted rendering of the dossier | `P1` |
-| 86 | "Here is a photo — do we already have it?" | user-supplied media as **input to the conversation** | `NEW N24` — the chat has no upload/attach path |
+| 86 | "Here is a photo — do we already have it?" | user-supplied media as **input to the conversation** | ✅ Built — `N24`. Drop it on the chat; it is a `CHAT_FILE` attachment, and `generate_image` takes its id. The *"do we already have it"* half still needs a similarity lookup over the attachment's sha512 |
 | 87 | "Take these ten clips and tell me which one to lead with, and why" | judgement over media, with reasons | `P6` — the request that most needs vision |
 | 88 | "Clean up the mess in this folder however you think best" | open-ended delegation: plan, propose, confirm, execute, report | Everything at once. The **north-star acceptance test** |
 
-**Open spot N24 — media into the conversation.** Every design above assumes assets are already in
-the catalog. "Here is a picture, find me more like it" is an obvious thing to say and there is no
-path for it: no attachment on the stream request, no transient asset, no way to hand bytes to a
-node. Cheap version: upload it as a normal asset into a scratch pool and proceed.
+**Open spot N24 — media into the conversation. ✅ Built.** Every design above assumed assets were
+already in the catalog, and "here is a picture, find me more like it" had no path at all.
+
+It was built *not* the cheap way this note suggested. Uploading a dropped file as a normal asset
+would put every reference photo into the curated catalogue, fire matching ingest pipelines, and make
+request 86 itself answer "yes, we already have it" because the user had just dropped it. Instead a
+dropped file is a `CHAT_FILE` row on the existing `attachment` table — conversational, deleted with
+the chat, invisible to search — with an explicit **Save to library** action for the ones worth
+keeping. See [LOOM_UI_CHAT.md](LOOM_UI_CHAT.md) §4.5.
+
+What is still open under this heading: the *comparison* half of request 86. The attachment carries a
+sha512, so an exact-duplicate check is a lookup away, but "find me more like it" needs the similarity
+index to accept a query image that is not an asset.
 
 ---
 
@@ -364,7 +373,7 @@ Every `NEW` item, with a suggested home.
 | N21 | **Cost / throughput estimation** | 67,84 | Needs per-node timing history — `pipeline_node_task` has durations |
 | N22 | **External corpus comparison** | 78 | New |
 | N23 | **Constraint-satisfying sampling** (diverse training sets) | 79 | New — high commercial value |
-| N24 | **User-supplied media in the conversation** | 86 | Chat + upload integration |
+| N24 | **User-supplied media in the conversation** | 86 | ✅ Built — chat attachments, [LOOM_UI_CHAT.md](LOOM_UI_CHAT.md) §4.5. Remaining gap is similarity-by-attachment, not the upload path |
 
 ---
 

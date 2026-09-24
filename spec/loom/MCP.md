@@ -112,16 +112,16 @@ written.
 | `ping`                      | Empty result object                                           |
 | `tools/list`                | `{ "tools": [ descriptor.toJson(), … ] }`                     |
 | `tools/call`                | `params.name` + `params.arguments` → registry dispatch        |
-| `resources/list`            | `{ "resources": [] }` (stub)                                  |
-| `resources/read`            | `-32601` "Resource reading not yet implemented"               |
+| `resources/list`            | The caller's own chat attachments, newest first (§12a). Empty for an unauthenticated caller |
+| `resources/read`            | `params.uri` (`loom://attachment/<uuid>`) → `{ "contents": [ … ] }`; `-32602` when it names nothing the caller may read |
 | *anything else*             | `-32601` "Unknown method: …"                                  |
 
 | Code   | Constant               | Meaning                                     |
 |--------|------------------------|---------------------------------------------|
 | -32700 | `ERR_PARSE_ERROR`      | Invalid JSON (HTTP body or WS frame)        |
 | -32600 | `ERR_INVALID_REQUEST`  | Missing `method`                            |
-| -32601 | `ERR_METHOD_NOT_FOUND` | Unknown method / `resources/read`           |
-| -32602 | `ERR_INVALID_PARAMS`   | Missing `params` or `params.name`           |
+| -32601 | `ERR_METHOD_NOT_FOUND` | Unknown method                              |
+| -32602 | `ERR_INVALID_PARAMS`   | Missing `params` / `params.name` / `params.uri`; unknown or unreadable resource uri |
 | -32603 | `ERR_INTERNAL`         | Tool dispatch failure (incl. permission denial and unknown tool) |
 
 ---
@@ -699,6 +699,11 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | `LoomAuthenticationHandler` / `LoomAuthorizationProvider` | `io.metaloom.loom.auth` | JWT auth / permission resolution (shared with REST) |
 | `WebSocketAuthenticator`   | `io.metaloom.loom.rest.service.impl`   | WS token auth, close code 4401 |
 | `TokenDao`                 | `io.metaloom.loom.db.model.token`      | API key lookup |
+| `ChatAttachmentResourceProvider` | `io.metaloom.loom.mcp.resource`   | `resources/list` + `resources/read` over chat attachments (§12a) |
+| `ChatAttachmentReader`     | `io.metaloom.loom.mcp.attachment`      | Resolve + authorize + read one attachment; the single place the ownership rule lives |
+| `AttachmentTextExtractor` / `PlainTextExtractor` | `io.metaloom.loom.mcp.attachment` | Which formats can be read as text; the seam a Tika implementation drops into |
+| `ReadAttachmentTool`       | `io.metaloom.loom.mcp.tool.impl`       | The in-chat half: reads a dropped file on demand |
+| `ChatAttachmentToolModule` | `io.metaloom.loom.mcp.dagger`          | Binds the extractor unconditionally; gates the tool on `LOOM_CHAT_ATTACHMENT_ENABLED` |
 | `AgentLoop`                | `io.metaloom.loom.agent.chat.loop`     | In-process consumer of the registry |
 
 ---
@@ -766,6 +771,10 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | Port / auth options                         | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/ServerOptions.java`, `AuthenticationOptions.java` |
 | Startup / shutdown order                    | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
 | In-process consumer (chat)                  | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/AgentLoop.java` |
+| Resources (chat attachments)                | `…/mcp/resource/ChatAttachmentResourceProvider.java` |
+| Reading one attachment (and who may)        | `…/mcp/attachment/ChatAttachmentReader.java` |
+| Which text formats are readable             | `…/mcp/attachment/PlainTextExtractor.java` |
+| The `<attachments>` manifest                | `loom/agent/chat/…/prompt/AttachmentPromptBuilder.java` |
 | Tests                                       | `loom/services/mcp/src/test/java/…`, `loom/core/src/test/java/io/metaloom/loom/core/mcp/` |
 
 ---
@@ -806,13 +815,54 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 
 ---
 
+## 12a. Resources — chat attachments
+
+`resources/list` and `resources/read` were stubs until 2026-09-24: an empty array and a
+method-not-found. The question they left open was *which* of Loom's data should be a resource, and
+chat attachments answer it well — a file a user dropped into a conversation is already exactly what
+MCP resources are for: content the host offers cheaply and the client pulls only when it needs it.
+
+**Assets are deliberately not resources.** A catalogue of millions is not a list, and
+`search_assets` / `find_assets` answer questions about it far better than an enumeration would.
+
+```jsonc
+// resources/list
+{"resources": [
+  {"uri": "loom://attachment/9a02…", "name": "hero.jpg", "mimeType": "image/jpeg",
+   "description": "Attached to the chat \"Campaign ideas\""}]}
+
+// resources/read  {"uri": "loom://attachment/9a02…"}
+{"contents": [{"uri": "…", "mimeType": "text/markdown", "text": "…"}]}        // text family
+{"contents": [{"uri": "…", "mimeType": "image/jpeg",   "blob": "<base64>"}]}  // everything else
+```
+
+**Scoping.** An external MCP client has no chat — `MCPJsonRpcHandler.callerContext` leaves
+`chatUuid` null on purpose — so the listing is scoped by **creator** instead: your own files, across
+your own conversations. That is why `AttachmentDao` grew `listChatFilesByCreator` rather than this
+going through `ChatDao`, which has no query by creator at all. Reads still go through
+`ChatAttachmentReader`, which re-checks that the caller owns the chat the attachment hangs off, so
+the creator scope is a convenience and not the security boundary.
+
+**Permissions.** `READ_ATTACHMENT`, checked through `MCPToolRegistry.checkPermissions` — the same
+method `tools/call` uses, made public rather than copied. A caller without it gets an *empty list*
+and a *not-found* read: absent and forbidden are deliberately the same answer, so a refusal cannot
+confirm that a guessed uuid is real.
+
+**`blob` is the one place a picture's bytes travel inline.** That is allowed here and not in a chat
+visual because this is a protocol read with an explicit request behind it rather than something
+pushed into a conversation — `VisualExtractor`'s 32 KB cap does not apply. It is still bounded by
+`LOOM_CHAT_ATTACHMENT_MAX_READ_BYTES`.
+
+The in-chat half of the same idea — the `<attachments>` manifest and the `read_attachment` tool — is
+[../chat/LOOM_UI_CHAT.md](../chat/LOOM_UI_CHAT.md) §4.5.
+
 ## 13. Progress Assessment
 
 ### 13.1 Core protocol
 
 - [x] JSON-RPC 2.0 request/response + notification handling (202 / no WS frame)
 - [x] `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`
-- [x] `resources/list` stub; `resources/read` returns method-not-found
+- [x] `resources/list` and `resources/read`, backed by chat attachments (§12a)
 - [x] Full error-code set (-32700 … -32603)
 - [x] MCP content-format results
 - [ ] Structured tool errors (failures collapse into `-32603` + a message string)
@@ -853,6 +903,8 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 - [x] `list_node_descriptors`, `get_node_descriptor` (resolved ports), `pipeline_authoring_guide`
 - [x] `validate_pipeline` (dry run, warnings), `create_pipeline`, `update_pipeline`
 - [x] `list_memory`, `get_memory`, `put_memory`, `delete_memory` (feature-gated)
+- [x] `read_attachment` — reads a file the user dropped into the conversation (§12a). Identity-scoped:
+      the chat comes from `MCPCallerContext`, and a `chatUuid` argument may only narrow it
 - [x] `search_assets` and `search_transcript` query the `SearchProvider` SPI (term, filters, paging, ranking)
 - [ ] `get_asset` returns none of the media/geo/component data its description promises
 - [ ] Neither search tool can narrow its results to what the caller may read (§5.1)
@@ -867,9 +919,13 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 
 ### 13.5 Resources
 
-- [x] `resources/list` empty stub, `resources/read` error
-- [ ] No resource providers (assets/collections as MCP resources)
-- [ ] No `resources/subscribe` / `unsubscribe`
+- [x] `resources/list` — the caller's own chat attachments, creator-scoped, capped at 100
+- [x] `resources/read` — `loom://attachment/<uuid>`, text inline or base64 `blob`, permission-checked
+- [x] Absent and forbidden are the same answer, so a guessed uuid cannot be confirmed
+- [ ] No cursor on `resources/list` (the cap is the whole answer)
+- [ ] Assets are deliberately **not** resources — a catalogue of millions is not a list, and the
+      search tools answer questions about it far better than an enumeration would
+- [ ] No `resources/subscribe` / `unsubscribe`, and `capabilities.resources.listChanged` stays `false`
 
 ### 13.6 Testing
 
@@ -925,5 +981,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-_Git HEAD revision: `6653bbe8`_
-_Last updated: 2026-09-23 (`generate_image`: image generation and editing from the chat window, the `GENERATE_MCP_IMAGE` permission and `V2.111`, `ProducedAssetIngestor`, and §5.1.1 on why it reuses `asset-viewer` rather than adding an `image` visual). Earlier: 2026-08-16 (`search_assets` and `search_transcript` moved onto the `SearchProvider` SPI: real terms, filters, paging, ranking, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; `SearchToolTest` added; the authorization limitation written down here and in RBAC.md). Earlier: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_
+_Git HEAD revision: `52631fca`_
+_Last updated: 2026-09-24 (`read_attachment` and real `resources/list` / `resources/read`, both backed by chat attachments — §12a; `MCPToolRegistry.checkPermissions` made public so the resource methods check permissions the same way `tools/call` does). Earlier: 2026-09-23 (`generate_image`: image generation and editing from the chat window, the `GENERATE_MCP_IMAGE` permission and `V2.111`, `ProducedAssetIngestor`, and §5.1.1 on why it reuses `asset-viewer` rather than adding an `image` visual). Earlier: 2026-08-16 (`search_assets` and `search_transcript` moved onto the `SearchProvider` SPI: real terms, filters, paging, ranking, transcript snippets with `timeFromMs`, honest degradation when search is unavailable; `SearchToolTest` added; the authorization limitation written down here and in RBAC.md). Earlier: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

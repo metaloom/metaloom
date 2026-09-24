@@ -1,5 +1,6 @@
 package io.metaloom.loom.mcp.tool.impl;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -7,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -27,8 +29,10 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
+import io.metaloom.loom.mcp.attachment.ChatAttachmentReader;
 import io.metaloom.loom.mcp.imagegen.ImageEditClient;
 import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.rest.service.impl.BinaryStorageResolver;
@@ -54,6 +58,8 @@ public class GenerateImageToolTest {
 	private static final UUID USER_UUID = UUID.fromString("11111111-0000-0000-0000-000000000001");
 	private static final UUID LIBRARY_UUID = UUID.fromString("22222222-0000-0000-0000-000000000002");
 	private static final UUID INPUT_UUID = UUID.fromString("33333333-0000-0000-0000-000000000003");
+	private static final UUID ATTACHMENT_UUID = UUID.fromString("44444444-0000-0000-0000-000000000004");
+	private static final UUID CHAT_UUID = UUID.fromString("55555555-0000-0000-0000-000000000005");
 	private static final UUID RESULT_UUID = UUID.fromString("44444444-0000-0000-0000-00000000f00d");
 	private static final UUID POOL_UUID = UUID.fromString("55555555-0000-0000-0000-000000000005");
 
@@ -66,9 +72,13 @@ public class GenerateImageToolTest {
 	private ImageEditClient client;
 	private ProducedAssetIngestor ingestor;
 	private BinaryStorageResolver storageResolver;
+	private ChatAttachmentReader attachmentReader;
 	private LoomOptions loomOptions;
 
 	private final MCPCallerContext caller = new MCPCallerContext(USER_UUID, "tester", Set.of(), null, null);
+
+	/** The in-chat caller, which is the only context in which an attachment id can be resolved. */
+	private final MCPCallerContext inChat = new MCPCallerContext(USER_UUID, "tester", Set.of(), null, CHAT_UUID);
 
 	@BeforeEach
 	public void setup() throws Exception {
@@ -88,6 +98,8 @@ public class GenerateImageToolTest {
 		when(ingestor.ingest(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
 		storageResolver = mock(BinaryStorageResolver.class);
+		// No attachments by default: every id resolves through the asset path, as before this feature.
+		attachmentReader = mock(ChatAttachmentReader.class);
 
 		loomOptions = new LoomOptions();
 		// The tool's own Dagger module gates on `enabled`; once constructed it just runs, so the
@@ -96,7 +108,7 @@ public class GenerateImageToolTest {
 	}
 
 	private GenerateImageTool tool() {
-		return new GenerateImageTool(daos, client, ingestor, storageResolver, loomOptions);
+		return new GenerateImageTool(daos, client, ingestor, storageResolver, attachmentReader, loomOptions);
 	}
 
 	private Asset resultAsset() {
@@ -105,6 +117,126 @@ public class GenerateImageToolTest {
 		when(asset.getFilename()).thenReturn("generated-a-red-apple-7.png");
 		when(asset.getSize()).thenReturn((long) GENERATED_PNG.length);
 		return asset;
+	}
+
+	// ---- chat attachments as inputs -------------------------------------------------------
+	//
+	// The headline case of the attachment feature: drop pictures into the chat, say "combine these".
+	// An attachment id travels in the same assetIds array as an asset uuid, and the server works out
+	// which kind it is - see GenerateImageTool.resolveInput.
+
+	/** An image attached to this conversation, whose bytes the reader will serve. */
+	private Attachment chatHoldsAnImage() throws Exception {
+		Attachment attachment = mock(Attachment.class);
+		when(attachment.getUuid()).thenReturn(ATTACHMENT_UUID);
+		when(attachment.getFilename()).thenReturn("dropped.png");
+		when(attachment.getMimeType()).thenReturn("image/png");
+		when(attachment.getSize()).thenReturn((long) INPUT_BYTES.length);
+
+		when(assetDao.loadById(any())).thenReturn(null);
+		when(attachmentReader.resolve(eq(ATTACHMENT_UUID), any(), eq(USER_UUID))).thenReturn(attachment);
+		when(attachmentReader.exists(attachment)).thenReturn(true);
+		when(attachmentReader.open(attachment)).thenReturn(new ByteArrayInputStream(INPUT_BYTES));
+		return attachment;
+	}
+
+	@Test
+	public void testAnAttachmentIdResolvesToItsBytes() throws Exception {
+		chatHoldsAnImage();
+
+		tool().execute(new JsonObject()
+			.put("prompt", "make it night")
+			.put("assetIds", new JsonArray().add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<byte[]>> images = ArgumentCaptor.forClass(List.class);
+		verify(client).generate(eq("make it night"), images.capture(), any(), any(), any(), any());
+		assertEquals(1, images.getValue().size());
+		assertArrayEquals(INPUT_BYTES, images.getValue().get(0));
+	}
+
+	@Test
+	public void testAnAttachmentFromAnotherChatIsRefused() throws Exception {
+		// resolve() returns null for an attachment the caller does not own or that belongs to a
+		// different conversation. The tool must not fall back to reading it some other way.
+		when(assetDao.loadById(any())).thenReturn(null);
+		when(attachmentReader.resolve(any(), any(), any())).thenReturn(null);
+
+		JsonObject result = tool().execute(new JsonObject()
+			.put("prompt", "make it night")
+			.put("assetIds", new JsonArray().add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		assertTrue(text(result).contains("neither an asset nor a file attached"), text(result));
+		verify(client, never()).generate(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void testAGenerationMadeOnlyFromAttachmentsIsFiledInTheConfiguredLibrary() throws Exception {
+		// An attachment is filed nowhere, so there is no library to inherit. Falling back to the
+		// configured default is the same answer a text-to-image request gets.
+		chatHoldsAnImage();
+
+		tool().execute(new JsonObject()
+			.put("prompt", "make it night")
+			.put("assetIds", new JsonArray().add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		verify(ingestor).ingest(eq(USER_UUID), eq(LIBRARY_UUID), eq(GENERATED_PNG), any(), eq("image/png"), any());
+	}
+
+	@Test
+	public void testAnAttachmentInputIsCitedAsAnAttachmentNotAnAsset() throws Exception {
+		chatHoldsAnImage();
+
+		JsonObject result = tool().execute(new JsonObject()
+			.put("prompt", "make it night")
+			.put("assetIds", new JsonArray().add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		JsonArray references = result.getJsonArray("references");
+		// references[0] is the generated asset; the input follows it.
+		assertEquals("attachment", references.getJsonObject(1).getString("type"));
+		assertEquals(ATTACHMENT_UUID.toString(), references.getJsonObject(1).getString("uuid"));
+	}
+
+	@Test
+	public void testANonImageAttachmentIsRejectedBeforeTheSidecarIsCalled() throws Exception {
+		Attachment brief = mock(Attachment.class);
+		when(brief.getUuid()).thenReturn(ATTACHMENT_UUID);
+		when(brief.getFilename()).thenReturn("brief.md");
+		when(brief.getMimeType()).thenReturn("text/markdown");
+		when(assetDao.loadById(any())).thenReturn(null);
+		when(attachmentReader.resolve(any(), any(), any())).thenReturn(brief);
+
+		JsonObject result = tool().execute(new JsonObject()
+			.put("prompt", "make it night")
+			.put("assetIds", new JsonArray().add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		assertTrue(text(result).contains("not an image"), text(result));
+		verify(client, never()).generate(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void testAssetsAndAttachmentsCanBeMixedInOneCall() throws Exception {
+		Asset asset = catalogHoldsAnImage();
+		Attachment attachment = mock(Attachment.class);
+		when(attachment.getUuid()).thenReturn(ATTACHMENT_UUID);
+		when(attachment.getFilename()).thenReturn("dropped.png");
+		when(attachment.getMimeType()).thenReturn("image/png");
+		// loadById answers for the asset uuid and nothing else, so the attachment id falls through.
+		when(assetDao.loadById(argThat(id -> id != null && ATTACHMENT_UUID.toString().equals(id.toString())))).thenReturn(null);
+		when(attachmentReader.resolve(eq(ATTACHMENT_UUID), any(), eq(USER_UUID))).thenReturn(attachment);
+		when(attachmentReader.exists(attachment)).thenReturn(true);
+		when(attachmentReader.open(attachment)).thenReturn(new ByteArrayInputStream(INPUT_BYTES));
+
+		JsonObject result = tool().execute(new JsonObject()
+			.put("prompt", "put them together")
+			.put("assetIds", new JsonArray().add(INPUT_UUID.toString()).add(ATTACHMENT_UUID.toString())), inChat).result();
+
+		JsonArray references = result.getJsonArray("references");
+		assertEquals("asset", references.getJsonObject(1).getString("type"));
+		assertEquals("attachment", references.getJsonObject(2).getString("type"));
+		// The asset lends its library; the attachment has none to lend.
+		verify(ingestor).ingest(any(), eq(LIBRARY_UUID), any(), any(), any(), any());
+		assertEquals(asset.getUuid(), INPUT_UUID);
 	}
 
 	/** An image asset in the catalogue whose bytes are readable from storage. */
@@ -303,12 +435,16 @@ public class GenerateImageToolTest {
 	@Test
 	public void testAMissingInputAssetIsAnAnswerNotAFailure() throws Exception {
 		when(assetDao.loadById(any())).thenReturn(null);
+		when(attachmentReader.resolve(any(), any(), any())).thenReturn(null);
 
 		JsonObject result = tool().execute(new JsonObject()
 			.put("prompt", "make it night")
 			.put("assetIds", new JsonArray().add(INPUT_UUID.toString())), caller).result();
 
-		assertTrue(text(result).contains("Asset not found"), text(result));
+		// The id could have named either an asset or a file attached to the conversation, so the
+		// message says both were looked in - otherwise "asset not found" sends the model hunting
+		// through the catalogue for something the user had just dropped into the chat.
+		assertTrue(text(result).contains("neither an asset nor a file attached"), text(result));
 		assertNull(result.getJsonArray("visuals"));
 	}
 

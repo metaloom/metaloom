@@ -2,10 +2,12 @@ package io.metaloom.loom.agent.chat;
 
 import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
+import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.mcp.attachment.AttachmentTextExtractor;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 
 /**
@@ -18,6 +20,11 @@ import io.metaloom.loom.mcp.tool.MCPToolRegistry;
  *            Used to resolve the caller's groups for the MCP caller context (shared memory scopes)
  * @param memoryService
  *            The agent memory bank. Never null; it reports itself disabled when the feature is off.
+ * @param attachmentDao
+ *            Reads the files dropped into the chat, for the {@code <attachments>} manifest
+ * @param textExtractor
+ *            Decides which of those files can be read as text. Shared with the {@code read_attachment} tool on purpose: the manifest must not advertise
+ *            a file as readable that the tool then refuses.
  */
 public record AgentLoopDeps(
 	ChatDao chatDao,
@@ -26,5 +33,7 @@ public record AgentLoopDeps(
 	GroupDao groupDao,
 	MCPToolRegistry toolRegistry,
 	SandboxOrchestrator sandbox,
-	MemoryService memoryService) {
+	MemoryService memoryService,
+	AttachmentDao attachmentDao,
+	AttachmentTextExtractor textExtractor) {
 }

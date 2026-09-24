@@ -18,6 +18,7 @@ import io.metaloom.loom.mcp.model.JsonRpcRequest;
 import io.metaloom.loom.mcp.model.JsonRpcResponse;
 import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
+import io.metaloom.loom.mcp.resource.ChatAttachmentResourceProvider;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -44,10 +45,13 @@ public class MCPJsonRpcHandler {
 
 	private final DaoCollection daos;
 
+	private final ChatAttachmentResourceProvider resources;
+
 	@Inject
-	public MCPJsonRpcHandler(MCPToolRegistry toolRegistry, DaoCollection daos) {
+	public MCPJsonRpcHandler(MCPToolRegistry toolRegistry, DaoCollection daos, ChatAttachmentResourceProvider resources) {
 		this.toolRegistry = toolRegistry;
 		this.daos = daos;
+		this.resources = resources;
 	}
 
 	/**
@@ -72,8 +76,8 @@ public class MCPJsonRpcHandler {
 			case METHOD_PING -> handlePing(request);
 			case METHOD_TOOLS_LIST -> handleToolsList(request);
 			case METHOD_TOOLS_CALL -> handleToolsCall(request, user);
-			case METHOD_RESOURCES_LIST -> handleResourcesList(request);
-			case METHOD_RESOURCES_READ -> handleResourcesRead(request);
+			case METHOD_RESOURCES_LIST -> handleResourcesList(request, user);
+			case METHOD_RESOURCES_READ -> handleResourcesRead(request, user);
 			default -> Future.succeededFuture(
 				JsonRpcResponse.error(request.getId(), ERR_METHOD_NOT_FOUND,
 					"Unknown method: " + request.getMethod()));
@@ -162,17 +166,65 @@ public class MCPJsonRpcHandler {
 		return new MCPCallerContext(userUuid, user.principal().getString("username"), groupUuids, null, null);
 	}
 
-	// ---- Resources (stubbed for future implementation) ----
+	// ---- Resources ----
+	//
+	// Backed by chat attachments: files a user dropped into a conversation. See
+	// ChatAttachmentResourceProvider for why those, and not assets, are what a Loom MCP resource is.
+	//
+	// Both methods take the caller, which the stubs did not, because both are permission-checked and
+	// scoped to the caller's own files. An unauthenticated caller sees an empty list and can read
+	// nothing - failing closed, the same rule listDescriptorsFor follows.
 
-	private Future<JsonRpcResponse> handleResourcesList(JsonRpcRequest request) {
-		// Return empty resource list for now — will be populated when resource providers are added
-		JsonObject result = new JsonObject().put("resources", new JsonArray());
-		return Future.succeededFuture(JsonRpcResponse.success(request.getId(), result));
+	private Future<JsonRpcResponse> handleResourcesList(JsonRpcRequest request, User user) {
+		MCPCallerContext ctx = callerContext(user);
+		if (!ctx.isAuthenticated()) {
+			return Future.succeededFuture(JsonRpcResponse.success(request.getId(),
+				new JsonObject().put("resources", new JsonArray())));
+		}
+		return toolRegistry.checkPermissions(user, ChatAttachmentResourceProvider.REQUIRED_PERMISSIONS)
+			.map(permitted -> {
+				// An empty list rather than an error: "you may not see resources" and "there are none"
+				// are the same observation to a client, and listing is not a place to leak the difference.
+				JsonArray listed = permitted ? resources.list(ctx.userUuid()) : new JsonArray();
+				return JsonRpcResponse.success(request.getId(), new JsonObject().put("resources", listed));
+			});
 	}
 
-	private Future<JsonRpcResponse> handleResourcesRead(JsonRpcRequest request) {
-		return Future.succeededFuture(
-			JsonRpcResponse.error(request.getId(), ERR_METHOD_NOT_FOUND, "Resource reading not yet implemented"));
+	private Future<JsonRpcResponse> handleResourcesRead(JsonRpcRequest request, User user) {
+		JsonObject params = request.getParams();
+		String uri = params == null ? null : params.getString("uri");
+		if (uri == null || uri.isBlank()) {
+			return Future.succeededFuture(
+				JsonRpcResponse.error(request.getId(), ERR_INVALID_PARAMS, "Missing resource uri"));
+		}
+		if (!ChatAttachmentResourceProvider.handles(uri)) {
+			return Future.succeededFuture(JsonRpcResponse.error(request.getId(), ERR_INVALID_PARAMS,
+				"Unknown resource uri: " + uri + ". Loom serves " + ChatAttachmentResourceProvider.URI_PREFIX + "<uuid>."));
+		}
+
+		MCPCallerContext ctx = callerContext(user);
+		if (!ctx.isAuthenticated()) {
+			return Future.succeededFuture(
+				JsonRpcResponse.error(request.getId(), ERR_INVALID_PARAMS, "Resource not found: " + uri));
+		}
+		return toolRegistry.checkPermissions(user, ChatAttachmentResourceProvider.REQUIRED_PERMISSIONS)
+			.map(permitted -> {
+				if (!permitted) {
+					// Indistinguishable from an absent resource, exactly as a foreign chat is a 404 over
+					// REST: otherwise a refusal confirms that a guessed uuid is real.
+					return JsonRpcResponse.error(request.getId(), ERR_INVALID_PARAMS, "Resource not found: " + uri);
+				}
+				try {
+					JsonArray contents = resources.read(uri, ctx.userUuid());
+					if (contents == null) {
+						return JsonRpcResponse.error(request.getId(), ERR_INVALID_PARAMS, "Resource not found: " + uri);
+					}
+					return JsonRpcResponse.success(request.getId(), new JsonObject().put("contents", contents));
+				} catch (Exception e) {
+					log.error("Could not read resource {}", uri, e);
+					return JsonRpcResponse.error(request.getId(), ERR_INTERNAL, "Could not read the resource.");
+				}
+			});
 	}
 
 }

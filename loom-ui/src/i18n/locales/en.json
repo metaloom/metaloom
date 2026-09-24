@@ -629,6 +629,21 @@
       "placeholder": "Ask about assets, collections, tasks, pipelines…",
       "helper": "Enter to send · Shift+Enter for new line"
     },
+    "attachments": {
+      "attach": "Attach a file",
+      "dropTitle": "Drop files to attach them",
+      "dropHint": "They stay in this conversation and are not added to the library",
+      "remove": "Remove",
+      "save": "Save to library",
+      "saved": "{{name}} was saved to the library",
+      "failed": "Upload failed",
+      "newChatTitle": "Attached files",
+      "kind": {
+        "text": "readable as text",
+        "image": "image, for generating and editing",
+        "opaque": "cannot be read in this deployment"
+      }
+    },
     "sessions": {
       "newChat": "New chat",
       "empty": "No conversations yet",

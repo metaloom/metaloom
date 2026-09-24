@@ -22,6 +22,7 @@ import io.metaloom.loom.agent.chat.loop.StreamingTurnStreamer;
 import io.metaloom.loom.agent.chat.loop.TurnStreamer;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.mcp.attachment.AttachmentTextExtractor;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -50,15 +51,18 @@ public class AgentService {
 	 */
 	private Supplier<TurnStreamer> turnStreamerFactory;
 
+	private final AttachmentTextExtractor textExtractor;
+
 	@Inject
 	public AgentService(Vertx vertx, LoomOptions options, DaoCollection daos, MCPToolRegistry toolRegistry, SandboxOrchestrator sandbox,
-		MemoryService memoryService) {
+		MemoryService memoryService, AttachmentTextExtractor textExtractor) {
 		this.vertx = vertx;
 		this.options = options;
 		this.daos = daos;
 		this.toolRegistry = toolRegistry;
 		this.sandbox = sandbox;
 		this.memoryService = memoryService;
+		this.textExtractor = textExtractor;
 		this.turnStreamerFactory = () -> {
 			LLMProvider provider = new OpenAILLMProvider();
 			// True token/reasoning streaming is opt-in (LOOM_AI_STREAMING) — the blocking streamer
@@ -88,8 +92,10 @@ public class AgentService {
 	 * @return Future which completes when the run has finished (including the terminal agent_end event)
 	 */
 	public Future<Void> run(AgentRequest request, AgentEventSink sink) {
-		AgentLoopDeps deps = new AgentLoopDeps(daos.chatDao(), daos.chatSessionDao(), daos.skillDao(), daos.groupDao(), toolRegistry, sandbox, memoryService);
-		AgentLoop loop = new AgentLoop(options.getAi(), options.getSandbox(), deps, turnStreamerFactory.get(), sink, request);
+		AgentLoopDeps deps = new AgentLoopDeps(daos.chatDao(), daos.chatSessionDao(), daos.skillDao(), daos.groupDao(), toolRegistry, sandbox,
+			memoryService, daos.attachmentDao(), textExtractor);
+		AgentLoop loop = new AgentLoop(options.getAi(), options.getSandbox(), options.getChatAttachment(), deps, turnStreamerFactory.get(), sink,
+			request);
 		if (activeRuns.putIfAbsent(request.chatUuid(), loop) != null) {
 			return Future.failedFuture(new AgentBusyException(request.chatUuid()));
 		}

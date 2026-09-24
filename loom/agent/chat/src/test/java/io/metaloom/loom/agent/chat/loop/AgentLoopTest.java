@@ -42,18 +42,21 @@ import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
 import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.AiOptions;
+import io.metaloom.loom.api.options.ChatAttachmentOptions;
 import io.metaloom.loom.api.options.MemoryOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
 import io.metaloom.loom.common.skill.BuiltinSkills;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
+import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.memory.MemoryEntry;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
+import io.metaloom.loom.mcp.attachment.PlainTextExtractor;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -138,7 +141,8 @@ public class AgentLoopTest {
 	private AgentLoop loop(AiOptions options, TurnStreamer streamer, List<UUID> skillUuids) {
 		AgentRequest request = new AgentRequest(CHAT_UUID, USER_UUID, null, "Find beach videos", skillUuids);
 		// Sandbox disabled by default — coding tools are not advertised and the orchestrator is never called.
-		return new AgentLoop(options, new SandboxOptions(), deps(mock(SandboxOrchestrator.class)), streamer, events::add, request);
+		return new AgentLoop(options, new SandboxOptions(), new ChatAttachmentOptions(), deps(mock(SandboxOrchestrator.class)), streamer,
+			events::add, request);
 	}
 
 	private List<AgentEventType> eventTypes() {
@@ -1251,7 +1255,7 @@ public class AgentLoopTest {
 	private AgentLoop sandboxLoop(SandboxOrchestrator sandbox, TurnStreamer streamer) {
 		AgentRequest request = new AgentRequest(CHAT_UUID, USER_UUID, null, "Find beach videos", List.of());
 		SandboxOptions enabled = new SandboxOptions().setEnabled(true);
-		return new AgentLoop(new AiOptions(), enabled, deps(sandbox), streamer, events::add, request);
+		return new AgentLoop(new AiOptions(), enabled, new ChatAttachmentOptions(), deps(sandbox), streamer, events::add, request);
 	}
 
 	/**
@@ -1260,7 +1264,12 @@ public class AgentLoopTest {
 	private AgentLoopDeps deps(SandboxOrchestrator sandbox) {
 		GroupDao groupDao = mock(GroupDao.class);
 		when(groupDao.loadGroupsForUser(any())).thenReturn(GROUPS);
-		return new AgentLoopDeps(chatDao, chatSessionDao, skillDao, groupDao, toolRegistry, sandbox, memoryService);
+		// No attachments in these runs: listByChat returns an empty list, so the <attachments> block is absent
+		// and the prompt is exactly what it was before the feature existed.
+		AttachmentDao attachmentDao = mock(AttachmentDao.class);
+		when(attachmentDao.listByChat(any())).thenReturn(List.of());
+		return new AgentLoopDeps(chatDao, chatSessionDao, skillDao, groupDao, toolRegistry, sandbox, memoryService, attachmentDao,
+			new PlainTextExtractor());
 	}
 
 	@Test

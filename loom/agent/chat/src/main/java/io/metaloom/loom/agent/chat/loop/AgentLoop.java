@@ -38,8 +38,11 @@ import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
 import io.metaloom.loom.agent.sandbox.tool.CodingTool;
 import io.metaloom.loom.agent.sandbox.tool.CodingTools;
 import io.metaloom.loom.api.options.AiOptions;
+import io.metaloom.loom.api.options.ChatAttachmentOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
 import io.metaloom.loom.common.skill.BuiltinSkills;
+import io.metaloom.loom.db.model.attachment.Attachment;
+import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chat.ChatMeta;
@@ -51,6 +54,7 @@ import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.memory.MemoryEntry;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.mcp.attachment.AttachmentTextExtractor;
 import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor.MCPToolParam;
@@ -102,6 +106,7 @@ public class AgentLoop {
 
 	private final AiOptions options;
 	private final SandboxOptions sandboxOptions;
+	private final ChatAttachmentOptions attachmentOptions;
 	private final ChatDao chatDao;
 	private final ChatSessionDao chatSessionDao;
 	private final SkillDao skillDao;
@@ -112,6 +117,8 @@ public class AgentLoop {
 	private final AgentRequest request;
 	private final SandboxOrchestrator sandbox;
 	private final MemoryService memoryService;
+	private final AttachmentDao attachmentDao;
+	private final AttachmentTextExtractor textExtractor;
 
 	private final AtomicBoolean cancelled = new AtomicBoolean(false);
 	private final ReferenceExtractor referenceExtractor = new ReferenceExtractor();
@@ -170,10 +177,11 @@ public class AgentLoop {
 	 */
 	private MCPCallerContext callerContext = MCPCallerContext.ANONYMOUS;
 
-	public AgentLoop(AiOptions options, SandboxOptions sandboxOptions, AgentLoopDeps deps, TurnStreamer turnStreamer, AgentEventSink sink,
-		AgentRequest request) {
+	public AgentLoop(AiOptions options, SandboxOptions sandboxOptions, ChatAttachmentOptions attachmentOptions, AgentLoopDeps deps,
+		TurnStreamer turnStreamer, AgentEventSink sink, AgentRequest request) {
 		this.options = options;
 		this.sandboxOptions = sandboxOptions;
+		this.attachmentOptions = attachmentOptions;
 		this.chatDao = deps.chatDao();
 		this.chatSessionDao = deps.chatSessionDao();
 		this.skillDao = deps.skillDao();
@@ -184,6 +192,8 @@ public class AgentLoop {
 		this.request = request;
 		this.sandbox = deps.sandbox();
 		this.memoryService = deps.memoryService();
+		this.attachmentDao = deps.attachmentDao();
+		this.textExtractor = deps.textExtractor();
 	}
 
 	/**
@@ -895,6 +905,26 @@ public class AgentLoop {
 		return PutMemoryTool.NAME.equals(toolName) || DeleteMemoryTool.NAME.equals(toolName);
 	}
 
+	/**
+	 * The files dropped into this chat, for the {@code <attachments>} manifest.
+	 *
+	 * <p>
+	 * Like {@link #loadMemory()}, this degrades rather than aborts: a failure here costs the run its awareness of the attachments, which is a worse
+	 * answer but still an answer. The run is already underway and the user is watching it stream.
+	 * </p>
+	 */
+	private List<Attachment> loadAttachments() {
+		if (!attachmentOptions.isEnabled()) {
+			return List.of();
+		}
+		try {
+			return attachmentDao.listByChat(request.chatUuid());
+		} catch (Exception e) {
+			log.warn("Could not load the attachments of chat {} — continuing without them", request.chatUuid(), e);
+			return List.of();
+		}
+	}
+
 	private List<Skill> loadActiveSkills() {
 		if (request.skillUuids().isEmpty()) {
 			return List.of();
@@ -916,7 +946,8 @@ public class AgentLoop {
 	 * </p>
 	 */
 	private List<ChatMessage> buildHistory(Chat chat) {
-		String systemPrompt = SystemPromptBuilder.build(activeSkills, memoryService, memoryScopes, memoryIndex, sandboxOptions.isEnabled());
+		String systemPrompt = SystemPromptBuilder.build(activeSkills, memoryService, memoryScopes, memoryIndex, sandboxOptions.isEnabled(),
+			loadAttachments(), textExtractor, attachmentOptions.getMaxFiles());
 		systemTokens = budget.estimate(ChatMessage.system(systemPrompt));
 
 		JsonArray messages = chat.getMessages() != null ? chat.getMessages() : new JsonArray();

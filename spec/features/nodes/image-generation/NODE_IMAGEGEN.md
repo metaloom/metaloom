@@ -94,6 +94,14 @@ assets — including in `GENERATE`, where the image it was given is never looked
 mage-flow (9210) do not serve those two endpoints, and the item fails with their 404. The node cannot
 check in advance because it never calls `/health`.
 
+🔴 **`MASK` does not segment reliably - use `EDIT` alone.** Verified against live weights
+2026-09-23: asked for "the woman's hair" it returned a clean mask of the whole person, and for "the
+black leather jacket" an inverted one. A plain `EDIT` instruction ("change her hair colour to dark
+brown, keep everything else exactly the same") did the job perfectly with no mask at all. `MASK` is
+kept because the plumbing is correct, not because it is usable; for hard region control, wire
+`sam2`'s `masks` output into this node's `mask` port instead. See
+[../../../sidecars/QWEN_IMAGE_SIDECAR.md](../../../sidecars/QWEN_IMAGE_SIDECAR.md) §2.2.
+
 `REMIX` is the mode that does something to the media in front of it, which is why it — not the shipped
 default — is what the customer page photographs (`SidecarRecipes.imagegen()` pins `REMIX`, `strength`
 0.55, `steps` 6 and `seed` 7 so a regenerated page produces the same picture rather than a different

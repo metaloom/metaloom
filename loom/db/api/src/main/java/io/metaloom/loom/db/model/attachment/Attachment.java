@@ -93,6 +93,24 @@ public interface Attachment extends CUDElement<Attachment> {
 	Attachment setUserUuid(UUID userUuid);
 
 	/**
+	 * The chat that owns this file, for a {@link io.metaloom.loom.api.attachment.AttachmentType#CHAT_FILE}.
+	 *
+	 * <p>
+	 * Null for every other attachment type. A dropped file is not derived from anything - it was handed to the agent mid-conversation - so it leaves
+	 * {@code assetUuid} and {@code detectionUuid} null and no asset deletion can reach it. Deleting the chat does: the FK cascades (V2.113), because a
+	 * file attached to a conversation that no longer exists has no remaining meaning.
+	 * </p>
+	 *
+	 * <p>
+	 * Unlike {@link io.metaloom.loom.api.attachment.AttachmentType#USER_AVATAR} there may be many per chat, and no unique key over the content -
+	 * dropping five images to be combined is the case this type exists for.
+	 * </p>
+	 */
+	UUID getChatUuid();
+
+	Attachment setChatUuid(UUID chatUuid);
+
+	/**
 	 * Discriminator between attachments of the same type for the same target, e.g. the longest edge of a crop.
 	 *
 	 * <p>

@@ -321,7 +321,9 @@ public enum JooqLoomPermission implements EnumType {
 
     UPDATE_FAILURE_REPORT("UPDATE_FAILURE_REPORT"),
 
-    DELETE_FAILURE_REPORT("DELETE_FAILURE_REPORT");
+    DELETE_FAILURE_REPORT("DELETE_FAILURE_REPORT"),
+
+    GENERATE_MCP_IMAGE("GENERATE_MCP_IMAGE");
 
     private final String literal;
 

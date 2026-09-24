@@ -11,7 +11,7 @@ import {
   StopCircleOutlined,
   Add, ChatBubbleOutline, DeleteOutline, ViewSidebarOutlined,
   SpaceDashboardOutlined, KeyboardDoubleArrowRight,
-  SearchOutlined,
+  SearchOutlined, AttachFileOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import HelpHint from "../../components/HelpHint";
@@ -42,6 +42,18 @@ import { assetTypeFromMime } from "../assets/assetMapping";
 import { listCollections, CollectionResponse } from "../../api/collections";
 import { listTasks, TaskResponse } from "../../api/tasks";
 import { PAGE_SIZE } from "../../hooks/pagedList";
+import ChatAttachmentChips from "./ChatAttachmentChips";
+import { dragCarriesFiles } from "./attachmentState";
+import { useChatAttachments } from "./useChatAttachments";
+
+/**
+ * Courtesy limits for dropped files, mirroring LOOM_CHAT_ATTACHMENT_MAX_FILES / _MAX_BYTES.
+ *
+ * The server enforces both again and is the authority; these exist so a refusal happens at drop
+ * time rather than after a 25 MB upload. They are not read from the server because there is no
+ * configuration endpoint for them, and a wrong guess here costs a redundant round trip at worst.
+ */
+const ATTACHMENT_LIMITS = { maxFiles: 10, maxBytes: 25 * 1024 * 1024 };
 
 // ── Reference chip renderer ───────────────────────────────────────────────
 function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string, startSeconds?: number) => void }) {
@@ -542,6 +554,7 @@ export default function ChatWorkspace() {
   const splitRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const attachmentsRef = useRef<ReturnType<typeof useChatAttachments> | null>(null);
   const activeChatRef = useRef<string | null>(null);
 
   // Abort a running stream on unmount
@@ -614,6 +627,7 @@ export default function ChatWorkspace() {
     setActiveSkillUuids([]);
     showResults(null);
     setSelectedAssetId(null);
+    attachmentsRef.current?.clear();
   };
 
   const loadSession = async (uuid: string) => {
@@ -630,6 +644,8 @@ export default function ChatWorkspace() {
       // Restore the per-session skill toggles from the chat meta
       const metaSkills = res.meta?.activeSkillUuids;
       setActiveSkillUuids(Array.isArray(metaSkills) ? (metaSkills as string[]) : []);
+      // The attachments belong to the conversation too, so they are restored with it.
+      attachmentsRef.current?.load(uuid);
     } catch (e) {
       console.error("Failed to load chat", e);
     }
@@ -657,6 +673,74 @@ export default function ChatWorkspace() {
     }
   };
 
+  /**
+   * The chat uuid, creating the conversation if this is the first thing to happen in it.
+   *
+   * A session is created lazily so an opened-and-abandoned chat never reaches the database. Both a
+   * first message and a first dropped file have to trigger that, and they have to agree on how — a
+   * drop that made its own session would leave the message stream talking to a different chat.
+   *
+   * @param title what to call a newly created conversation
+   */
+  const ensureSession = useCallback(async (title: string): Promise<string> => {
+    if (!token) throw new Error("Not authenticated");
+    if (sessionId) return sessionId;
+    const created = await createChat(token, { title: title.slice(0, 40) || t("chat.sessions.newChat"), messages: [] });
+    setSessionId(created.uuid);
+    setSessions(prev => [created, ...prev]);
+    return created.uuid;
+  }, [token, sessionId, t]);
+
+  const attachments = useChatAttachments(
+    token,
+    sessionId,
+    // A file dropped before anything is typed names the conversation after itself; the first
+    // message would otherwise have to rename it, and an untitled chat is worse than an approximate
+    // title.
+    useCallback(() => ensureSession(t("chat.attachments.newChatTitle")), [ensureSession, t]),
+    ATTACHMENT_LIMITS,
+    useCallback((msg: string) => showToast(msg, "warning"), [showToast])
+  );
+
+  // newChat and loadSession are declared above this hook, so they reach it through a ref rather
+  // than being reordered around it.
+  attachmentsRef.current = attachments;
+
+  /** How many nested dragenter events are outstanding; see the drop handlers below. */
+  const dragDepth = useRef(0);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer?.types)) return;
+    e.preventDefault();
+    // Counted rather than a boolean: dragging across a child fires dragleave on the parent, and a
+    // plain flag makes the overlay flicker off over every message bubble it crosses.
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer?.types)) return;
+    // Without this the browser navigates to the dropped file and the conversation is gone.
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer?.types)) return;
+    e.preventDefault();
+    dragDepth.current = Math.max(dragDepth.current - 1, 0);
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer?.types)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    attachments.add(Array.from(e.dataTransfer?.files ?? []));
+  };
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending || !token) return;
     const trimmed = text.trim();
@@ -678,14 +762,7 @@ export default function ChatWorkspace() {
     try {
       // The backend persists the transcript onto the chat row, so the session
       // must exist before streaming. Created lazily to avoid empty sessions.
-      let chatUuid = sessionId;
-      if (!chatUuid) {
-        const title = trimmed.slice(0, 40) || t("chat.sessions.newChat");
-        const created = await createChat(token, { title, messages: [] });
-        chatUuid = created.uuid;
-        setSessionId(created.uuid);
-        setSessions(prev => [created, ...prev]);
-      }
+      const chatUuid = await ensureSession(trimmed);
       activeChatRef.current = chatUuid;
 
       // Accumulated state of the in-flight assistant message
@@ -958,6 +1035,10 @@ export default function ChatWorkspace() {
       {/* ── Left: Chat column ── */}
       <Box
         data-testid="chat-column"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         sx={{
           width: { xs: "100%", md: panelOpen ? `${chatPct}%` : "100%" },
           minWidth: { md: 320 },
@@ -965,8 +1046,36 @@ export default function ChatWorkspace() {
           flexDirection: "column",
           bgcolor: tokens.bg.surface,
           flexShrink: 0,
+          // Anchors the drop overlay below; the column had no positioning context of its own.
+          position: "relative",
         }}
       >
+        {/* Drop overlay. pointerEvents stays off so it never swallows a click, and the drag
+            events it would otherwise intercept keep reaching the column underneath. */}
+        <Box
+          data-testid="chat-drop-overlay"
+          sx={{
+            position: "absolute", inset: 0, zIndex: 5,
+            pointerEvents: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: dragActive ? 1 : 0,
+            visibility: dragActive ? "visible" : "hidden",
+            transition: "opacity 120ms ease",
+            bgcolor: `${tokens.bg.surface}e6`,
+            border: `2px dashed ${tokens.primary.main}`,
+            borderRadius: tokens.radius.lg,
+          }}
+        >
+          <Box sx={{ textAlign: "center", color: tokens.primary.main }}>
+            <AttachFileOutlined sx={{ fontSize: 28 }} />
+            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+              {t("chat.attachments.dropTitle")}
+            </Typography>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
+              {t("chat.attachments.dropHint")}
+            </Typography>
+          </Box>
+        </Box>
         {/* Header */}
         <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           <Tooltip title={t("chat.sessions.toggle")}>
@@ -1048,6 +1157,26 @@ export default function ChatWorkspace() {
             elevation={0}
             sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.default}`, borderRadius: tokens.radius.lg, overflow: "hidden", "&:focus-within": { borderColor: tokens.primary.main, boxShadow: `0 0 0 2px ${tokens.primary.glow}` }, transition: "all 160ms ease" }}
           >
+            <ChatAttachmentChips
+              items={attachments.items}
+              onRemove={item => attachments.remove(item)}
+              onSave={item => {
+                attachments.save(item);
+                showToast(t("chat.attachments.saved", { name: item.filename }), "success");
+              }}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              data-testid="chat-attachment-input"
+              onChange={e => {
+                attachments.add(Array.from(e.target.files ?? []));
+                // Reset so picking the same file again still fires a change event.
+                e.target.value = "";
+              }}
+            />
             <TextField
               multiline
               maxRows={5}
@@ -1061,6 +1190,24 @@ export default function ChatWorkspace() {
               InputProps={{
                 disableUnderline: true,
                 sx: { px: 2, pt: 1.25, pb: 0.5, fontSize: "0.875rem", lineHeight: 1.6 },
+                startAdornment: (
+                  <InputAdornment position="start" sx={{ pb: 0.5, alignSelf: input.includes("\n") ? "flex-end" : "center" }}>
+                    <Tooltip title={t("chat.attachments.attach")}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={t("chat.attachments.attach")}
+                          data-testid="chat-attach-button"
+                          disabled={sending || attachments.busy}
+                          onClick={() => fileInputRef.current?.click()}
+                          sx={{ width: 26, height: 26, color: tokens.text.tertiary, "&:hover": { color: tokens.primary.main } }}
+                        >
+                          <AttachFileOutlined sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </InputAdornment>
+                ),
                 endAdornment: (
                   <InputAdornment position="end" sx={{ pb: 0.5, pr: 0.5, alignSelf: input.includes("\n") ? "flex-end" : "center" }}>
                     {sending ? (

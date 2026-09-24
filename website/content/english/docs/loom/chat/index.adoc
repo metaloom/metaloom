@@ -200,6 +200,47 @@ finishes streaming — and it is stored with the conversation, so reopening the 
 again. The written answer always describes the pipeline in full as well, so nothing is lost when a
 transcript is copied elsewhere.
 
+== Attaching Files to a Conversation
+
+Drag a file onto the chat and drop it, or use the paperclip beside the message box. The file appears
+as a chip above what you are typing, and the assistant can work with it straight away — ask what a
+brief says, or hand it a photo and ask for an edit.
+
+An attached file belongs to *the conversation*, not to your media library. It is not catalogued, not
+indexed for search, and no processing pipelines run against it, so dropping a reference photo into a
+chat will not quietly add it to your archive. When a chat is deleted its attachments go with it.
+
+If a file turns out to be worth keeping, the chip has a **Save to library** action. That does add it
+to your library properly: it is stored, deduplicated against what you already have, and processed
+like any other upload. The chat keeps its copy as well.
+
+=== What the Assistant Can Do With a File
+
+[options="header",cols="1,3"]
+|===
+| Kind of file | What the assistant can do
+
+| Text, Markdown, CSV, JSON, XML, source code
+| Read it and answer questions about it. Long files are read in pieces, so a large export is no
+  problem.
+
+| Images
+| Use it for picture work — editing it, or combining several images into a new one. It cannot
+  *describe* a picture to you.
+
+| Everything else, including PDF and Word
+| Nothing yet. The chip says so when you attach it, rather than letting you find out after asking.
+|===
+
+=== It Does Not Slow the Conversation Down
+
+Attaching a file does not push its contents into the conversation. The assistant is told only that
+the file is there — its name, kind and size — and fetches the parts it needs when a question actually
+calls for them. A large attachment therefore costs a conversation no more than a small one, and
+attaching several files will not crowd out what was said earlier.
+
+A conversation holds up to ten files, each up to 25 MB by default. Both limits are configurable.
+
 == Chats
 
 A **chat** is a stored conversation (`/api/v1/chats` CRUD). Its transcript — user and assistant
@@ -502,6 +543,20 @@ Full operator notes live in `loom/agent/deploy/README.md` in the source reposito
 == Configuration
 
 The agent is configured via `LOOM_AI_*` (LLM provider + loop), the coding sandbox via
-`LOOM_AGENT_SANDBOX_*` (above), and the memory bank via `LOOM_AGENT_MEMORY_*`. The agent is **enabled
-by default** but needs a reachable LLM provider to answer; the coding sandbox and memory bank are
-**off** by default. See link:../configuration/[Loom Configuration] for the full tables.
+`LOOM_AGENT_SANDBOX_*` (above), the memory bank via `LOOM_AGENT_MEMORY_*`, and file attachments via
+`LOOM_CHAT_ATTACHMENT_*`. The agent and file attachments are **enabled by default** — the agent needs
+a reachable LLM provider to answer — while the coding sandbox and memory bank are **off** by default.
+See link:../configuration/[Loom Configuration] for the full tables.
+
+=== Attachment Configuration (`LOOM_CHAT_ATTACHMENT_*`)
+
+[options="header",cols="2,1,3"]
+|===
+| Variable | Default | Meaning
+| `LOOM_CHAT_ATTACHMENT_ENABLED` | `true` | Master switch. Off hides the attach control entirely.
+| `LOOM_CHAT_ATTACHMENT_MAX_FILES` | `10` | How many files one conversation may carry.
+| `LOOM_CHAT_ATTACHMENT_MAX_BYTES` | `26214400` | Largest single file, in bytes (25 MB).
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_CHARS` | `20000` | How much of a text file the assistant reads at once before continuing in a second pass.
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_BYTES` | `8388608` | Largest file an external client may fetch through the assistant.
+| `LOOM_CHAT_ATTACHMENT_LIBRARY` | (unset) | Library that **Save to library** files into when none is chosen.
+|===

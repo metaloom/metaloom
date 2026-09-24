@@ -21,6 +21,7 @@ production.
 | [`sentiment/`](./sentiment) | `sentiment` (`io.metaloom.cortex.node.sentiment`) | Sentiment analysis — german-sentiment-bert (DE), twitter-roberta (EN), `POST /v1/sentiment` | `9110` |
 | [`depth/`](./depth) | `depthmap` (`io.metaloom.cortex.node.depthmap`) | Monocular depth — Depth-Anything-V2-Small (relative), ZoeDepth (metric), `POST /v1/depth` | `9120` |
 | [`sam2/`](./sam2) | `sam2` (`io.metaloom.cortex.node.sam2`) | Segmentation — SAM 2.1 Hiera, `POST /v1/segment` (segment-everything or box-prompted) + `/v1/track` (video propagation) | `9130` |
+| [`asr/`](./asr) | none yet | Speech recognition with word + segment time codes — Whisper large-v3-turbo, Parakeet-TDT-v3 (CPU), Voxtral Realtime (streaming). OpenAI-style `POST /v1/audio/transcriptions` + `WS /v1/realtime`. Ships as a container (`container.sh`) | `9140` |
 | [`ideogram-sidecar/`](./ideogram-sidecar) | `imagegen` (`io.metaloom.cortex.node.imagegen`) | Image generation — SDXL-Turbo by default, Ideogram 4 if you accept its gate, `POST /generate` + `/remix` | `9200` |
 | [`mage-flow-sidecar/`](./mage-flow-sidecar) | `imagegen` (same node, `port` option) | Image generation + instruction editing — Mage-Flow 4B, **MIT weights**, `POST /generate` + `/remix` | `9210` |
 | [`ltx2-sidecar/`](./ltx2-sidecar) | `videogen` (`io.metaloom.cortex.node.videogen`) | Text/image-to-video — LTX-2 19B, `POST /generate` + `/animate` → `video/mp4` | `9220` |
@@ -66,12 +67,12 @@ Not every model-backed node ships a sidecar here — several reuse an external s
 
 | Node | Where the model runs |
 |------|----------------------|
-| `whisper` (ASR) | whisper.cpp, **in-process** in the worker — no sidecar |
+| `whisper` (ASR) | whisper.cpp, **in-process** in the worker. [`asr/`](./asr) serves the same job over HTTP (plus Parakeet and Voxtral, realtime, and a `loom` response format that is `WhisperResult` JSON), but the node does not call it yet |
 | `captioning` / `vlm` | An external **OpenAI-compatible** vision endpoint (default `:8000`) |
 | `guard` | This same sidecar, with a **guardrail** model loaded instead of a chat model — every text guard family (Llama Guard 3/4, ShieldGemma, Granite Guardian) has published GGUF quantizations. It calls `POST /v1/completions` with `logprobs`, not `/v1/chat/completions`, because a guard model's answer is the probability of its decision token. ⚠️ **Image screening cannot use this sidecar**: llama.cpp serves neither multimodal guard model — no `mmproj` projector is published for Llama Guard 4 and `shieldgemma-2-4b` has no GGUF conversion — so `guard` on pictures needs vLLM |
 | `facedescription` | An external **OpenAI-compatible** vision endpoint. ⚠️ Its URL is **hardcoded** to `http://127.0.0.1:8080/v1` — the same port `llamacpp/` uses. A text-only model there answers without ever seeing the image |
 
-When one of these grows an in-repo model server (e.g. a future `asr` or `vlm` sidecar), add it
+When one of these grows an in-repo model server (as `asr` now has, or a future `vlm` sidecar), add it
 here as `sidecars/<name>/` and list it in the table above. See
 [`spec/plans/imagegen-node.md`](../spec/plans/imagegen-node.md) for the plan the two image sidecars
 came out of.

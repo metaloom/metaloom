@@ -1,0 +1,15 @@
+-- A file the user dropped into a chat. The chat window had no way to take one at all - the open
+-- spot catalogued as N24 in spec/chat/CHAT_USER_REQUESTS.md ("no attachment on the stream request,
+-- no transient asset, no way to hand bytes to a node").
+--
+-- It is a type on attachment rather than an asset, and that is the whole design decision. V2.92
+-- already made the argument for the account picture: attachment is the sink for binaries that are
+-- not assets. A dropped file is conversational, not catalogued - a reference photo handed to the
+-- agent for one question. Filing it as an asset would put it in the curated library, fire whatever
+-- ingest pipelines match it, and make "do we already have this picture?" answer yes because the
+-- user had just dropped it. Whoever wants it kept promotes it deliberately; see V2.113.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- V2.113 is where the column that carries this value goes. Nothing else may go in this file.
+ALTER TYPE "attachment_type" ADD VALUE IF NOT EXISTS 'CHAT_FILE';

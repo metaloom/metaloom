@@ -48,6 +48,9 @@
 - [x] Skills: table + versions, owner-scoped REST, progressive disclosure, `load_skill` tool, per-chat activation
 - [x] Built-in skills shipped on the classpath, always active (`BuiltinSkills`, `AgentSkill`)
 - [x] Tool advertisement filtered by the caller's permissions (`listDescriptorsFor`)
+- [x] **File attachments** — drag a file onto the chat, `CHAT_FILE` rows on `attachment` (V2.112/V2.113),
+      `/chats/:uuid/attachments`, an `<attachments>` manifest in the prompt and the `read_attachment`
+      tool (§4.5). Closes open spot **N24** in [CHAT_USER_REQUESTS.md](CHAT_USER_REQUESTS.md)
 - [x] References (chips) and `visuals` (inline pipeline graph) envelopes
 - [x] Asset visuals — `show_asset` embeds a playable viewer in the transcript (§6.2), and every search
       result set is carried as `asset-results` and mirrored into the workspace panel (§6.3)
@@ -404,6 +407,62 @@ Compaction is **best-effort** like title generation and session capture — any 
 WARN and leaves the previous summary in place. A chat must never fail because its summary
 could not be refreshed.
 
+### 4.5 File attachments
+
+A file dropped onto the chat becomes a `CHAT_FILE` row on the shared `attachment` table, owned by
+the conversation and cascade-deleted with it (V2.112 adds the enum value, V2.113 the `chat_uuid`
+column — Postgres refuses to use an enum value the same transaction added, hence two migrations).
+It is **not** a library asset; see §11 for why that is the load-bearing decision.
+
+Two things then have to be true at once: the file must be usable, and it must not sit in the LLM
+context. The answer is MCP's own resource idea, applied in-process — advertise cheaply, fetch on
+demand — which is the same shape `load_skill` already has:
+
+```
+<attachments>
+- 7c1f… · brief.md · text/markdown · 4 KB · readable as text
+- 9a02… · hero.jpg · image/jpeg · 1.2 MB · image, for generate_image
+</attachments>
+The user attached these files to this conversation. Their contents are NOT in this conversation.
+Use the read_attachment tool to read one before answering questions about it. Pass an image's id
+to generate_image to edit it or combine it with other images.
+```
+
+About 25 tokens per file, flat, whatever the file weighs. `AttachmentPromptBuilder` is pure and its
+wording is pinned by a test, because the wording is what stops a model answering questions about a
+file it never opened.
+
+The ids are the **attachment uuids**, which is what makes one id space work: `read_attachment` takes
+one, and `generate_image` accepts one in the same `assetIds` array as an asset uuid and resolves
+which kind it is server-side. Uuids do not collide, so there is nothing to disambiguate and no
+prefix to invent.
+
+| Route | Permission (+ chat ownership on all of them) |
+|---|---|
+| `POST /api/v1/chats/:uuid/attachments` | `CREATE_ATTACHMENT` |
+| `GET /api/v1/chats/:uuid/attachments` | `READ_ATTACHMENT` |
+| `GET /api/v1/chats/:uuid/attachments/:auuid/data` | `READ_ATTACHMENT` |
+| `DELETE /api/v1/chats/:uuid/attachments/:auuid` | `DELETE_ATTACHMENT` |
+| `POST /api/v1/chats/:uuid/attachments/:auuid/asset` | `CREATE_ASSET` + `READ_ATTACHMENT` |
+
+The last one is **Save to library**: it runs the ordinary ingest through `ProducedAssetIngestor`, so
+the new asset is hashed, deduplicated, published and picked up by matching pipelines like any upload
+— which is exactly what was *not* wanted when the file was merely dropped into a chat. The
+attachment stays where it is.
+
+**What can be read.** Text, markdown, CSV, JSON, XML, structured `+json`/`+xml` suffixes and source
+code come back as text; an image cannot be read as text and the tool redirects to `generate_image`;
+anything else says so plainly and names the type. `AttachmentTextExtractor` is the seam a Tika-backed
+implementation would drop into — deliberately not today's change, because Tika discovers its parsers
+by `ServiceLoader` and reflection and the Loom server has a GraalVM native-image build.
+
+**Externally**, the same store backs MCP `resources/list` and `resources/read` (see
+[../loom/MCP.md](../loom/MCP.md) §13.5), scoped by creator rather than by chat because an external
+client has no chat.
+
+No change to the stream request: it stays `{message, skillUuids, think}`. The attachments are already
+on the chat row by the time a message is sent, and the manifest is derived server-side.
+
 ## 5. UI contract
 
 `ChatWorkspace.tsx` is the whole chat surface: sessions rail, resizable chat column
@@ -655,6 +714,17 @@ in-run history is a separate, still-open gap (CTX3).
 > to "turn the agent off" fails startup validation; use `LOOM_AI_ENABLED=false` and leave the
 > defaults in place (R9).
 
+`ChatAttachmentOptions` — same package, reachable as `LoomOptions.getChatAttachment()` (§4.5).
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `LOOM_CHAT_ATTACHMENT_ENABLED` | `true` | Off hides the attach control, refuses the routes, drops `read_attachment` from the tool set and omits the manifest |
+| `LOOM_CHAT_ATTACHMENT_MAX_FILES` | `10` | Files per chat. **A per-turn context cost** — each one contributes a manifest line to every message |
+| `LOOM_CHAT_ATTACHMENT_MAX_BYTES` | `26214400` | Largest single file. `LOOM_STORAGE_MAX_UPLOAD_SIZE` still applies on top |
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_CHARS` | `20000` | Characters one `read_attachment` returns when the model names no limit; longer files are truncated and it says where to continue from |
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_BYTES` | `8388608` | Largest attachment MCP `resources/read` will base64-encode |
+| `LOOM_CHAT_ATTACHMENT_LIBRARY` | *(unset)* | Library **Save to library** files into when the caller names none. Unset means the caller must choose one |
+
 Related but owned elsewhere: `LOOM_AGENT_SANDBOX_*` (`SandboxOptions` — `_ENABLED` gates the
 coding tools, plus backend/image/TTL/quota knobs) and `LOOM_AGENT_MEMORY_*` (`MemoryOptions`,
 incl. `_MAX_WRITES_PER_RUN` and `_PROMPT_MAX_ENTRIES`).
@@ -733,6 +803,28 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 - **Agent-local tools are resolved in `AgentLoop`, not the MCP registry.** `load_skill` and
   `map_over` spend this run's budget and drive this run's `TurnStreamer`; registering them
   would expose them to external MCP clients that have neither.
+- **An attachment costs one line per turn, forever.** The `<attachments>` manifest is rebuilt
+  into the system prompt on *every* message, so it is the one recurring cost in the feature —
+  which is why `LOOM_CHAT_ATTACHMENT_MAX_FILES` exists and the skill list has no equivalent.
+  Nothing about a file's content may be inlined there, whatever the file's size.
+- **A chat attachment is not an asset, and that is the whole design.** Filing a dropped
+  reference photo in the catalogue would run matching ingest pipelines, thumbnail it, index it
+  for search, and make *"do we already have this picture?"* answer yes because the user had
+  just dropped it. It is a `CHAT_FILE` on `attachment` — the table V2.92 calls "the sink for
+  binaries that are not assets" — and it dies with the chat. **Save to library** is the
+  deliberate way out.
+- **`CHAT_FILE` rows have to be hidden on the generic `/attachments` routes.** They share a
+  table with thumbnails and face crops, which are derived from catalogued material and are an
+  ordinary `READ_ATTACHMENT` read. A chat file is private correspondence and no permission can
+  express "your own conversations", so `AttachmentEndpointService` answers 404 for a row whose
+  chat is not the caller's, and `AttachmentDaoImpl.loadPage` drops them from the listing
+  outright — excluded rather than filtered, because that query is keyset-paged and dropping
+  rows after the fact returns short pages.
+- **The agent cannot see an image.** `io.metaloom.ai.genai.llm.ChatMessage` is text-only and
+  lives in another repository, so a picture reaches the model only through a tool. That is why
+  the manifest tells it to pass an image id to `generate_image` rather than describing the
+  picture — without that line the model apologises for not having vision, which is true and
+  useless.
 
 ## 12. Where do I find …?
 
@@ -754,6 +846,12 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | Built-in skills | `loom/common/src/main/java/io/metaloom/loom/common/skill/BuiltinSkills.java`, resources under `loom/common/src/main/resources/skills/` |
 | The skill view the loop works against | `.../agent/chat/skill/AgentSkill.java` |
 | Chips / visuals extraction | `.../agent/chat/ref/ReferenceExtractor.java`, `VisualExtractor.java` |
+| The `<attachments>` manifest | `.../agent/chat/prompt/AttachmentPromptBuilder.java` (pure — the wording is pinned by a test) |
+| Reading an attachment | `loom/services/mcp/.../attachment/ChatAttachmentReader.java`, tool in `.../tool/impl/ReadAttachmentTool.java` |
+| Which text formats can be read | `loom/services/mcp/.../attachment/PlainTextExtractor.java` (`AttachmentTextExtractor` is the seam for Tika) |
+| Attachment routes | `loom/services/rest/.../endpoint/impl/ChatAttachmentEndpoint.java` (+ `…Service`) |
+| "This chat is yours" | `loom/services/rest/.../service/impl/ChatOwnership.java` — used by the stream, session-fs and attachment routes |
+| Composer chips / drop overlay | `loom-ui/src/features/chat/ChatAttachmentChips.tsx`, `useChatAttachments.ts`, `attachmentState.ts` (pure) |
 | Dagger wiring of the endpoints | `.../agent/chat/dagger/ChatEndpointModule.java` |
 | MCP tools + registry | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/` |
 | Coding tools | `loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/tool/CodingTools.java` |
@@ -786,5 +884,5 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R9 | `AiOptions.validate()` demands provider/url/model even when `ai.enabled=false` (§9). | Short-circuit `validate()` on `!enabled`, so a Loom deployment without an LLM needs no dummy provider config. |
 | R10 | This file lives under `spec/loom/ui/` but is ~80% server-side (loop, REST, config, DB). | Move to `spec/features/chat/CHAT.md` next to its sibling chat specs and fix the relative links; `TASK_UI_CHAT.md` stays the UI-side document. |
 
-_Git HEAD revision: `8e6f4915`_
-_Last updated: 2026-08-10 (mid-turn abort on the streaming path — `TurnStreamer.cancel()`)_
+_Git HEAD revision: `52631fca`_
+_Last updated: 2026-09-24 (file attachments — CHAT_FILE rows, the `<attachments>` manifest and `read_attachment`; closes N24)_

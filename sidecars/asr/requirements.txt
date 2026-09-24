@@ -1,0 +1,40 @@
+# Cortex ASR sidecar. Python 3.10+.
+#
+# torch is intentionally absent here and is installed FIRST, matched to your CUDA, by setup.sh /
+# the Dockerfile. A CUDA mismatch fails late and confusingly, so it is not left to pip to guess.
+
+# --- HTTP layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.9
+python-multipart>=0.0.9
+
+# --- audio io ---
+numpy>=1.26
+soundfile>=0.12
+soxr>=0.3
+
+# --- voxtral: Mistral Voxtral Mini 4B Realtime ---
+# VoxtralRealtimeForConditionalGeneration and the streaming processor arrived in transformers
+# 5.2.0. The Tekken tokenizer loads through mistral_common, not through tokenizers.
+transformers>=5.2
+accelerate>=1.0
+huggingface_hub>=0.25
+mistral-common[audio]>=1.9
+
+# --- whisper: OpenAI Whisper large-v3-turbo on CTranslate2 ---
+# CTranslate2 links cuBLAS 12 and cuDNN 9 at runtime. The Dockerfile's base image ships both;
+# setup.sh adds the two nvidia-* wheels below to LD_LIBRARY_PATH for a bare-metal venv.
+faster-whisper>=1.2
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+
+# --- parakeet: NVIDIA Parakeet-TDT-0.6B-v3 through its sherpa-onnx export ---
+# CPU build. The model runs ~40x faster than real time on 4 CPU threads, so it needs no GPU and
+# leaves the card to the other two.
+sherpa-onnx>=1.13.4
+
+# --- tests ---
+pytest>=8
+httpx>=0.27
+websockets>=12

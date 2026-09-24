@@ -112,6 +112,50 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 	}
 
 	@Override
+	public List<Attachment> listByChat(UUID chatUuid) {
+		if (chatUuid == null) {
+			return List.of();
+		}
+		// Same left join as every other read here: the pool lives on attachment_binary and the download path needs it.
+		return ctx()
+			.select()
+			.from(ATTACHMENT)
+			.leftJoin(ATTACHMENT_BINARY)
+			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
+			.where(ATTACHMENT.CHAT_UUID.eq(chatUuid)
+				.and(ATTACHMENT.TYPE.eq(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.CHAT_FILE)))
+			// Newest first, tie-broken by uuid: dropping several files at once gives them one timestamp, and the agent's
+			// prompt must not reshuffle between two turns of the same conversation.
+			.orderBy(ATTACHMENT.CREATED.desc(), ATTACHMENT.UUID.desc())
+			.fetchInto(getPojoClass())
+			.stream()
+			.map(a -> (Attachment) a)
+			.toList();
+	}
+
+	@Override
+	public List<Attachment> listChatFilesByCreator(UUID userUuid, int limit) {
+		if (userUuid == null || limit <= 0) {
+			return List.of();
+		}
+		// Creator rather than chat: this backs a protocol listing for callers who have no chat. Same left join, same
+		// stable ordering as listByChat.
+		return ctx()
+			.select()
+			.from(ATTACHMENT)
+			.leftJoin(ATTACHMENT_BINARY)
+			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
+			.where(ATTACHMENT.CREATOR_UUID.eq(userUuid)
+				.and(ATTACHMENT.TYPE.eq(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.CHAT_FILE)))
+			.orderBy(ATTACHMENT.CREATED.desc(), ATTACHMENT.UUID.desc())
+			.limit(limit)
+			.fetchInto(getPojoClass())
+			.stream()
+			.map(a -> (Attachment) a)
+			.toList();
+	}
+
+	@Override
 	public Attachment load(UUID uuid) {
 		return ctx()
 			.select()
@@ -122,6 +166,22 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 			.fetchOneInto(getPojoClass());
 	}
 
+	/**
+	 * The generic attachment listing, which never contains chat files.
+	 *
+	 * <p>
+	 * Every other attachment type is derived from catalogued material - a thumbnail, a face crop, a poster frame - and listing them is an ordinary
+	 * administrative read gated on {@code READ_ATTACHMENT}. A {@code CHAT_FILE} is not: it is a file somebody dropped into a private conversation, and
+	 * {@code READ_ATTACHMENT} cannot express "your own conversations". Leaving them in would mean anyone holding that permission could enumerate every
+	 * file every user had ever attached.
+	 * </p>
+	 *
+	 * <p>
+	 * Excluded outright rather than filtered by owner, because this is a keyset-paged query: dropping rows after the fact would return short pages and
+	 * break the {@code from}/{@code limit} contract. Nothing is lost - the owner reads their files through
+	 * {@code GET /chats/:uuid/attachments}, which checks ownership properly.
+	 * </p>
+	 */
 	@Override
 	public Page<Attachment> loadPage(UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection) {
 		SelectConditionStep<?> query = ctx()
@@ -129,7 +189,8 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 			.from(ATTACHMENT)
 			.leftJoin(ATTACHMENT_BINARY)
 			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
-			.where();
+			// isDistinctFrom rather than ne: a null type must stay visible, and ne(x) is null for a null left side.
+			.where(ATTACHMENT.TYPE.isDistinctFrom(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.CHAT_FILE));
 
 		return loadPage(query, fromId, pageSize, filters, sortBy, sortDirection);
 	}

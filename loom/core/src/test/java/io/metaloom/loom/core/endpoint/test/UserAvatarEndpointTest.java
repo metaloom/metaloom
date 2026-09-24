@@ -160,14 +160,9 @@ public class UserAvatarEndpointTest extends AbstractEndpointTest {
 
 	// ---------------------------------------------------------------------------------------------
 
-	/**
-	 * A download request hands back the response rather than throwing on a non-2xx, so the status has to be read off it - {@code expect} would see a
-	 * request that "succeeded".
-	 */
+	/** The bytes of an account with no picture must not be served. */
 	private void assertMissingBytes(LoomHttpClient client, UUID userUuid) throws Exception {
-		try (var response = client.downloadUserAvatar(userUuid).sync().body()) {
-			assertEquals(404, response.code(), "the bytes of an account with no picture must not be served");
-		}
+		expect(404, "Not Found", client.downloadUserAvatar(userUuid));
 	}
 
 	private UserResponse createUser(LoomHttpClient client, String prefix) throws LoomClientException {

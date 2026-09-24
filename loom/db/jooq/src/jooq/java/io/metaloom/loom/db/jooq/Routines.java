@@ -31,8 +31,10 @@ import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshRemix;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshSimple;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshTag;
 import io.metaloom.loom.db.jooq.routines.JooqSearchExtractJsonText;
+import io.metaloom.loom.db.jooq.routines.JooqSearchFormatTimecode;
 import io.metaloom.loom.db.jooq.routines.JooqSearchJsonbAllText;
 import io.metaloom.loom.db.jooq.routines.JooqSearchTokenizePath;
+import io.metaloom.loom.db.jooq.routines.JooqSearchTranscriptWindowMs;
 import io.metaloom.loom.db.jooq.routines.JooqSetLimit;
 import io.metaloom.loom.db.jooq.routines.JooqShowLimit;
 import io.metaloom.loom.db.jooq.routines.JooqShowTrgm;
@@ -59,6 +61,8 @@ import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityCommutatorOp;
 import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityDistCommutatorOp;
 import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityDistOp;
 import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityOp;
+import io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows;
+import io.metaloom.loom.db.jooq.tables.records.JooqSearchTranscriptWindowsRecord;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -66,6 +70,7 @@ import java.util.UUID;
 import org.jooq.Configuration;
 import org.jooq.Field;
 import org.jooq.JSONB;
+import org.jooq.Result;
 
 
 /**
@@ -1295,6 +1300,44 @@ public class Routines {
     }
 
     /**
+     * Call <code>public.search_format_timecode</code>
+     */
+    public static String searchFormatTimecode(
+          Configuration configuration
+        , Long pMs
+    ) {
+        JooqSearchFormatTimecode f = new JooqSearchFormatTimecode();
+        f.setPMs(pMs);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_format_timecode</code> as a field.
+     */
+    public static Field<String> searchFormatTimecode(
+          Long pMs
+    ) {
+        JooqSearchFormatTimecode f = new JooqSearchFormatTimecode();
+        f.setPMs(pMs);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.search_format_timecode</code> as a field.
+     */
+    public static Field<String> searchFormatTimecode(
+          Field<Long> pMs
+    ) {
+        JooqSearchFormatTimecode f = new JooqSearchFormatTimecode();
+        f.setPMs(pMs);
+
+        return f.asField();
+    }
+
+    /**
      * Call <code>public.search_jsonb_all_text</code>
      */
     public static String searchJsonbAllText(
@@ -1366,6 +1409,27 @@ public class Routines {
     ) {
         JooqSearchTokenizePath f = new JooqSearchTokenizePath();
         f.setPPath(pPath);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_transcript_window_ms</code>
+     */
+    public static Long searchTranscriptWindowMs(
+          Configuration configuration
+    ) {
+        JooqSearchTranscriptWindowMs f = new JooqSearchTranscriptWindowMs();
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_transcript_window_ms</code> as a field.
+     */
+    public static Field<Long> searchTranscriptWindowMs() {
+        JooqSearchTranscriptWindowMs f = new JooqSearchTranscriptWindowMs();
 
         return f.asField();
     }
@@ -2295,5 +2359,39 @@ public class Routines {
         f.set__2(__2);
 
         return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_transcript_windows</code>.
+     */
+    public static Result<JooqSearchTranscriptWindowsRecord> searchTranscriptWindows(
+          Configuration configuration
+        , UUID pTranscriptUuid
+    ) {
+        return configuration.dsl().selectFrom(io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+              pTranscriptUuid
+        )).fetch();
+    }
+
+    /**
+     * Get <code>public.search_transcript_windows</code> as a table.
+     */
+    public static JooqSearchTranscriptWindows searchTranscriptWindows(
+          UUID pTranscriptUuid
+    ) {
+        return io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+            pTranscriptUuid
+        );
+    }
+
+    /**
+     * Get <code>public.search_transcript_windows</code> as a table.
+     */
+    public static JooqSearchTranscriptWindows searchTranscriptWindows(
+          Field<UUID> pTranscriptUuid
+    ) {
+        return io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+            pTranscriptUuid
+        );
     }
 }

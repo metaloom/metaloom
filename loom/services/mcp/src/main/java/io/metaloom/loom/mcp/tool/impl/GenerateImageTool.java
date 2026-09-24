@@ -21,7 +21,9 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.api.asset.AssetId;
+import io.metaloom.loom.mcp.attachment.ChatAttachmentReader;
 import io.metaloom.loom.mcp.imagegen.ImageEditClient;
 import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
@@ -74,19 +76,22 @@ public class GenerateImageTool implements MCPTool {
 
 	static final String ORIGIN = "mcp:generate_image";
 
+
 	private final DaoCollection daos;
 	private final ImageEditClient client;
 	private final ProducedAssetIngestor ingestor;
 	private final BinaryStorageResolver storageResolver;
+	private final ChatAttachmentReader attachmentReader;
 	private final ImageGenToolOptions options;
 
 	@Inject
 	public GenerateImageTool(DaoCollection daos, ImageEditClient client, ProducedAssetIngestor ingestor,
-		BinaryStorageResolver storageResolver, LoomOptions loomOptions) {
+		BinaryStorageResolver storageResolver, ChatAttachmentReader attachmentReader, LoomOptions loomOptions) {
 		this.daos = daos;
 		this.client = client;
 		this.ingestor = ingestor;
 		this.storageResolver = storageResolver;
+		this.attachmentReader = attachmentReader;
 		this.options = loomOptions.getImageGenTool();
 	}
 
@@ -103,8 +108,10 @@ public class GenerateImageTool implements MCPTool {
 				new MCPToolParam("prompt", "string",
 					"What to draw, or what to change about the input images. Describe the intended result, not the steps.", true),
 				new MCPToolParam("assetIds", "array",
-					"Input images, by asset UUID or SHA-512, as returned by the search tools. Order matters: the first is the "
-						+ "image being edited and the rest are references drawn from. Omit entirely for text-to-image.",
+					"Input images. Each one is either an asset - by UUID or SHA-512, as returned by the search tools - or the id of "
+						+ "a file the user attached to this conversation, as listed under <attachments>. The two can be mixed. Order "
+						+ "matters: the first is the image being edited and the rest are references drawn from. Omit entirely for "
+						+ "text-to-image.",
 					false),
 				new MCPToolParam("maskPrompt", "string",
 					"Confine the edit to one region, named in words - \"the boy's hair\", \"the sky\". Everything outside it is "
@@ -141,24 +148,16 @@ public class GenerateImageTool implements MCPTool {
 					+ " were given and at most " + options.getMaxImages() + " can be combined in one image."));
 			}
 
-			List<Asset> inputs = new ArrayList<>();
+			List<ImageInput> inputs = new ArrayList<>();
 			List<byte[]> images = new ArrayList<>();
-			for (String assetId : assetIds) {
-				Asset asset = daos.assetDao().loadById(AssetId.assetId(assetId));
-				if (asset == null) {
-					return Future.succeededFuture(mcpTextResult("Asset not found, nothing to generate from: " + assetId));
+			for (String id : assetIds) {
+				Resolved resolved = resolveInput(id, ctx);
+				if (resolved.error() != null) {
+					// An answer rather than a failure: the model can drop this input and try again.
+					return Future.succeededFuture(mcpTextResult(resolved.error()));
 				}
-				if (asset.getMimeType() == null || !asset.getMimeType().startsWith("image/")) {
-					return Future.succeededFuture(mcpTextResult("Not an image, so it cannot be used as an input: "
-						+ asset.getFilename() + " (" + asset.getMimeType() + ")"));
-				}
-				byte[] bytes = readBinary(asset);
-				if (bytes == null) {
-					return Future.succeededFuture(mcpTextResult("The stored file for " + asset.getFilename()
-						+ " is missing, so it cannot be used as an input."));
-				}
-				inputs.add(asset);
-				images.add(bytes);
+				inputs.add(resolved.input());
+				images.add(resolved.bytes());
 			}
 
 			UUID libraryUuid = resolveLibrary(inputs);
@@ -190,7 +189,7 @@ public class GenerateImageTool implements MCPTool {
 		}
 	}
 
-	private JsonObject render(Asset asset, String prompt, List<Asset> inputs, String maskPrompt) {
+	private JsonObject render(Asset asset, String prompt, List<ImageInput> inputs, String maskPrompt) {
 		String uuid = asset.getUuid().toString();
 		String filename = asset.getFilename();
 
@@ -198,7 +197,7 @@ public class GenerateImageTool implements MCPTool {
 		if (inputs.isEmpty()) {
 			text.append("Generated a new image from the prompt");
 		} else if (inputs.size() == 1) {
-			text.append("Edited ").append(inputs.get(0).getFilename());
+			text.append("Edited ").append(inputs.get(0).filename());
 		} else {
 			text.append("Combined ").append(inputs.size()).append(" images");
 		}
@@ -209,8 +208,8 @@ public class GenerateImageTool implements MCPTool {
 			.append(" (").append(uuid).append(") and is shown in the chat.");
 
 		JsonArray references = new JsonArray().add(reference("asset", uuid, filename));
-		for (Asset input : inputs) {
-			references.add(reference("asset", input.getUuid().toString(), input.getFilename()));
+		for (ImageInput input : inputs) {
+			references.add(reference(input.referenceType(), input.uuid().toString(), input.filename()));
 		}
 
 		// Byte-for-byte the payload ShowAssetTool emits, so the existing renderer draws it.
@@ -235,11 +234,13 @@ public class GenerateImageTool implements MCPTool {
 	 * is nearly always where someone would look for it.
 	 * </p>
 	 */
-	private UUID resolveLibrary(List<Asset> inputs) {
-		if (!inputs.isEmpty()) {
-			AssetBinary binary = daos.assetBinaryDao().loadPrimaryByAssetUuid(inputs.get(0).getUuid());
-			if (binary != null && binary.getLibraryUuid() != null) {
-				return binary.getLibraryUuid();
+	private UUID resolveLibrary(List<ImageInput> inputs) {
+		// The first input that has a library to lend. A chat attachment never has one - it was filed
+		// nowhere - so a generation made purely from dropped files falls through to the configured
+		// default, which is the same answer text-to-image gets.
+		for (ImageInput input : inputs) {
+			if (input.libraryUuid() != null) {
+				return input.libraryUuid();
 			}
 		}
 		String configured = options.getLibraryUuid();
@@ -250,6 +251,98 @@ public class GenerateImageTool implements MCPTool {
 			return UUID.fromString(configured.trim());
 		} catch (IllegalArgumentException e) {
 			log.warn("LOOM_MCP_IMAGEGEN_LIBRARY is not a valid UUID: {}", configured);
+			return null;
+		}
+	}
+
+	/**
+	 * One input image, from either of the two places an image can come from.
+	 *
+	 * <p>
+	 * An asset and a chat attachment are the same thing to the sidecar - bytes and a name - and
+	 * flattening them here is what lets the tool keep a single {@code assetIds} parameter. The model
+	 * passes back whatever id it was given, and the server works out which kind it is; uuids do not
+	 * collide, so there is nothing to disambiguate.
+	 * </p>
+	 *
+	 * @param attachment whether this came from the conversation rather than the catalog
+	 * @param libraryUuid where this input is filed. Always null for an attachment, and null for the
+	 *            rarer case of an asset whose binary row names no library - which is why the two are
+	 *            told apart by {@code attachment} rather than by this being null.
+	 */
+	private record ImageInput(UUID uuid, String filename, String mimeType, boolean attachment, UUID libraryUuid) {
+
+		/** How this input is cited back to the chat, so a reference resolves to the right thing. */
+		String referenceType() {
+			return attachment ? "attachment" : "asset";
+		}
+	}
+
+	/** Either an input with its bytes, or the sentence explaining why there is none. */
+	private record Resolved(ImageInput input, byte[] bytes, String error) {
+
+		static Resolved of(ImageInput input, byte[] bytes) {
+			return new Resolved(input, bytes, null);
+		}
+
+		static Resolved error(String message) {
+			return new Resolved(null, null, message);
+		}
+	}
+
+	/**
+	 * Turn one id into bytes: an asset first, then a file attached to this conversation.
+	 *
+	 * <p>
+	 * Assets are tried first because that is the overwhelmingly common case and because
+	 * {@code AssetId} also accepts a SHA-512, which is not a uuid at all. Only if nothing in the
+	 * catalog matches is the id treated as an attachment - and then
+	 * {@link ChatAttachmentReader#resolve} enforces that it belongs to a chat the caller owns, so a
+	 * model that invents or copies an id gets nothing.
+	 * </p>
+	 */
+	private Resolved resolveInput(String id, MCPCallerContext ctx) throws Exception {
+		Asset asset = daos.assetDao().loadById(AssetId.assetId(id));
+		if (asset != null) {
+			if (asset.getMimeType() == null || !asset.getMimeType().startsWith("image/")) {
+				return Resolved.error("Not an image, so it cannot be used as an input: "
+					+ asset.getFilename() + " (" + asset.getMimeType() + ")");
+			}
+			byte[] bytes = readBinary(asset);
+			if (bytes == null) {
+				return Resolved.error("The stored file for " + asset.getFilename()
+					+ " is missing, so it cannot be used as an input.");
+			}
+			AssetBinary binary = daos.assetBinaryDao().loadPrimaryByAssetUuid(asset.getUuid());
+			return Resolved.of(new ImageInput(asset.getUuid(), asset.getFilename(), asset.getMimeType(), false,
+				binary == null ? null : binary.getLibraryUuid()), bytes);
+		}
+
+		Attachment attachment = attachmentUuid(id) == null ? null
+			: attachmentReader.resolve(attachmentUuid(id), ctx.chatUuid(), ctx.userUuid());
+		if (attachment == null) {
+			return Resolved.error("There is nothing with the id " + id
+				+ " - it is neither an asset nor a file attached to this conversation.");
+		}
+		if (!ChatAttachmentReader.isImage(attachment)) {
+			return Resolved.error("The attachment " + attachment.getFilename() + " is "
+				+ attachment.getMimeType() + ", not an image, so it cannot be used to make a picture.");
+		}
+		if (!attachmentReader.exists(attachment)) {
+			return Resolved.error("The stored file for " + attachment.getFilename()
+				+ " is missing, so it cannot be used as an input.");
+		}
+		try (InputStream in = attachmentReader.open(attachment)) {
+			return Resolved.of(new ImageInput(attachment.getUuid(), attachment.getFilename(), attachment.getMimeType(), true, null),
+				in.readAllBytes());
+		}
+	}
+
+	private static UUID attachmentUuid(String id) {
+		try {
+			return UUID.fromString(id.trim());
+		} catch (IllegalArgumentException e) {
+			// A SHA-512 or a typo. Either way it is not an attachment id.
 			return null;
 		}
 	}

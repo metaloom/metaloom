@@ -70,7 +70,7 @@ that.
 | **loom-ui** | React / Vite / MUI web front end | `loom-ui/` |
 | **loom-app** | Electron desktop wrapper — experiment, in no build ([loom-app/LOOM_APP.md](loom-app/LOOM_APP.md)) | `loom-app/` |
 | **website** | Hugo marketing + customer documentation site | `website/` |
-| **sidecars** | HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — six Python, one (`llamacpp`) a container; none in Helm yet | `sidecars/` |
+| **sidecars** | HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — mostly Python FastAPI; `llamacpp` wraps upstream's image, `asr` (:9140, time-coded ASR) is a tested container; none in Helm yet | `sidecars/` |
 
 Top-level reactor modules: `bom, loom-test-env, loom-shared, loom-client, cortex, loom, cli,
 examples, integration-test, e2e-test, website`.
@@ -496,6 +496,8 @@ spec/
 ├── sidecars/                          # HTTP model servers. NONE is in Helm or covered by a test;
 │   │                                  #   only llamacpp is containerised — see SIDECARS.md
 │   ├── SIDECARS.md                    # Index: ports, consumers, deployment status
+│   ├── ASR_SIDECAR.md                 # :9140 — Whisper / Parakeet / Voxtral Realtime, word +
+│   │                                  #   segment time codes, container, live-tested; no node yet
 │   ├── DEPTH_SIDECAR.md               # :9120 — Depth-Anything-V2 / ZoeDepth → NEARNESS map
 │   ├── IDEOGRAM_SIDECAR.md            # :9200 — SDXL-Turbo / Ideogram-4 nf4 image generation
 │   ├── LLAMACPP_SIDECAR.md            # :8080 — llama.cpp official image (docker OR podman), the
@@ -864,7 +866,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Shared S3 support for nodes | `cortex/s3-common/` (design in [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md)) |
 | Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md)) |
 | Shared LLM support for nodes | `cortex/llm-common/` — the one `LLMProvider` Dagger binding (`LLMProviderModule`), the endpoint options, `LlmInvoker`, `TextChunker`. Used by `llm` and `translate` |
-| Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar,asr}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| **Time-coded speech recognition as a service** (Whisper, Parakeet, Voxtral; realtime) | `sidecars/asr/` — [sidecars/ASR_SIDECAR.md](sidecars/ASR_SIDECAR.md). Its `loom` output is `WhisperResult` JSON |
 | The LLM backend those `llm`/`translate` options point at | `sidecars/llamacpp/` — llama.cpp's official image on :8080, docker or podman ([sidecars/LLAMACPP_SIDECAR.md](sidecars/LLAMACPP_SIDECAR.md)) |
 | **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
 | **Semantic search** | `loom-shared/api/.../search/{TextEmbedder,RankFusion}.java`, `loom/core/.../core/search/OpenAiTextEmbedder.java`, `loom/db/jooq/.../search/SearchEmbeddingService.java` |

@@ -24,6 +24,8 @@ public class LoomOptions implements Option {
 
 	private ImageGenToolOptions imageGenTool = new ImageGenToolOptions();
 
+	private ChatAttachmentOptions chatAttachment = new ChatAttachmentOptions();
+
 	private SearchOptions search = new SearchOptions();
 
 	private SimilarityOptions similarity = new SimilarityOptions();
@@ -48,6 +50,7 @@ public class LoomOptions implements Option {
 		memory.overrideWithEnv();
 		nodeExec.overrideWithEnv();
 		imageGenTool.overrideWithEnv();
+		chatAttachment.overrideWithEnv();
 		search.overrideWithEnv();
 		similarity.overrideWithEnv();
 		vectorIndex.overrideWithEnv();
@@ -144,6 +147,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public ChatAttachmentOptions getChatAttachment() {
+		return chatAttachment;
+	}
+
+	public LoomOptions setChatAttachment(ChatAttachmentOptions chatAttachment) {
+		this.chatAttachment = chatAttachment;
+		return this;
+	}
+
 	public SearchOptions getSearch() {
 		return search;
 	}
@@ -210,6 +222,7 @@ public class LoomOptions implements Option {
 			.nested("memory", memory)
 			.nested("nodeExec", nodeExec)
 			.nested("imageGenTool", imageGenTool)
+			.nested("chatAttachment", chatAttachment)
 			.nested("search", search)
 			.nested("similarity", similarity)
 			.nested("media", media)

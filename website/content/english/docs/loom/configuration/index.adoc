@@ -304,6 +304,20 @@ Settings for the agent link:../chat/#memory[memory bank] (`LOOM_AGENT_MEMORY_*`)
 | `LOOM_AGENT_MEMORY_MOUNT_PATH` | `/memory` | Sandbox mount path for memory
 |===
 
+Settings for link:../chat/#attaching-files-to-a-conversation[files attached to a chat]
+(`LOOM_CHAT_ATTACHMENT_*`):
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_CHAT_ATTACHMENT_ENABLED` | `true` | Allow files to be attached to a chat
+| `LOOM_CHAT_ATTACHMENT_MAX_FILES` | `10` | Files one conversation may carry
+| `LOOM_CHAT_ATTACHMENT_MAX_BYTES` | `26214400` | Largest single file, in bytes (25 MB)
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_CHARS` | `20000` | How much of a text file the assistant reads at once
+| `LOOM_CHAT_ATTACHMENT_MAX_READ_BYTES` | `8388608` | Largest file an external client may fetch through the assistant
+| `LOOM_CHAT_ATTACHMENT_LIBRARY` | _(unset)_ | Library that "Save to library" files into when none is chosen
+|===
+
 === Playable video and poster frames
 
 Loom stores the file you gave it and nothing else, so a thumbnail for a video and a stream a

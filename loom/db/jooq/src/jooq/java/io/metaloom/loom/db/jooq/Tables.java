@@ -72,6 +72,7 @@ import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocument;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocumentDeleted;
+import io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows;
 import io.metaloom.loom.db.jooq.tables.JooqShare;
 import io.metaloom.loom.db.jooq.tables.JooqShareAnnotation;
 import io.metaloom.loom.db.jooq.tables.JooqShareComment;
@@ -91,6 +92,13 @@ import io.metaloom.loom.db.jooq.tables.JooqUser;
 import io.metaloom.loom.db.jooq.tables.JooqUserGroup;
 import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
+import io.metaloom.loom.db.jooq.tables.records.JooqSearchTranscriptWindowsRecord;
+
+import java.util.UUID;
+
+import org.jooq.Configuration;
+import org.jooq.Field;
+import org.jooq.Result;
 
 
 /**
@@ -521,6 +529,45 @@ public class Tables {
      * indexer; unused by the Postgres provider.
      */
     public static final JooqSearchDocumentDeleted SEARCH_DOCUMENT_DELETED = JooqSearchDocumentDeleted.SEARCH_DOCUMENT_DELETED;
+
+    /**
+     * The table <code>public.search_transcript_windows</code>.
+     */
+    public static final JooqSearchTranscriptWindows SEARCH_TRANSCRIPT_WINDOWS = JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS;
+
+    /**
+     * Call <code>public.search_transcript_windows</code>.
+     */
+    public static Result<JooqSearchTranscriptWindowsRecord> SEARCH_TRANSCRIPT_WINDOWS(
+          Configuration configuration
+        , UUID pTranscriptUuid
+    ) {
+        return configuration.dsl().selectFrom(io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+              pTranscriptUuid
+        )).fetch();
+    }
+
+    /**
+     * Get <code>public.search_transcript_windows</code> as a table.
+     */
+    public static JooqSearchTranscriptWindows SEARCH_TRANSCRIPT_WINDOWS(
+          UUID pTranscriptUuid
+    ) {
+        return io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+            pTranscriptUuid
+        );
+    }
+
+    /**
+     * Get <code>public.search_transcript_windows</code> as a table.
+     */
+    public static JooqSearchTranscriptWindows SEARCH_TRANSCRIPT_WINDOWS(
+          Field<UUID> pTranscriptUuid
+    ) {
+        return io.metaloom.loom.db.jooq.tables.JooqSearchTranscriptWindows.SEARCH_TRANSCRIPT_WINDOWS.call(
+            pTranscriptUuid
+        );
+    }
 
     /**
      * One shareable link to one asset or collection, viewable without a Loom

@@ -192,8 +192,13 @@ public class MCPToolRegistry {
 
 	/**
 	 * Check if the user has all required permissions.
+	 *
+	 * <p>
+	 * Public because {@code resources/read} has to make exactly this check and a second copy of it would be a second thing to get wrong. It is about
+	 * MCP callers rather than about tools specifically, despite living here.
+	 * </p>
 	 */
-	private Future<Boolean> checkPermissions(User user, List<String> requiredPermissions) {
+	public Future<Boolean> checkPermissions(User user, List<String> requiredPermissions) {
 		return authorizationProvider.getAuthorizations(user)
 			.map(v -> {
 				// Check if user has all required permissions

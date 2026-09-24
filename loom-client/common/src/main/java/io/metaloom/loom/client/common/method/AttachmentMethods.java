@@ -7,6 +7,7 @@ import java.util.UUID;
 import io.metaloom.loom.client.common.LoomBinaryResponse;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
+import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentListResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentUpdateRequest;
@@ -63,4 +64,39 @@ public interface AttachmentMethods {
 	LoomClientRequest<AttachmentListResponse> listAttachments();
 
 	LoomClientRequest<NoResponse> deleteAttachment(UUID attachmentUuid);
+
+	// ---- chat attachments ------------------------------------------------------------------
+	//
+	// Files a user dropped into a conversation. A separate surface from the routes above because a
+	// chat file is owned by its chat rather than by an asset: it is reachable only through the chat,
+	// and the generic routes above deliberately hide it from everyone but the chat's owner.
+
+	/**
+	 * Attach a file to a chat.
+	 *
+	 * @param chatUuid the conversation the file belongs to
+	 */
+	LoomClientRequest<AttachmentResponse> uploadChatAttachment(UUID chatUuid, File file, String mimeType);
+
+	/** The files attached to a chat, newest first. */
+	LoomClientRequest<AttachmentListResponse> listChatAttachments(UUID chatUuid);
+
+	/** Detach a file. The bytes stay in content-addressed storage; only the chat's reference goes. */
+	LoomClientRequest<NoResponse> deleteChatAttachment(UUID chatUuid, UUID attachmentUuid);
+
+	/** The raw bytes of a chat attachment. */
+	LoomClientRequest<LoomBinaryResponse> downloadChatAttachment(UUID chatUuid, UUID attachmentUuid);
+
+	/**
+	 * Save a chat attachment into the media library as a real asset.
+	 *
+	 * <p>
+	 * The attachment stays on the chat: a file can be in the conversation and in the library at once,
+	 * and deleting the chat afterwards must not take the asset with it.
+	 * </p>
+	 *
+	 * @param libraryUuid where to file it, or null to use LOOM_CHAT_ATTACHMENT_LIBRARY
+	 */
+	LoomClientRequest<AssetResponse> saveChatAttachmentToLibrary(UUID chatUuid, UUID attachmentUuid, UUID libraryUuid);
+
 }

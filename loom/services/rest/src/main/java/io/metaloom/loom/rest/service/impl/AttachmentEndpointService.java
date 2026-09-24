@@ -57,17 +57,55 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 
 	private final StorageCapacityGuard capacityGuard;
 
+	private final ChatOwnership chatOwnership;
+
 	@Inject
 	public AttachmentEndpointService(AttachmentDao attachmentDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator,
-		BinaryStorageResolver storageResolver, StorageCapacityGuard capacityGuard) {
+		BinaryStorageResolver storageResolver, StorageCapacityGuard capacityGuard, ChatOwnership chatOwnership) {
 		super(attachmentDao, daos, modelBuilder, validator);
 		this.storageResolver = storageResolver;
 		this.capacityGuard = capacityGuard;
+		this.chatOwnership = chatOwnership;
+	}
+
+	/**
+	 * Hide a chat file from anyone but the owner of its chat.
+	 *
+	 * <p>
+	 * {@code READ_ATTACHMENT} is the right gate for a thumbnail or a face crop: both are derived from catalogued material, and an operator holding the
+	 * permission is meant to see them. A {@code CHAT_FILE} is a file somebody dropped into a private conversation, and no permission in the ACL can
+	 * express "your own conversations" - so ownership is checked here, on top of the permission, exactly as the chat stream and session-filesystem
+	 * routes do.
+	 * </p>
+	 *
+	 * <p>
+	 * Returns 404 rather than 403 for the same reason {@link ChatOwnership#loadOwned} does: a caller with no legitimate access must not be able to tell
+	 * a foreign uuid from an unused one. The listing does not need this guard because chat files are excluded from it entirely, in the DAO.
+	 * </p>
+	 *
+	 * @param attachment the row being served, may be null
+	 * @return the same attachment, for chaining
+	 */
+	private Attachment guardChatFile(LoomRoutingContext lrc, Attachment attachment) {
+		if (attachment == null || attachment.getType() != AttachmentType.CHAT_FILE) {
+			return attachment;
+		}
+		if (!chatOwnership.isOwnedBy(attachment.getChatUuid(), lrc.userUuid())) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Attachment not found.");
+		}
+		return attachment;
 	}
 
 	@Override
 	public void delete(LoomRoutingContext lrc, UUID uuid) {
-		delete(lrc, DELETE_ATTACHMENT, uuid);
+		// Nested inside the permission check rather than run before it: otherwise a caller holding no
+		// DELETE_ATTACHMENT at all would get 404 for a foreign chat file and 403 for a thumbnail, and
+		// could tell the two apart. The inner delete re-checks the same permission, which costs a
+		// lookup and keeps the guard on the right side of the gate.
+		checkPerm(lrc, DELETE_ATTACHMENT, () -> {
+			guardChatFile(lrc, dao().load(uuid));
+			delete(lrc, DELETE_ATTACHMENT, uuid);
+		});
 		// Note: the bytes are deliberately not reclaimed here. attachment_binary is a shared,
 		// content-addressed row that outlives any single attachment (that is why it is a separate
 		// table keyed by sha512sum), and there is no cross-table reference count covering both it
@@ -82,7 +120,7 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 	@Override
 	public void load(LoomRoutingContext lrc, UUID uuid) {
 		load(lrc, READ_ATTACHMENT, () -> {
-			return dao().load(uuid);
+			return guardChatFile(lrc, dao().load(uuid));
 		}, modelBuilder::toResponse);
 	}
 
@@ -133,7 +171,7 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 	 */
 	public void download(LoomRoutingContext lrc, UUID uuid) {
 		checkPerm(lrc, READ_ATTACHMENT, () -> {
-			Attachment attachment = dao().load(uuid);
+			Attachment attachment = guardChatFile(lrc, dao().load(uuid));
 			if (attachment == null || attachment.getSha512sum() == null) {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Attachment not found.");
 			}
@@ -189,7 +227,7 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 			validator.validate(request);
 
 			UUID userUuid = lrc.userUuid();
-			Attachment attachment = dao().load(id);
+			Attachment attachment = guardChatFile(lrc, dao().load(id));
 			update(request::getFilename, attachment::setFilename);
 			update(request::getMimeType, attachment::setMimeType);
 			update(request::getMeta, attachment::setMeta);
@@ -219,11 +257,19 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 			// Historic default. Kept so existing callers, which send no type at all, behave as before.
 			return AttachmentType.EMBEDDING_ATTACHMENT;
 		}
+		AttachmentType type;
 		try {
-			return AttachmentType.valueOf(value.trim().toUpperCase());
+			type = AttachmentType.valueOf(value.trim().toUpperCase());
 		} catch (IllegalArgumentException e) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "Unknown attachment type '" + value + "'.");
 		}
+		if (type == AttachmentType.CHAT_FILE) {
+			// This route has no chat to attach it to, and a CHAT_FILE with a null chat_uuid is an orphan
+			// that no ownership check can ever admit and no cascade can ever clean up.
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
+				"Chat files are created through POST /chats/:uuid/attachments, which knows which conversation they belong to.");
+		}
+		return type;
 	}
 
 }
