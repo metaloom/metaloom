@@ -94,10 +94,11 @@ public class DatabaseInitializer {
 			role = roleDao.createRole(adminUser.getUuid(), ROLE_NAME);
 			role.setUuid(LoomUUID.timeOrdered());
 			roleDao.store(role);
-			// Grand all perms to the role
-			for (Permission perm : Permission.values()) {
-				permissionDao.grantRolePermission(role.getUuid(), perm);
-			}
+		}
+		// Granted on every boot, not just at creation: Permission.values() grows between releases and an
+		// existing installation's admin would silently lack any newly added permission.
+		for (Permission perm : Permission.values()) {
+			permissionDao.grantRolePermission(role.getUuid(), perm);
 		}
 		groupDao.addRoleToGroup(group, role);
 

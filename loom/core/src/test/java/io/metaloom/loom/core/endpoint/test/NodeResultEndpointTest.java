@@ -171,6 +171,50 @@ public class NodeResultEndpointTest extends AbstractEndpointTest {
 		}
 	}
 
+	/**
+	 * A user without UPDATE_ASSET may not write a ledger row for the asset.
+	 */
+	@Test
+	public void testCreateRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			NodeResultCreateRequest request = new NodeResultCreateRequest();
+			request.setNodeKind("whisper");
+			request.setState("SUCCESS");
+			expect(403, "Forbidden", client.createAssetNodeResult(ASSET_UUID, request));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not list the ledger.
+	 */
+	@Test
+	public void testListRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.listAssetNodeResults(ASSET_UUID));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not load a single ledger row - the check fires before the DAO lookup, so even a
+	 * non-existent uuid must still be rejected with 403, not 404.
+	 */
+	@Test
+	public void testLoadRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.loadAssetNodeResult(ASSET_UUID, UUID.randomUUID()));
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not delete a ledger row.
+	 */
+	@Test
+	public void testDeleteRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.deleteAssetNodeResult(ASSET_UUID, UUID.randomUUID()));
+		}
+	}
+
 	private NodeResultResponse createNodeResult(LoomHttpClient client, String nodeKind, String nodeId, String state, UUID transcriptUuid)
 		throws LoomClientException {
 		NodeResultCreateRequest request = new NodeResultCreateRequest();

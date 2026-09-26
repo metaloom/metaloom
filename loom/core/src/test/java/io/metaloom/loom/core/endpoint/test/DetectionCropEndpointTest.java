@@ -77,9 +77,44 @@ public class DetectionCropEndpointTest extends AbstractEndpointTest {
 		}
 	}
 
+	/**
+	 * Deleting the asset takes its detection with it (V2.43 {@code detection.asset_uuid ON DELETE CASCADE}), and the crop attachment cascades from the
+	 * detection in turn (V2.79 {@code attachment.detection_uuid ON DELETE CASCADE}). The route must answer 404, not a dangling reference.
+	 */
+	@Test
+	public void testCropIsGoneAfterItsAssetIsDeleted() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			io.metaloom.loom.db.model.asset.Asset asset = seedAsset("crop-cascade.jpg");
+			DetectionResponse detection = createFaceDetection(client, asset.getUuid());
+			uploadCrop(client, asset.getUuid(), detection.getUuid());
+
+			try (var response = client.loadDetectionCrop(asset.getUuid(), detection.getUuid()).sync().body()) {
+				assertTrue(response.getStream().readAllBytes().length > 0, "the crop exists before the delete");
+			}
+
+			daos().assetDao().delete(asset.getUuid());
+
+			expect(404, "Not Found", client.loadDetectionCrop(asset.getUuid(), detection.getUuid()));
+		}
+	}
+
+	private io.metaloom.loom.db.model.asset.Asset seedAsset(String filename) {
+		io.metaloom.loom.db.dagger.DaoCollection daos = daos();
+		io.metaloom.loom.db.model.asset.Asset asset = daos.assetDao().createAsset(adminUuid(),
+			io.metaloom.utils.hash.SHA512.fromString(UUID.randomUUID().toString().replace("-", "").repeat(4)),
+			"image/jpeg", filename, "/media/" + filename, 42L);
+		daos.assetDao().store(asset);
+		return asset;
+	}
+
 	// ---------------------------------------------------------------------------------------------
 
 	private DetectionResponse createFaceDetection(LoomHttpClient client) throws LoomClientException {
+		return createFaceDetection(client, ASSET_UUID);
+	}
+
+	private DetectionResponse createFaceDetection(LoomHttpClient client, UUID assetUuid) throws LoomClientException {
 		DetectionBulkCreateRequest request = new DetectionBulkCreateRequest();
 		request.getDetections().add(new DetectionCreateRequest()
 			.setType("face")
@@ -91,14 +126,18 @@ public class DetectionCropEndpointTest extends AbstractEndpointTest {
 			.setBboxWidth(0.1f)
 			.setBboxHeight(0.2f)
 			.setConfidence(0.95f));
-		return client.bulkCreateAssetDetections(ASSET_UUID, request).sync().body().getDetections().get(0);
+		return client.bulkCreateAssetDetections(assetUuid, request).sync().body().getDetections().get(0);
 	}
 
 	private AttachmentResponse uploadCrop(LoomHttpClient client, UUID detectionUuid) throws Exception {
+		return uploadCrop(client, ASSET_UUID, detectionUuid);
+	}
+
+	private AttachmentResponse uploadCrop(LoomHttpClient client, UUID assetUuid, UUID detectionUuid) throws Exception {
 		File file = File.createTempFile("face-crop-", ".jpg");
 		try {
 			ImageIO.write(new BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB), "jpg", file);
-			return client.uploadFaceCrop(file, ASSET_UUID, detectionUuid, "192", "facedetect").sync().body();
+			return client.uploadFaceCrop(file, assetUuid, detectionUuid, "192", "facedetect").sync().body();
 		} finally {
 			file.delete();
 		}

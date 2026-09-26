@@ -44,6 +44,10 @@ public class LoomImpl implements Loom {
 			loomInternal.boot().init(true);
 		} catch (Exception e) {
 			log.error("Error while starting loom", e);
+			// Swallowing this left the caller blocking on the latch forever: a process that never serves
+			// a request and never exits.
+			shutdown = true;
+			throw e;
 		}
 
 		if (block) {

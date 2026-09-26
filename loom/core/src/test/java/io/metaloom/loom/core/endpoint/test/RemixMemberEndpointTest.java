@@ -7,6 +7,7 @@ import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 import static io.metaloom.loom.test.data.TestValues.ASSET_UUID;
 import static io.metaloom.loom.test.data.TestValues.REMIX_UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -140,6 +141,43 @@ public class RemixMemberEndpointTest extends AbstractEndpointTest {
 			UUID remixUuid = client.createRemix(remix("bad-source")).sync().body().getUuid();
 			expect(400, "Bad Request", client.setRemixSource(remixUuid, ASSET_UUID));
 		}
+	}
+
+	/**
+	 * Deleting the remix's source asset drops only its own membership (V2.100 {@code remix_member.asset_uuid ON DELETE CASCADE}) and clears the
+	 * source pointer ({@code remix.source_asset_uuid ON DELETE SET NULL}); the remix and the other member survive.
+	 */
+	@Test
+	public void testDeletingTheSourceAssetLeavesTheRemixStanding() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			io.metaloom.loom.db.model.asset.Asset source = seedAsset("remix-source.jpg");
+			io.metaloom.loom.db.model.asset.Asset other = seedAsset("remix-other.jpg");
+
+			UUID remixUuid = client.createRemix(remix("cascade")).sync().body().getUuid();
+			client.addRemixAssets(remixUuid, List.of(source.getUuid(), other.getUuid())).sync();
+			client.setRemixSource(remixUuid, source.getUuid()).sync().body();
+
+			daos().assetDao().delete(source.getUuid());
+
+			RemixResponse reloaded = client.loadRemix(remixUuid).sync().body();
+			assertThat(reloaded).isValid().hasMemberCount(1);
+			assertNull(reloaded.getSourceAssetUuid(), "the source pointer must be nulled, not left dangling");
+
+			RemixMemberListResponse members = client.listRemixAssets(remixUuid).sync().body();
+			assertEquals(1, members.getData().size());
+			assertEquals(other.getUuid(), members.getData().get(0).getAssetUuid(), "the other member must survive untouched");
+		}
+	}
+
+	private io.metaloom.loom.db.model.asset.Asset seedAsset(String filename) {
+		io.metaloom.loom.db.dagger.DaoCollection daos = daos();
+		io.metaloom.loom.db.model.asset.Asset asset = daos.assetDao().createAsset(adminUuid(),
+			io.metaloom.utils.hash.SHA512.fromString(UUID.randomUUID().toString().replace("-", "").repeat(4)),
+			"image/jpeg", filename, "/media/" + filename, 42L);
+		daos.assetDao().store(asset);
+		return asset;
 	}
 
 	@Test

@@ -610,9 +610,13 @@ no expiry and is only invalidated by the role endpoint, so a grant written strai
 DAO after a check has already run stays invisible for the rest of that test. A fresh test
 gets a cold cache.
 
+`TranscriptEndpointTest`, `JsonCompEndpointTest` and `NodeResultEndpointTest` now each carry
+their own `test*RequiresPermission` cases (403 on `READ_ASSET` for the read/list routes, on
+`UPDATE_ASSET` for create/update/delete — the transcript, json-comp and node-result endpoints
+all gate on the *asset*, since none of these rows carry their own permission).
+
 Non-CRUD tests with **no** permission assertion at all (open work):
-`TranscriptEndpointTest`, `AssetComponentEndpointTest`,
-`JsonCompEndpointTest`, `NodeResultEndpointTest`, `AssetTaskEndpointTest`,
+`AssetComponentEndpointTest`, `AssetTaskEndpointTest`,
 `AnnotationTaskEndpointTest`, `ProcessorEndpointTest`,
 `PipelineRunCompletionEndpointTest`, `ChatStreamEndpointTest`, `GraphQLEndpointTest`.
 Entities with no endpoint test at all: collection, comment, reaction, token, blacklist.
@@ -799,14 +803,22 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [ ] No generic RBAC case for `update` — most `UPDATE_*` constants still read `test:none`. Where the
       update is a distinct act rather than a field write, the endpoint test carries its own case;
       `DetectionEndpointTest` is the pattern to copy (§8.2)
-- [ ] 10 non-CRUD `*EndpointTest` classes assert no permission behaviour (§8.2)
+- [ ] 7 non-CRUD `*EndpointTest` classes assert no permission behaviour (§8.2) — down from 10:
+      `TranscriptEndpointTest`, `JsonCompEndpointTest` and `NodeResultEndpointTest` now assert
+      403 on `READ_ASSET`/`UPDATE_ASSET`
 - [ ] No endpoint test for collection, comment, reaction, token or blacklist
 - [ ] No test covers group-membership changes affecting effective permissions
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-09-21 (`READ_ASSET_BINARY` became `ui:yes` — see §6.2; no enum, migration or
+_Git HEAD revision: `8e8bff19`_
+_Last updated: 2026-09-26 (§8.2: `TranscriptEndpointTest`, `JsonCompEndpointTest` and
+`NodeResultEndpointTest` gained `test*RequiresPermission` cases asserting 403 on `READ_ASSET` /
+`UPDATE_ASSET` for their read/list and create/update/delete routes respectively — closing 3 of the
+10 non-CRUD endpoint tests that previously asserted no permission behaviour at all; §13.5's count
+updated 10 → 7. No enum, migration or ACL matrix change; `UPDATE_ASSET`'s `test:none` marker in
+`Permission.java` is now stale but was left untouched, being outside this change's scope. Earlier:
+2026-09-21 (`READ_ASSET_BINARY` became `ui:yes` — see §6.2; no enum, migration or
 count change, only the ACL matrix group. Earlier: 2026-08-18 (`READ_FAILURE_REPORT` / `UPDATE_FAILURE_REPORT` / `DELETE_FAILURE_REPORT`
 added by `V2.106` for `/api/v1/failure-reports`, granted to the existing admin role by `V2.108`.
 `ui:yes`, in `PERMISSION_GROUPS` under "Problem report" and both locale files, with RBAC cases in

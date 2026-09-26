@@ -3,6 +3,8 @@ package io.metaloom.loom.core.endpoint.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
@@ -82,6 +84,51 @@ public class JsonCompEndpointTest extends AbstractEndpointTest {
 			// schemaType deliberately omitted
 			request.setData(new JsonObject().put("file_size", 1));
 			expect(400, "Bad Request", client.createAssetJsonComp(ASSET_UUID, request));
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not write a JSON component for the asset.
+	 */
+	@Test
+	public void testCreateRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			JsonCompCreateRequest request = new JsonCompCreateRequest();
+			request.setNodeKind("hello-world");
+			request.setSchemaType("hello-world");
+			request.setData(new JsonObject().put("file_size", 1));
+			expect(403, "Forbidden", client.createAssetJsonComp(ASSET_UUID, request));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not list the JSON components.
+	 */
+	@Test
+	public void testListRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.listAssetJsonComps(ASSET_UUID));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not load a single JSON component - the check fires before the DAO lookup, so
+	 * even a non-existent uuid must still be rejected with 403, not 404.
+	 */
+	@Test
+	public void testLoadRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.loadAssetJsonComp(ASSET_UUID, UUID.randomUUID()));
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not delete a JSON component.
+	 */
+	@Test
+	public void testDeleteRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.deleteAssetJsonComp(ASSET_UUID, UUID.randomUUID()));
 		}
 	}
 

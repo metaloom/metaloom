@@ -414,6 +414,48 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 		}
 	}
 
+	/**
+	 * A per-asset face cluster describes that asset and is meaningless without it (V2.79 {@code cluster.asset_uuid ON DELETE CASCADE}). Deleting the
+	 * asset must remove its cluster while a cluster confirmed onto the same person, but proposed for a different asset, survives untouched - the
+	 * person's own directory entry is not the thing being deleted here.
+	 */
+	@Test
+	public void testDeletingAssetCascadesItsCluster() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			io.metaloom.loom.db.model.asset.Asset victim = seedAsset("cluster-victim.jpg");
+			io.metaloom.loom.db.model.asset.Asset bystander = seedAsset("cluster-bystander.jpg");
+
+			PersonResponse person = client.createPerson(new PersonCreateRequest().setAlias("cluster-cascade-person")).sync().body();
+
+			ClusterResponse victimCluster = client.bulkCreateAssetClusters(victim.getUuid(), bulkRequest(0.9f)).sync().body().getClusters().get(0);
+			client.confirmCluster(victimCluster.getUuid(), new ClusterConfirmRequest().setPersonUuid(person.getUuid().toString())).sync().body();
+
+			ClusterResponse bystanderCluster = client.bulkCreateAssetClusters(bystander.getUuid(), bulkRequest(0.9f)).sync().body().getClusters()
+				.get(0);
+			client.confirmCluster(bystanderCluster.getUuid(), new ClusterConfirmRequest().setPersonUuid(person.getUuid().toString())).sync().body();
+
+			daos().assetDao().delete(victim.getUuid());
+
+			expect(404, "Not Found", client.loadCluster(victimCluster.getUuid()));
+			assertNotNull(client.loadCluster(bystanderCluster.getUuid()).sync().body(),
+				"a cluster proposed for a different asset must survive");
+			assertNotNull(client.loadPerson(person.getUuid()).sync().body(), "the person the clusters were confirmed onto must survive");
+			assertEquals(1, client.listPersonClusters(person.getUuid()).sync().body().getData().size(),
+				"only the surviving asset's cluster remains linked to the person");
+		}
+	}
+
+	private io.metaloom.loom.db.model.asset.Asset seedAsset(String filename) {
+		DaoCollection daos = daos();
+		io.metaloom.loom.db.model.asset.Asset asset = daos.assetDao().createAsset(adminUuid(),
+			io.metaloom.utils.hash.SHA512.fromString(java.util.UUID.randomUUID().toString().replace("-", "").repeat(4)),
+			"image/jpeg", filename, "/media/" + filename, 42L);
+		daos.assetDao().store(asset);
+		return asset;
+	}
+
 	// ---------------------------------------------------------------------------------------------
 
 	/**

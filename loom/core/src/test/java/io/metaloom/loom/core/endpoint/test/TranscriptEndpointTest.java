@@ -3,6 +3,8 @@ package io.metaloom.loom.core.endpoint.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
@@ -11,6 +13,7 @@ import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptListResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
+import io.metaloom.loom.rest.model.transcript.TranscriptUpdateRequest;
 
 public class TranscriptEndpointTest extends AbstractEndpointTest {
 
@@ -58,6 +61,64 @@ public class TranscriptEndpointTest extends AbstractEndpointTest {
 
 			TranscriptListResponse list = client.listAssetTranscripts(ASSET_UUID).sync().body();
 			assertEquals(2, list.getData().size());
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not write a transcript for the asset.
+	 */
+	@Test
+	public void testCreateRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			TranscriptCreateRequest request = new TranscriptCreateRequest();
+			request.setSource("whisper");
+			request.setStreamIndex(0);
+			request.setLang("en");
+			request.setTranscriptText("hello");
+			expect(403, "Forbidden", client.createAssetTranscript(ASSET_UUID, request));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not list the transcripts.
+	 */
+	@Test
+	public void testListRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.listAssetTranscripts(ASSET_UUID));
+		}
+	}
+
+	/**
+	 * A user without READ_ASSET may not load a single transcript - the check fires before the DAO lookup, so even a
+	 * non-existent uuid must still be rejected with 403, not 404.
+	 */
+	@Test
+	public void testLoadRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.loadAssetTranscript(ASSET_UUID, UUID.randomUUID()));
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not update a transcript.
+	 */
+	@Test
+	public void testUpdateRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			TranscriptUpdateRequest request = new TranscriptUpdateRequest();
+			request.setTranscriptText("changed");
+			expect(403, "Forbidden", client.updateAssetTranscript(ASSET_UUID, UUID.randomUUID(), request));
+		}
+	}
+
+	/**
+	 * A user without UPDATE_ASSET may not delete a transcript.
+	 */
+	@Test
+	public void testDeleteRequiresPermission() throws Exception {
+		try (LoomHttpClient client = loginPermissionlessClient()) {
+			expect(403, "Forbidden", client.deleteAssetTranscript(ASSET_UUID, UUID.randomUUID()));
 		}
 	}
 

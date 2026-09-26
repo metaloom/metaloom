@@ -164,6 +164,37 @@ public class EmbeddingEndpointTest extends AbstractCRUDEndpointTest {
 		}
 	}
 
+	/**
+	 * Deleting the asset an embedding was computed for takes the embedding with it (V2.43 {@code embedding.asset_uuid ON DELETE CASCADE}); an
+	 * embedding on a different asset must survive.
+	 */
+	@Test
+	public void testDeletingAssetCascadesItsEmbedding() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse victim = createTestAsset(client);
+			AssetResponse bystander = createTestAsset(client);
+
+			EmbeddingCreateRequest victimRequest = new EmbeddingCreateRequest();
+			victimRequest.setVector(new Float[] { 0.1f, 0.2f });
+			victimRequest.setType(EmbeddingType.VIDEO4J_FINGERPRINT_V1.name());
+			victimRequest.setAssetUuid(victim.getUuid());
+			EmbeddingResponse victimEmbedding = client.createEmbedding(victimRequest).sync().body();
+
+			EmbeddingCreateRequest bystanderRequest = new EmbeddingCreateRequest();
+			bystanderRequest.setVector(new Float[] { 0.3f, 0.4f });
+			bystanderRequest.setType(EmbeddingType.VIDEO4J_FINGERPRINT_V1.name());
+			bystanderRequest.setAssetUuid(bystander.getUuid());
+			EmbeddingResponse bystanderEmbedding = client.createEmbedding(bystanderRequest).sync().body();
+
+			daos().assetDao().delete(victim.getUuid());
+
+			expect(404, "Not Found", client.loadEmbedding(victimEmbedding.getUuid()));
+			assertNotNull(client.loadEmbedding(bystanderEmbedding.getUuid()).sync().body(),
+				"an embedding of a different asset must survive");
+		}
+	}
+
 	private static int sha512Counter = 5000;
 
 	private SHA512 nextSHA512() {

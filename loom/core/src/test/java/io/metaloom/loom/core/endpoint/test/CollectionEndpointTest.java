@@ -6,6 +6,7 @@ import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 import static io.metaloom.loom.test.data.TestValues.ASSET_UUID;
 import static io.metaloom.loom.test.data.TestValues.COLLECTION_UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
@@ -188,6 +189,40 @@ public class CollectionEndpointTest extends AbstractCRUDEndpointTest {
 			// The fixture already puts ASSET_UUID in COLLECTION_UUID, so this asset is now in at least two.
 			assertTrue(collections.getData().size() >= 2, "Expected the asset to be in at least two collections");
 		}
+	}
+
+	/**
+	 * Deleting an asset removes only its own membership (V2.80 {@code collection_asset.collection_uuid ON DELETE CASCADE} plus the asset-side cascade
+	 * from V2.73); the collection and every other member survive.
+	 */
+	@Test
+	public void testDeletingAssetLeavesTheCollectionAndOtherMembers() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			io.metaloom.loom.db.model.asset.Asset victim = seedAsset("collection-victim.jpg");
+			io.metaloom.loom.db.model.asset.Asset bystander = seedAsset("collection-bystander.jpg");
+
+			CollectionResponse collection = createCollection(client, "asset-cascade-target");
+			client.addCollectionAsset(collection.getUuid(), victim.getUuid()).sync().body();
+			client.addCollectionAsset(collection.getUuid(), bystander.getUuid()).sync().body();
+
+			daos().assetDao().delete(victim.getUuid());
+
+			assertNotNull(client.loadCollection(collection.getUuid()).sync().body(), "the collection itself must survive");
+			AssetListResponse remaining = client.listCollectionAssets(collection.getUuid()).sync().body();
+			assertThat(remaining).isValid().hasSize(1);
+			assertEquals(bystander.getUuid(), remaining.getData().get(0).getUuid(), "the other member must stay filed in the collection");
+		}
+	}
+
+	private io.metaloom.loom.db.model.asset.Asset seedAsset(String filename) {
+		io.metaloom.loom.db.dagger.DaoCollection daos = daos();
+		io.metaloom.loom.db.model.asset.Asset asset = daos.assetDao().createAsset(adminUuid(),
+			io.metaloom.utils.hash.SHA512.fromString(UUID.randomUUID().toString().replace("-", "").repeat(4)),
+			"image/jpeg", filename, "/media/" + filename, 42L);
+		daos.assetDao().store(asset);
+		return asset;
 	}
 
 	@Test
