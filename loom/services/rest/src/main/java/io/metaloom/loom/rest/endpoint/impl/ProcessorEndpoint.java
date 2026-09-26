@@ -148,42 +148,50 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		addListRoute(basePath(), GET,
 			"Load a list of registered processor nodes",
 			examples.processorListResponseExample(),
-			lrc -> {
-				ProcessorListResponse list = new ProcessorListResponse();
-				for (ProcessorResponse resp : registry.listAllResponses()) {
-					list.add(resp);
-				}
-				lrc.send(list, 200);
-			});
+			lrc -> lrc.requirePerm(Permission.READ_CORTEX_INSTANCE)
+				.onSuccess(l -> {
+					ProcessorListResponse list = new ProcessorListResponse();
+					for (ProcessorResponse resp : registry.listAllResponses()) {
+						list.add(resp);
+					}
+					lrc.send(list, 200);
+				})
+				.onFailure(e -> {
+					throw new LoomRestException(403, LoomRestErrorCode.MISSING_PERM, "Invalid permissions");
+				}));
 
 		// Read a single processor
 		addRoute(basePath() + "/:uuid", GET,
 			"Load a registered processor node",
 			null,
 			examples.processorResponseExample(),
-			lrc -> {
-				String uuid = lrc.pathParam("uuid");
-				ConnectedProcessor processor = registry.get(uuid);
-				if (processor == null) {
-					// Try to find by derived UUID among live processors
-					for (ConnectedProcessor p : registry.getAll()) {
-						ProcessorResponse resp = registry.toResponse(p);
-						if (resp.getUuid().toString().equals(uuid)) {
-							lrc.send(registry.toResponse(p), 200);
+			lrc -> lrc.requirePerm(Permission.READ_CORTEX_INSTANCE)
+				.onSuccess(l -> {
+					String uuid = lrc.pathParam("uuid");
+					ConnectedProcessor processor = registry.get(uuid);
+					if (processor == null) {
+						// Try to find by derived UUID among live processors
+						for (ConnectedProcessor p : registry.getAll()) {
+							ProcessorResponse resp = registry.toResponse(p);
+							if (resp.getUuid().toString().equals(uuid)) {
+								lrc.send(registry.toResponse(p), 200);
+								return;
+							}
+						}
+						// Fall back to a persisted-but-offline instance keyed by nodeId
+						ProcessorResponse persisted = registry.loadPersisted(uuid);
+						if (persisted != null) {
+							lrc.send(persisted, 200);
 							return;
 						}
-					}
-					// Fall back to a persisted-but-offline instance keyed by nodeId
-					ProcessorResponse persisted = registry.loadPersisted(uuid);
-					if (persisted != null) {
-						lrc.send(persisted, 200);
+						lrc.sendText("{\"message\":\"Processor not found\"}", "application/json", 404);
 						return;
 					}
-					lrc.sendText("{\"message\":\"Processor not found\"}", "application/json", 404);
-					return;
-				}
-				lrc.send(registry.toResponse(processor), 200);
-			});
+					lrc.send(registry.toResponse(processor), 200);
+				})
+				.onFailure(e -> {
+					throw new LoomRestException(403, LoomRestErrorCode.MISSING_PERM, "Invalid permissions");
+				}));
 
 		// Update the administrator-managed node-kind restrictions of a cortex instance.
 		addRoute(basePath() + "/:uuid/restrictions", PUT,

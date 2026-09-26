@@ -494,9 +494,9 @@ down with it.
 
 | Endpoint | `secure()` | Permission | Note |
 |---|---|---|---|
-| `NodeDescriptorEndpoint` (`/api/v1/pipeline/node-descriptors`, `/pipeline/content-types`) | **none** | **none** | Fully public — leaks the node/content-type catalogue to anonymous callers |
+| `NodeDescriptorEndpoint` (`/api/v1/pipeline/node-descriptors`, `/pipeline/content-types`) | split | `READ_CORTEX_INSTANCE` on `/availability` only | By design, not an oversight: the editor builds its palette before any token is in hand, so contracts and the plain availability flags are anonymous. Worker names (`providedBy`) are fleet topology and live only on the secured `/availability` route — a permission check on the main route would deny everyone, since an unsecured route never resolves a caller |
 | `PipelineEventEndpoint` (`/api/v1/pipelines/events/ws`) | none (order `-1000` beats wildcard auth) | none | Post-upgrade token auth only; no authorization |
-| `ProcessorEndpoint` list / load | yes | none | `READ_CORTEX_INSTANCE` is not checked here. It *is* checked by `NodeDescriptorEndpoint.mayNameWorkers`, which is why the constant is not dead — but the routes that actually list workers do not consult it |
+| `ProcessorEndpoint` list / load | yes | `READ_CORTEX_INSTANCE` | Closed: both read routes now require the permission, matching the `MANAGE_CORTEX_INSTANCE` gate already on the mutating routes. Previously any authenticated user could enumerate worker hosts and their load |
 | `MeEndpoint`, `LoginEndpoint`, `OAuth2Endpoint`, `HealthEndpoint`, `RESTInfoEndpoint` | varies | none | Correct by design (identity/liveness, not resources) |
 
 ### 6.4 Session and account state are not re-checked

@@ -562,6 +562,57 @@ public class ProcessorEndpointTest {
 		}
 	}
 
+	/**
+	 * A worker list names hosts and reports per-machine load, so it is fleet topology rather than
+	 * public information: being logged in is not enough, the caller needs READ_CORTEX_INSTANCE.
+	 */
+	@Test
+	public void testListAndLoadRequirePermission() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			WebSocket ws = connectWs(vertx);
+			JsonObject registerResp = sendAndReceive(ws,
+				registerMessage("node-perm", "cortex-perm-01", "10.0.4.10:9090", 1, "CPU"));
+			String uuid = registerResp.getJsonObject("body").getString("uuid");
+
+			String token = loginPermissionless();
+			int[] status = new int[1];
+
+			httpSend(vertx, HttpMethod.GET, "/api/v1/processors", token, null, status);
+			assertEquals(403, status[0], "Listing workers without READ_CORTEX_INSTANCE must be forbidden");
+
+			httpSend(vertx, HttpMethod.GET, "/api/v1/processors/" + uuid, token, null, status);
+			assertEquals(403, status[0], "Loading a worker without READ_CORTEX_INSTANCE must be forbidden");
+
+			// The same routes still answer for an administrator, so the gate is a gate and not a wall.
+			try (LoomHttpClient client = loom.httpClient()) {
+				loginAdmin(client);
+				httpSend(vertx, HttpMethod.GET, "/api/v1/processors", client.getToken(), null, status);
+				assertEquals(200, status[0], "An admin holding the permission must still be able to list");
+			}
+
+			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	/**
+	 * Provision a fresh enabled user with no permissions at all and return its token. Granting nothing
+	 * avoids the {@code user_permission} primary key, which allows only one direct grant per user.
+	 */
+	private String loginPermissionless() throws Exception {
+		var daos = loom.internal().daos();
+		var nobody = daos.userDao().createUser(daos.userDao().loadAdmin().getUuid(), "nobody-processor");
+		nobody.enable();
+		nobody.setPasswordHash(loom.internal().authService().encodePassword("secret"));
+		daos.userDao().store(nobody);
+
+		try (LoomHttpClient client = loom.httpClient()) {
+			return client.login("nobody-processor", "secret").sync().body().getToken();
+		}
+	}
+
 	@Test
 	public void testRestrictionsRequireAuthentication() throws Exception {
 		Vertx vertx = Vertx.vertx();
