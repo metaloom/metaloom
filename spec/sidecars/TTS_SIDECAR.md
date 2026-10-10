@@ -27,7 +27,7 @@ flowchart LR
   subgraph JVM["Cortex worker (JVM)"]
     UP["upstream node<br/>(llm / whisper / captioning)"] -->|"IN_TEXT · text/*"| N["TtsNode (kind tts)"]
     N --> C["TtsClient<br/>HTTP/1.1, 120s timeout"]
-    N -->|"WAV bytes"| CACHE["metaPath/tts_bin/&lt;seg&gt;/&lt;sha512&gt;.wav"]
+    N -->|"WAV bytes"| CACHE["metaPath/tts_bin/&lt;seg&gt;/&lt;sha512&gt;-&lt;digest&gt;.wav"]
     N -->|"ledger only"| LOOM["Loom · asset_node_result"]
   end
   C -->|"POST /v1/tts {text,lang,voice,format}"| S["sidecars/tts/server.py<br/>FastAPI · uvicorn :9100"]
@@ -195,7 +195,7 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
 - **`timeoutMs` exists in the descriptor but not in `TtsNodeOptions`.** The effective budget is the
   hardcoded `TtsClient` 120 s request / 30 s connect timeout (the vLLM proxy hop also uses 120 s, so
   a slow vLLM can exhaust the client budget first).
-- **Ledger-only persistence.** The WAV stays in `metaPath/tts_bin/<segment>/<sha512>.wav`; Loom gets
+- **Ledger-only persistence.** The WAV stays in `metaPath/tts_bin/<segment>/<sha512>-<digest>.wav` (digest = first 12 hex of SHA-256 over language, voice and text, so different texts on one asset never share a file or a cache entry); Loom gets
   an `asset_node_result` row with no `result_ref`, because no byte-ingest endpoint for produced media
   exists — see [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
   Wiring `audio` into `s3-sink` is the only way to keep the bytes, and the sink must run on the

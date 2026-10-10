@@ -1,7 +1,10 @@
 package io.metaloom.cortex.node.captioning;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 import org.junit.jupiter.api.Assumptions;
 import org.slf4j.Logger;
@@ -31,16 +34,30 @@ public final class SmolVLMAvailability {
 	}
 
 	/**
-	 * Skip the calling test when nothing is listening on the SmolVLM port.
+	 * Skip the calling test when no HTTP server answers on the SmolVLM port.
 	 */
 	public static void assumeRunning() {
 		Assumptions.assumeTrue(isRunning(), "Skipping - no SmolVLM endpoint reachable at " + HOST + ":" + PORT);
 	}
 
 	public static boolean isRunning() {
-		try (Socket socket = new Socket()) {
-			socket.connect(new InetSocketAddress(HOST, PORT), CONNECT_TIMEOUT_MS);
+		// A TCP connect is not enough: any unrelated process holding the port passed the old probe and the tests then
+		// failed with "header parser received no bytes". Require a complete HTTP response (any status - the sidecar
+		// has no health route, but a non-HTTP listener cannot produce a status line).
+		HttpClient client = HttpClient.newBuilder()
+			.version(HttpClient.Version.HTTP_1_1)
+			.connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS))
+			.build();
+		try {
+			HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + HOST + ":" + PORT + "/"))
+				.timeout(Duration.ofSeconds(2))
+				.GET()
+				.build();
+			client.send(request, HttpResponse.BodyHandlers.discarding());
 			return true;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
 		} catch (Exception e) {
 			log.debug("No SmolVLM endpoint reachable at {}:{}", HOST, PORT, e);
 			return false;

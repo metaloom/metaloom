@@ -162,9 +162,13 @@ public class VideoFaceScanner {
 				continue;
 			}
 			try {
-				List<? extends Face> found = inspireface.detectFaces(crop, true);
-				if (found != null && !found.isEmpty() && found.get(0).hasEmbedding()) {
-					face.setEmbedding(found.get(0).getEmbedding());
+				List<? extends Face> found;
+				synchronized (inspireface) {
+					found = inspireface.detectFaces(crop, true);
+				}
+				Face match = centralFace(found, crop.getWidth(), crop.getHeight());
+				if (match != null) {
+					face.setEmbedding(match.getEmbedding());
 					embedded++;
 				}
 			} catch (Exception e) {
@@ -172,6 +176,39 @@ public class VideoFaceScanner {
 			}
 		}
 		logger.info("Computed embeddings for {} of {} selected face(s)", embedded, faces.size());
+	}
+
+	/**
+	 * The detected face nearest the centre of the crop, among those that carry a vector.
+	 *
+	 * <p>
+	 * The crop is padded by a whole face width, so in a crowd it routinely contains a neighbour's face as well. The face it was cut for sits at its
+	 * centre; taking whichever face the detector happened to list first could attach somebody else's vector to this box, which then clusters the two
+	 * people together - silently and permanently.
+	 * </p>
+	 */
+	static Face centralFace(List<? extends Face> found, int cropWidth, int cropHeight) {
+		if (found == null || found.isEmpty()) {
+			return null;
+		}
+		double cx = cropWidth / 2d;
+		double cy = cropHeight / 2d;
+		Face best = null;
+		double bestDistance = Double.MAX_VALUE;
+		for (Face candidate : found) {
+			if (candidate == null || !candidate.hasEmbedding() || candidate.box() == null) {
+				continue;
+			}
+			FaceBox box = candidate.box();
+			double dx = box.getStartX() + box.getWidth() / 2d - cx;
+			double dy = box.getStartY() + box.getHeight() / 2d - cy;
+			double distance = dx * dx + dy * dy;
+			if (distance < bestDistance) {
+				bestDistance = distance;
+				best = candidate;
+			}
+		}
+		return best;
 	}
 
 	private List<VideoFace> processFaces(List<VideoFace> faces) {
@@ -395,33 +432,42 @@ public class VideoFaceScanner {
 			frame.setMat(smaller);
 		}
 
-		// Run detection
-		FaceVideoFrame videoFrame = detector.detectFaces(frame);
-
-		if (scaleDown) {
-			// Reset original and free smaller version
-			videoFrame.setMat(original);
-			frame.setMat(original);
-
-			for (Face face : videoFrame.faces()) {
-				FaceBox box = face.box();
-
-				double startXFactor = (double) box.getStartX() / (double) smaller.width();
-				box.setStartX((int) ((double) original.width() * startXFactor));
-
-				double startYFactor = (double) box.getStartY() / (double) smaller.height();
-				box.setStartY((int) ((double) original.height() * startYFactor));
-
-				double heightFactor = (double) box.getHeight() / (double) smaller.height();
-				box.setHeight((int) ((double) original.height() * heightFactor));
-
-				double widthFactor = (double) box.getWidth() / (double) smaller.width();
-				box.setWidth((int) ((double) original.width() * widthFactor));
-
-				// VideoFrame image = FacedetectorUtils.cropToFace(videoFrame, face);
-				// ImageUtils.show(image.mat());
+		// Run detection. Serialized on the detector: it wraps a single native InspireFace session, and the
+		// node that owns this scanner runs two items at once. The original Mat is put back in a finally -
+		// a detector that threw used to leave the frame pointing at the downscaled copy, so the caller
+		// freed that one and the full-size decode leaked.
+		FaceVideoFrame videoFrame;
+		try {
+			synchronized (detector) {
+				videoFrame = detector.detectFaces(frame);
 			}
-			smaller.release();
+			if (scaleDown) {
+				// Point the result back at the full-size frame and lift the boxes onto it.
+				videoFrame.setMat(original);
+				for (Face face : videoFrame.faces()) {
+					FaceBox box = face.box();
+
+					double startXFactor = (double) box.getStartX() / (double) smaller.width();
+					box.setStartX((int) ((double) original.width() * startXFactor));
+
+					double startYFactor = (double) box.getStartY() / (double) smaller.height();
+					box.setStartY((int) ((double) original.height() * startYFactor));
+
+					double heightFactor = (double) box.getHeight() / (double) smaller.height();
+					box.setHeight((int) ((double) original.height() * heightFactor));
+
+					double widthFactor = (double) box.getWidth() / (double) smaller.width();
+					box.setWidth((int) ((double) original.width() * widthFactor));
+				}
+			}
+		} finally {
+			if (scaleDown) {
+				frame.setMat(original);
+			}
+			if (smaller != null) {
+				// close(), not release(): release() drops the pixels but leaves the native Mat header behind.
+				smaller.close();
+			}
 		}
 		logger.debug("Inspireface duration: {}ms, faces: {}", System.currentTimeMillis() - start, videoFrame.hasFaces());
 		return videoFrame;

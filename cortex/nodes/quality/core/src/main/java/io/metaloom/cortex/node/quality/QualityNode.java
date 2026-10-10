@@ -206,8 +206,13 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 				video.seekToFrameRatio(0.5);
 				Mat frame = video.frameToMat();
 				if (frame != null) {
-					metrics.put(OUT_BLURRINESS.id(), CVUtils.blurriness(frame));
-					CVUtils.free(frame);
+					try {
+						metrics.put(OUT_BLURRINESS.id(), CVUtils.blurriness(frame));
+					} finally {
+						// Mat has no cleaner; a measurement that throws must not leak the decoded frame.
+						CVUtils.free(frame);
+						frame.close();
+					}
 				}
 			}
 
@@ -249,10 +254,39 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	 * Compute blurriness for a {@link BufferedImage} by converting it to a {@link Mat} first.
 	 */
 	private double computeBlurriness(BufferedImage image) {
-		Mat mat = new Mat(image.getHeight(), image.getWidth(), CvType.CV_8UC3);
-		CVUtils.bufferedImageToMat(image, mat);
-		double blurriness = CVUtils.blurriness(mat);
-		CVUtils.free(mat);
-		return blurriness;
+		BufferedImage bgr = toBgr(image);
+		Mat mat = new Mat(bgr.getHeight(), bgr.getWidth(), CvType.CV_8UC3);
+		try {
+			CVUtils.bufferedImageToMat(bgr, mat);
+			return CVUtils.blurriness(mat);
+		} finally {
+			CVUtils.free(mat);
+			mat.close();
+		}
+	}
+
+	/**
+	 * The image as packed 8-bit BGR - the only layout {@code CVUtils.bufferedImageToMat} copies correctly into the {@code CV_8UC3} Mat above.
+	 *
+	 * <p>
+	 * That helper copies raster bytes verbatim. A greyscale JPEG or PNG decodes to one byte per pixel (filling a third of the Mat and leaving the rest
+	 * as uninitialised memory), a PNG with transparency to four ({@code ABGR}, shifting every channel), and a palette PNG to indices - each of which
+	 * produced a blurriness score for pixels that are not the picture.
+	 * </p>
+	 */
+	static BufferedImage toBgr(BufferedImage image) {
+		if (image.getType() == BufferedImage.TYPE_3BYTE_BGR) {
+			return image;
+		}
+		BufferedImage bgr = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+		java.awt.Graphics2D g = bgr.createGraphics();
+		try {
+			g.setColor(java.awt.Color.WHITE);
+			g.fillRect(0, 0, image.getWidth(), image.getHeight());
+			g.drawImage(image, 0, 0, null);
+		} finally {
+			g.dispose();
+		}
+		return bgr;
 	}
 }

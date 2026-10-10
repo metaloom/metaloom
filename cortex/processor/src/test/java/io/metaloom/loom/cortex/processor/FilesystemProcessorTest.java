@@ -40,6 +40,53 @@ public class FilesystemProcessorTest {
 		processor.analyze(null, LocalTestData.localDir());
 	}
 
+	@Test
+	public void testANodeReturningNoResultDoesNotSkipTheRemainingNodes() throws IOException {
+		// A node that returns null used to 'return' out of the per-media lambda, so every node
+		// after it silently never ran for that item.
+		LocalTestData.resetXattr();
+		java.util.concurrent.atomic.AtomicInteger brokenCalls = new java.util.concurrent.atomic.AtomicInteger();
+		java.util.concurrent.atomic.AtomicInteger healthyCalls = new java.util.concurrent.atomic.AtomicInteger();
+		Set<FilesystemNode<?, ?>> nodes = new java.util.LinkedHashSet<>();
+		nodes.add(countingNode("broken", brokenCalls, true));
+		nodes.add(countingNode("healthy", healthyCalls, false));
+
+		FilesystemProcessor processor = new FilesystemProcessorImpl(new LinuxFilesystemScannerImpl(), nodes, mockLoader());
+		processor.analyze(null, LocalTestData.localDir());
+
+		org.junit.jupiter.api.Assumptions.assumeTrue(brokenCalls.get() > 0, "The test data holds no new video files");
+		org.junit.jupiter.api.Assertions.assertEquals(brokenCalls.get(), healthyCalls.get(),
+			"Every media item must still reach the node after the one that returned null");
+	}
+
+	private FilesystemNode<?, ?> countingNode(String name, java.util.concurrent.atomic.AtomicInteger calls, boolean returnNull) {
+		return new AbstractMediaNode<CortexNodeOptions>(null, null, null) {
+
+			@Override
+			public CortexNodeOptions options() {
+				CortexNodeOptions options = mock(CortexNodeOptions.class);
+				when(options.isEnabled()).thenReturn(true);
+				return options;
+			}
+
+			@Override
+			public String name() {
+				return name;
+			}
+
+			@Override
+			protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
+				return true;
+			}
+
+			@Override
+			protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+				calls.incrementAndGet();
+				return returnNull ? null : NodeResult.success();
+			}
+		};
+	}
+
 	private FilesystemNode<?, ?> dummyNode() throws IOException {
 		FilesystemNode<?, ?> node = new AbstractMediaNode<CortexNodeOptions>(null, null, null) {
 
@@ -77,6 +124,7 @@ public class FilesystemProcessorTest {
 			LoomMediaComponent mediaComponent = mock(LoomMediaComponent.class);
 			Path path = invocation.getArgument(0, Path.class);
 			when(mediaMock.path()).thenReturn(path);
+			when(mediaMock.exists()).thenReturn(true);
 			when(mediaBuilder.build()).thenReturn(mediaComponent);
 			when(mediaComponent.media()).thenReturn(mediaMock);
 			return mediaBuilder;

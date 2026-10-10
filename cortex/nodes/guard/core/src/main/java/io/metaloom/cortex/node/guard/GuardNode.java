@@ -142,7 +142,7 @@ public class GuardNode extends AbstractMediaNode<GuardNodeOptions> {
 
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
-		String text = resolveText(ctx);
+		String text = resolveTextLogged(ctx);
 		boolean isImage = ctx.media().isImage();
 
 		if (text == null && !isImage) {
@@ -180,6 +180,18 @@ public class GuardNode extends AbstractMediaNode<GuardNodeOptions> {
 			}
 			if (image != null) {
 				results.addAll(run(dialect.imageProbes(codes, options()), dialect, loadImage(image)));
+			}
+			if (results.isEmpty()) {
+				// Fail closed. GuardVerdict.of over an empty list yields safe=true, score=0 and
+				// scoreExact=true: a clean, confident-looking verdict from a node that asked the
+				// model nothing. Reachable whenever effectiveCategories() comes back empty - a
+				// worker config whose `categories` are all unknown to the configured family, which
+				// validate() rejects but which nothing on the compute path re-checks.
+				String reason = "No probe could be built for " + options().getFamily()
+					+ "; the configured categories select none of its criteria. Known codes: "
+					+ String.join(", ", GuardTaxonomy.codes(options().getFamily()));
+				recordNodeResult(asset, ctx, ResultState.FAILED, reason, producerVersion(), null);
+				return ctx.failure(reason).abort();
 			}
 
 			// The subject is only "text" or "image" when exactly one was wired; wiring both means the
@@ -239,8 +251,23 @@ public class GuardNode extends AbstractMediaNode<GuardNodeOptions> {
 		return GuardImages.downscale(image, options().getMaxImageDim());
 	}
 
+	/**
+	 * The gate decision carried by a stored payload.
+	 *
+	 * <p>
+	 * <strong>Fail closed.</strong> A payload without a {@code safe} field means this node does not
+	 * know whether the item is safe, and defaulting to {@code true} - which this did - opens the
+	 * branch behind {@link #OUT_SAFE} for it. That is the one failure mode a content guard must not
+	 * have. Reachable through the cache path, whose input is a stored string rather than a verdict
+	 * this run produced.
+	 * </p>
+	 */
+	static boolean isSafe(JsonObject payload) {
+		return payload.getBoolean("safe", Boolean.FALSE);
+	}
+
 	private void emit(NodeContext<LoomMedia> ctx, JsonObject payload) {
-		boolean safe = payload.getBoolean("safe", Boolean.TRUE);
+		boolean safe = isSafe(payload);
 		ctx.output(OUT_SAFE, safe);
 		ctx.output(OUT_LABEL, safe ? "safe" : "unsafe");
 		ctx.output(OUT_SCORE, payload.getDouble("score"));
@@ -290,15 +317,30 @@ public class GuardNode extends AbstractMediaNode<GuardNodeOptions> {
 		return KIND + "/1:" + options().getFamily() + ":" + options().getModel();
 	}
 
-	/** The wired text, truncated to {@code maxChars}, or null when the port carries nothing usable. */
+	/**
+	 * The wired text, truncated to {@code maxChars}, or null when the port carries nothing usable.
+	 *
+	 * <p>
+	 * Silent: {@link #isProcessable} and {@link #compute} both need this answer, so logging the
+	 * truncation here reported every long transcript twice. {@link #compute} logs it once, through
+	 * {@link #resolveTextLogged}.
+	 * </p>
+	 */
 	private String resolveText(NodeContext<LoomMedia> ctx) {
 		String text = ctx.optionalInput(IN_TEXT).orElse(null);
 		if (text == null || text.isBlank()) {
 			return null;
 		}
-		if (text.length() > options().getMaxChars()) {
-			log.warn("Truncating {} characters of input to the configured maxChars of {}", text.length(), options().getMaxChars());
-			return text.substring(0, options().getMaxChars());
+		int maxChars = options().getMaxChars();
+		return text.length() > maxChars ? text.substring(0, maxChars) : text;
+	}
+
+	/** {@link #resolveText}, announcing a truncation. Called once per item, from {@link #compute}. */
+	private String resolveTextLogged(NodeContext<LoomMedia> ctx) {
+		String full = ctx.optionalInput(IN_TEXT).orElse(null);
+		String text = resolveText(ctx);
+		if (text != null && full != null && full.length() > text.length()) {
+			log.warn("Truncating {} characters of input to the configured maxChars of {}", full.length(), options().getMaxChars());
 		}
 		return text;
 	}

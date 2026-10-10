@@ -1,6 +1,8 @@
 package io.metaloom.cortex.node.whisper;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -18,8 +20,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -100,6 +104,56 @@ class WhisperNodePersistenceTest {
 			&& "COMPUTED".equals(r.getOrigin())
 			&& r.getResultRef() != null
 			&& "asset_transcript_comp".equals(r.getResultRef().getString("table"))));
+	}
+
+	/**
+	 * Inside a pipeline run the ledger row names the run and task that produced it, and the node id
+	 * the base class reports - the join every invalidation sweep starts from.
+	 *
+	 * <p>
+	 * The row goes through {@code AbstractMediaNode.recordNodeResult}, so this is a contract of the
+	 * template rather than of whisper alone; it is pinned here because whisper is the node the
+	 * template was written against. {@link NodeContext#create(LoomMedia)} carries no run identity,
+	 * which is what left this unasserted until now - the identity rides on the
+	 * {@link NodeInputs} instead.
+	 * </p>
+	 */
+	@Test
+	void testLedgerRowCarriesRunIdentityAndNodeId() throws Exception {
+		WhisperResult result = new WhisperResult();
+		result.addTranscriptionSegment(new TranscriptionSegment("Hello world", 0, 5000));
+		when(processor.process(anyString())).thenReturn(result);
+
+		UUID runUuid = UUID.randomUUID();
+		UUID taskUuid = UUID.randomUUID();
+		NodeContext<LoomMedia> ctx = NodeContext.create(media, NodeInputs.empty().withExecution(runUuid, taskUuid));
+
+		assertThat(node().process(ctx)).isSuccess();
+
+		ArgumentCaptor<NodeResultCreateRequest> captor = ArgumentCaptor.forClass(NodeResultCreateRequest.class);
+		verify(client).createAssetNodeResult(eq(assetUuid), captor.capture());
+		NodeResultCreateRequest ledger = captor.getValue();
+		assertEquals(runUuid.toString(), ledger.getRunUuid(), "The ledger row must name the run that produced it");
+		assertEquals(taskUuid.toString(), ledger.getTaskUuid(), "The ledger row must name the task it answers");
+		// Whisper reads its options from the worker configuration, so it keeps the base class's "" node id -
+		// the key its existing rows were written under. Null here would mean the base class was bypassed.
+		assertEquals("", ledger.getNodeId(), "The ledger row must carry nodeId(), not null");
+		assertEquals("whisper", ledger.getNodeKind());
+	}
+
+	/** Outside a pipeline run the same row references no run - the columns are nullable for exactly this case. */
+	@Test
+	void testLedgerRowOutsideARunReferencesNoRun() throws Exception {
+		WhisperResult result = new WhisperResult();
+		result.addTranscriptionSegment(new TranscriptionSegment("Hello world", 0, 5000));
+		when(processor.process(anyString())).thenReturn(result);
+
+		assertThat(node().process(NodeContext.create(media))).isSuccess();
+
+		ArgumentCaptor<NodeResultCreateRequest> captor = ArgumentCaptor.forClass(NodeResultCreateRequest.class);
+		verify(client).createAssetNodeResult(eq(assetUuid), captor.capture());
+		assertNull(captor.getValue().getRunUuid());
+		assertNull(captor.getValue().getTaskUuid());
 	}
 
 	@Test

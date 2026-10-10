@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.sentiment;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -81,8 +82,8 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 	@PortDoc(label = "Result", description = "The sidecar's full answer, including the detected language and per-class confidences")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
 
-	/** In-heap skip cache of the scored result JSON, keyed by media path, to avoid re-classifying within this worker's lifetime. Non-durable - the
-	 * durable copy lives in Loom. */
+	/** In-heap skip cache of the scored result JSON, keyed by media path plus the text and options (see {@link #cacheKey}), to avoid
+	 * re-classifying within this worker's lifetime. Non-durable - the durable copy lives in Loom. */
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
 	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
@@ -119,7 +120,8 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 		}
 
 		// Re-emit a locally cached result instead of re-classifying. On a hit the durable copy already exists in Loom, so we also skip re-persisting.
-		String cached = resultCache.get(path);
+		String cacheKey = cacheKey(path, text);
+		String cached = resultCache.get(cacheKey);
 		if (cached != null) {
 			metrics.recordAiCacheHit("sentiment");
 			emit(ctx, new JsonObject(cached));
@@ -141,7 +143,7 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 
 			JsonObject payload = buildPayload(result, text);
 			emit(ctx, payload);
-			resultCache.put(path, payload.encode());
+			resultCache.put(cacheKey, payload.encode());
 
 			ctx.print("DONE", payload.getString("label") + " (" + payload.getString("lang") + ")");
 			persist(ctx, asset, payload, model);
@@ -217,5 +219,20 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 			return null;
 		}
 		return text.length() > options().getMaxChars() ? text.substring(0, options().getMaxChars()) : text;
+	}
+
+	/**
+	 * Cache key covering everything that changes the score.
+	 *
+	 * <p>
+	 * Not the media path alone: the text arrives over an edge, so the same asset can be scored on a
+	 * transcript in one graph and a caption in another (or on a re-generated upstream answer), and a
+	 * path-keyed cache served the first score for every later question - a stale result that never
+	 * surfaces as an error. Same reasoning as {@code TranslateNode#cacheKey}.
+	 * </p>
+	 */
+	private String cacheKey(String path, String text) {
+		int inputsHash = Objects.hash(text, options().getLanguage(), options().getModelDe(), options().getModelEn());
+		return path + "|" + Integer.toHexString(inputsHash);
 	}
 }

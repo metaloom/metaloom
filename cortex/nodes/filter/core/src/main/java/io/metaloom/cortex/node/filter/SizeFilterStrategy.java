@@ -67,9 +67,16 @@ public class SizeFilterStrategy implements FilterStrategy {
 				continue;
 			}
 			for (String hint : hints(bucket)) {
-				if (parse(hint) == null) {
+				Threshold threshold = parse(hint);
+				if (threshold == null) {
 					errors.add("bucket '" + bucket.id() + "': '" + hint
 						+ "' is not a size threshold; expected '<10MB', '<=10MB', '>1GB', '>=1GB', '1MB..100MB' or a bare '10MB'");
+				} else if (threshold.isEmptyRange()) {
+					// Only a range can bound both ends, so this is always a reversed or zero-width
+					// one. It parses, it never holds, and a bucket that never holds looks exactly
+					// like data that did not match - which is what validateBuckets exists to prevent.
+					errors.add("bucket '" + bucket.id() + "': '" + hint
+						+ "' is an empty size range; the lower bound must be below the upper bound");
 				}
 			}
 		}
@@ -113,6 +120,11 @@ public class SizeFilterStrategy implements FilterStrategy {
 
 		boolean holds(long size) {
 			return (min == null || size >= min) && (max == null || size < max);
+		}
+
+		/** Whether no size at all can satisfy this - only a range bounds both ends, so only a range can. */
+		boolean isEmptyRange() {
+			return min != null && max != null && min >= max;
 		}
 	}
 

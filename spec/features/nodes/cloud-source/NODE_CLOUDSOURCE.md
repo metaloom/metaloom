@@ -3,7 +3,7 @@
 > **Status**: 🟢 **Built and shipping.** Two kinds, one node module
 > [cortex/nodes/cloud-source/](../../../../cortex/nodes/cloud-source/) (flat, no `core/` submodule),
 > package `io.metaloom.cortex.node.source.cloud`, on the shared provider seam
-> [cortex/cloud-common/](../../../../cortex/cloud-common/). 89 + 129 + 17 + 7 unit tests and 10
+> [cortex/cloud-common/](../../../../cortex/cloud-common/). 91 + 129 + 17 + 7 unit tests and 10
 > integration tests, none of which touch a network or a credential. Both contracts are in the
 > generated `node-descriptors.json`, kept honest by `NodeSpecGoldenTest`.
 > **Scope**: the two source kinds and the `cortex/cloud-common` module they stand on — enumeration,
@@ -243,8 +243,22 @@ provider that withheld a token does not report every file as modified on every r
 Both change feeds are **drive-wide**, and a delta entry names only the item's immediate parent.
 Deciding whether a changed file lies inside the selected folder means walking up the parent chain,
 which `CloudDifferentialScanner` does for at most `PARENT_LOOKUP_DEPTH` (**8**) hops, answered from
-the index where possible and memoised per scan. An unresolvable chain is treated as **outside** — the
-conservative direction, which can delay a file but never invent one.
+the index where possible and memoised per scan. A chain that cannot be resolved — longer than the
+budget, or a parent `get` that failed — is **undecided**, not outside: the change is skipped and the
+index entry left untouched, so it can delay a file but never invent one and never report a file that
+is still there as `DELETED`. Only a chain that definitely ends outside the selection removes an
+indexed file. Guards: `testAnIndexedFileBeyondTheHopBudgetIsNotReportedDeletedWhenEdited`,
+`testAFailedParentLookupIsNotTakenAsLeavingTheSelection`.
+
+🔴 **Only a definite answer is memoised.** A `-1` from the hop budget, or from a failed `get` on a
+folder, depends on where the walk started rather than on the folder itself, so caching it poisoned
+the entry: one chain longer than eight hops cached "outside" for every folder on the way up,
+including folders one hop below the selection root, and every later change under them in the same
+feed was then judged outside the selection. In the delta path that does not merely skip a file — it
+removes it from the index and reports it `DELETED`. `hopsToSelectionRoot` therefore carries a
+`provisional` flag and memoises a negative result only when it is a real position, never a budget or
+a transport failure. Guard:
+`CloudDifferentialScannerTest.testADeepChainDoesNotPoisonMembershipForShallowerSiblings`.
 
 That, and only that, is why `reconcileIntervalMs` survives. It defaults to **24 h** rather than S3's
 6 h, because a delta feed is a provider guarantee about content, unlike a bucket notification that
@@ -303,7 +317,10 @@ presents:
 
 `CloudMediaMaterializer` downloads lazily into
 `<cacheRoot>/<first 4 hex of sha256(provider/drive/file)>/<sha256>-<changeToken><ext>`, writing to a
-partial file and moving it into place. The **change token is in the cache path**, so an edited file
+per-attempt partial file (`<name>.<uuid>.part`, so two concurrent materializations cannot write over
+each other) and moving it into place. A sanitized token longer than 48 characters keeps a 23-char
+prefix plus 24 hex of its SHA-256 — never a plain cut, which chopped a OneDrive cTag's trailing version
+number and made versions 12 and 13 share one cache file. The **change token is in the cache path**, so an edited file
 gets a new cache entry rather than serving stale bytes. Eviction is LRU-by-mtime down to 90 % of
 `maxCacheBytes` once the budget is exceeded; `0` disables it.
 
@@ -467,7 +484,7 @@ surfaces at pipeline start rather than per item.
 - [x] `MediaResolverModule` composite resolver; a worker with nothing remote still gets the plain
       `MediaReferenceResolver`
 - [x] 18 `CORTEX_GDRIVE_*` and 15 `CORTEX_ONEDRIVE_*` variables through `CortexEnvOptions`
-- [x] 242 unit tests across the four modules (129 + 89 + 17 + 7) + 10 integration tests, with no
+- [x] 244 unit tests across the four modules (129 + 91 + 17 + 7) + 10 integration tests, with no
       credential and no network
 - [x] Customer docs pages `website/content/english/docs/nodes/gdrive-source/` and
       `…/onedrive-source/`, each with `config.png` and `debug.png`
@@ -536,7 +553,7 @@ Two fakes carry the suite, both in the `cloud-common` **test-jar**:
 
 | Test | What it guards against |
 |---|---|
-| `CloudDifferentialScannerTest` (20) | The wrong mode chosen; a cursor taken after the walk; an expired cursor throwing instead of falling back; a file that left the subtree reported `MOVED`; a file that entered it reported anything but `NEW`; an unbounded parent-chain walk; a credential change reporting another account's files as deleted |
+| `CloudDifferentialScannerTest` (22) | A too-deep chain poisoning subtree membership for its shallower siblings (and so reporting live files `DELETED`); the wrong mode chosen; a cursor taken after the walk; an expired cursor throwing instead of falling back; a file that left the subtree reported `MOVED`; a file that entered it reported anything but `NEW`; an unbounded parent-chain walk; a credential change reporting another account's files as deleted |
 | `CloudSourceNodeTest` (28) | A hot `stream()` that does not re-scan; enumeration downloading; `absolutePath()` emitted instead of `reference()`; defaults not falling through from the worker config; the wrong subclass built for a provider |
 | `CloudSelectionTest` (14) | Suffix/MIME filters accepting folders or trashed items; depth arithmetic off by one; unknown state names throwing |
 | `CloudFileIndexStoreTest` (7) · `CloudFolderWalkerTest` (7) | Avro round-trip loss; a folder cycle looping forever; a depth limit not honoured |
@@ -582,5 +599,7 @@ Two fakes carry the suite, both in the `cloud-common` **test-jar**:
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-09-26 (I/O boundary sweep: §4.2 — the parent-chain
+memo no longer caches a budget- or error-derived "outside" answer, which used to turn live files under
+a deep folder into spurious `DELETED` events. Earlier: 2026-08-11)_

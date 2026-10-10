@@ -106,8 +106,15 @@ public class RatingFilterStrategy implements FilterStrategy {
 				continue;
 			}
 			for (String hint : hints(bucket)) {
-				if (parse(hint) == null) {
+				Band band = parse(hint);
+				if (band == null) {
 					errors.add("bucket '" + bucket.id() + "': '" + hint + "' is not a rating condition; expected " + GRAMMAR);
+				} else if (band.isEmptyRange()) {
+					// A reversed range parses and then never holds, which at run time is
+					// indistinguishable from nobody having given a rating in that band.
+					errors.add("bucket '" + bucket.id() + "': '" + hint
+						+ "' is an empty rating range: it matches no rating on the " + MIN_RATING + "-" + MAX_RATING
+						+ " scale, so a range's lower bound must not exceed its upper bound");
 				}
 			}
 		}
@@ -195,6 +202,21 @@ public class RatingFilterStrategy implements FilterStrategy {
 				return false;
 			}
 			return (min == null || rating >= min) && (max == null || rating <= max);
+		}
+
+		/**
+		 * Whether no rating on the scale can fall inside. Both bounds are inclusive, so {@code 8..8} is
+		 * a legal single-value band. A reversed range is empty, and so is a one-sided band pushed off
+		 * the scale: {@code >10} and {@code <0} parse - their operand is on the scale - and then never
+		 * hold, which looks exactly like nobody having rated in that band.
+		 */
+		boolean isEmptyRange() {
+			if (unrated) {
+				return false;
+			}
+			int low = min == null ? MIN_RATING : min;
+			int high = max == null ? MAX_RATING : max;
+			return low > high;
 		}
 	}
 

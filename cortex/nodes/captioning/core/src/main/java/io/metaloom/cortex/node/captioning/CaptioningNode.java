@@ -130,7 +130,9 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 		String result;
 		try {
 			result = smolvlmClient.captionByImage(image, options().getTargetFrameSize());
-		} catch (RuntimeException e) {
+		} catch (Exception e) {
+			// Exception, not RuntimeException: the client also throws checked IOExceptions, which
+			// otherwise escaped without a failed call on the dashboard.
 			metrics.recordAiCall("smolvlm", false, System.currentTimeMillis() - aiStart);
 			throw e;
 		}
@@ -153,7 +155,9 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 		VideoCaptionOutput out;
 		try {
 			out = captionVideo(media);
-		} catch (RuntimeException e) {
+		} catch (Exception e) {
+			// Exception, not RuntimeException: the client also throws checked IOExceptions, which
+			// otherwise escaped without a failed call on the dashboard.
 			metrics.recordAiCall("video-vlm", false, System.currentTimeMillis() - aiStart);
 			throw e;
 		}

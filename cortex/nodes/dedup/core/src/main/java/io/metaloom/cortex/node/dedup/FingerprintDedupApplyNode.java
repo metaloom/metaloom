@@ -200,7 +200,20 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 		if (keepZero != null && keepZero != 0L) {
 			return false; // keep incomplete - never discard the more-complete file
 		}
-		if (keep.getFile().getSize() < dupMedia.size()) {
+		if (isSameFile(keepFile, dupMedia)) {
+			// Two asset rows naming one path: "moving the duplicate" would move the keeper.
+			return false;
+		}
+		// The live file, not only the record. The recorded size describes the keeper as it was when the
+		// group was proposed; a keeper truncated or rewritten in place since then still carries that record
+		// - and very possibly its loom_sha512 xattr, which keepContentMatches trusts - so checking the record
+		// alone let a damaged keeper through and released its only intact counterpart.
+		long liveKeepSize = keepFile.length();
+		long recordedKeepSize = keep.getFile().getSize();
+		if (recordedKeepSize > 0 && liveKeepSize != recordedKeepSize) {
+			return false; // the keeper changed on disk since Loom recorded it
+		}
+		if (liveKeepSize < dupMedia.size()) {
 			return false; // keep smaller than the duplicate
 		}
 		if (keepExcludeFolder != null && PathContainment.isInside(keepFile, keepExcludeFolder)) {
@@ -213,6 +226,16 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 			return false; // the keep is no longer the file the reviewer decided about
 		}
 		return true;
+	}
+
+	private static boolean isSameFile(File keepFile, LoomMedia dupMedia) {
+		try {
+			return Files.isSameFile(keepFile.toPath(), Path.of(dupMedia.absolutePath()));
+		} catch (IOException | RuntimeException e) {
+			// Undecidable is treated as "same": refusing to act is the safe direction.
+			log.warn("Could not compare keep file {} with duplicate {} - refusing to act: {}", keepFile, dupMedia.absolutePath(), e.getMessage());
+			return true;
+		}
 	}
 
 	/**

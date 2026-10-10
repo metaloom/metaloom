@@ -111,7 +111,7 @@ public class ShieldGemmaDialect implements GuardDialect {
 		for (String code : codes) {
 			probes.add(GuardProbe.of(code, template
 				.replace("${guideline}", guideline(TEXT_GUIDELINES, code))
-				.replace("${text}", text), MAX_TOKENS));
+				.replace("${text}", GuardDialect.sanitize(text)), MAX_TOKENS));
 		}
 		return List.copyOf(probes);
 	}

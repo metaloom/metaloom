@@ -118,11 +118,35 @@ public class ResultBatcher {
 	 * @return how many batches were sent
 	 */
 	public int flushExpired(long now) {
+		return flush(now, false);
+	}
+
+	/**
+	 * Send everything held, for every run, regardless of how long it has waited.
+	 *
+	 * <p>For shutdown: a worker about to close its connection must not leave finished
+	 * results in a partial batch.</p>
+	 *
+	 * @return how many batches were sent
+	 */
+	public int flushAll() {
+		return flush(System.currentTimeMillis(), true);
+	}
+
+	private int flush(long now, boolean all) {
 		List<Runnable> ready = new ArrayList<>();
 		synchronized (this) {
-			for (Map.Entry<UUID, RunBuffer> entry : new ArrayList<>(buffers.entrySet())) {
+			java.util.Iterator<Map.Entry<UUID, RunBuffer>> it = buffers.entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry<UUID, RunBuffer> entry = it.next();
 				RunBuffer buffer = entry.getValue();
-				if (!buffer.entries.isEmpty() && now - buffer.oldestAt >= maxHoldMs) {
+				if (buffer.entries.isEmpty()) {
+					// A run whose results have all gone out. Without removing it, every run this
+					// worker ever served kept a buffer here for the life of the process.
+					it.remove();
+					continue;
+				}
+				if (all || now - buffer.oldestAt >= maxHoldMs) {
 					BatchSink target = buffer.sink;
 					NodeTaskResultBatch batch = drain(entry.getKey(), buffer);
 					if (target != null) {
@@ -133,6 +157,11 @@ public class ResultBatcher {
 		}
 		ready.forEach(Runnable::run);
 		return ready.size();
+	}
+
+	/** @return how many runs currently have a buffer, empty or not */
+	synchronized int bufferedRuns() {
+		return buffers.size();
 	}
 
 	/**
@@ -155,6 +184,7 @@ public class ResultBatcher {
 			}
 			target = buffer.sink;
 			ready = drain(runUuid, buffer);
+			buffers.remove(runUuid);
 		}
 		if (target == null) {
 			return false;

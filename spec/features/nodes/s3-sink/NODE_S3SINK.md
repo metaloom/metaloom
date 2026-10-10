@@ -3,7 +3,7 @@
 > **Status**: 🟢 **Built and shipping.** Kind `s3-sink`, module
 > [cortex/nodes/s3-sink/](../../../../cortex/nodes/s3-sink/) (aggregator + `core/`), package
 > `io.metaloom.cortex.node.sink.s3`. Bound unconditionally into the kind map by
-> `S3SinkNodeModule`. 89 unit tests + 7 integration tests against a real MinIO container, a
+> `S3SinkNodeModule`. 94 unit tests + 7 integration tests against a real MinIO container, a
 > customer-facing page and three demo pipelines. Contract in the generated
 > `node-descriptors.json`, kept honest by `NodeSpecGoldenTest`.
 > **Scope**: the `s3-sink` node — from the files its `artifacts` port names, through the object
@@ -244,7 +244,7 @@ definition layers over ([../NODES.md](../NODES.md) §6.5). Connection settings a
 | Option | Type | Default | Notes |
 |---|---|---|---|
 | `bucket` | `STRING` | — | Required in `configure(...)`, **not** in `validate()` (§8) |
-| `keyTemplate` | `STRING` | `cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}` | §3. Blank resets to the default |
+| `keyTemplate` | `STRING` | `cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}` | §3. Blank resets to the default; a template that is only separators (`/`, `///`) is rejected at parse time, because it can only ever render an empty key |
 | `includeSource` | `BOOLEAN` | `false` | Also upload the media item; skipped when it is already `s3://` |
 | `createAssets` | `BOOLEAN` | `true` | Off = pure uploader, no Loom asset per artifact |
 | `overwrite` | `ENUM` | `IF_DIFFERENT` | `NEVER` \| `IF_DIFFERENT` \| `ALWAYS` — §4 |
@@ -303,6 +303,7 @@ neither reads nor writes them.
 | `JsonCompCreateRequest.setData` takes a `JsonObject` | The column is `jsonb NOT NULL`, so the payload must be an object wrapping the array, never a bare array |
 | The node takes `@Nullable LoomClient` | Offline mode provides a null client, and Dagger refuses to inject a `@Nullable`-provided binding into a non-annotated parameter. Offline = upload only, no asset, no comp, no ledger |
 | **Not** `@Singleton` | It is `PipelineConfigurable` and `configure(...)` mutates it. `PipelineConfigurableTest.testTwoS3SinkNodesGetIndependentInstances` is the guard |
+| 🔴 `configure(...)` works on a **copy** of the injected options | A distinct node instance is not enough. `AbstractNodeModule.nodeOptions` returns the single `S3SinkNodeOptions` held in `CortexOptions.getNodes()` as soon as the worker YAML carries a `nodes: s3-sink:` block, so every sink is injected with the *same* options object - and `configure` writes the definition into it. Two sinks with different buckets therefore both uploaded to whichever definition was configured last. `configure` now starts from `S3SinkNodeOptions.copy()`, publishes it only after validation, and the node overrides `options()` to answer that copy. Guard: `S3SinkNodeTest.testTwoSinksSharingOneOptionsInstanceKeepTheirOwnDefinitions` |
 | The descriptor is **generated**, not hand-written | `@NodeSpec` / `@PortDoc` / `@ParamDoc` on `S3SinkNode` and `S3SinkNodeOptions` are the source; `node-descriptors.json` is the ground truth artefact and `NodeSpecGoldenTest` fails when they diverge. There is no `S3SinkDescriptorProvider` class |
 | `upload(...)` returns the stored `S3ObjectRef` | Taking the etag from `PutObjectResponse.eTag()` avoids an extra HEAD per artifact |
 | Concurrency is 1 | The descriptor reports `defaultConcurrency: 1`; the `UrlConnectionHttpClient` is a worker-wide singleton shared with `s3-source` listing and materialization, so raising it competes with source downloads |
@@ -325,7 +326,7 @@ neither reads nor writes them.
 | `S3Support` | `io.metaloom.cortex.s3` (`cortex/s3-common`) | The always-injectable "can this worker talk to S3" value — `isActive()`, `store()` |
 | `S3ObjectStore` / `AwsS3ObjectStore` | same | `head(bucket,key)` and `upload(bucket,key,file,contentType)` returning `S3ObjectRef` |
 | `S3ContentTypes` / `S3Uri` | same | Extension → MIME; `isS3(reference)` for the already-remote check |
-| `FakeS3ObjectStore` | same, **test-jar** | In-memory store + assertion accessors; keeps the 89 unit tests MinIO-free |
+| `FakeS3ObjectStore` | same, **test-jar** | In-memory store + assertion accessors; keeps the 94 unit tests MinIO-free |
 | `AbstractMediaNode` | `io.metaloom.cortex.common.node` (`cortex/common`) | The `nodeId()` seam `recordNodeResult` reads |
 | `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` (`cortex/cli`) | Where `S3SinkNodeModule` is collected into the worker graph |
 
@@ -345,7 +346,7 @@ neither reads nor writes them.
 - [x] Asset per artifact, `s3-artifact` json comp and ledger row on the source asset
 - [x] Loud `MISSING` handling for the affinity failure; skip-on-empty; `abort()` on failure
 - [x] Safe `deleteAfterUpload` (stored-only, never the media, `metaPath` only, never fatal)
-- [x] 89 unit tests across five classes; 7 integration tests against a real MinIO container
+- [x] 94 unit tests across five classes; 7 integration tests against a real MinIO container
 - [x] Generated descriptor in `node-descriptors.json`, pinned by `NodeSpecGoldenTest`
 - [x] Customer page `website/content/english/docs/nodes/s3-sink/` with `nodeviz`, `config.png`, `debug.png`; three demo pipelines in `DemoDatabaseInitializer`; the `start-minio.sh` recipe
 
@@ -395,7 +396,7 @@ neither reads nor writes them.
 ## 11. Test Setup
 
 ```bash
-# The pure pieces and the node - no MinIO, FakeS3ObjectStore stands in (89 tests)
+# The pure pieces and the node - no MinIO, FakeS3ObjectStore stands in (94 tests)
 ./mvnw -o -pl cortex/s3-common test
 ./mvnw -o -pl cortex/nodes/s3-sink/core test
 
@@ -415,10 +416,10 @@ neither reads nor writes them.
 
 | Test | Count | What it guards against |
 |---|---|---|
-| `S3KeyTemplateTest` | 19 | An unknown placeholder reaching render; a truncation on a non-hash placeholder; a key with `..`, a trailing `/`, a leading `/` or over 1024 bytes; a missing value silently rendering `null`; the shard level drifting from `HashUtils.segmentPath` |
+| `S3KeyTemplateTest` | 21 | A separator-only template passing `parse()` and then failing every artifact at render time; an unknown placeholder reaching render; a truncation on a non-hash placeholder; a key with `..`, a trailing `/`, a leading `/` or over 1024 bytes; a missing value silently rendering `null`; the shard level drifting from `HashUtils.segmentPath` |
 | `ArtifactSelectorTest` | 16 | A missing file being filtered instead of reported; duplicates uploaded twice; sequence order lost; the media item slipping in without `includeSource`, or being uploaded twice when it is also on the port; provenance claiming a node name it cannot know |
 | `S3SinkOptionsValidationTest` | 13 | `validate()` regaining a `bucket` requirement and breaking every pipeline build; a bad bucket name or key template passing; `deleteAfterUpload` defaulting on; non-positive limits accepted |
-| `S3SinkNodeTest` | 30 | A green node with an empty bucket; a partial run not surfacing; zero artifacts failing instead of skipping; inactive S3 skipping instead of failing; a missing file losing the affinity hint; `maxArtifacts` truncating; `deleteAfterUpload` touching the media item, a file outside `metaPath` or a failed upload; two instances sharing an id |
+| `S3SinkNodeTest` | 33 | Two sinks sharing one worker-level options instance losing each other's bucket; a rejected `configure` leaving half a definition behind; a key template needing a source hash the media has not got rendering a degenerate key instead of failing with the placeholder named; a green node with an empty bucket; a partial run not surfacing; zero artifacts failing instead of skipping; inactive S3 skipping instead of failing; a missing file losing the affinity hint; `maxArtifacts` truncating; `deleteAfterUpload` touching the media item, a file outside `metaPath` or a failed upload; two instances sharing an id |
 | `S3SinkNodePersistenceTest` | 11 | The artifact asset carrying the source's hash instead of its own, or losing its provenance meta; the json comp or ledger row missing, or two instances overwriting each other's; a failed artifact not recorded; anything persisted on an empty run |
 | `S3SinkNodeIntegrationTest` | 7 | Against real MinIO: the object present with the right `Content-Type`; the exact content-addressed key; an asset created and loadable by its SHA-512 with `origin` = the `s3://` URI; a second run uploading nothing; two sink instances both persisting without collision; `includeSource` archiving the media; the affinity failure; `deleteAfterUpload` |
 | `PipelineConfigurableTest` | 4 cases | Someone marking the node `@Singleton`; the kind not being registered; a definition without a bucket building anyway |
@@ -465,5 +466,8 @@ Re-run and confirm `Last Modified` is unchanged (the `IF_DIFFERENT` skip);
 
 ---
 
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (§8 — the `ctx.failure(...).next()` gotcha it warned about is fixed tree-wide). Earlier: 2026-08-11_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-09-26 (I/O boundary sweep: `configure(...)` now copies the injected
+options instead of mutating the worker-level instance every sink shares, and a separator-only
+`keyTemplate` is rejected by `parse()`. Earlier: 2026-08-18 — the `ctx.failure(...).next()` gotcha it
+warned about is fixed tree-wide; 2026-08-11)_

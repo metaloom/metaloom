@@ -133,11 +133,9 @@ public class S3DifferentialScanner {
 					selection.bucket());
 				return ScanMode.FULL_LIST;
 			}
-			if (eventBuffer.hasHints(selection.bucket(), selection.prefix())) {
-				return ScanMode.EVENTS;
-			}
-			// No hints and events are on: nothing changed since the last run, so a listing would
-			// only confirm that. Take the cheap path and emit nothing.
+			// With or without hints: events are on and the buffer is healthy, so the buffer is the
+			// truth. No hints simply means nothing changed since the last run, and a listing would
+			// only confirm that - so take the cheap path and emit nothing.
 			return ScanMode.EVENTS;
 		}
 		if (selection.startAfter() && index.getLastSeenKey() != null) {
@@ -156,6 +154,20 @@ public class S3DifferentialScanner {
 			return result;
 		}
 
+		try {
+			applyHints(selection, index, drained, result);
+		} catch (IOException | RuntimeException e) {
+			// The hints are already out of the buffer and the index is not persisted on failure, so
+			// a retry on the fast path would find nothing and emit nothing - the changes would stay
+			// invisible until the reconcile interval. Force the next run onto a full listing.
+			eventBuffer.markDegraded(selection.bucket());
+			throw e;
+		}
+		return result;
+	}
+
+	private void applyHints(S3Selection selection, S3ObjectIndex index, List<S3ChangeHint> drained,
+		S3ScanResult result) throws IOException {
 		for (S3ChangeHint hint : drained) {
 			if (!selection.accepts(hint.key())) {
 				continue;
@@ -181,7 +193,6 @@ public class S3DifferentialScanner {
 			}
 			classify(current, index, selection, result);
 		}
-		return result;
 	}
 
 	/**
@@ -194,13 +205,42 @@ public class S3DifferentialScanner {
 		S3ScanResult result = new S3ScanResult(full ? ScanMode.FULL_LIST : ScanMode.RESUME);
 		Set<String> seen = full ? new LinkedHashSet<>() : null;
 
+		if (full && eventBuffer != null) {
+			// Drain before listing, not after. The listing reflects every change that happened
+			// before it started, so hints up to now are redundant; but a hint that arrives while the
+			// listing is running may describe a key the listing has already passed, and draining it
+			// afterwards discarded exactly the changes the listing could not see. Likewise the
+			// degraded flag: an overflow during the listing must survive it.
+			eventBuffer.clearDegraded(selection.bucket());
+			eventBuffer.drain(selection.bucket(), selection.prefix());
+		}
+		try {
+			listInto(selection, index, startAfter, seen, result);
+		} catch (IOException | RuntimeException e) {
+			if (full && eventBuffer != null) {
+				// The pre-listing hints were drained on the strength of this listing, which did not
+				// complete. Without this the next run could take the event path with nothing in it.
+				eventBuffer.markDegraded(selection.bucket());
+			}
+			throw e;
+		}
+
+		if (full) {
+			collectDeletions(index, selection, seen, result);
+			index.setLastFullScanMillis(nowMillis);
+		}
+		return result;
+	}
+
+	private void listInto(S3Selection selection, S3ObjectIndex index, String startAfter, Set<String> seen,
+		S3ScanResult result) throws IOException {
 		String continuationToken = null;
 		int pages = 0;
 		do {
 			S3Listing page = store.list(selection.bucket(), selection.prefix(), continuationToken, startAfter);
 			pages++;
 			for (S3ObjectRef object : page.objects()) {
-				if (full) {
+				if (seen != null) {
 					seen.add(object.key());
 				}
 				if (!selection.accepts(object.key())) {
@@ -208,22 +248,21 @@ public class S3DifferentialScanner {
 				}
 				classify(object, index, selection, result);
 			}
-			continuationToken = page.nextContinuationToken();
+			String nextToken = page.nextContinuationToken();
+			// A gateway that answers every request with the token it was handed - or a store
+			// implementation that echoes the token back instead of advancing it - would otherwise
+			// spin this loop forever, holding a source task and one worker thread with no log line
+			// to show why. Fail loudly instead: a stuck cursor is never recoverable by retrying it.
+			if (nextToken != null && nextToken.equals(continuationToken)) {
+				throw new IOException("Listing s3://" + selection.bucket() + "/"
+					+ (selection.prefix() == null ? "" : selection.prefix())
+					+ " did not advance: page " + pages + " returned the same continuation token it was given");
+			}
+			continuationToken = nextToken;
 		} while (continuationToken != null && !continuationToken.isBlank());
 
-		if (full) {
-			collectDeletions(index, selection, seen, result);
-			index.setLastFullScanMillis(nowMillis);
-			if (eventBuffer != null) {
-				// The listing re-established the truth, so whatever the buffer missed no longer
-				// matters and the bucket can use the fast path again.
-				eventBuffer.clearDegraded(selection.bucket());
-				eventBuffer.drain(selection.bucket(), selection.prefix());
-			}
-		}
 		log.debug("Listed {} page(s) of s3://{}/{}", pages, selection.bucket(),
 			selection.prefix() == null ? "" : selection.prefix());
-		return result;
 	}
 
 	/** NEW when unknown, MODIFIED when the change token or size moved, PRESENT otherwise. */

@@ -50,4 +50,24 @@ class FingerprintNodeFailureTest {
 			// starved - which is precisely why the terminal state has to carry the truth instead.
 			.hasOutput(FingerprintNode.OUT_FINGERPRINT, "NULL");
 	}
+
+	/**
+	 * The skip cache answered by path alone, so a file replaced in place kept the fingerprint of
+	 * what used to be there. A changed file must be fingerprinted again - here that means trying to
+	 * decode it, and failing, rather than replaying the stale value as a success.
+	 */
+	@Test
+	void testARewrittenFileIsNotAnsweredFromTheSkipCache() throws Exception {
+		StubLoomMedia backing = StubLoomMedia.ofBytes(tempDir, "clip.mp4", "this is not a video at all");
+		StubLoomMedia media = new StubLoomMedia(backing.file().getAbsolutePath(), true, false, false, false);
+		media.setSHA512(HASH);
+		FingerprintNode node = new FingerprintNode(null, new CortexOptions().setMetaPath(tempDir.toPath()), new FingerprintNodeOptions());
+
+		node.markFingerprinted(media, "cafebabe");
+		assertThat(node.process(NodeContext.create(media))).isSuccess().hasOutput(FingerprintNode.OUT_FINGERPRINT, "cafebabe");
+
+		java.nio.file.Files.writeString(backing.file().toPath(), "replaced with different, longer bytes");
+
+		assertThat(node.process(NodeContext.create(media))).isFailed();
+	}
 }

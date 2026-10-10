@@ -182,6 +182,28 @@ public class RegionResolverTest {
 		assertThat(resolution.truncated()).isEqualTo(3);
 	}
 
+	/**
+	 * The cap selects by area; it does not reorder. Payload index order is part of this class's
+	 * contract, and sorting the list itself would silently change the emission order on exactly the
+	 * runs that hit the cap — so a consumer indexing regions would read a different region depending
+	 * on how many detections happened to arrive.
+	 */
+	@Test
+	public void testTheCapKeepsThePayloadOrderOfTheBoxesItSelects() {
+		List<String> elements = List.of(
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 0, "face", 0, 0, 60, 60).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 1, "face", 70, 0, 20, 20).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 2, "face", 100, 0, 100, 100).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 3, "face", 210, 0, 80, 80).encode());
+
+		Resolution resolution = resolve(detectionsOnly().setMaxRegions(3), elements);
+
+		// Largest first would be face-2 (100x100), face-3 (80x80), face-0 (60x60); the smallest,
+		// face-1, is the one dropped. What survives is emitted in payload order.
+		assertThat(resolution.regions()).extracting(RegionSource::id).containsExactly("face-0", "face-2", "face-3");
+		assertThat(resolution.truncated()).isEqualTo(1);
+	}
+
 	@Test
 	public void testTheCapNeverDropsTheWholeImageOrTheConfiguredRegion() {
 		DominantColorNodeOptions options = new DominantColorNodeOptions()

@@ -188,4 +188,64 @@ public class CloudMediaMaterializerTest {
 			return 0;
 		}
 	}
+
+	/**
+	 * A OneDrive cTag is {@code "c:{GUID},N"}, which sanitizes to just under the name budget. Cutting
+	 * it off at a fixed length chopped the version number, so version 12 and version 13 of one file
+	 * shared a cache entry and the edited file was served stale.
+	 */
+	@Test
+	public void testLongChangeTokensThatDifferOnlyAtTheEndGetDifferentCachePaths() throws IOException {
+		String id = store.putFile("d", null, "clip.mp4", "x");
+		CloudUri uri = store.peek("d", id).uri();
+		CloudMediaMaterializer materializer = materializer(0, 0);
+
+		Path v12 = materializer.cachePath(uri, "ctag:\"c:{86EB4C8E-D20D-46B9-AD41-23B8868DDA8A},12\"");
+		Path v13 = materializer.cachePath(uri, "ctag:\"c:{86EB4C8E-D20D-46B9-AD41-23B8868DDA8A},13\"");
+
+		assertThat(v12).isNotEqualTo(v13);
+		assertThat(v12.getFileName().toString()).endsWith(".mp4");
+		// Short tokens keep their readable form.
+		assertThat(materializer.cachePath(uri, "v:7").getFileName().toString()).contains("-v_7");
+	}
+
+	@Test
+	public void testConcurrentMaterializationsOfOneFileDoNotCorruptTheCache() throws Exception {
+		java.util.concurrent.CountDownLatch firstHalfWritten = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.CountDownLatch secondDone = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		FakeCloudFileStore slow = new FakeCloudFileStore(CloudProviderId.GDRIVE) {
+			@Override
+			public void download(CloudFileRef ref, Path target) throws IOException {
+				if (calls.incrementAndGet() == 1) {
+					Files.writeString(target, "hello-");
+					firstHalfWritten.countDown();
+					try {
+						secondDone.await();
+					} catch (InterruptedException e) {
+						throw new IOException(e);
+					}
+					Files.writeString(target, "world", java.nio.file.StandardOpenOption.CREATE,
+						java.nio.file.StandardOpenOption.APPEND);
+				} else {
+					super.download(ref, target);
+				}
+			}
+		};
+		String id = slow.putFile("d", null, "clip.mp4", "hello-world");
+		CloudFileRef ref = slow.peek("d", id);
+		CloudMediaMaterializer materializer = new CloudMediaMaterializer(slow, cacheDir, 0, 0);
+
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			java.util.concurrent.Future<Path> first = pool.submit(() -> materializer.materialize(ref));
+			firstHalfWritten.await();
+			assertThat(Files.readString(materializer.materialize(ref))).isEqualTo("hello-world");
+			secondDone.countDown();
+			assertThat(Files.readString(first.get(10, java.util.concurrent.TimeUnit.SECONDS))).isEqualTo("hello-world");
+		} finally {
+			secondDone.countDown();
+			pool.shutdownNow();
+		}
+	}
 }

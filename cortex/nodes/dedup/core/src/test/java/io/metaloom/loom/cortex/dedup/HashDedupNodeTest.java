@@ -179,4 +179,21 @@ class HashDedupNodeTest {
 
 		assertNoDuplicateSignalled(result);
 	}
+
+	/**
+	 * Equal hashes but different lengths means one of the hashes is wrong - typically a stale xattr on a file rewritten in place. The old size check
+	 * compared the known file with itself and could never see this.
+	 */
+	@Test
+	void testALocalCopyOfADifferentLengthIsNotSignalled() throws Exception {
+		File known = new File(tempDir, "original.mp4");
+		Files.write(known.toPath(), "identical bytes plus a good deal more".getBytes());
+		knownAssetAt(known);
+		when(loader.load(known.toPath())).thenReturn(mediaOf(known));
+
+		NodeResult result = node().process(NodeContext.create(mediaOf(localFile)));
+
+		assertNoDuplicateSignalled(result);
+		assertTrue(known.exists());
+	}
 }

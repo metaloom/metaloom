@@ -5,8 +5,12 @@ import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
@@ -81,8 +85,8 @@ public class VideoGenNode extends AbstractMediaNode<VideoGenNodeOptions> {
 	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
-	/** In-heap skip cache of the generated video path, keyed by media path, to avoid re-generating within this worker's lifetime. The rendered MP4 itself
-	 * is a durable local artifact under {@code metaPath/videogen_bin}. */
+	/** In-heap skip cache of the generated video path, keyed by media path plus the input digest (see {@link #digest}), to avoid re-generating
+	 * within this worker's lifetime. The rendered MP4 itself is a durable local artifact under {@code metaPath/videogen_bin}. */
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
 	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
@@ -114,8 +118,14 @@ public class VideoGenNode extends AbstractMediaNode<VideoGenNodeOptions> {
 		LoomMedia media = ctx.media();
 		String path = media.absolutePath();
 
+		// A wired prompt port wins over the configured one: the option is the default for a
+		// standalone node, the edge is what a pipeline author explicitly connected.
+		String prompt = ctx.optionalInput(IN_PROMPT).orElseGet(options()::getPrompt);
+		String digest = digest(prompt);
+		String cacheKey = path + "|" + digest;
+
 		// Re-emit a locally cached video path instead of re-generating. On a hit the ledger entry already exists in Loom, so we also skip re-persisting.
-		String cached = resultCache.get(path);
+		String cached = resultCache.get(cacheKey);
 		if (cached != null) {
 			metrics.recordAiCacheHit("videogen");
 			ctx.output(OUT_FLAG, "DONE");
@@ -127,21 +137,21 @@ public class VideoGenNode extends AbstractMediaNode<VideoGenNodeOptions> {
 			long aiStart = System.currentTimeMillis();
 			byte[] mp4;
 			try {
-				mp4 = generate(ctx, media);
+				mp4 = generate(prompt, media);
 			} catch (RuntimeException e) {
 				metrics.recordAiCall("videogen", false, System.currentTimeMillis() - aiStart);
 				throw e;
 			}
 			metrics.recordAiCall("videogen", true, System.currentTimeMillis() - aiStart);
 
-			Path videoPath = resolveVideoPath(media);
+			Path videoPath = resolveVideoPath(media, digest);
 			Files.createDirectories(videoPath.getParent());
 			Files.write(videoPath, mp4);
 
 			ctx.print("DONE", mp4.length + " bytes");
 			ctx.output(OUT_FLAG, "DONE");
 			ctx.output(OUT_VIDEO, videoPath.toString());
-			resultCache.put(path, videoPath.toString());
+			resultCache.put(cacheKey, videoPath.toString());
 
 			// The video bytes live in the local videogen_bin cache; record the ledger marker that this node produced them for the asset. Uploading the bytes
 			// into the asset binary subsystem needs a byte-ingest endpoint that does not exist yet, so that remains a follow-up (same as ImageGenNode/TtsNode).
@@ -158,11 +168,8 @@ public class VideoGenNode extends AbstractMediaNode<VideoGenNodeOptions> {
 	/**
 	 * Call the sidecar for the configured mode: ANIMATE loads the source image and hits {@code /animate}; GENERATE (default) hits {@code /generate}.
 	 */
-	private byte[] generate(NodeContext<LoomMedia> ctx, LoomMedia media) throws IOException {
+	private byte[] generate(String prompt, LoomMedia media) throws IOException {
 		VideoGenNodeOptions o = options();
-		// A wired prompt port wins over the configured one: the option is the default for a
-		// standalone node, the edge is what a pipeline author explicitly connected.
-		String prompt = ctx.optionalInput(IN_PROMPT).orElseGet(o::getPrompt);
 		if (o.getMode() == VideoGenMode.ANIMATE) {
 			BufferedImage source = ImageIO.read(media.file());
 			if (source == null) {
@@ -176,13 +183,36 @@ public class VideoGenNode extends AbstractMediaNode<VideoGenNodeOptions> {
 	}
 
 	/**
-	 * Resolve the local cache path for the generated MP4: {@code metaPath/videogen_bin/<segment>/<sha512>.mp4}. Mirrors {@code ImageGenNode}/{@code TtsNode}.
+	 * Resolve the local cache path for the generated MP4: {@code metaPath/videogen_bin/<segment>/<sha512>-<digest>.mp4}.
+	 *
+	 * <p>
+	 * The digest is in the file name, not only in the cache key - the {@code ImageGenNode} pattern. With
+	 * {@code <sha512>.mp4} alone a second prompt on the same asset (a wired prompt that changed, or a
+	 * second videogen node) overwrote the first clip, and the path-keyed cache served the first clip for
+	 * every later prompt.
+	 * </p>
 	 */
-	private Path resolveVideoPath(LoomMedia media) {
+	private Path resolveVideoPath(LoomMedia media, String digest) {
 		SHA512 hash = media.getSHA512();
-		String fileName = hash + ".mp4";
+		String fileName = hash + "-" + digest + ".mp4";
 		Path basePath = cortexOptions.getMetaPath().resolve("videogen_bin");
 		Path dirPath = HashUtils.segmentPath(basePath, hash);
 		return dirPath.resolve(fileName);
+	}
+
+	/**
+	 * A short digest of everything that changes the produced clip: the effective prompt and every
+	 * result-affecting option. An option left out here makes two configurations share one file.
+	 */
+	private String digest(String prompt) {
+		VideoGenNodeOptions o = options();
+		String material = o.getMode() + "|" + prompt + "|" + o.getNegativePrompt() + "|" + o.getWidth() + "x" + o.getHeight() + "|"
+			+ o.getNumFrames() + "|" + o.getFps() + "|" + o.getSteps() + "|" + o.getGuidance() + "|" + o.getSeed();
+		try {
+			MessageDigest md = MessageDigest.getInstance("SHA-256");
+			return HexFormat.of().formatHex(md.digest(material.getBytes(StandardCharsets.UTF_8))).substring(0, 12);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 is required by the JDK specification", e);
+		}
 	}
 }

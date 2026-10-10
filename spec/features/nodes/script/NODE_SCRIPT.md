@@ -3,7 +3,7 @@
 > **Status**: 🟢 **Built and shipping.** Kind `script`, module
 > [cortex/nodes/script/](../../../../cortex/nodes/script/) (artifactId `cortex-script-node`), package
 > `io.metaloom.cortex.node.script`. JavaScript on **GraalJS / GraalVM polyglot 25.0.0**, in-process,
-> no sidecar. 50 unit tests + 2 integration tests, plus the seam and resolver tests in §11.
+> no sidecar. 73 unit tests + 2 integration tests, plus the seam and resolver tests in §11.
 > Contract in the generated `node-descriptors.json`, kept honest by `NodeSpecGoldenTest`.
 > **Scope**: the `script` node, its engine SPI, the script-facing binding contract, the sandbox and
 > the resource envelope — from the pipeline definition's `script` string to the
@@ -222,6 +222,13 @@ Notes that bite:
   is unwrapped in `translate(...)`. Without that unwrapping, `ctx.skip()` would surface as a failure
   with a JavaScript stack attached.
 * **`out.image` accepts raw bytes, a base64 string, or a path.** A path is passed through untouched.
+  Base64 is decoded with the MIME decoder, so line-wrapped (76-column) base64 is accepted.
+* **`INTEGER` / `NUMBER` outputs must be finite.** `NaN` and `±Infinity` are JavaScript numbers but not
+  JSON; they fail the item as an authoring error rather than failing the persist later (or, as an
+  `INTEGER`, silently becoming `0` / `Long.MAX_VALUE`).
+* **`params` / `data` arrays reach the guest as arrays** whether the host holds them as a `List` or a
+  Vert.x `JsonArray` - `toGuest` converts both. A raw `JsonArray` would be an opaque host object to a
+  sandboxed script.
 
 ---
 
@@ -274,6 +281,12 @@ A trusted script is trusted not to be malicious; it is not trusted to be free of
 > `TIMEFRAMES` and both image types**. A script emitting a huge timeframe list is not capped by it. It
 > is also a post-hoc check: the script has already finished and the bytes are already in heap when it
 > fires.
+>
+> 🟢 **It does now count bytes** (fixed). It measured `encode().length()` — *characters* — so a payload
+> of CJK text or emoji passed a cap it exceeded by up to 3–4×, under an option named
+> `maxOutputBytes` and against a column that stores bytes. It is
+> `encode().getBytes(UTF_8).length`. `ScriptNodeFailurePathTest.shouldMeasureMaxOutputBytesInUtf8BytesRatherThanCharacters`
+> pins it; `shouldAcceptAnAsciiPayloadOfTheSameCharacterCount` pins that the cap did not just move.
 
 > 🟡 **Memory is not bounded, and this must not be claimed otherwise.** Heap and CPU-time
 > `ResourceLimits` need the optimized Truffle runtime, which a stock JDK does not provide.
@@ -409,7 +422,9 @@ everywhere else in the node system.
 | `ctx.skip(reason)` | `SKIPPED` | `ctx.skipped(msg).next()` |
 | `ctx.fail(reason)` | `FAILED` | ledger row, then `ctx.failure(msg).abort()` |
 | Undeclared key, coercion failure, guest error | `FAILED` | ledger row, then `.abort()` |
-| Payload over `maxOutputBytes` | `FAILED` | ledger row, then `.abort()` |
+| Payload over `maxOutputBytes` (UTF-8 bytes) | `FAILED` | ledger row, then `.abort()` |
+| The wired `data` input is not a JSON object | `FAILED` | ledger row, then `.abort()`. 🟢 Used to leave `compute` as a raw `DecodeException` |
+| A guest value nesting past 64 levels, or cyclic | `FAILED` | ledger row, then `.abort()`. 🟢 Used to leave `compute` as a `StackOverflowError` |
 
 ---
 
@@ -471,7 +486,13 @@ everywhere else in the node system.
       ledger rows beside the two JSON comps (§8).
 - [ ] 🟡 **`maxOutputBytes` does not cover `TIMEFRAMES` or image outputs** (§6.2), and is checked only
       after the script has already built the bag in heap. Either cap the whole collected bag, or rename
-      the option to say what it measures.
+      the option to say what it measures. (It does at least count bytes now, not characters — §6.2.)
+- [ ] 🔵 **A segments-only run records `SUCCESS` with a null result ref.** `persistSegments` returns
+      nothing into `written`, so when a script declares only `TIMEFRAMES` outputs the ledger row
+      carries no `asset_segment_comp` reference. The dead `table = written.isEmpty() ? … : table`
+      assignment that stood in `persist(...)` and could never reach `resultRef(...)` has been removed;
+      wiring the real refs needs the uuids out of the `SegmentCompListResponse` and a
+      persistence-test mock that returns a body.
 - [ ] 🟡 **Memory is unbounded.** No heap `ResourceLimits` on a stock JDK. Do not claim a memory bound;
       if one is wanted it needs the optimized Truffle runtime or an out-of-process engine.
 - [ ] **Nothing keeps the three copies of the output-type table in step** (§4.1). Generate the TS table
@@ -508,7 +529,7 @@ everywhere else in the node system.
 ## 11. Test Setup
 
 ```bash
-# 50 unit tests, real GraalJS against a temp file, no Loom
+# 73 unit tests, real GraalJS against a temp file, no Loom
 mvn -T 8 -o test -pl cortex/nodes/script -am
 
 # The per-instance configuration seam
@@ -533,6 +554,8 @@ cd loom-ui && npm run test:e2e -- pipeline-ports-mocked
 |---|---|
 | `ScriptNodeTest` (23) | An undeclared key silently dropped; a value coerced against its declaration; `ctx.skip` reported as a failure and `ctx.fail` as a success; an infinite loop surviving `timeoutMs` or `statementLimit`; `Java.type` reachable at `trusted=false` (and unreachable at `trusted=true`); a syntax error surfacing per item instead of at configure time; an edited script served from the cache; the producer version losing the script digest; image bytes not reaching `script_bin`; an unconfigured node reporting success; two `Provider.get()` calls sharing one instance; the demo "Reading Time" script breaking |
 | `ScriptOptionsValidationTest` (15) | Every malformed declaration surfacing per item instead of at pipeline start; `timeoutMs` falling back to the inherited `0`; a `segmentType` the database would reject; two timeframe outputs wiping each other; a `ScriptValueType` added without a parser or a content type |
+| `ScriptOutputCollectorTest` (17) | Each coercion branch proving itself only through a node failure message: an undeclared key, a null value, a typed helper on the wrong declaration, non-numeric/non-boolean/non-parsing input, a non-list where a list is declared, every malformed timeframe shape (non-object, missing bound, inverted range, negative start — and a zero-length mark still legal), and the three image forms, line-wrapped base64, and non-finite numbers. **The base64-vs-path discriminator** is here — the `/` bug the pre-existing 1×1-PNG test could not see |
+| `ScriptNodeFailurePathTest` (8) | The three ways `compute` used to leave as a raw throwable instead of a `FAILED` result: a non-object `data` payload (`DecodeException`), a cyclic or 500-deep guest value (`StackOverflowError`), and `maxOutputBytes` measured in characters. Each has a matching "and the legitimate case still passes" assertion, because a bound is only correct if it is above real shapes |
 | `ScriptNodePipelineTest` (7) | Adapter integration, completion and tracking events, output chaining, the media facade inside a real DAG, disabled + dry-run skip |
 | `ScriptNodePersistenceTest` (5) | The JSON comp losing its `variant`; segment comps missing per `TIMEFRAMES` key; a JSON comp written when every output has its own landing zone; no `FAILED` ledger row when the script fails; images persisted beyond the ledger. ⚠️ Do **not** pass a null client — that silently skips all write-back coverage |
 | `ScriptNodeIntegrationTest` (2) | The JSON comp, segment comps and ledger row not reaching Postgres; two script nodes on one asset overwriting each other's **JSON component** — it asserts one comp per `variant` and says nothing about the ledger, which does collide (§8) |
@@ -559,7 +582,9 @@ script` pipeline in the editor, run it, confirm the outputs land on the asset.
 | **Compile once, execute many** | Compile in `configure(...)`, never in `compute(...)` |
 | **Undeclared output = hard failure** | Deliberate: a silently dropped typo would make the graph lie about what flows down an edge |
 | **`out.image` bytes stay on the worker** | There is no Loom byte-ingest endpoint for produced media. Downstream consumers get a **path meaningful only on that worker** — pin such graphs into one affinity group, or wire the port into `s3-sink`. See [../../rest/REST_BINARY_HANDLING.md](../../rest/REST_BINARY_HANDLING.md) |
-| **`looksBase64` is a heuristic** | `text.length() > 256 && text.indexOf('/') < 0 \|\| text.endsWith("==")` parses as `(a && b) \|\| c`, so a *path* ending in `==` is decoded as base64 instead of passed through |
+| **`looksBase64` is a heuristic, and `/` is not the discriminator** | 🟢 Fixed. It used to read `text.length() > 256 && text.indexOf('/') < 0 \|\| text.endsWith("==")`. `/` is a **base64 alphabet character**, so an unpadded base64 image of any real size contains one and failed the test — `out.image(key, base64)` then took the *path* branch, wrote no bytes, raised nothing, and emitted the base64 blob itself as the "path" a downstream consumer got. It now requires the **whole string** to be inside the base64 alphabet (a real path carries a `.`, `-`, `_`, space or `:`) and then decides on padding or length. Pinned by `ScriptOutputCollectorTest.testBase64ImageBytesContainingASlashAreWrittenRatherThanTreatedAsAPath` and end to end by `ScriptNodeFailurePathTest.shouldWriteUnpaddedBase64ImageBytesInsteadOfEmittingThemAsAPath`. The pre-existing image test never caught it because its 1×1 PNG happens to contain no `/` *and* ends in `==` |
+| **A malformed `data` payload is a failure, not a throw** | 🟢 Fixed. `data(ctx)` decodes the `struct/json` input with `new JsonObject(encoded)`, which raises a Vert.x `DecodeException` for a JSON **array**, scalar or truncated body — an unchecked exception that left `compute()` uncaught, so the node wrote no ledger row and handed the engine a raw throwable instead of the `.abort()` it documents. `compute` now catches it and fails with "the wired 'data' input is not a JSON object" |
+| **`fromGuest` is depth-bounded** | 🟢 Fixed. The host walk over a guest value was unbounded, so `const a = {}; a.self = a; out.json('x', a)` recursed to a `StackOverflowError` — an `Error`, therefore not caught by `execute`'s `catch (Exception)` and not convertible into a `FAILED` result. The bound is `MAX_GUEST_DEPTH = 64` and a breach is an ordinary `ScriptOutputException` |
 | **Segment outputs are whole-set replace** | Correct for re-runs (a shorter re-run deletes the surplus), but two `TIMEFRAMES` outputs must not share a `segmentType` — validation rejects that up front |
 | **`data.text` uses `putIfAbsent`** | The `text` port is merged *after* the `data` payload, so a genuine `text` field in the wired JSON is not overwritten |
 | **`SecurityManager` is unavailable** | Removed in JDK 24. Never propose a policy-file sandbox for any JVM engine |
@@ -601,5 +626,5 @@ script` pipeline in the editor, run it, confirm the outputs land on the asset.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-09-26_

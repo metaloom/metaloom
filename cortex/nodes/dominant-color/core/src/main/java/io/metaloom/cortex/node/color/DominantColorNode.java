@@ -235,8 +235,9 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 		double[] lab = PixelSampler.sampleLab(image, region.box(), maxSamples, alphaThreshold);
 		int usable = lab.length / 3;
 		// The geometric drop already happened in RegionResolver; this is the drop that can only be
-		// decided after the alpha gate has run, e.g. a box over a transparent area.
-		if (usable < options().getMinRegionPixels()) {
+		// decided after the alpha gate has run, e.g. a box over a transparent area. Compared in pixels, not
+		// samples: past the sample budget each sampled point stands for stride² pixels.
+		if (usable == 0 || PixelSampler.estimatePixels(region.box(), maxSamples, usable) < options().getMinRegionPixels()) {
 			return null;
 		}
 

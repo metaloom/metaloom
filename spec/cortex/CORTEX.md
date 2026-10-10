@@ -298,7 +298,8 @@ drains while the socket is still open:
 2. `PipelineTaskHandler#beginDrain` — a dispatch already on the wire is answered with `TASK_RETURNED` instead of being started.
 3. `awaitDrain(--drain-timeout-ms)` (default 30 000) — node, segment *and* source tasks get the grace period.
 4. `returnOutstanding(reason)` — whatever still runs is handed back; the task keeps running locally, Loom is simply free to re-place it.
-5. One final frame is written and awaited, because frames queued on the event loop are lost when the socket closes.
+5. `flushPendingResults()` — results of tasks that finished during the grace period may still sit in a partial `ResultBatcher` batch; they are sent now rather than lost with the socket.
+6. One final frame is written and awaited, because frames queued on the event loop are lost when the socket closes.
 
 Without this, held tasks stay `RUNNING` until the lease lapses (10 min default). See
 [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) for the wire protocol and attempt-budget

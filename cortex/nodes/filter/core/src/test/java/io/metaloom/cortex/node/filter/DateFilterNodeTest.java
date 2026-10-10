@@ -178,6 +178,31 @@ class DateFilterNodeTest {
 		assertTrue(e.getMessage().contains("needs a date condition"), e.getMessage());
 	}
 
+	/**
+	 * A range typed the wrong way round parses, and then holds for no file ever. Reporting it up
+	 * front is the same contract the unparseable hint above gets, for the same reason.
+	 */
+	@Test
+	void testAReversedRangeIsRejectedAtConfigureTime() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+			() -> node(nodeDef().put("buckets",
+				new JsonArray().add(new JsonObject().put("id", "recent").put("match", "2024-12-31..2024-01-01")))));
+
+		assertTrue(e.getMessage().contains("empty date range"), e.getMessage());
+		assertTrue(e.getMessage().contains("recent"), e.getMessage());
+	}
+
+	/** Both ends of a written range are inclusive of their whole day, so one day is never empty. */
+	@Test
+	void testASingleDayRangeAndEverySingleEndedFormStayUsable() {
+		ZonedDateTime now = ZonedDateTime.now();
+		for (String hint : java.util.List.of("2024-03-17..2024-03-17", "2024-03-17", "<2024-01-01", "<=2024-12-31",
+			">2024-06-30", ">=2024-01-01", "age<30d", "age>1y")) {
+			Range range = DateFilterStrategy.parse(hint, now);
+			assertTrue(range != null && !range.isEmpty(), hint + " must be a usable condition");
+		}
+	}
+
 	@Test
 	void testTheProducerVersionNamesTheStrategy() {
 		assertTrue(node(nodeDef()).producerVersion().startsWith("filter/1:DATE:"));

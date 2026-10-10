@@ -27,6 +27,7 @@ import io.metaloom.cortex.node.script.engine.ScriptException;
 import io.metaloom.cortex.node.script.engine.ScriptLimits;
 import io.metaloom.cortex.node.script.engine.ScriptOutputException;
 import io.metaloom.cortex.node.script.engine.ScriptSignal;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -91,6 +92,13 @@ public class GraalJsCompiledScript implements CompiledScript {
 			// Thrown by a host binding and propagated straight out when it is not wrapped.
 			throw e;
 		} catch (Exception e) {
+			if (timedOut.get()) {
+				// The watchdog can land between newContext() and eval(), and then it is install()
+				// that fails - on an already closed context, with an IllegalStateException rather
+				// than a PolyglotException. Reporting that as "script failed: ..." would send the
+				// author hunting for a bug in a script that was merely too slow.
+				throw new ScriptException("script exceeded its " + limits.timeoutMs() + "ms time budget", e, true);
+			}
 			throw new ScriptException("script failed: " + e.getMessage(), e);
 		} finally {
 			watchdog.cancel(false);
@@ -254,6 +262,12 @@ public class GraalJsCompiledScript implements CompiledScript {
 		if (value instanceof JsonObject json) {
 			return toGuest(json.getMap());
 		}
+		if (value instanceof JsonArray array) {
+			// A JsonObject's map holds JsonArray values whenever it was built with put(...) rather than
+			// decoded. Handed over raw, it is a host object with no @HostAccess members: a sandboxed
+			// script sees an opaque value with no length and no elements.
+			return toGuest(array.getList());
+		}
 		if (value instanceof List<?> list) {
 			List<Object> converted = new ArrayList<>(list.size());
 			for (Object element : list) {
@@ -264,8 +278,28 @@ public class GraalJsCompiledScript implements CompiledScript {
 		return value;
 	}
 
-	/** Convert a guest value into plain Java for the collector to coerce. */
+	/**
+	 * Convert a guest value into plain Java for the collector to coerce.
+	 *
+	 * <p>
+	 * ⚠️ Bounded. A guest object may be cyclic ({@code const a = {}; a.self = a;}) or arbitrarily
+	 * deeply nested, and an unbounded walk over one raises a {@link StackOverflowError} - an
+	 * {@code Error}, so {@link #execute} would not catch it, the node would not write its
+	 * {@code FAILED} ledger row, and the failure would leave {@code compute} as a raw throwable
+	 * instead of a result. The depth bound turns that into the ordinary authoring error it is.
+	 * </p>
+	 */
 	private static Object fromGuest(Value value) {
+		return fromGuest(value, 0);
+	}
+
+	/**
+	 * How deep a guest value may nest. Far beyond any legitimate output shape - a timeframe list of
+	 * objects carrying objects is four - and shallow enough that the walk cannot exhaust the stack.
+	 */
+	private static final int MAX_GUEST_DEPTH = 64;
+
+	private static Object fromGuest(Value value, int depth) {
 		if (value == null || value.isNull()) {
 			return null;
 		}
@@ -280,17 +314,23 @@ public class GraalJsCompiledScript implements CompiledScript {
 			// surface as "3.0" in a text output.
 			return value.fitsInLong() ? (Object) value.asLong() : (Object) value.asDouble();
 		}
+		boolean nested = value.hasArrayElements() || value.hasMembers();
+		if (nested && depth >= MAX_GUEST_DEPTH) {
+			throw new ScriptOutputException(
+				"a value handed to out.* nests deeper than " + MAX_GUEST_DEPTH + " levels, or refers back to itself");
+		}
 		if (value.hasArrayElements()) {
-			List<Object> list = new ArrayList<>((int) value.getArraySize());
-			for (long i = 0; i < value.getArraySize(); i++) {
-				list.add(fromGuest(value.getArrayElement(i)));
+			long size = value.getArraySize();
+			List<Object> list = new ArrayList<>((int) Math.min(size, 1024));
+			for (long i = 0; i < size; i++) {
+				list.add(fromGuest(value.getArrayElement(i), depth + 1));
 			}
 			return list;
 		}
 		if (value.hasMembers()) {
 			Map<String, Object> map = new LinkedHashMap<>();
 			for (String key : value.getMemberKeys()) {
-				map.put(key, fromGuest(value.getMember(key)));
+				map.put(key, fromGuest(value.getMember(key), depth + 1));
 			}
 			return map;
 		}

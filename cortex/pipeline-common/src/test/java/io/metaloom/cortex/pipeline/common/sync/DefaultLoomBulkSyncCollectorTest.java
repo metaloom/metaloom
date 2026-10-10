@@ -196,4 +196,44 @@ public class DefaultLoomBulkSyncCollectorTest {
 		assertEquals(List.of("a", "b", "c"), writer.batches.get(1));
 		assertEquals(3, collector.pending(), "Nothing was dropped");
 	}
+
+	@Test
+	void testConcurrentCollectorsLoseAndDuplicateNothing() throws Exception {
+		// The drain used to copy the buffer and then clear it as two steps, so an entry collected
+		// between them was cleared without ever being written, and two flushes racing each other
+		// could both send the same entries.
+		java.util.concurrent.ConcurrentHashMap<String, Integer> seen = new java.util.concurrent.ConcurrentHashMap<>();
+		DefaultLoomBulkSyncCollector.BulkSyncWriter counting = entries -> entries
+			.forEach(entry -> seen.merge(entry.getNodeId(), 1, Integer::sum));
+		DefaultLoomBulkSyncCollector collector = new DefaultLoomBulkSyncCollector(counting, 7);
+
+		int threads = 8;
+		int perThread = 2_000;
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+		try {
+			java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+			List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+			for (int t = 0; t < threads; t++) {
+				int thread = t;
+				futures.add(pool.submit(() -> {
+					start.await();
+					for (int i = 0; i < perThread; i++) {
+						collect(collector, thread + "-" + i);
+					}
+					return null;
+				}));
+			}
+			start.countDown();
+			for (java.util.concurrent.Future<?> future : futures) {
+				future.get();
+			}
+		} finally {
+			pool.shutdownNow();
+		}
+		collector.flush();
+
+		assertEquals(threads * perThread, seen.size(), "Every collected entry must be written");
+		assertTrue(seen.values().stream().allMatch(count -> count == 1), "No entry may be written twice");
+		assertEquals(0, collector.pending());
+	}
 }

@@ -4,6 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -16,6 +21,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.common.node.media.AbstractMediaTest;
 import io.metaloom.cortex.node.captioning.VideoCaptionOutput.SceneCaption;
 import io.metaloom.video4j.Video4j;
@@ -95,6 +101,38 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 		assertEquals(ResultState.FAILED, result.getState());
 		assertEquals("vision model down", result.getMessage());
 		assertNull(result.get(CaptioningNode.OUT_CAPTION), "A failed run must not emit a caption");
+	}
+
+	/**
+	 * A checked {@link IOException} from the vision client is a failed call on the dashboard too.
+	 *
+	 * <p>
+	 * The metric used to be recorded only for a {@code RuntimeException}: a connection reset or a
+	 * timeout - the way a sidecar actually dies - escaped as a checked exception, the item was FAILED,
+	 * and the AI-call counter never moved. A dead backend looked like an idle one.
+	 * </p>
+	 */
+	@Test
+	public void testCheckedIOExceptionFromTheVisionClientIsRecordedAsAFailedCall() throws IOException {
+		SmolVLMClient throwing = new SmolVLMClient("localhost", 0) {
+			@Override
+			public String captionByImage(BufferedImage image, int targetSize) throws IOException {
+				throw new IOException("connection reset");
+			}
+		};
+		CortexMetrics recording = mock(CortexMetrics.class);
+		CaptioningNode node = new CaptioningNode(null, new CortexOptions(), new CaptioningNodeOptions(), throwing, stubVideoClient()) {
+			{
+				metrics = recording;
+			}
+		};
+
+		NodeResult result = node.process(mediaImage1());
+
+		assertEquals(ResultState.FAILED, result.getState());
+		assertEquals("connection reset", result.getMessage());
+		verify(recording).recordAiCall(eq("smolvlm"), eq(false), anyLong());
+		verify(recording, never()).recordAiCall(eq("smolvlm"), eq(true), anyLong());
 	}
 
 	@Test

@@ -82,7 +82,7 @@ public class LlamaGuardDialect implements GuardDialect {
 	public List<GuardProbe> textProbes(String text, List<String> codes, GuardNodeOptions options) {
 		String prompt = template(options)
 			.replace("${categories}", categoryBlock(codes))
-			.replace("${text}", text);
+			.replace("${text}", GuardDialect.sanitize(text));
 		return List.of(GuardProbe.all(prompt, MAX_TOKENS));
 	}
 

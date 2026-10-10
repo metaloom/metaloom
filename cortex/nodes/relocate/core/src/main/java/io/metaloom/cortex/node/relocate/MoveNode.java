@@ -35,7 +35,6 @@ import io.metaloom.cortex.fs.LocalMover;
 import io.metaloom.cortex.fs.MoveOutcome;
 import io.metaloom.cortex.s3.S3ObjectRef;
 import io.metaloom.cortex.s3.S3Support;
-import io.metaloom.cortex.s3.S3Uri;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeCategory;
@@ -106,6 +105,12 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 
 	private String nodeId = KIND;
 
+	/**
+	 * The options this instance actually runs with - not the injected object, which may be the one instance shared by every node of this kind on the
+	 * worker. {@link #configure(JsonObject)} starts from a {@link MoveNodeOptions#copy()} and publishes it here only once the definition is accepted.
+	 */
+	private MoveNodeOptions effectiveOptions;
+
 	@Inject
 	public MoveNode(@Nullable LoomClient client, CortexOptions cortexOption, MoveNodeOptions options,
 		Map<MoveTarget, Provider<MoveDestination>> destinations, LoomLocationWriter locationWriter, S3Support s3) {
@@ -126,6 +131,11 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 	}
 
 	@Override
+	public MoveNodeOptions options() {
+		return effectiveOptions == null ? super.options() : effectiveOptions;
+	}
+
+	@Override
 	public String name() {
 		return KIND;
 	}
@@ -141,8 +151,9 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 
 	@Override
 	public void configure(JsonObject nodeDef) {
-		MoveNodeOptions options = options();
-		nodeId = nodeDef.getString("id", KIND);
+		// A copy, never the injected instance: see the effectiveOptions field.
+		MoveNodeOptions options = super.options().copy();
+		String nodeId = nodeDef.getString("id", KIND);
 
 		if (nodeDef.containsKey("target")) {
 			String raw = nodeDef.getString("target");
@@ -202,6 +213,9 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 		if (!problems.isEmpty()) {
 			throw new IllegalStateException("Move node '" + nodeId + "': " + String.join("; ", problems));
 		}
+		// Published only once the whole definition was accepted, so a rejected configure leaves the node with the options it already had.
+		this.nodeId = nodeId;
+		this.effectiveOptions = options;
 	}
 
 	@Override
@@ -225,7 +239,7 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 		try {
 			plan = destination(options.getTarget()).plan(client(), media, options);
 		} catch (Exception e) {
-			return fail(ctx, asset, e.getMessage());
+			return fail(ctx, asset, describe(e));
 		}
 
 		if (plan.alreadyThere()) {
@@ -249,8 +263,21 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 				? moveToBucket(ctx, asset, media, plan, previousLocator)
 				: moveOnFilesystem(ctx, asset, media, plan, previousLocator, options);
 		} catch (Exception e) {
-			return fail(ctx, asset, e.getMessage());
+			return fail(ctx, asset, describe(e));
 		}
+	}
+
+	/**
+	 * A failure reason that is never null.
+	 *
+	 * <p>
+	 * {@code getMessage()} is null for an NPE and for most runtime failures raised by a library, and a ledger row whose reason is null tells an operator
+	 * that something failed but not what - for the one node in the tree whose failures concern people's files.
+	 * </p>
+	 */
+	private static String describe(Exception e) {
+		String message = e.getMessage();
+		return message == null || message.isBlank() ? e.toString() : message;
 	}
 
 	private NodeResult moveOnFilesystem(NodeContext<LoomMedia> ctx, AssetResponse asset, LoomMedia media, MovePlan plan, String previousLocator,
@@ -373,10 +400,5 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 	private String producerVersion() {
 		MoveNodeOptions options = options();
 		return KIND + "/1:" + options.getTarget().name().toLowerCase(Locale.ROOT) + ":" + options.getSourcePolicy().toLowerCase(Locale.ROOT);
-	}
-
-	/** Exposed for the tests that assert an s3:// reference is left alone. */
-	static boolean isRemote(String reference) {
-		return reference != null && S3Uri.isS3(reference);
 	}
 }

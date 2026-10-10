@@ -64,11 +64,22 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 
 	private String nodeId = KIND;
 
+	/**
+	 * The options this instance actually runs with - not the injected object, which may be the one instance shared by every node of this kind on the
+	 * worker. {@link #configure(JsonObject)} starts from a {@link AssignNodeOptions#copy()} and publishes it here only once the definition is accepted.
+	 */
+	private AssignNodeOptions effectiveOptions;
+
 	@Inject
 	public AssignNode(@Nullable LoomClient client, CortexOptions cortexOption, AssignNodeOptions options,
 		Map<AssignTarget, Provider<AssignDestination>> destinations) {
 		super(client, cortexOption, options);
 		this.destinations = destinations;
+	}
+
+	@Override
+	public AssignNodeOptions options() {
+		return effectiveOptions == null ? super.options() : effectiveOptions;
 	}
 
 	@Override
@@ -83,8 +94,9 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 
 	@Override
 	public void configure(JsonObject nodeDef) {
-		AssignNodeOptions options = options();
-		nodeId = nodeDef.getString("id", KIND);
+		// A copy, never the injected instance: see the effectiveOptions field.
+		AssignNodeOptions options = super.options().copy();
+		String nodeId = nodeDef.getString("id", KIND);
 
 		if (nodeDef.containsKey("target")) {
 			String raw = nodeDef.getString("target");
@@ -120,6 +132,9 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 		if (!problems.isEmpty()) {
 			throw new IllegalStateException("Assign node '" + nodeId + "': " + String.join("; ", problems));
 		}
+		// Published only once the whole definition was accepted, so a rejected configure leaves the node with the options it already had.
+		this.nodeId = nodeId;
+		this.effectiveOptions = options;
 	}
 
 	@Override
@@ -142,7 +157,7 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 		try {
 			targetUuid = destination.resolve(client(), options);
 		} catch (Exception e) {
-			return fail(ctx, asset, e.getMessage());
+			return fail(ctx, asset, describe(e));
 		}
 
 		if (targetUuid == null) {
@@ -173,7 +188,7 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 
 			destination.link(client(), targetUuid, asset.getUuid());
 		} catch (Exception e) {
-			return fail(ctx, asset, e.getMessage());
+			return fail(ctx, asset, describe(e));
 		}
 
 		ctx.output(OUT_ASSIGNED, true);
@@ -194,6 +209,12 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 		ctx.output(OUT_ASSIGNED, false);
 		recordNodeResult(asset, ctx, ResultState.FAILED, reason, producerVersion(), null);
 		return ctx.failure(reason).abort();
+	}
+
+	/** A reason that is never null: {@code getMessage()} is null for an NPE and for many library failures. */
+	private static String describe(Exception e) {
+		String message = e.getMessage();
+		return message == null || message.isBlank() ? e.toString() : message;
 	}
 
 	private AssignDestination destination(AssignTarget target) {

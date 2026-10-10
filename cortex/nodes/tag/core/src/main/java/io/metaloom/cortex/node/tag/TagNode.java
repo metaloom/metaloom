@@ -215,8 +215,13 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 			throw new IllegalStateException("Tag node '" + nodeId + "' is misconfigured: " + String.join("; ", validation.getErrors()));
 		}
 
+		// Every input that can change the verdict belongs in here. Two nodes differing only in an
+		// omitted one would share a result-cache entry and a producerVersion, so the second would
+		// re-emit the first's verdict - and for dryRun that is not merely a stale answer: a dry-run
+		// instance would suppress the write of a real one over the same item in the same worker.
 		configHash = hash(options.getTagBy() + " " + options.getRules().encode() + " " + options.getCollection()
-			+ " " + options.getAllowedTags().encode() + " " + options.getNormalize() + " " + options.getMaxTags());
+			+ " " + options.getAllowedTags().encode() + " " + options.getNormalize() + " " + options.getMaxTags()
+			+ " " + options.getMinConfidence() + " " + options.isDryRun() + " " + options.isRemoveWithdrawn());
 		configured = true;
 	}
 

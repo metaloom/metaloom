@@ -2,6 +2,7 @@ package io.metaloom.cortex.node.videogen;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,5 +125,26 @@ class VideoGenNodeTest {
 		// The sidecar must be hit exactly once - the second run is served from the in-heap cache.
 		verify(client, times(1)).generate(anyString(), nullable(String.class), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), anyDouble(),
 			nullable(Integer.class));
+	}
+
+	@Test
+	void testDifferentWiredPromptIsNotServedFromCache() throws Exception {
+		// The cache and the file name used to be keyed by the media alone, so a second prompt wired
+		// into the same asset was answered with the first clip.
+		VideoGenNode node = node(options());
+		NodeResult first = node.process(ctxWithPrompt("a red loom"));
+		NodeResult second = node.process(ctxWithPrompt("a blue loom"));
+		assertThat(first).isSuccess();
+		assertThat(second).isSuccess();
+
+		assertNotEquals(first.get(VideoGenNode.OUT_VIDEO), second.get(VideoGenNode.OUT_VIDEO), "Different prompts must not share one MP4");
+		verify(client).generate(eq("a red loom"), nullable(String.class), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), anyDouble(),
+			nullable(Integer.class));
+		verify(client).generate(eq("a blue loom"), nullable(String.class), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), anyDouble(),
+			nullable(Integer.class));
+	}
+
+	private NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctxWithPrompt(String prompt) {
+		return NodeContext.create(media, io.metaloom.cortex.api.node.NodeInputs.builder().input(VideoGenNode.IN_PROMPT, prompt).build());
 	}
 }

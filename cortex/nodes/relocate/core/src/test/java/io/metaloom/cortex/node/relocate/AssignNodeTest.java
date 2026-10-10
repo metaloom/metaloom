@@ -217,6 +217,56 @@ class AssignNodeTest {
 		assertTheFileWasNotTouched();
 	}
 
+	/**
+	 * 🔴 The name lookup can only see the first page - {@code listCollections()} takes no paging parameters - so a miss on a truncated listing is not
+	 * evidence that the collection is absent. Reporting it as absent makes {@code onMissing: CREATE} try to create a name that already exists and
+	 * {@code FAIL} blame the pipeline for a limitation of the lookup, so it says which it is instead.
+	 */
+	@Test
+	void testANameMissingFromATruncatedListingIsNotReportedAsAbsent() throws Exception {
+		CollectionListResponse firstPage = new CollectionListResponse();
+		firstPage.add(new CollectionResponse().setUuid(UUID.randomUUID()).setName("Rejected"));
+		firstPage.setMetainfo(new io.metaloom.loom.rest.model.common.PagingInfo().setTotalCount(412L));
+
+		var page = request(firstPage);
+		when(client.listCollections()).thenReturn(page);
+
+		AssignNodeOptions options = new AssignNodeOptions()
+			.setTarget(AssignTarget.COLLECTION)
+			.setCollectionName("Published")
+			.setOnMissing("CREATE");
+
+		NodeResult result = node(options).process(NodeContext.create(media));
+
+		assertThat(result).isFailed().hasMessageContaining("cannot be paged");
+		verify(client, never()).createCollection(any());
+		verify(client, never()).addCollectionAsset(any(UUID.class), any(UUID.class));
+		assertTheFileWasNotTouched();
+	}
+
+	/**
+	 * The counterpart: a complete listing that does not hold the name really does mean the collection is absent.
+	 */
+	@Test
+	void testANameMissingFromACompleteListingIsAbsent() throws Exception {
+		CollectionListResponse all = new CollectionListResponse();
+		all.add(new CollectionResponse().setUuid(UUID.randomUUID()).setName("Rejected"));
+		all.setMetainfo(new io.metaloom.loom.rest.model.common.PagingInfo().setTotalCount(1L));
+
+		var page = request(all);
+		when(client.listCollections()).thenReturn(page);
+
+		AssignNodeOptions options = new AssignNodeOptions()
+			.setTarget(AssignTarget.COLLECTION)
+			.setCollectionName("Published")
+			.setOnMissing("SKIP");
+
+		NodeResult result = node(options).process(NodeContext.create(media));
+
+		assertThat(result).isSkipped();
+		assertTheFileWasNotTouched();
+	}
+
 	@Test
 	void testExactlyOneOfUuidOrNameIsRequired() {
 		List<String> both = new CollectionAssignment().validate(new AssignNodeOptions()
@@ -226,5 +276,25 @@ class AssignNodeTest {
 
 		List<String> neither = new CollectionAssignment().validate(new AssignNodeOptions());
 		assertTrue(neither.stream().anyMatch(p -> p.contains("exactly one")), "Expected a complaint about neither field, got: " + neither);
+	}
+
+	/**
+	 * With {@code nodes: assign:} in the worker YAML every assign node shares one injected options instance. One node naming a collection by uuid and
+	 * another by name used to end with the second carrying both - and failing configure - or with the first adding to the second's collection.
+	 */
+	@Test
+	void testTwoAssignNodesSharingInjectedOptionsDoNotLeakIntoEachOther() {
+		AssignNodeOptions shared = new AssignNodeOptions().setTarget(AssignTarget.COLLECTION);
+		AssignNode byUuid = node(shared);
+		AssignNode byName = node(shared);
+
+		byUuid.configure(new io.vertx.core.json.JsonObject().put("id", "a").put("collectionUuid", COLLECTION_UUID.toString()));
+		byName.configure(new io.vertx.core.json.JsonObject().put("id", "b").put("collectionName", "Published"));
+
+		assertEquals(COLLECTION_UUID.toString(), byUuid.options().getCollectionUuid());
+		assertEquals(null, byUuid.options().getCollectionName());
+		assertEquals("Published", byName.options().getCollectionName());
+		assertEquals(null, byName.options().getCollectionUuid());
+		assertEquals(null, shared.getCollectionUuid(), "the injected instance must stay untouched");
 	}
 }

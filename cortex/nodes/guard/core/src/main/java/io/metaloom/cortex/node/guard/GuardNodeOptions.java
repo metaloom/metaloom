@@ -173,7 +173,15 @@ public class GuardNodeOptions extends AbstractLlmNodeOptions<GuardNodeOptions> {
 	 * The category codes to probe: the configured selection, or the family's whole vocabulary when
 	 * none was configured.
 	 *
-	 * @return the codes in taxonomy order, never empty
+	 * <p>
+	 * ⚠️ <strong>Can be empty</strong>, despite what this javadoc used to claim: a configured
+	 * selection in which no code belongs to the selected family filters down to nothing.
+	 * {@link #validate()} rejects that, but the compute path does not re-validate, so
+	 * {@code GuardNode} checks for an empty probe list and fails closed rather than reporting a
+	 * verdict it never asked for.
+	 * </p>
+	 *
+	 * @return the codes in taxonomy order
 	 */
 	public List<String> effectiveCategories() {
 		if (categories == null || categories.isEmpty()) {

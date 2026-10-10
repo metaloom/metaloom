@@ -139,6 +139,22 @@ class FilterNodeTest {
 		assertEquals("other", blank.get(FilterNode.OUT_BUCKET));
 	}
 
+	/**
+	 * 🔴 A confidence written as a string - routine for a small model - used to throw a {@code ClassCastException} out of {@code getDouble} and fail
+	 * the task. A numeric string is read; anything else is no confidence at all, so {@code minConfidence} still applies.
+	 */
+	@Test
+	void testANonNumericConfidenceIsAnAnswerNotAFailure() {
+		JsonObject def = nodeDef("lang").put("minConfidence", 0.8);
+		NodeResult quoted = run(node(StubLLMProvider.returning(new JsonObject().put("bucket", "de").put("confidence", "0.9")), def), "text");
+		assertThat(quoted).isSuccess();
+		assertEquals("de", quoted.get(FilterNode.OUT_BUCKET));
+
+		NodeResult worded = run(node(StubLLMProvider.returning(new JsonObject().put("bucket", "de").put("confidence", "high")), def), "text");
+		assertThat(worded).isSuccess();
+		assertEquals("other", worded.get(FilterNode.OUT_BUCKET));
+	}
+
 	/** Below the configured confidence the answer is not trusted, so the item takes the catch-all. */
 	@Test
 	void testALowConfidenceAnswerRoutesToOther() {
@@ -194,6 +210,78 @@ class FilterNodeTest {
 
 		assertEquals(1, secondProvider.callCount(), "the second node must ask its own model, not reuse a neighbour's answer");
 		assertEquals("fr", result.get(FilterNode.OUT_BUCKET));
+	}
+
+	/**
+	 * An empty bucket set passes <em>nothing</em>, not everything. It is a legal configuration — the
+	 * editor saves one the moment the node is dropped on the canvas — and the safe reading of "no
+	 * branch matches this" is the catch-all, never a blanket pass that would send a whole library
+	 * down a branch nobody configured.
+	 */
+	@Test
+	void testAnEmptyBucketSetRoutesEverythingToOther() {
+		NodeResult result = run(node(StubLLMProvider.answering("de"),
+			nodeDef("lang").put("buckets", new JsonArray())), "Guten Tag");
+
+		assertThat(result)
+			.isSuccess()
+			.hasOutput(FilterNode.OUT_OTHER, media.absolutePath())
+			.hasOutput(FilterNode.OUT_PASSED, Boolean.FALSE)
+			.hasOutput(FilterNode.OUT_BUCKET, "other");
+	}
+
+	/**
+	 * The strategy contract is that an unusable answer is {@code other} and never an exception, so
+	 * the bucket matcher may not throw on the emptiest answer of all.
+	 */
+	@Test
+	void testABucketNeverMatchesANullOrBlankAnswer() {
+		FilterBucket bucket = new FilterBucket("de", "German", "german, deutsch");
+
+		org.junit.jupiter.api.Assertions.assertFalse(bucket.matches(null));
+		org.junit.jupiter.api.Assertions.assertFalse(bucket.matches("   "));
+		assertTrue(bucket.matches(" DEUTSCH "), "an alias still matches around whitespace and case");
+	}
+
+	/**
+	 * The node is a {@code PipelineConfigurable}, so one instance is reconfigured per task while its
+	 * result cache survives — which makes every option missing from the config hash a stale verdict.
+	 * {@code minConfidence} decides whether a matched bucket is demoted to {@code other}, so the same
+	 * text and the same model answer must route differently after the threshold is raised.
+	 */
+	@Test
+	void testRaisingMinConfidenceInvalidatesTheCachedVerdict() {
+		StubLLMProvider provider = StubLLMProvider.answering("de", 0.5d);
+		FilterNode node = node(provider, nodeDef("lang").put("minConfidence", 0.0d));
+
+		assertEquals("de", run(node, "Guten Tag").get(FilterNode.OUT_BUCKET));
+
+		node.configure(nodeDef("lang").put("minConfidence", 0.9d));
+		assertEquals("other", run(node, "Guten Tag").get(FilterNode.OUT_BUCKET),
+			"a verdict cached under a lower threshold must not survive the threshold being raised");
+	}
+
+	/** Same argument for the excerpt length: a different excerpt is a different question. */
+	@Test
+	void testMaxTextCharsIsPartOfTheConfigHash() {
+		StubLLMProvider provider = StubLLMProvider.answering("de");
+		FilterNode node = node(provider, nodeDef("lang").put("maxTextChars", 2000));
+
+		run(node, "Guten Tag");
+		node.configure(nodeDef("lang").put("maxTextChars", 5));
+		run(node, "Guten Tag");
+
+		assertEquals(2, provider.callCount(), "a shortened excerpt must re-ask the model rather than reuse the cache");
+	}
+
+	/** And for the backend: a second endpoint is a second model, whatever the name says. */
+	@Test
+	void testTheBackendUrlIsPartOfTheProducerVersion() {
+		String first = node(StubLLMProvider.answering("de"), nodeDef("lang")).producerVersion();
+		String second = node(StubLLMProvider.answering("de"),
+			nodeDef("lang").put("openaiUrl", "http://127.0.0.1:9999/v1")).producerVersion();
+
+		assertNotEquals(first, second, "a different backend is a different producer");
 	}
 
 	/**

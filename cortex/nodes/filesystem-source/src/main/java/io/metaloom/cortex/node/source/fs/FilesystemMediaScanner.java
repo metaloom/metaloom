@@ -117,8 +117,13 @@ public final class FilesystemMediaScanner {
 		String pattern = glob;
 		if (wildIdx > 0) {
 			int lastSlash = glob.lastIndexOf('/', wildIdx);
-			if (lastSlash > 0) {
-				root = Paths.get(glob.substring(0, lastSlash)).toAbsolutePath().normalize();
+			// >= 0, not > 0: a glob whose first wildcard sits in the top-level segment ("/*.mkv")
+			// has its separator at index 0, and treating that as "no separator" silently resolved
+			// the root to the working directory and kept the leading slash in the pattern - so the
+			// matcher, which sees paths relativized against that root, could never match anything
+			// and the selection quietly came back empty.
+			if (lastSlash >= 0) {
+				root = Paths.get(lastSlash == 0 ? "/" : glob.substring(0, lastSlash)).toAbsolutePath().normalize();
 				pattern = glob.substring(lastSlash + 1);
 			}
 		}
@@ -129,9 +134,35 @@ public final class FilesystemMediaScanner {
 
 		final Path effectiveRoot = root;
 		PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-		return Files.walk(effectiveRoot)
+		return Files.walk(effectiveRoot, walkDepthFor(pattern))
 			.filter(Files::isRegularFile)
 			.filter(p -> matcher.matches(effectiveRoot.relativize(p)));
+	}
+
+	/**
+	 * How deep the walk for a pattern has to go.
+	 *
+	 * <p>Only {@code **} crosses separators, so any other pattern can only match at exactly
+	 * {@code separators + 1} levels below the root and walking further is pure cost. That cost is
+	 * not theoretical: {@code /media/library/*.mp4} used to walk the whole library - every
+	 * subdirectory of a multi-terabyte tree - to return files from one directory, and one
+	 * unreadable directory anywhere beneath it aborted the walk with an
+	 * {@link UncheckedIOException} that had nothing to do with the selection.</p>
+	 *
+	 * @param pattern the glob pattern, relative to the walk root
+	 * @return the maximum depth to walk
+	 */
+	private static int walkDepthFor(String pattern) {
+		if (pattern.contains("**")) {
+			return Integer.MAX_VALUE;
+		}
+		int separators = 0;
+		for (int i = 0; i < pattern.length(); i++) {
+			if (pattern.charAt(i) == '/') {
+				separators++;
+			}
+		}
+		return separators + 1;
 	}
 
 	/**

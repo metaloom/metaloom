@@ -361,4 +361,34 @@ class FingerprintDedupApplyNodeTest {
 		assertNoConfirmedDupEmitted(result);
 		assertNothingWasMoved();
 	}
+
+	/**
+	 * The size safeguard used to read only the keeper's <em>record</em>. A keeper truncated in place after discovery keeps that record - and,
+	 * when it has one, its sha512 xattr - so the live file has to be measured too.
+	 */
+	@Test
+	void testAKeepTruncatedOnDiskSinceItWasRecordedBlocksTheMove() throws Exception {
+		AssetResponse recorded = keepAsset(keepFile, 0L, null);
+		Files.write(keepFile.toPath(), "tiny".getBytes());
+		wire(group("CONFIRMED", DedupGroupMemberModel.ROLE_DUP), recorded);
+
+		NodeResult result = node().process(NodeContext.create(media));
+
+		assertThat(result).isSkipped();
+		assertNoConfirmedDupEmitted(result);
+		assertNothingWasMoved();
+	}
+
+	/**
+	 * Two asset rows that name the same path: emitting the duplicate would hand the keeper itself to the move node.
+	 */
+	@Test
+	void testAKeepThatIsTheDuplicateFileItselfBlocksTheMove() throws Exception {
+		wire(group("CONFIRMED", DedupGroupMemberModel.ROLE_DUP), keepAsset(dupFile, 0L, HashUtils.computeSHA512(dupFile)));
+
+		NodeResult result = node().process(NodeContext.create(media));
+
+		assertThat(result).isSkipped();
+		assertNoConfirmedDupEmitted(result);
+	}
 }

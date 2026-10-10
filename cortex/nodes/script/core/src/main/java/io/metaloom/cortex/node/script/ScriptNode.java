@@ -53,6 +53,7 @@ import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentEntry;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -302,9 +303,23 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 			return ctx.origin(LOCAL).next();
 		}
 
+		Map<String, Object> data;
+		try {
+			data = data(ctx);
+		} catch (DecodeException e) {
+			// An upstream node wired into the struct/json port sent something that is not a JSON
+			// object. Decoding it threw out of compute() uncaught before this catch existed, so the
+			// node produced neither a FAILED ledger row nor a result - the engine saw a raw
+			// exception from a node that is documented to abort instead.
+			String reason = "the wired 'data' input is not a JSON object: " + e.getMessage();
+			log.warn("[{}] {} for {}", nodeId, reason, media.absolutePath());
+			recordNodeResult(asset, ctx, ResultState.FAILED, reason, producerVersion(), null);
+			return ctx.failure(reason).abort();
+		}
+
 		ScriptOutputCollector collector = new ScriptOutputCollector(outputSpecs, binarySink(media));
 		ScriptLogger logger = new ScriptLogger(log, nodeId, options().getMaxLogLines());
-		ScriptBindings bindings = new ScriptBindings(media, data(ctx), options().getParams().getMap(),
+		ScriptBindings bindings = new ScriptBindings(media, data, options().getParams().getMap(),
 			collector, logger, limits());
 
 		try {
@@ -328,9 +343,12 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 
 		Map<String, Object> values = collector.values();
 		JsonObject payload = toJsonPayload(values);
-		String encoded = payload.encode();
-		if (encoded.length() > options().getMaxOutputBytes()) {
-			String reason = "script output of " + encoded.length() + " bytes exceeds maxOutputBytes of " + options().getMaxOutputBytes();
+		// UTF-8 bytes, not characters. String.length() counts chars, so a payload of CJK text or
+		// emoji measured that way passes a cap it exceeds by up to 3-4x - and the option is named
+		// maxOutputBytes, which is what the JSON column actually stores.
+		int encodedBytes = payload.encode().getBytes(StandardCharsets.UTF_8).length;
+		if (encodedBytes > options().getMaxOutputBytes()) {
+			String reason = "script output of " + encodedBytes + " bytes exceeds maxOutputBytes of " + options().getMaxOutputBytes();
 			recordNodeResult(asset, ctx, ResultState.FAILED, reason, producerVersion(), null);
 			return ctx.failure(reason).abort();
 		}
@@ -499,7 +517,11 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 					continue;
 				}
 				persistSegments(asset, spec, entry.getValue());
-				table = written.isEmpty() ? "asset_segment_comp" : table;
+				// ⚠️ No result ref for the segment rows: persistSegments adds nothing to `written`,
+				// so a segments-only run records SUCCESS with a null ref. The assignment that used
+				// to stand here set `table` in exactly that case and could therefore never reach
+				// resultRef(...) - dead by construction. Recording the ref needs the uuids out of
+				// the SegmentCompListResponse; tracked in NODE_SCRIPT.md rather than guessed at.
 			}
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, producerVersion(),
 				written.isEmpty() ? null : resultRef(table, written.toArray(UUID[]::new)));

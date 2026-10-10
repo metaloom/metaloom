@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.node.NodeInputs;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.loom.client.common.LoomClientRequest;
@@ -254,17 +255,62 @@ class SceneLayoutNodePersistenceTest {
 	}
 
 	@Test
-	void testNormalizedLoomRowsAreRefusedRatherThanGuessed() throws Exception {
-		// Rows that look normalized cannot be turned into pixels - nothing records the source image
-		// size - so the node declines instead of inventing a scale.
+	void testNormalizedLoomRowsAreScaledByTheSourceImageSize() throws Exception {
+		// V2.43's documented convention, and what facedetect writes. The depth metadata carries the source
+		// image size, so a 0-1 row becomes pixels by it. This used to be refused outright, which left the
+		// fallback returning nothing for every current row.
+		stubLoomDetections(
+			(DetectionResponse) new DetectionResponse().setType("face")
+				.setBboxX(0.1f).setBboxY(0.2f).setBboxWidth(0.2f).setBboxHeight(0.4f).setConfidence(1.0f),
+			(DetectionResponse) new DetectionResponse().setType("face")
+				.setBboxX(0.7f).setBboxY(0.2f).setBboxWidth(0.2f).setBboxHeight(0.4f).setConfidence(1.0f));
+
+		assertThat(node().process(media, depthOnly())).isSuccess();
+
+		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> {
+			JsonObject box = r.getData().getJsonArray("objects").getJsonObject(0).getJsonObject("bbox");
+			// IMAGE_W x IMAGE_H = 400 x 200; the object order is not part of the contract, so accept either face.
+			double x = box.getDouble("x");
+			return (Math.abs(x - 40d) < 1e-3 || Math.abs(x - 280d) < 1e-3)
+				&& Math.abs(box.getDouble("y") - 40d) < 1e-3
+				&& Math.abs(box.getDouble("w") - 80d) < 1e-3
+				&& Math.abs(box.getDouble("h") - 80d) < 1e-3;
+		}));
+	}
+
+	@Test
+	void testNormalizedLoomRowsAreRefusedWithoutAnImageSize() throws Exception {
+		// No source dimensions to scale by: the node declines instead of reading 0-1 values as pixels.
 		stubLoomDetections(
 			(DetectionResponse) new DetectionResponse().setType("face")
 				.setBboxX(0.1f).setBboxY(0.1f).setBboxWidth(0.2f).setBboxHeight(0.2f).setConfidence(1.0f),
 			(DetectionResponse) new DetectionResponse().setType("face")
 				.setBboxX(0.7f).setBboxY(0.1f).setBboxWidth(0.2f).setBboxHeight(0.2f).setConfidence(1.0f));
+		NodeInputs noImageSize = NodeInputs.builder()
+			.input(SceneLayoutNode.IN_DEPTH, SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, 0, 0).encode())
+			.build();
 
-		assertThat(node().process(media, depthOnly())).isSkipped();
+		assertThat(node().process(media, noImageSize)).isSkipped();
 
 		verify(client, never()).createAssetJsonComp(any(), any());
+	}
+
+	@Test
+	void testDifferentDetectionsAreNotServedTheFirstRunsLayout() throws Exception {
+		SceneLayoutNode node = node();
+		assertThat(node.process(media, withUpstreamBoxes())).isSuccess();
+
+		// Same file, better boxes: three faces now. A cache keyed by path alone re-emitted two.
+		NodeInputs threeFaces = NodeInputs.builder()
+			.input(SceneLayoutNode.IN_DEPTH, depthMetaJson())
+			.inputs(SceneLayoutNode.IN_DETECTIONS, List.of(
+				SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80).encode(),
+				SceneLayoutFixtures.detection(1, "face", 280, 40, 80, 80).encode(),
+				SceneLayoutFixtures.detection(2, "face", 160, 100, 60, 60).encode()))
+			.build();
+		NodeResult second = node.process(media, threeFaces);
+
+		assertThat(second).isSuccess();
+		org.junit.jupiter.api.Assertions.assertEquals(3L, second.get(SceneLayoutNode.OUT_OBJECT_COUNT));
 	}
 }

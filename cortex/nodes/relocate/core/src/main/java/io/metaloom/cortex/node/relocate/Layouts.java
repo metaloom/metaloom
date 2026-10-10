@@ -71,6 +71,27 @@ public final class Layouts {
 	}
 
 	/**
+	 * Whether the content-addressed destination is already occupied by these very bytes.
+	 *
+	 * <p>
+	 * 🔴 Only meaningful for {@link Layout#CONTENT}, and it is what keeps a second copy of the same content out of a pool. The path there <em>is</em>
+	 * the SHA-512, so a file of the same length already sitting at it is the same file - the identical argument {@code S3BucketDestination} makes with a
+	 * {@code head()}. Without this check the conflict policy takes over and the duplicate lands at {@code <sha512>_1}, which is not a content key:
+	 * Loom derives the location it reads from the hash, so it would never look there, and with
+	 * {@link SourcePolicy#DELETE_AFTER_VERIFY} the original would have been deleted to put it out of reach.
+	 * </p>
+	 *
+	 * @param target
+	 *            the content-addressed destination path
+	 * @param media
+	 *            the item being relocated
+	 * @return true when the destination already holds this content
+	 */
+	public static boolean holdsSameContent(Path target, LoomMedia media) throws IOException {
+		return Files.isRegularFile(target) && Files.size(target) == media.size();
+	}
+
+	/**
 	 * The content-addressed key Loom's own storage backends use: {@code ab/cd/ef/<sha512>}, no extension.
 	 *
 	 * <p>

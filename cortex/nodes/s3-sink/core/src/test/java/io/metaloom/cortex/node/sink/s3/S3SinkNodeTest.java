@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.sink.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -422,6 +423,61 @@ public class S3SinkNodeTest {
 		b.process(thumbnailCtx());
 
 		assertThat(store.keys(BUCKET)).containsExactlyInAnyOrder("archive/x", "backup/x");
+	}
+
+	@Test
+	public void testTwoSinksSharingOneOptionsInstanceKeepTheirOwnDefinitions() {
+		// 🔴 What the worker really injects. AbstractNodeModule.nodeOptions hands out the single
+		// S3SinkNodeOptions held in CortexOptions.getNodes() as soon as cortex.yml configures
+		// `nodes: s3-sink:`, so every sink the registrar builds gets this same object - and
+		// configure() writes the definition into its options. Before the copy-on-configure, the
+		// second sink's bucket replaced the first one's and both uploaded to "backup-bucket".
+		S3SinkNodeOptions shared = new S3SinkNodeOptions();
+
+		S3SinkNode archive = new S3SinkNode(null, cortexOptions, shared, support());
+		archive.configure(new JsonObject().put("id", "archive").put("bucket", "archive-bucket")
+			.put("keyTemplate", "{nodeId}/x"));
+		S3SinkNode backup = new S3SinkNode(null, cortexOptions, shared, support());
+		backup.configure(new JsonObject().put("id", "backup").put("bucket", "backup-bucket")
+			.put("keyTemplate", "{nodeId}/y").put("createAssets", false));
+
+		archive.process(thumbnailCtx());
+		backup.process(thumbnailCtx());
+
+		assertThat(store.keys("archive-bucket")).containsExactly("archive/x");
+		assertThat(store.keys("backup-bucket")).containsExactly("backup/y");
+		// And the worker-level instance is left exactly as configured, not as last used.
+		assertThat(shared.getBucket()).isNull();
+		assertThat(shared.isCreateAssets()).isTrue();
+	}
+
+	@Test
+	public void testARejectedDefinitionLeavesThePreviousOptionsInPlace() {
+		S3SinkNode node = node(new JsonObject().put("id", "archive").put("bucket", BUCKET));
+
+		assertThatThrownBy(() -> node.configure(new JsonObject().put("id", "archive")
+			.put("bucket", BUCKET).put("keyTemplate", "{nope}")))
+			.isInstanceOf(IllegalStateException.class);
+
+		// Half-applied options would be worse than a rejected configure: the node still works.
+		assertThat(node.process(thumbnailCtx()).getState()).isEqualTo(ResultState.SUCCESS);
+		assertThat(store.keys(BUCKET)).hasSize(1);
+	}
+
+	@Test
+	public void testAKeyTemplateNeedingTheSourceHashFailsTheArtifactWithANamedPlaceholder() {
+		LoomMedia hashless = media();
+		// No upstream sha512 node ran, so asking for the hash blows up rather than answering null.
+		when(hashless.getSHA512()).thenThrow(new IllegalStateException("no hash yet"));
+		S3SinkNode node = node(new JsonObject().put("id", "archive")
+			.put("keyTemplate", "{sourceSha512}/{sha512}{ext}"));
+
+		NodeResult result = node.process(ctx(hashless, thumb.toString()));
+
+		// Never a key containing "null": every asset would collide onto it.
+		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
+		assertThat(result.getMessage()).contains("sourceSha512");
+		assertThat(store.keys(BUCKET)).isEmpty();
 	}
 
 	@Test

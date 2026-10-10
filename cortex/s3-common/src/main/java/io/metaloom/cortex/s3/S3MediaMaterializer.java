@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -51,6 +52,15 @@ public class S3MediaMaterializer {
 
 	/** Sweep down to this fraction of the budget so eviction is not re-triggered immediately. */
 	private static final double EVICTION_TARGET_RATIO = 0.9;
+
+	/** Suffix of an in-flight download. */
+	static final String PARTIAL_SUFFIX = ".part";
+
+	/**
+	 * A partial file younger than this is assumed to be an in-flight download and is never evicted.
+	 * Older ones are leftovers of a crashed worker and are fair game.
+	 */
+	private static final long PARTIAL_GRACE_MS = 6 * 60 * 60 * 1000L;
 
 	private final S3ObjectStore store;
 	private final Path cacheRoot;
@@ -96,7 +106,13 @@ public class S3MediaMaterializer {
 		}
 
 		Files.createDirectories(target.getParent());
-		Path partial = target.resolveSibling(target.getFileName() + ".part");
+		// One partial file per attempt, never one per object. Two tasks on this worker that need the
+		// same object (two nodes of one graph, or two pipelines) materialize it concurrently, and a
+		// shared "<target>.part" let them write over each other: AwsS3ObjectStore.download deletes the
+		// partial before writing, so the slower attempt's bytes went to an unlinked inode while the
+		// faster one's half-written file was moved into place - a truncated cache entry that the
+		// etag-in-the-name rule then serves as correct for ever.
+		Path partial = target.resolveSibling(target.getFileName() + "." + UUID.randomUUID() + PARTIAL_SUFFIX);
 		try {
 			log.info("Materializing {} ({} bytes) into {}", ref.reference(), ref.size(), target);
 			store.download(ref.bucket(), ref.key(), partial);
@@ -188,9 +204,15 @@ public class S3MediaMaterializer {
 
 			long target = (long) (maxCacheBytes * EVICTION_TARGET_RATIO);
 			files.sort(Comparator.comparingLong(S3MediaMaterializer::lastModifiedOf));
+			long now = System.currentTimeMillis();
 			for (Path path : files) {
 				if (total <= target) {
 					break;
+				}
+				if (isInFlight(path, now)) {
+					// Deleting another task's partial download does not stop it writing (the inode
+					// lives on), but its final move then fails and that task fails for no reason.
+					continue;
 				}
 				long size = sizeOf(path);
 				try {
@@ -205,6 +227,11 @@ public class S3MediaMaterializer {
 		} catch (IOException e) {
 			log.warn("Failed to sweep the S3 media cache at {}", cacheRoot, e);
 		}
+	}
+
+	private static boolean isInFlight(Path path, long now) {
+		return path.getFileName().toString().endsWith(PARTIAL_SUFFIX)
+			&& now - lastModifiedOf(path) < PARTIAL_GRACE_MS;
 	}
 
 	private static long sizeOf(Path path) {

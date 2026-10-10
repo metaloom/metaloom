@@ -69,6 +69,41 @@ public class MoveNodeOptions extends AbstractNodeOptions<MoveNodeOptions> {
 	@ParamDoc(label = "Dry Run", description = "Report the move that would happen and touch nothing", order = 130)
 	private boolean dryRun = false;
 
+	/**
+	 * A detached copy of these options.
+	 *
+	 * <p>
+	 * 🔴 Load-bearing. {@code AbstractNodeModule.nodeOptions} hands out the <em>one</em> instance stored in {@code CortexOptions.getNodes()} whenever
+	 * the worker's YAML configures {@code nodes: move:}, so every {@code move} node the registrar builds is injected with the same object.
+	 * {@link MoveNode#configure(io.vertx.core.json.JsonObject)} writes the node definition into its options, so without this copy a second move node's
+	 * target, folder or source policy would silently replace the first one's - and a key the second definition omits would be inherited from the
+	 * first, e.g. {@code DELETE_AFTER_VERIFY} leaking from a trash node into an archive node.
+	 * </p>
+	 *
+	 * @return an independent instance carrying the same values
+	 */
+	public MoveNodeOptions copy() {
+		MoveNodeOptions copy = new MoveNodeOptions()
+			.setTarget(target)
+			.setTargetFolder(targetFolder)
+			.setSourceRoot(sourceRoot)
+			.setLayout(layout)
+			.setPoolUuid(poolUuid)
+			.setLibraryUuid(libraryUuid)
+			.setBucket(bucket)
+			.setOnConflict(onConflict)
+			.setCrossDevice(crossDevice)
+			.setSourcePolicy(sourcePolicy)
+			.setVerify(verify)
+			.setUpdateLocation(updateLocation)
+			.setDryRun(dryRun)
+			.setProcessIncomplete(isProcessIncomplete())
+			.setRetryFailed(isRetryFailed());
+		copy.setEnabled(isEnabled());
+		copy.setTimeoutMs(getTimeoutMs());
+		return copy;
+	}
+
 	public MoveTarget getTarget() {
 		return target;
 	}

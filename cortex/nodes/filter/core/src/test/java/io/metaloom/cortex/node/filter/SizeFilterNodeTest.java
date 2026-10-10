@@ -165,6 +165,37 @@ class SizeFilterNodeTest {
 		assertTrue(e.getMessage().contains("needs a size threshold"), e.getMessage());
 	}
 
+	/**
+	 * A reversed range parses, so it used to pass {@code validateBuckets} and then hold for no file
+	 * at all — the very failure mode that method exists to turn into an immediate task failure.
+	 */
+	@Test
+	void testAReversedRangeIsRejectedAtConfigureTime() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+			() -> node(nodeDef().put("buckets", new JsonArray().add(new JsonObject().put("id", "small").put("match", "8kb..1kb")))));
+
+		assertTrue(e.getMessage().contains("empty size range"), e.getMessage());
+		assertTrue(e.getMessage().contains("8kb..1kb"), e.getMessage());
+	}
+
+	/** The upper bound is exclusive, so a zero-width range holds for nothing either. */
+	@Test
+	void testAZeroWidthRangeIsRejectedAtConfigureTime() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+			() -> node(nodeDef().put("buckets", new JsonArray().add(new JsonObject().put("id", "small").put("match", "1kb..1kb")))));
+
+		assertTrue(e.getMessage().contains("empty size range"), e.getMessage());
+	}
+
+	/** Only a range bounds both ends, so no single-operator or bare hint may be read as empty. */
+	@Test
+	void testSingleEndedThresholdsAreNeverReportedAsEmpty() {
+		for (String hint : java.util.List.of("<1kb", "<=1kb", ">1kb", ">=1kb", "1kb", "0", "0..1")) {
+			Threshold threshold = SizeFilterStrategy.parse(hint);
+			assertTrue(threshold != null && !threshold.isEmptyRange(), hint + " must be a usable threshold");
+		}
+	}
+
 	@Test
 	void testTheProducerVersionNamesTheStrategy() {
 		assertTrue(node(nodeDef()).producerVersion().startsWith("filter/1:SIZE:"));

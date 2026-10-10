@@ -35,6 +35,29 @@ class DepthSamplerTest {
 	}
 
 	@Test
+	void testSixteenBitMapWithAlphaIsNormalisedByItsBitDepth() throws Exception {
+		// Grey + alpha at 16 bits decodes to TYPE_CUSTOM, not TYPE_USHORT_GRAY. Keyed on the type, the
+		// reader divided its 0..65535 samples by 255 and reported nearness far above 1.
+		java.awt.image.ComponentColorModel model = new java.awt.image.ComponentColorModel(
+			java.awt.color.ColorSpace.getInstance(java.awt.color.ColorSpace.CS_GRAY), true, false,
+			java.awt.Transparency.TRANSLUCENT, java.awt.image.DataBuffer.TYPE_USHORT);
+		java.awt.image.WritableRaster raster = model.createCompatibleWritableRaster(4, 2);
+		for (int y = 0; y < 2; y++) {
+			for (int x = 0; x < 4; x++) {
+				raster.setSample(x, y, 0, x < 2 ? 65535 : 16384);
+				raster.setSample(x, y, 1, 65535);
+			}
+		}
+		File file = new File(tempDir, "grey-alpha.png");
+		javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(model, raster, false, null), "png", file);
+
+		DepthMap map = DepthMap.read(file, 4, 2);
+
+		assertThat(map.nearnessAt(0, 0)).isCloseTo(1.0, within(TOL));
+		assertThat(map.nearnessAt(3, 1)).isCloseTo(0.25, within(TOL));
+	}
+
+	@Test
 	void testCoordinatesOutsideTheMapAreClamped() throws Exception {
 		DepthMap map = splitMap(200, 100, 200, 100);
 

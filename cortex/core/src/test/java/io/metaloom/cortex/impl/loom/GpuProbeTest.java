@@ -94,4 +94,27 @@ public class GpuProbeTest {
 		clock.addAndGet(GpuProbe.MIN_SAMPLE_INTERVAL_MS + 1);
 		assertNull(probe.status().load(), "Still no card, and still not an exception");
 	}
+
+	@Test
+	void testAHungDriverAnswersUnknownWithinTheTimeout() {
+		// A hung nvidia-smi keeps its stdout open. Reading stdout before waiting used to block until
+		// the child exited - i.e. forever - so the timeout was never reached and the caller (the
+		// status timer on the event loop, and every metrics scrape behind this monitor) hung with it.
+		org.junit.jupiter.api.Assumptions.assumeTrue(new java.io.File("/bin/sh").canExecute(), "needs /bin/sh");
+		GpuProbe probe = new GpuProbe(List.of("/bin/sh", "-c", "echo '50, 100, 200, Card'; sleep 30"), System::currentTimeMillis);
+
+		long start = System.currentTimeMillis();
+		GpuStatus status = probe.status();
+		long elapsed = System.currentTimeMillis() - start;
+
+		assertNull(status.load(), "A probe that timed out reports unknown");
+		org.junit.jupiter.api.Assertions.assertTrue(elapsed < 15_000, "The probe must give up at its timeout, took " + elapsed + "ms");
+	}
+
+	@Test
+	void testAWellBehavedCommandIsRead() {
+		org.junit.jupiter.api.Assumptions.assumeTrue(new java.io.File("/bin/sh").canExecute(), "needs /bin/sh");
+		GpuProbe probe = new GpuProbe(List.of("/bin/sh", "-c", "echo '50, 100, 200, Card'; echo noise >&2"), System::currentTimeMillis);
+		assertEquals(50.0d, probe.status().load(), 0.0001d);
+	}
 }

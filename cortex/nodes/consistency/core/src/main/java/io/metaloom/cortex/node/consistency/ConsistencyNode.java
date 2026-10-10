@@ -42,7 +42,7 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 	@PortDoc(label = "Complete", description = "False while the file still looks like it is being written")
 	public static final OutputPort<Boolean> OUT_IS_COMPLETE = OutputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
 
-	/** In-heap skip cache of the computed zero-chunk count, keyed by media path, to avoid re-scanning a file within this worker's lifetime. Non-durable
+	/** In-heap skip cache of the computed zero-chunk count, keyed by media path, size and mtime, to avoid re-scanning a file within this worker's lifetime. Non-durable
 	 * - the durable copy lives in Loom. */
 	private final LocalResultCache<Long> resultCache = new LocalResultCache<>(50_000);
 
@@ -65,7 +65,7 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
-		String path = media.absolutePath();
+		String path = cacheKey(media);
 
 		Long cached = resultCache.get(path);
 		if (cached != null) {
@@ -113,6 +113,21 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 			log.warn("Failed to persist consistency for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 		}
+	}
+
+	/**
+	 * Path + size + mtime, not the path alone.
+	 *
+	 * <p>
+	 * 🔴 This node exists to notice a file that is still being written. Keyed on the path, the first verdict on a half-copied file - "incomplete" -
+	 * was replayed for the rest of the worker's life, so the finished file was never seen as complete and every node gated on {@code is_complete}
+	 * skipped it until a restart. A file that grows changes size and mtime, which changes the key.
+	 * </p>
+	 */
+	static String cacheKey(LoomMedia media) {
+		String path = media.absolutePath();
+		java.io.File file = new java.io.File(path);
+		return path + "|" + file.length() + "|" + file.lastModified();
 	}
 
 	private long computeZeroChunks(LoomMedia media) throws NoSuchAlgorithmException, IOException {

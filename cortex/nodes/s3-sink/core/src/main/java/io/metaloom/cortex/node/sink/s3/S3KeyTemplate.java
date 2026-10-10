@@ -82,8 +82,13 @@ public final class S3KeyTemplate {
 				}
 			}
 		}
-		// A template consisting only of separators would render to an empty or slash-only key.
-		if (PLACEHOLDER.matcher(template).replaceAll("").equals(template) && template.isBlank()) {
+		// A template that is only separators renders to an empty key. Caught here rather than per
+		// artifact: the old form of this check compared the placeholder-stripped template against
+		// the original *and* re-tested isBlank(), which line 1 has already ruled out - so it could
+		// never fire, and "keyTemplate: /" passed validation and then failed every single artifact
+		// at render time with "rendered an empty key".
+		String literal = PLACEHOLDER.matcher(template).replaceAll("");
+		if (literal.equals(template) && literal.replace("/", "").isBlank()) {
 			throw new IllegalArgumentException("must not be empty");
 		}
 		return new S3KeyTemplate(template);

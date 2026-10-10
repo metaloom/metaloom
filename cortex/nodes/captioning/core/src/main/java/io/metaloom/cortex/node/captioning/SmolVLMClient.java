@@ -8,6 +8,7 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Version;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import org.apache.commons.codec.binary.Base64OutputStream;
 import org.imgscalr.Scalr;
@@ -20,8 +21,17 @@ import io.vertx.core.json.JsonObject;
 
 public class SmolVLMClient {
 
+	/** Budget for one caption, including a cold sidecar still loading its weights. */
+	private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(2);
+
 	private final String host;
 	private final int port;
+
+	// It is important to switch to HTTP_1_1. Otherwise FastAPI will not accept the request.
+	private final HttpClient client = HttpClient.newBuilder()
+		.version(Version.HTTP_1_1)
+		.connectTimeout(Duration.ofSeconds(30))
+		.build();
 
 	private String prompt = null;
 
@@ -57,29 +67,34 @@ public class SmolVLMClient {
 		String jsonStr = json.encode();
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(uri)
+			// Without a timeout a hung sidecar blocked the worker thread forever.
+			.timeout(REQUEST_TIMEOUT)
 			.header("Content-Type", "application/json")
-			.POST(HttpRequest.BodyPublishers.ofString(jsonStr))
+			.POST(HttpRequest.BodyPublishers.ofString(jsonStr, StandardCharsets.UTF_8))
 			.build();
 
-		// It is important to switch to HTTP_1_1. Otherwise FastAPI will not accept the request.
-		HttpClient client = HttpClient.newBuilder()
-			.version(Version.HTTP_1_1).build();
-
 		try {
-			// Send the request and get the response
-			HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-			// Print response status and body
-			System.out.println("Status Code: " + response.statusCode());
-			System.out.println("Response Body: " + response.body());
-
-			// HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-			// return response.body();
+			HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+			// A non-2xx answer is an error, not a caption. It used to be returned as the caption text,
+			// so a 500 page or a 422 validation body was cached, emitted and persisted as SUCCESS.
+			if (response.statusCode() / 100 != 2) {
+				throw new RuntimeException("Caption request to " + uri + " failed (HTTP " + response.statusCode() + "): " + truncate(response.body()));
+			}
 			return response.body();
-		} catch (IOException | InterruptedException e) {
-			throw new RuntimeException(e);
+		} catch (IOException e) {
+			throw new RuntimeException("Caption request to " + uri + " failed", e);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("Caption request to " + uri + " was interrupted", e);
 		}
 
+	}
+
+	private static String truncate(String s) {
+		if (s == null) {
+			return "null";
+		}
+		return s.length() > 500 ? s.substring(0, 500) + "..." : s;
 	}
 
 	public String captionByImage(BufferedImage image, int targetSize) throws URISyntaxException, IOException {

@@ -342,7 +342,7 @@ All are `dominant-color.*` node options ([../NODES.md](../NODES.md) §7 for how 
 | `regionX` / `regionY` | `NUMBER` | `0.0` | Fixed region origin |
 | `regionW` / `regionH` | `NUMBER` | `0.0` | Fixed region size; `0` disables it entirely |
 | `regionCoordinates` | `ENUM` | `NORMALIZED` | `NORMALIZED` \| `ABSOLUTE_PIXELS` — how the four above are read |
-| `minRegionPixels` | `INTEGER` | `64` | Drop threshold, applied both geometrically **and** after the alpha gate |
+| `minRegionPixels` | `INTEGER` | `64` | Drop threshold, applied both geometrically **and** after the alpha gate. Always in pixels: past the `maxSamples` budget the post-gate check scales the surviving sample count back up by the stride (`PixelSampler.estimatePixels`) rather than comparing samples with pixels |
 | `maxRegions` | `INTEGER` | `32` | Cap on **detection** regions only; ⚠️ re-sorts largest-first (§2) |
 | `emitPalette` | `BOOLEAN` | `true` | Emit the ranked palette rather than only `dominant` |
 | `achromaticChroma` | `NUMBER` | `12.0` | Below this C*, hue is ignored entirely (§6.3). `[0, 60]` |

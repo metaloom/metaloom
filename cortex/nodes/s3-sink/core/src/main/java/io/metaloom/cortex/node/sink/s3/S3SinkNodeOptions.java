@@ -89,6 +89,37 @@ public class S3SinkNodeOptions extends AbstractNodeOptions<S3SinkNodeOptions> {
 	}
 
 	/**
+	 * A detached copy of these options.
+	 *
+	 * <p>🔴 Load-bearing. {@code AbstractNodeModule.nodeOptions} hands out the <em>one</em> instance
+	 * stored in {@code CortexOptions.getNodes()} whenever the worker's YAML configures
+	 * {@code nodes: s3-sink:}, so every {@code s3-sink} the registrar builds is injected with the
+	 * same object. {@link S3SinkNode#configure(io.vertx.core.json.JsonObject)} writes the node
+	 * definition's values into its options, so without this copy the second sink's {@code bucket},
+	 * key template and overwrite policy would silently replace the first one's - and "two sinks
+	 * writing to different buckets coexist on one asset" is exactly what that node promises.</p>
+	 *
+	 * @return an independent instance carrying the same values
+	 */
+	public S3SinkNodeOptions copy() {
+		S3SinkNodeOptions copy = new S3SinkNodeOptions()
+			.setBucket(bucket)
+			.setKeyTemplate(keyTemplate)
+			.setIncludeSource(includeSource)
+			.setCreateAssets(createAssets)
+			.setOverwrite(overwrite)
+			.setDeleteAfterUpload(deleteAfterUpload)
+			.setMaxArtifacts(maxArtifacts)
+			.setMaxArtifactBytes(maxArtifactBytes)
+			.setFailOnPartial(failOnPartial)
+			.setProcessIncomplete(isProcessIncomplete())
+			.setRetryFailed(isRetryFailed());
+		copy.setEnabled(isEnabled());
+		copy.setTimeoutMs(getTimeoutMs());
+		return copy;
+	}
+
+	/**
 	 * Destination bucket. Required, but enforced in {@code configure(...)} rather than here - see
 	 * {@link #validate()}.
 	 */

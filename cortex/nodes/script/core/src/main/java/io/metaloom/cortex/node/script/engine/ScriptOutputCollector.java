@@ -6,6 +6,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import io.metaloom.cortex.node.script.ScriptOutputSpec;
 import io.metaloom.cortex.node.script.ScriptValueType;
@@ -32,6 +33,9 @@ public class ScriptOutputCollector {
 	public interface BinarySink {
 		String write(String outputKey, int index, byte[] bytes) throws IOException;
 	}
+
+	/** The base64 alphabet plus optional padding and line breaks - see {@link #looksBase64(String)}. */
+	private static final Pattern BASE64 = Pattern.compile("[A-Za-z0-9+/\\s]+={0,2}");
 
 	private final Map<String, ScriptOutputSpec> declared = new LinkedHashMap<>();
 	private final Map<String, Object> values = new LinkedHashMap<>();
@@ -99,8 +103,8 @@ public class ScriptOutputCollector {
 		String key = spec.key();
 		return switch (spec.type()) {
 			case STRING, TEXT, PATH -> String.valueOf(value);
-			case INTEGER -> asNumber(key, value).longValue();
-			case NUMBER -> asNumber(key, value).doubleValue();
+			case INTEGER -> asFiniteNumber(key, value).longValue();
+			case NUMBER -> asFiniteNumber(key, value).doubleValue();
 			case BOOLEAN -> asBoolean(key, value);
 			case JSON -> asJson(key, value);
 			case TEXT_LIST -> asTextList(key, value);
@@ -119,6 +123,20 @@ public class ScriptOutputCollector {
 		} catch (NumberFormatException e) {
 			throw new ScriptOutputException("output '" + key + "' expects a number but got '" + value + "'");
 		}
+	}
+
+	/**
+	 * A number that JSON can carry. {@code 0/0} and {@code 1/0} are ordinary JavaScript numbers, but {@code NaN} and
+	 * {@code Infinity} are not JSON: as a NUMBER they were encoded as bare {@code NaN} tokens the component store rejects -
+	 * a persist failure long after the script "succeeded" - and as an INTEGER they silently became {@code 0} or
+	 * {@code Long.MAX_VALUE}. Either is an authoring error, so it is reported as one.
+	 */
+	private static Number asFiniteNumber(String key, Object value) {
+		Number number = asNumber(key, value);
+		if ((number instanceof Double || number instanceof Float) && !Double.isFinite(number.doubleValue())) {
+			throw new ScriptOutputException("output '" + key + "' expects a finite number but got " + number);
+		}
+		return number;
 	}
 
 	private static Boolean asBoolean(String key, Object value) {
@@ -243,9 +261,29 @@ public class ScriptOutputCollector {
 		return paths;
 	}
 
-	/** A path never contains base64 padding or runs to hundreds of characters without a separator. */
+	/**
+	 * Is this string base64 image bytes rather than a path to a file?
+	 *
+	 * <p>
+	 * ⚠️ {@code '/'} cannot be the discriminator, which is what the first version of this used: it is
+	 * part of the base64 alphabet, so a base64-encoded PNG of any size contains one with near
+	 * certainty. With {@code indexOf('/') < 0} in the test, {@code out.image(key, base64)} therefore
+	 * took the path branch and emitted the base64 blob itself as a filesystem path - no bytes written,
+	 * no error, a downstream consumer handed a 300 kB "path".
+	 * </p>
+	 *
+	 * <p>
+	 * The reliable discriminator is the alphabet as a whole: a real path carries at least one
+	 * character base64 cannot produce - {@code '.'}, {@code '-'}, {@code '_'}, a space, a drive
+	 * letter's {@code ':'}. Once the whole string is inside the base64 alphabet, padding or sheer
+	 * length decides, which is what the original heuristic intended.
+	 * </p>
+	 */
 	private static boolean looksBase64(String text) {
-		return text.length() > 256 && text.indexOf('/') < 0 || text.endsWith("==");
+		if (text.isBlank() || !BASE64.matcher(text).matches()) {
+			return false;
+		}
+		return text.endsWith("=") || text.length() > 256;
 	}
 
 	private static byte[] asBytes(String key, int index, Object raw) {
@@ -254,7 +292,9 @@ public class ScriptOutputCollector {
 		}
 		if (raw instanceof String text) {
 			try {
-				return Base64.getDecoder().decode(text);
+				// The MIME decoder, not the basic one: looksBase64 accepts whitespace, and line-wrapped base64
+				// (76-column, as most encoders emit it) is rejected outright by Base64.getDecoder().
+				return Base64.getMimeDecoder().decode(text);
 			} catch (IllegalArgumentException e) {
 				throw new ScriptOutputException("output '" + key + "'[" + index + "] is a string but is neither a path nor valid base64");
 			}

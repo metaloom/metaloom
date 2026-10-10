@@ -224,7 +224,11 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 		if (inspireface == null) {
 			return null;
 		}
-		List<? extends Face> faces = inspireface.detectFaces(image);
+		List<? extends Face> faces;
+		// One native InspireFace session behind the detector; not safe to drive from two threads at once.
+		synchronized (inspireface) {
+			faces = inspireface.detectFaces(image);
+		}
 		if (faces == null) {
 			return List.of();
 		}
@@ -303,11 +307,7 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	 */
 	public FaceDescription processFace(BufferedImage image) throws IOException {
 
-		OpenAIClient client = OpenAIOkHttpClient.builder()
-			.baseUrl(URL)
-			.apiKey("bogus")
-			.timeout(Duration.ofMinutes(15))
-			.build();
+		OpenAIClient client = newClient();
 
 		String dataUri = "data:image/jpeg;base64," + ImageUtils.toBase64JPG(image);
 		ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
@@ -323,21 +323,40 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 						.build())))
 			.build();
 
-		String json = null;
-		for (int i = 0; i < 3; i++) {
-			try {
-				json = client.chat().completions().create(params)
-					.choices().getFirst().message().content().orElse(null);
-				json = TextUtils.extractJson(json);
-				FaceDescription description = mapper.readValue(json, FaceDescription.class);
-				return description;
-			} catch (JsonParseException e1) {
-				logger.error("Failed to parse LLM response:\n" + json, e1);
-			} catch (Exception e) {
-				logger.error("Failed to process image", e);
+		// Closed on every exit: each OpenAIClient owns an OkHttp dispatcher and connection pool, and this
+		// method builds one per face - left open, a worker accumulated their threads for every face it ever
+		// described.
+		try {
+			String json = null;
+			for (int i = 0; i < 3; i++) {
+				try {
+					json = client.chat().completions().create(params)
+						.choices().getFirst().message().content().orElse(null);
+					json = TextUtils.extractJson(json);
+					FaceDescription description = mapper.readValue(json, FaceDescription.class);
+					return description;
+				} catch (JsonParseException e1) {
+					logger.error("Failed to parse LLM response:\n" + json, e1);
+				} catch (Exception e) {
+					logger.error("Failed to process image", e);
+				}
 			}
+			return null;
+		} finally {
+			client.close();
 		}
-		return null;
+	}
+
+	/**
+	 * Build the client for one {@link #processFace} call. Package-private and overridable so a test can
+	 * hand in a mock and observe its lifecycle; {@link #processFace} owns the instance and closes it.
+	 */
+	OpenAIClient newClient() {
+		return OpenAIOkHttpClient.builder()
+			.baseUrl(URL)
+			.apiKey("bogus")
+			.timeout(Duration.ofMinutes(15))
+			.build();
 	}
 }
 

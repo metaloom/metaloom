@@ -53,6 +53,16 @@ public class ImageGenClient {
 
 	private final String host;
 	private final int port;
+
+	/**
+	 * One client for the lifetime of this instance. Building a new {@link HttpClient} per call started
+	 * a fresh selector thread and connection pool for every item and never closed them. HTTP/1.1 is
+	 * forced because FastAPI rejects the JDK client's HTTP/2 upgrade attempt.
+	 */
+	private final HttpClient client = HttpClient.newBuilder()
+		.version(Version.HTTP_1_1)
+		.connectTimeout(Duration.ofSeconds(30))
+		.build();
 	private final String generateEndpoint;
 	private final String remixEndpoint;
 	private final String editEndpoint;
@@ -184,8 +194,6 @@ public class ImageGenClient {
 			if (timeoutMs > 0) {
 				builder.timeout(Duration.ofMillis(timeoutMs));
 			}
-			// FastAPI requires HTTP/1.1.
-			HttpClient client = HttpClient.newBuilder().version(Version.HTTP_1_1).build();
 			HttpResponse<byte[]> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
 			int status = response.statusCode();
 			if (status < 200 || status >= 300) {

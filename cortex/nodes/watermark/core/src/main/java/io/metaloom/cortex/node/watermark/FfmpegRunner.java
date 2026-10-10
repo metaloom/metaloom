@@ -248,6 +248,11 @@ public class FfmpegRunner {
 				process.waitFor(5, TimeUnit.SECONDS);
 				throw new IOException("Timed out after " + timeout + "ms running " + command.get(0));
 			}
+		} catch (InterruptedException e) {
+			// The task was cancelled while ffmpeg ran. Without this the child kept encoding - orphaned, holding a CPU and writing a .part file that the
+			// caller's finally has already deleted the name of - for as long as the clip took.
+			process.destroyForcibly();
+			throw e;
 		} finally {
 			// The child has exited (or been killed), so the pipe is at EOF and the drain thread is about to finish. Bounded join so a wedged reader can
 			// never hold the node's thread.

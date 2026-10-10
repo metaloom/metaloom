@@ -25,6 +25,10 @@ public class MetricsEndpoint {
 	public void register(Router router) {
 		// Scrape directly from our registry so the route is independent of Vert.x's global backend
 		// registry lookup. Emits both the custom cortex_* meters and the Vert.x/JVM built-ins.
-		router.get("/metrics").handler(PrometheusScrapingHandler.create(registry));
+		//
+		// A blocking handler, not an event-loop one: a scrape evaluates every gauge, and the GPU,
+		// disk and I/O gauges fork nvidia-smi or read the filesystem. On the event loop a hung
+		// driver stalled the monitoring server - health and readiness probes included.
+		router.get("/metrics").blockingHandler(PrometheusScrapingHandler.create(registry));
 	}
 }

@@ -125,6 +125,30 @@ class GuardClientTest {
 	}
 
 	@Test
+	void testAJsonNullFirstChoiceIsReportedRatherThanBecomingANullPointer() throws Exception {
+		// choices.getJsonObject(0) returns null for a JSON-null element, and the null then surfaced
+		// two lines into complete(...) as an NPE that named neither the endpoint nor the body.
+		IOException error = assertThrows(IOException.class, () -> GuardClient.firstChoice("{\"choices\":[null]}", URI_UNDER_TEST));
+		assertThat(error).hasMessageContaining("not an object").hasMessageContaining("localhost:8080");
+	}
+
+	@Test
+	void testANonObjectFirstChoiceIsReportedRatherThanThrowingAClassCastException() {
+		// Same method, the other half: getJsonObject(0) throws ClassCastException for a string or a
+		// number, which is not the IOException this method declares.
+		for (String body : List.of("{\"choices\":[\"unsafe\"]}", "{\"choices\":[7]}", "{\"choices\":[[]]}")) {
+			IOException error = assertThrows(IOException.class, () -> GuardClient.firstChoice(body, URI_UNDER_TEST));
+			assertThat(error).hasMessageContaining("not an object");
+		}
+	}
+
+	@Test
+	void testAWellFormedFirstChoiceComesBack() throws Exception {
+		JsonObject choice = GuardClient.firstChoice("{\"choices\":[{\"text\":\"unsafe\"}]}", URI_UNDER_TEST);
+		assertThat(choice.getString("text")).isEqualTo("unsafe");
+	}
+
+	@Test
 	void testTheBaseUrlAcceptsBothConventions() {
 		// AbstractLlmNodeOptions documents the /v1 form; every other client in the tree takes the
 		// bare host. Both have to reach the same endpoint or the node is unconfigurable by anyone

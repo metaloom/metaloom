@@ -133,8 +133,12 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		String path = ctx.media().absolutePath();
+		// Keyed by the inputs as well as the file: the layout is a function of the depth map and the boxes,
+		// and a re-run against better detections (or a different depth model) must not be served the first
+		// run's relations.
+		String cacheKey = cacheKey(path, ctx);
 
-		String cached = resultCache.get(path);
+		String cached = resultCache.get(cacheKey);
 		if (cached != null) {
 			JsonObject payload = new JsonObject(cached);
 			emit(ctx, payload);
@@ -160,7 +164,10 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 				return ctx.skipped("depth map file not found").next();
 			}
 
-			List<RawDetection> raw = readDetections(ctx, asset);
+			int imageWidth = depthMeta.getInteger("imageWidth", 0);
+			int imageHeight = depthMeta.getInteger("imageHeight", 0);
+
+			List<RawDetection> raw = readDetections(ctx, asset, imageWidth, imageHeight);
 			if (raw.isEmpty()) {
 				return ctx.skipped("no detections").next();
 			}
@@ -169,8 +176,6 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 				return ctx.skipped("only one detection - nothing to relate").next();
 			}
 
-			int imageWidth = depthMeta.getInteger("imageWidth", 0);
-			int imageHeight = depthMeta.getInteger("imageHeight", 0);
 			DepthMap map = DepthMap.read(mapFile, imageWidth, imageHeight);
 
 			int droppedObjects = 0;
@@ -207,7 +212,7 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 
 			JsonObject payload = buildPayload(depthMeta, map, objects, all, phrases, droppedObjects, unsampled);
 			emit(ctx, payload);
-			resultCache.put(path, payload.encode());
+			resultCache.put(cacheKey, payload.encode());
 
 			ctx.print("DONE", objects.size() + " objects, " + all.size() + " relations");
 			persist(ctx, asset, payload, depthMeta.getString("model"));
@@ -241,7 +246,7 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	/**
 	 * Gather boxes, preferring the wired detections over the REST read-back.
 	 */
-	private List<RawDetection> readDetections(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	private List<RawDetection> readDetections(NodeContext<LoomMedia> ctx, AssetResponse asset, int imageWidth, int imageHeight) {
 		List<RawDetection> out = new ArrayList<>();
 		for (Element<String> element : ctx.inputs(IN_DETECTIONS)) {
 			RawDetection detection = readElement(new JsonObject(element.value()), element.seq());
@@ -253,9 +258,32 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 			return out;
 		}
 		if (options().isAllowLoomFallback() && asset != null && client() != null) {
-			return readFromLoom(asset);
+			return readFromLoom(asset, imageWidth, imageHeight);
 		}
 		return out;
+	}
+
+	/**
+	 * The skip-cache key: the media plus a digest of both wired inputs and every option that shapes the layout.
+	 */
+	private String cacheKey(String path, NodeContext<LoomMedia> ctx) {
+		SceneLayoutNodeOptions o = options();
+		StringBuilder material = new StringBuilder()
+			.append(o.isAllowLoomFallback()).append('|').append(o.getCoreInset()).append('|').append(o.getMinCorePixels()).append('|')
+			.append(o.getDepthZThreshold()).append('|').append(o.getOcclusionMinOverlap()).append('|').append(o.getContainmentRatio()).append('|')
+			.append(o.getNextToMaxGap()).append('|').append(o.getForegroundQuantile()).append('|').append(o.getBackgroundQuantile()).append('|')
+			.append(o.getMaxObjects()).append('|').append(o.getMaxRelations()).append('|').append(o.isEmitPhrases()).append('|')
+			.append(ctx.input(IN_DEPTH));
+		for (Element<String> element : ctx.inputs(IN_DETECTIONS)) {
+			material.append('\u0000').append(element.value());
+		}
+		try {
+			java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+			byte[] hash = digest.digest(material.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+			return path + "|" + java.util.HexFormat.of().formatHex(hash).substring(0, 16);
+		} catch (java.security.NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 is required by the JDK specification", e);
+		}
 	}
 
 	/**
@@ -291,21 +319,22 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	 * Read boxes back from Loom.
 	 *
 	 * <p>
-	 * 🔴 This path has to guess the coordinate convention. {@code V2.43} documents
-	 * {@code detection.bbox_x} as normalized 0-1, but {@code FacedetectNode} writes absolute
-	 * pixels, {@code DetectionModelValidator} validates nothing, and no source dimensions are
-	 * stored anywhere. The heuristic below - any component above 1.0 means the row is in pixels -
-	 * is the best available reading, and it logs which branch it took rather than deciding
-	 * silently. Prefer the upstream path.
+	 * {@code V2.43} documents {@code detection.bbox_*} as normalized 0-1, which is what {@code facedetect} and {@code objectdetect} write. Rows from
+	 * before that convention was honoured hold absolute pixels, and nothing records which a row is - so each row is classified on its own: any
+	 * component above 1.0 means pixels, otherwise it is normalized and scaled by the source image size the depth metadata carries (the boxes and the
+	 * depth map describe the same still). Per row rather than per asset, because one asset can hold rows from both eras. Prefer the upstream path,
+	 * which states its own convention.
 	 * </p>
 	 *
 	 * <p>
-	 * {@code DetectionResponse} also omits {@code label} and {@code detectionIndex}, so an object
-	 * class cannot be recovered here - only {@code type}. That is fine for faces and is a
-	 * prerequisite to fix before object detection lands.
+	 * This used to refuse normalized rows outright on the grounds that no source dimensions were stored - but the depth metadata has always carried
+	 * them. Once facedetect started writing the documented convention, the fallback silently returned nothing for every current row.
 	 * </p>
+	 *
+	 * @param imageWidth  source image width, from the depth metadata; 0 when unknown
+	 * @param imageHeight source image height
 	 */
-	private List<RawDetection> readFromLoom(AssetResponse asset) {
+	private List<RawDetection> readFromLoom(AssetResponse asset, int imageWidth, int imageHeight) {
 		List<RawDetection> out = new ArrayList<>();
 		try {
 			List<DetectionResponse> rows = client().listAssetDetections(asset.getUuid()).sync().body().getData();
@@ -313,25 +342,32 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 				return out;
 			}
 
-			boolean pixels = rows.stream().anyMatch(r -> above(r.getBboxX()) || above(r.getBboxY())
-				|| above(r.getBboxWidth()) || above(r.getBboxHeight()));
-			log.info("Read {} detection(s) for asset {} from Loom, interpreting geometry as {}",
-				rows.size(), asset.getUuid(), pixels ? "ABSOLUTE_PIXELS" : "NORMALIZED");
-			if (!pixels) {
-				// Normalized rows would need the source image size to become pixels, and nothing records it.
-				log.warn("Detections for asset {} look normalized, but no source dimensions are stored - skipping the REST fallback", asset.getUuid());
-				return out;
-			}
-
 			int index = 0;
+			int pixelRows = 0;
+			int normalizedRows = 0;
+			int unscalable = 0;
 			for (DetectionResponse row : rows) {
 				String type = row.getType() != null ? row.getType() : "object";
+				BoxF box = new BoxF(value(row.getBboxX()), value(row.getBboxY()), value(row.getBboxWidth()), value(row.getBboxHeight()));
+				boolean pixels = above(row.getBboxX()) || above(row.getBboxY()) || above(row.getBboxWidth()) || above(row.getBboxHeight());
+				if (pixels) {
+					pixelRows++;
+				} else if (imageWidth > 0 && imageHeight > 0) {
+					box = box.scale(imageWidth, imageHeight);
+					normalizedRows++;
+				} else {
+					// Normalized, and nothing to scale it by: a 0-1 box read as pixels would sample one corner pixel.
+					unscalable++;
+					continue;
+				}
 				out.add(new RawDetection(
 					type + "-" + index++,
 					type, type, "loom",
-					new BoxF(value(row.getBboxX()), value(row.getBboxY()), value(row.getBboxWidth()), value(row.getBboxHeight())),
+					box,
 					row.getConfidence() != null ? row.getConfidence() : 1d));
 			}
+			log.info("Read {} detection(s) for asset {} from Loom: {} in ABSOLUTE_PIXELS, {} NORMALIZED, {} skipped for lack of an image size",
+				rows.size(), asset.getUuid(), pixelRows, normalizedRows, unscalable);
 		} catch (Exception e) {
 			log.warn("Failed to read detections for asset {} from Loom: {}", asset.getUuid(), e.getMessage());
 		}

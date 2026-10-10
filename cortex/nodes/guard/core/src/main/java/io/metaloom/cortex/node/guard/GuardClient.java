@@ -170,7 +170,14 @@ public class GuardClient {
 		if (choices == null || choices.isEmpty()) {
 			throw new IOException("No choices in the guard response from " + uri + ": " + truncate(responseBody));
 		}
-		return choices.getJsonObject(0);
+		// Not choices.getJsonObject(0): that returns null for a JSON-null element and throws
+		// ClassCastException for a string or a number. Both escaped this method as something other
+		// than the IOException it declares - the null then surfaced as an NPE two lines into
+		// complete(...), naming neither the endpoint nor the body that caused it.
+		if (!(choices.getValue(0) instanceof JsonObject choice)) {
+			throw new IOException("The first choice in the guard response from " + uri + " is not an object: " + truncate(responseBody));
+		}
+		return choice;
 	}
 
 	/**

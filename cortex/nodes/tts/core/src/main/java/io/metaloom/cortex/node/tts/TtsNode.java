@@ -4,8 +4,12 @@ import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -83,8 +87,8 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
-	/** In-heap skip cache of the generated audio path, keyed by media path, to avoid re-synthesizing within this worker's lifetime. The rendered WAV
-	 * itself is a durable local artifact under {@code metaPath/tts_bin}. */
+	/** In-heap skip cache of the generated audio path, keyed by media path plus the input digest (see {@link #digest}), to avoid re-synthesizing
+	 * within this worker's lifetime. The rendered WAV itself is a durable local artifact under {@code metaPath/tts_bin}. */
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
 	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
@@ -125,7 +129,9 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 		}
 
 		// Re-emit a locally cached audio path instead of re-synthesizing. On a hit the ledger entry already exists in Loom, so we also skip re-persisting.
-		String cached = resultCache.get(path);
+		String digest = digest(text);
+		String cacheKey = path + "|" + digest;
+		String cached = resultCache.get(cacheKey);
 		if (cached != null) {
 			metrics.recordAiCacheHit("tts");
 			ctx.output(OUT_FLAG, "DONE");
@@ -144,14 +150,14 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 			}
 			metrics.recordAiCall("tts", true, System.currentTimeMillis() - aiStart);
 
-			Path audioPath = resolveAudioPath(media);
+			Path audioPath = resolveAudioPath(media, digest);
 			Files.createDirectories(audioPath.getParent());
 			Files.write(audioPath, wav);
 
 			ctx.print("DONE", wav.length + " bytes");
 			ctx.output(OUT_FLAG, "DONE");
 			ctx.output(OUT_AUDIO, audioPath.toString());
-			resultCache.put(path, audioPath.toString());
+			resultCache.put(cacheKey, audioPath.toString());
 
 			// The audio bytes live in the local tts_bin cache; record the ledger marker that this node produced them for the asset. Uploading the bytes
 			// into the asset binary subsystem needs a byte-ingest endpoint that does not exist yet, so that remains a follow-up (same as ThumbnailNode).
@@ -174,13 +180,33 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 	}
 
 	/**
-	 * Resolve the local cache path for the generated WAV: {@code metaPath/tts_bin/<segment>/<sha512>.wav}. Mirrors {@code ThumbnailNode}.
+	 * Resolve the local cache path for the generated WAV: {@code metaPath/tts_bin/<segment>/<sha512>-<digest>.wav}.
+	 *
+	 * <p>
+	 * The digest is in the file name, not only in the cache key: the text arrives over an edge, so
+	 * one asset can be narrated from different upstream texts or by two differently configured tts
+	 * nodes. With {@code <sha512>.wav} alone they overwrote one file and the path-keyed cache served
+	 * the first narration for every later text. Same pattern as {@code ImageGenNode}.
+	 * </p>
 	 */
-	private Path resolveAudioPath(LoomMedia media) {
+	private Path resolveAudioPath(LoomMedia media, String digest) {
 		SHA512 hash = media.getSHA512();
-		String fileName = hash + ".wav";
+		String fileName = hash + "-" + digest + ".wav";
 		Path basePath = cortexOptions.getMetaPath().resolve("tts_bin");
 		Path dirPath = HashUtils.segmentPath(basePath, hash);
 		return dirPath.resolve(fileName);
+	}
+
+	/**
+	 * A short digest of everything that changes the produced audio: the text, the language and the voice.
+	 */
+	private String digest(String text) {
+		String material = options().getLanguage() + "|" + options().getVoice() + "|" + text;
+		try {
+			MessageDigest md = MessageDigest.getInstance("SHA-256");
+			return HexFormat.of().formatHex(md.digest(material.getBytes(StandardCharsets.UTF_8))).substring(0, 12);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 is required by the JDK specification", e);
+		}
 	}
 }

@@ -125,11 +125,30 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 
 	private S3KeyTemplate template;
 
+	/**
+	 * The options this instance actually runs with.
+	 *
+	 * <p>🔴 Not the injected object. {@code AbstractNodeModule.nodeOptions} returns the single
+	 * instance held in {@code CortexOptions.getNodes()} once the worker's YAML configures
+	 * {@code nodes: s3-sink:}, so every sink the registrar builds shares it - and
+	 * {@link #configure(JsonObject)} writes into its options. Two sinks with different buckets would
+	 * then both upload to whichever definition was configured last. {@code configure} therefore
+	 * starts from {@link S3SinkNodeOptions#copy()} and this field, not the injected one, is what
+	 * {@link #options()} answers.</p>
+	 */
+	private S3SinkNodeOptions effectiveOptions;
+
 	@Inject
 	public S3SinkNode(@Nullable LoomClient client, CortexOptions cortexOptions, S3SinkNodeOptions options, S3Support s3) {
 		super(client, cortexOptions, options);
 		this.s3 = s3;
+		this.effectiveOptions = options;
 		this.template = S3KeyTemplate.parse(options.getKeyTemplate());
+	}
+
+	@Override
+	public S3SinkNodeOptions options() {
+		return effectiveOptions;
 	}
 
 	@Override
@@ -144,7 +163,8 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 
 	@Override
 	public void configure(JsonObject nodeDef) {
-		S3SinkNodeOptions options = options();
+		// A copy, never the injected instance: see the effectiveOptions field.
+		S3SinkNodeOptions options = super.options().copy();
 		nodeId = nodeDef.getString("id", KIND);
 
 		if (nodeDef.containsKey("bucket")) {
@@ -186,6 +206,9 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 		}
 		// Parsed once per configured instance rather than per media item.
 		this.template = S3KeyTemplate.parse(options.getKeyTemplate());
+		// Published only once everything above accepted the definition, so a rejected configure
+		// leaves the node with the options it already had rather than half of a new set.
+		this.effectiveOptions = options;
 	}
 
 	@Override

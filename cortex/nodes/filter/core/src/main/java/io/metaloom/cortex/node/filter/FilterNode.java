@@ -216,8 +216,12 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 		// Every input that can change the answer belongs in here. Two nodes differing only in an
 		// omitted one would share a result-cache entry and a producerVersion, so the second would
 		// re-emit the first's verdict.
+		// minConfidence demotes a matched bucket to 'other', maxTextChars decides which excerpt the
+		// model is shown, and openaiUrl decides which backend answers - all three change the verdict
+		// for the same item, so all three belong in here too.
 		configHash = hash(options.getFilterBy() + " " + options.getBuckets().encode() + " " + options.getModel()
-			+ " " + options.getTagSource() + " " + strategy.version());
+			+ " " + options.getTagSource() + " " + options.openaiUrl() + " " + options.getMaxTextChars()
+			+ " " + options.getMinConfidence() + " " + strategy.version());
 		configured = true;
 	}
 

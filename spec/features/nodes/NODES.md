@@ -198,7 +198,7 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**36 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` was a stale
+**37 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` was a stale
 leftover directory with no `pom.xml`; it has been deleted — do not resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
@@ -287,6 +287,27 @@ Notes worth knowing:
   neither — no `mmproj` projector is published for Llama Guard 4 and `shieldgemma-2-4b` has no GGUF
   conversion. An image asset reaching a text-only family with nothing on `text` **fails**; a guard
   that waves through what it cannot read is worse than one that stops.
+  🟢 **The gate fails closed in three places** (2026-09-26 — the same principle, three holes):
+  `GuardNode.isSafe(payload)` defaults to **unsafe** when a stored payload carries no `safe` field (it
+  defaulted to safe, which opened the branch behind `safe` for any payload the node could not read —
+  reachable through the cache path, whose input is a string, not a verdict this run produced);
+  `compute` **fails when it built no probe at all**, because `GuardVerdict.of` over an empty result
+  list yields `safe=true / score=0 / scoreExact=true` — a confident clean verdict from a node that
+  asked the model nothing, reachable whenever `effectiveCategories()` filters to empty (a worker
+  config whose `categories` all belong to a different family; `validate()` rejects that but nothing
+  on the compute path re-checks, and that method's javadoc claiming "never empty" was simply wrong);
+  and `GuardClient.firstChoice` rejects a non-object first choice with the `IOException` it declares
+  instead of letting `choices.getJsonObject(0)` return `null` (JSON null) or throw
+  `ClassCastException` (a string or number) two lines before an NPE that named neither the endpoint
+  nor the body. Pinned by `GuardNodeTest.testAPayloadWithoutASafeFieldClosesTheGate`,
+  `testACategorySelectionThatMatchesNothingFailsRatherThanReportingSafe` and three new
+  `GuardClientTest` cases.
+  🟢 **The moderated text cannot forge the answer** (2026-10-10): every dialect splices the text
+  through `GuardDialect.sanitize`, which strips the families' control tokens (`<|…|>`,
+  `<start_of_turn>`/`<end_of_turn>`, …) and the prompts' own section fences (`<END CONVERSATION>`,
+  `<end_of_conversation>`, …). Text probes go to the raw `/completions` route, where the backend
+  tokenizes specials written in the prompt, so content could close the user turn and write `safe`
+  for the model. Pinned by `GuardDialectTest.testTextUnderModerationCannotInjectControlTokens`.
 - **`metadata` is the only `PipelineConfigurable` analysis node.** Its options *are* the work — a
   public-library pipeline rounds coordinates while the internal archive keeps them — so it reads them
   off the node definition, is not `@Singleton`, and overrides `nodeId()`. It also reads images with
@@ -317,7 +338,7 @@ are constructed directly by `RegistryNodeRegistrar` (§5).
 
 | Kind | Class · module | Emits | Notes |
 |---|---|---|---|
-| `filesystem-source` | `FilesystemSourceNode` · nodes/filesystem-source (flat) | `media` | Root mode = differential scan (`LinuxFilesystemScanner` + Avro `FileIndexStore` under `indexPath`); glob mode re-enumerates every match and **wins** when both are set. `emitStates` default `[NEW, MODIFIED, MOVED]` |
+| `filesystem-source` | `FilesystemSourceNode` · nodes/filesystem-source (flat) | `media` | Root mode = differential scan (`LinuxFilesystemScanner` + Avro `FileIndexStore` under `indexPath`); glob mode re-enumerates every match and **wins** when both are set. `emitStates` default `[NEW, MODIFIED, MOVED]`. Glob mode walks only as deep as the pattern can match - `FilesystemMediaScanner.walkDepthFor` bounds `Files.walk` at `separators + 1` unless the pattern contains `**`, so a flat glob neither pays for the whole subtree nor aborts on an unreadable directory somewhere below it. A glob whose first wildcard sits in the top-level segment (`/*.mkv`) is rooted at `/`, not at the working directory |
 | `s3-source` | `S3SourceNode` · nodes/s3-source (flat) | `media` (`s3://` refs) | Differential on `(key, etag, size)`; Avro index per `sha256(endpoint/bucket/prefix)`. **`MOVED` is never emitted** — ETags collide across identical objects, so inferring renames would invent them. Three scan paths (full list / `startAfter` resume / buffered bucket events), both fast paths gated on a full listing within `reconcileIntervalMs` (default 6h). Registered **only when S3 is configured** |
 | `gdrive-source` | `CloudSourceNode` · nodes/cloud-source (flat) | `media` (`gdrive://` refs) | Differential on `(changeToken, size)` with `parentId`+`name` for moves; Avro index per `sha256(scheme/account/drive/folder/recursion/depth)`, keyed by **file id**. **`MOVED` is genuinely emitted** — a cloud file id survives a rename and a re-parent, which no S3 ETag can. Two scan paths (full folder walk / `changes.list` delta), the fast path gated on a full walk within `reconcileIntervalMs` (default 24h). Registered **only when Google credentials are configured** |
 | `onedrive-source` | `CloudSourceNode` · nodes/cloud-source (flat) | `media` (`onedrive://` refs) | Same implementation and semantics as `gdrive-source` over Microsoft Graph `/root/delta`. Separate kind so a worker advertises only the cloud it holds credentials for. Registered **only when Microsoft credentials are configured** |
@@ -364,6 +385,15 @@ descriptor — never an edit to `FilterNode`. Two default methods on the seam ca
 per-strategy: `version()` (mixed into the cache key and `producerVersion`) and `validateBuckets(...)`
 (called from `configure(...)`, so `SIZE`/`DATE` refuse an unparseable hint up front instead of
 routing every item to `other` for a whole run).
+
+`validateBuckets(...)` also refuses a hint that parses and can then never hold: `SIZE`, `DATE` and
+`RATING` each reject a **reversed range** (`8kb..1kb`, `2024-12-31..2024-01-01`, `7..4`), and `SIZE`
+and `DATE` reject a zero-width one as well, since their upper bound is exclusive while `RATING`'s is
+inclusive and `8..8` is a legal single-value band. The argument is the same one that motivates the
+method at all: an empty bucket is indistinguishable at run time from data that simply did not match.
+
+An **empty bucket set passes nothing**, not everything — the editor saves one the moment the node is
+dropped on a canvas, and every strategy answers `other` for it.
 
 This **replaced eight `filter-*` kinds and nine classes** in `cortex/pipeline-core/.../node/filter/`
 (`AbstractFilterNode` and its subclasses). They extended `AbstractPipelineNode` rather than
@@ -435,7 +465,8 @@ Two independent layers — confusing them is a classic mistake.
 `LocalResultCache` is a bounded, thread-safe, access-order LRU (100k for hash/fingerprint, 50k and
 10k elsewhere). It is **non-durable by design** — the durable copy is what Loom got on the first pass.
 
-🔴 **Cache-key hygiene is uneven.** Only four nodes include anything beyond the media path:
+🔴 **Cache-key hygiene is uneven.** Only the nodes below include anything beyond the media path, and
+a key that omits *one* result-affecting option is the same bug as a path-only key, just rarer:
 
 | Node | Key |
 |---|---|
@@ -496,7 +527,7 @@ flowchart TD
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 42 with S3 configured, 41 without.**
+- **Total runnable: 43 with S3 configured, 42 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -507,7 +538,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **45 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **46 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -520,7 +551,7 @@ Reconciling the two registries:
 
 | Set | Count | Members |
 |---|---|---|
-| Descriptor **and** runnable | 36 | the 34 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
+| Descriptor **and** runnable | 45 | every entry of the generated `node-descriptors.json`: the kind bindings minus the `sha512-dedup` alias, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` (the last three only where configured). Recounted 2026-10-10; the 36/34 this row carried before had gone stale |
 | Descriptor only — **not runnable** | 1 | `loom-fetch` |
 | Runnable only — **no descriptor** | 2 | `sha512-dedup` (alias), `asset-source` |
 
@@ -740,7 +771,9 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 |---|---|
 | **Failure is always `.abort()`** | The cause and the terminator belong together, where a reader of the catch block sees both. `FailurePathGuardTest` (cortex/api) fails the build on `ctx.failure(...).next()`, naming file and line; `next()` is fail-closed as a backstop but is not a supported spelling |
 | **A cache hit is SUCCESS + `ResultOrigin.LOCAL`, and must re-emit** | SKIPPED means "produced nothing", which starves every downstream node bound to that port |
-| **Put the options hash in the cache key** | Path-only keys serve stale results when an option or an upstream payload changes. `dominant-color` is the model |
+| **Put the options hash in the cache key** | Path-only keys serve stale results when an option or an upstream payload changes. `dominant-color` is the model — and *every* result-affecting option belongs in it, since a `PipelineConfigurable` instance is reconfigured per task while its cache survives |
+| **A sample budget must hold for every aspect ratio** | `dominant-color` derives one stride from a region's **area**, then rounds each axis up independently: on a 100000x1 banner that visits ten times the requested budget. `PixelSampler.stride` searches for the smallest stride whose real grid fits |
+| **Select by size, emit in payload order** | `dominant-color`'s `maxRegions` cap keeps the largest detection boxes, but sorting the list itself would reorder the emitted regions on exactly the runs that hit the cap — the two orders are separate decisions |
 | **`KEY` ≠ kind, sometimes** | `facedetect`/`facedetection` and `scene-detection`/`scene-detector` really do differ. The `@StringKey`, `name()` and descriptor `kind` must all agree; only the options `KEY` may lag |
 | **Never add a `"nodeId:outputKey"` option** | Node ids are author-chosen; renaming a node in the editor silently returned null. Declare an input port |
 | **Cardinality is behaviour, not decoration** | A `ONE` input fed by a `MANY` output runs the node once **per element**; a `MANY` input gathers the branch and runs once. Neither needs configuration |

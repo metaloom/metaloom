@@ -5,7 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -189,11 +188,9 @@ public class CloudDifferentialScanner {
 		List<CloudFileRef> walked = walker.walk(selection);
 
 		Set<String> seen = new HashSet<>();
-		List<CloudFileRef> survivors = new ArrayList<>();
 		for (CloudFileRef ref : walked) {
 			seen.add(ref.fileId());
 			classify(ref, index, selection, result);
-			survivors.add(ref);
 		}
 
 		// Anything the index knew and the walk did not see is gone from the selection - deleted,
@@ -210,7 +207,7 @@ public class CloudDifferentialScanner {
 		// Rebuild rather than merge: an index that keeps stale entries would keep reporting files
 		// that have left the selection.
 		index.clear();
-		for (CloudFileRef ref : survivors) {
+		for (CloudFileRef ref : walked) {
 			index.put(ref);
 		}
 		index.setLastFullScanMillis(nowMillis);
@@ -249,7 +246,18 @@ public class CloudDifferentialScanner {
 				continue;
 			}
 			if (!ref.trashed() || selection.includeTrashed()) {
-				if (isInside(ref, selection, index, hopMemo, folderCache)) {
+				Boolean inside = isInside(ref, selection, index, hopMemo, folderCache);
+				if (inside == null) {
+					// Undecidable right now - the parent chain is longer than the hop budget, or a
+					// lookup failed. Not knowing is not evidence of absence: reporting the file
+					// DELETED (and dropping it from the index) would tell the pipeline a file that
+					// is still there was removed. Leave the index as it is; the reconcile walk
+					// settles it.
+					log.debug("Could not place changed item {} relative to the selection; leaving it "
+						+ "for the reconcile walk", ref.fileId());
+					continue;
+				}
+				if (inside) {
 					classify(ref, index, selection, result);
 					continue;
 				}
@@ -275,17 +283,23 @@ public class CloudDifferentialScanner {
 	 *
 	 * <p>See the class javadoc: this is the design's one approximation, bounded by
 	 * {@link #PARENT_LOOKUP_DEPTH} and repaired by the reconcile walk.</p>
+	 *
+	 * @return true inside, false outside, null when it could not be decided (hop budget exhausted or
+	 *         a parent lookup failed)
 	 */
-	private boolean isInside(CloudFileRef ref, CloudSelection selection, CloudFileIndex index,
+	private Boolean isInside(CloudFileRef ref, CloudSelection selection, CloudFileIndex index,
 		Map<String, Integer> hopMemo, Map<String, CloudFileRef> folderCache) {
 
 		int maxHops = !selection.recursive()
 			? 1
 			: selection.maxDepth() == 0 ? Integer.MAX_VALUE : selection.maxDepth() + 1;
 
-		int parentHops = hopsToSelectionRoot(ref.parentId(), selection, index, hopMemo, folderCache, 0);
+		boolean[] provisional = new boolean[1];
+		int parentHops = hopsToSelectionRoot(ref.parentId(), selection, index, hopMemo, folderCache, 0,
+			provisional);
 		if (parentHops < 0) {
-			return false;
+			// A -1 that came from the hop budget or a failed lookup is "unknown", not "outside".
+			return provisional[0] ? null : Boolean.FALSE;
 		}
 		int hops = parentHops + 1;
 		return hops <= maxHops;
@@ -294,10 +308,21 @@ public class CloudDifferentialScanner {
 	/**
 	 * Hops from a folder up to the selection root, or -1 when it is not below it.
 	 *
+	 * <p>🔴 {@code provisional} is what keeps the memo honest. A {@code -1} can mean two very
+	 * different things: "this folder is genuinely not below the selection root", which is a property
+	 * of the folder and safe to remember for the rest of the scan, or "we ran out of hop budget /
+	 * the API call failed", which depends on <em>where the walk started</em> and on luck. Memoising
+	 * the second kind poisoned the entry: a chain longer than {@link #PARENT_LOOKUP_DEPTH} cached a
+	 * {@code -1} for a folder only one hop below the root, and every later change under that folder
+	 * in the same feed was then judged outside the selection - which in {@code scanFromDelta} does
+	 * not merely skip the file, it drops it from the index and reports it {@code DELETED}.</p>
+	 *
+	 * @param provisional single-element out-parameter, set when the answer came from the hop budget
+	 *                    or a failed lookup rather than from the folder's real position
 	 * @return 0 when the folder <em>is</em> the selection root
 	 */
 	private int hopsToSelectionRoot(String folderId, CloudSelection selection, CloudFileIndex index,
-		Map<String, Integer> memo, Map<String, CloudFileRef> folderCache, int depth) {
+		Map<String, Integer> memo, Map<String, CloudFileRef> folderCache, int depth, boolean[] provisional) {
 
 		if (folderId == null) {
 			// Reached the drive root. That is the selection root only when no folder was selected.
@@ -309,6 +334,7 @@ public class CloudDifferentialScanner {
 		if (depth >= PARENT_LOOKUP_DEPTH) {
 			log.debug("Gave up resolving the parent chain of folder {} after {} hops; the reconcile "
 				+ "walk will pick up anything missed", folderId, depth);
+			provisional[0] = true;
 			return -1;
 		}
 		Integer cached = memo.get(folderId);
@@ -325,6 +351,8 @@ public class CloudDifferentialScanner {
 				parent = store.get(selection.driveId(), folderId);
 			} catch (IOException e) {
 				log.debug("Could not read folder {} while resolving a parent chain", folderId, e);
+				// A transient failure says nothing about where the folder sits.
+				provisional[0] = true;
 			}
 			if (parent != null) {
 				folderCache.put(folderId, parent);
@@ -335,10 +363,13 @@ public class CloudDifferentialScanner {
 		if (parent == null) {
 			result = -1;
 		} else {
-			int above = hopsToSelectionRoot(parent.parentId(), selection, index, memo, folderCache, depth + 1);
+			int above = hopsToSelectionRoot(parent.parentId(), selection, index, memo, folderCache,
+				depth + 1, provisional);
 			result = above < 0 ? -1 : above + 1;
 		}
-		memo.put(folderId, result);
+		if (result >= 0 || !provisional[0]) {
+			memo.put(folderId, result);
+		}
 		return result;
 	}
 

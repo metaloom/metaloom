@@ -156,10 +156,28 @@ items to different places.
 | `updateLocation` | boolean | `true` | Record the new location in Loom |
 | `dryRun` | boolean | `false` | OR'd with the worker-global `--dryrun` |
 
-⚠️ `sourcePolicy: KEEP` makes the node a **copier**, and it says so: the `flag` port reads `COPIED`,
-not `MOVED`. Reporting a copy as a move is how a cold-tier run silently fails to reclaim anything.
+⚠️ `sourcePolicy: KEEP` governs the paths that **produce a second copy** - a cross-device copy and an
+S3 upload. On those the node is a copier and says so: the `flag` port reads `COPIED`, not `MOVED`.
+Reporting a copy as a move is how a cold-tier run silently fails to reclaim anything.
+
+⚠️ It does **not** turn a same-filesystem relocation into a copy, and reading it that way is the
+trap. There a move is a rename: no second copy exists to keep or remove, and the file arrives at the
+destination under either policy with `flag = MOVED`. `MoveNodeTest` has pinned exactly that since the
+node shipped; the `SourcePolicy.KEEP` javadoc said "the node performs a copy, not a move" until
+2026-09-26, which was true only of the copy paths. Use `dryRun` to see where a file would go without
+it happening.
+
 `target: S3_BUCKET` with `DELETE_AFTER_VERIFY` and `verify: SHA512` is rejected at configure time -
 an object cannot be digested without downloading it back.
+
+🔴 **Under `layout: CONTENT` an occupied destination is not a collision.** The path *is* the SHA-512,
+so a file of the same length already there holds the same bytes, and the plan reports
+`ALREADY_THERE` - the same argument `S3BucketDestination` makes with a `head()`. Until 2026-09-26 the
+conflict policy took over and filed the duplicate at `<sha512>_1`, which is not a content key: Loom
+derives the location it reads from the hash, so it would never look there, and with
+`DELETE_AFTER_VERIFY` the original was unlinked to put it out of reach. This applies to `POOL`,
+`LIBRARY` and to `FOLDER` with `layout: CONTENT`; for `FLAT`, `MIRROR` and `DATE` a taken destination
+really is two files wanting one name and `onConflict` still decides.
 
 ### 3.3 Filesystem-border awareness — the actual mechanism
 
@@ -215,6 +233,14 @@ a file - every one of its tests asserts the source is byte-identical and at the 
 
 Options: `target` (`COLLECTION`/`LIBRARY`), `collectionUuid` **xor** `collectionName`,
 `libraryUuid`, `onMissing` (`FAIL`/`CREATE`/`SKIP`, default `FAIL`), `dryRun`.
+
+⚠️ **`collectionName` can only see the first page.** `LoomClient.listCollections()` takes no paging
+parameters and the route has no name filter, so the lookup scans one page. A miss on a *truncated*
+listing is not evidence that the collection is absent - with `onMissing: CREATE` that answer makes the
+node try to create a name that already exists - so since 2026-09-26 it compares the page against the
+`_metainfo.totalCount` the server reported and fails naming the limitation instead. Prefer
+`collectionUuid` on an installation with many collections; the real fix is a name filter on the list
+route.
 
 This needed REST that did not exist: `collection_asset` had a DAO writer used only by a cascade test,
 and `library_asset` had none at all. Both now have membership routes, client methods and tests - see
@@ -275,11 +301,12 @@ today.
 - [x] 🟢 `cortex/nodes/relocate`: `MoveNode` + 4 destinations, `AssignNode` + 2 assignments, `RelocateNodeModule`
 - [x] 🟢 `FileStore` comparison before the move, `crossDevice` x3, xattr carry-over with honest failure reporting
 - [x] 🟢 `onConflict` x3, never overwriting; per-target idempotent skip
+- [x] 🟢 The content layout treats its own hash as identity, not as a collision (2026-09-26)
 - [x] 🟢 `asset_location` update (path **and** library/pool) + `asset.filename` + ledger row
 - [x] 🟢 Both `@StringKey` bindings, `NodeSpecCatalog`, regenerated descriptors, `NodeRegistrarTest`
 - [x] 🟢 Loom: membership routes, `V2.80` cascade fix, Java + Python clients, 80 tests
 - [x] 🟢 The dedup supersede: ports in, `dupFolder` out, `keepExcludeFolder` in, `.next()` bug fixed (28 tests)
-- [x] 🟢 Node tests: 41 in `relocate` (move, cross-device, conflict, options, assign)
+- [x] 🟢 Node tests: 51 in `relocate` (move, cross-device, conflict, content layout, failure paths, options, assign)
 - [ ] 🔵 Remaining node tests: persistence, pipeline-chain, singleton, and the two assertj helpers
 - [ ] 🔵 Per-node E2E in `integration-test/`
 - [ ] 🔵 Demo pipeline + demo data
@@ -323,8 +350,10 @@ YAML only, and no demo pipeline used a dedup kind.
 | `MoveNodeTest` (11) | Same-store rename; the media handle follows the bytes on a move and **not** on a copy; already-in-target `SKIPPED`; 🔴 `/x/trash-old` is not inside `/x/trash`; remote media untouched; dry run; MIRROR/FLAT/CONTENT layouts | 🟢 |
 | `MoveNodeCrossDeviceTest` (6) | Stubbed boundary probe: `SKIP` default touches nothing; `FAIL` asserts **FAILED** not SUCCESS; `COPY` keeps or removes the source per policy; SHA-512 verify; no `.part` survives | 🟢 |
 | `MoveNodeConflictTest` (4) | `SUFFIX` numbering across runs; `SKIP`; `FAIL`; **the occupant is never overwritten** in any case | 🟢 |
+| `MoveNodeContentLayoutTest` (4) | 🔴 The content layout: the same bytes arriving twice are `ALREADY_THERE`, not `<sha512>_1`; the duplicate survives `DELETE_AFTER_VERIFY`; a *different* length at the content path is still a conflict; `FLAT` is unaffected | 🟢 |
+| `MoveNodeFailureTest` (4) | An unwritable destination, a source that vanished, an exception with no message, and a `../` source path that cannot escape the target root. **Every case asserts the source file is intact** | 🟢 |
 | `MoveOptionsValidationTest` (12) | Defaults; blank folder; every enum named with its accepted values; per-target requirements; the S3+SHA512+delete combination refused | 🟢 |
-| `AssignNodeTest` (8) | Adds; already-a-member skips; missing target fails or skips; dry run; unknown asset; resolve-by-name; uuid-xor-name. **Every case asserts the file was not touched** | 🟢 |
+| `AssignNodeTest` (10) | Adds; already-a-member skips; missing target fails or skips; dry run; unknown asset; resolve-by-name; a name missing from a *truncated* listing is not "absent"; uuid-xor-name. **Every case asserts the file was not touched** | 🟢 |
 | `HashDedupNodeTest` (4) | Signals the duplicate instead of moving it; size mismatch still skips (`@Timeout(10)` is the assertion); same file; unknown file | 🟢 |
 | `FingerprintDedupApplyNodeTest` (12) | The five safeguards now gate a port; `keepExcludeFolder`; the look-alike-folder regression. **Every case asserts nothing was moved** | 🟢 |
 | Loom (80) | `CollectionEndpointTest` (new, 20), `LibraryEndpointTest` (17), `AssetBinaryEndpointTest` (15), `CollectionDaoTest` (10), `LibraryDaoTest` (9), `AssetCascadeTest` (9) | 🟢 |
@@ -386,6 +415,9 @@ variables:
 | **Preserve xattrs** | 🟢 `XAttrs` carries them and **reports** a failure instead of printing a stack trace. Losing `loom_sha512` costs a full re-read per item downstream |
 | **Never overwrite on conflict** | ⚠️ There is deliberately no `OVERWRITE`. A collision in the trash folder may be a genuinely different asset |
 | **`ctx.failure(...).next()` returns SUCCESS** | 🟢 Use `.abort()`. Fixed in both dedup nodes as part of this work; the move node never had it. Tree-wide as of 2026-08-18, with a build guard |
+| **A content key is identity, not a name** | 🔴 Under `layout: CONTENT` a taken destination means the archive already holds these bytes. Resolving it with `onConflict` writes `<sha512>_1`, where Loom never looks - and `DELETE_AFTER_VERIFY` then removes the original. Fixed 2026-09-26 (`Layouts.holdsSameContent`) |
+| **`KEEP` is not "do not move"** | ⚠️ It means "never unlink a second copy". On one filesystem a move is a rename, so the file moves under either policy; `KEEP` only shapes the cross-device and S3 paths |
+| **`configure` works on a copy of the injected options** | 🔴 With `nodes: move:` / `nodes: assign:` in the worker YAML, `AbstractNodeModule.nodeOptions` hands every node of that kind the *same* options object, and `configure` wrote the definition into it - so a second `move` node overwrote the first one's target, and inherited any key it omitted (`DELETE_AFTER_VERIFY` leaking from a trash node into an archive node). Both nodes now start from `MoveNodeOptions.copy()` / `AssignNodeOptions.copy()`, publish it only after validation, and answer it from `options()`. Guards: `MoveNodeTest.testTwoMoveNodesSharingInjectedOptionsDoNotLeakIntoEachOther`, `AssignNodeTest.testTwoAssignNodesSharingInjectedOptionsDoNotLeakIntoEachOther` |
 | **`Path.startsWith`, not `String.startsWith`** | 🔴 `/data/dups-old` is not inside `/data/dups`. The old `isInFolder` said it was; `PathContainment` is the fix and has a test named after the bug |
 | **A path is a `scalar/string`** | ⚠️ Not `artifact/file` - that means "a file this node produced", and would make a relocated original an `s3-sink` upload candidate |
 | **`/locations` does not exist** | 🔴 `AssetLocationMethods` in the Java client calls routes no endpoint serves. The live API is `AssetBinaryMethods` over `/binaries` |
@@ -414,7 +446,12 @@ variables:
 ---
 
 _Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (the `ctx.failure(...).next()` gotcha row — fixed tree-wide, not only in the dedup pair)_
+_Last updated: 2026-09-26 (the content layout no longer reads its own hash as a name collision; the
+`collectionName` lookup no longer reports a truncated listing as "absent"; failure reasons are never
+null; `SourcePolicy.KEEP` is documented as it behaves. New: `MoveNodeContentLayoutTest`,
+`MoveNodeFailureTest`)_
+
+_Previously: 2026-08-18 (the `ctx.failure(...).next()` gotcha row — fixed tree-wide, not only in the dedup pair)_
 
 _Previously: 2026-08-08 (the mover is built. `move` and `assign` ship as kinds; `cortex/fs` holds the
 shared mechanics and absorbed two duplicated `AtomicFiles`; the dedup nodes were superseded and now

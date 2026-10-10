@@ -153,6 +153,22 @@ class SentimentNodeTest {
 	}
 
 	@Test
+	void testDifferentTextOnSameMediaIsNotServedFromCache() {
+		// The cache used to be keyed by media path alone, so a second, different text on the same
+		// asset (another edge, a regenerated upstream answer) was answered with the first score.
+		JsonObject positive = SIDECAR_RESULT.copy().put("label", "POSITIVE").put("score", 0.9d);
+		when(sentimentClient.analyze(eq("Ganz toll."), anyString(), any())).thenReturn(positive);
+
+		SentimentNode node = node();
+		assertThat(node.process(ctxWithText("Der Kundenservice war eine Katastrophe."))).isSuccess();
+		NodeResult second = node.process(ctxWithText("Ganz toll."));
+		assertThat(second).isSuccess();
+
+		assertEquals("POSITIVE", second.get(SentimentNode.OUT_LABEL));
+		verify(sentimentClient, times(2)).analyze(anyString(), anyString(), any());
+	}
+
+	@Test
 	void testEmitsNoOutputAndDoesNotCacheWhenSidecarThrows() {
 		// First call fails, second succeeds - so the retry below exercises a cold cache rather than a re-stub.
 		when(sentimentClient.analyze(anyString(), anyString(), any()))

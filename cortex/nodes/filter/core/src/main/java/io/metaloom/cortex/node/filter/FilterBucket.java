@@ -75,6 +75,11 @@ public record FilterBucket(String id, String label, String match) {
 	 * thrown away because they are not literally the id.
 	 */
 	public boolean matches(String answer) {
+		if (answer == null) {
+			// A strategy must never throw for a merely unusable answer - 'other' is what that branch
+			// is for - and a model that answered nothing is exactly that case.
+			return false;
+		}
 		String normalised = answer.trim().toLowerCase(Locale.ROOT);
 		if (normalised.equals(id) || normalised.equals(label.toLowerCase(Locale.ROOT))) {
 			return true;

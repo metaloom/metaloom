@@ -184,10 +184,10 @@ last". The rules follow the Metadata Working Group guidelines.
 | `dc.description` | XMP `dc:description` → IPTC `Caption-Abstract` → EXIF `UserComment` → container `Subject` |
 | `dc.creator` | XMP `dc:creator` → IPTC `By-line` → EXIF `Artist` → container `Author` |
 | `dc.subject` | XMP `dc:subject` (bag) → IPTC `Keywords` → container `Keywords` (split on `;`/`,`) |
-| `dc.date` | **EXIF `DateTimeOriginal`** → XMP `photoshop:DateCreated` → XMP `xmp:CreateDate` → container `CreateDate` → *(opt-in)* file mtime |
+| `dc.date` | **EXIF `DateTimeOriginal`** → XMP `photoshop:DateCreated` → XMP `xmp:CreateDate` → container `CreateDate` → *(opt-in)* file mtime. Each candidate is normalised before it can win (§5.1) |
 | `dc.rights` / `rights.statement` | XMP `dc:rights` → IPTC `CopyrightNotice` → EXIF `Copyright` → container `Rights` |
 | `rights.licenseUrl` | XMP `cc:license` → XMP `xmpRights:WebStatement` → a URL found inside the rights statement |
-| `rights.marked` | XMP `xmpRights:Marked` → a non-empty rights statement ⇒ `true` |
+| `rights.marked` | XMP `xmpRights:Marked` (`True`/`False`, `1`/`0`, `yes`/`no`; anything else is *absent*, not `false`) → a non-empty rights statement ⇒ `true` |
 | `geo.*` | EXIF GPS IFD → XMP `exif:GPS*` → sidecar. **Never** IPTC `City`, which is a *name* |
 | `capture.*` | EXIF → XMP `exif:`/`tiff:` mirror |
 | `dc.language` | XMP `dc:language` → container language → `null` (**never** a guess) |
@@ -217,14 +217,28 @@ point:
 |---|---|---|
 | `capture.exposureTime` | `1/250` (a `Rational`) | `0.004` (seconds, number) |
 | `capture.fNumber` | `f/8.0` or `80/10` | `8.0` |
-| `capture.focalLength` | `35 mm` | `35.0` |
+| `capture.focalLength` | `35 mm` or `245/10` | `35.0` / `24.5` — every numeric field reads the `n/d` form XMP stores rationals in (and metadata-extractor falls back to), never just its numerator |
 | `capture.flash` | a bit field, or a description string | `true` / `false` / `null` — bit 0, or the description; anything unrecognised is null, never a guess |
-| `geo.lat` / `geo.lon` | three rationals + an N/S/E/W reference tag | signed decimal degrees |
+| `geo.lat` / `geo.lon` | three rationals + an N/S/E/W reference tag (EXIF), or `DDD,MM.mmk` / `DDD,MM,SSk` (XMP / sidecar, e.g. `33,52.128S`) | signed decimal degrees |
 | `dc.date` | `2019:04:03 05:12:44` | `2019-04-03T05:12:44` (+ offset **only** if the file stated one) |
+| `dc.date` | `0000:00:00 00:00:00` (a clock that was never set) | *absent* — the next candidate in the precedence list gets its turn |
+| `raw.*` values | any length, any script | cut to `rawMaxValueBytes` **bytes** of UTF-8, on a code-point boundary, with a trailing `…` |
 
 🔴 **Timezones.** EXIF `DateTimeOriginal` carries no zone. When `OffsetTimeOriginal` (EXIF 2.31+) is
 present the offset is appended; otherwise the value stays a **local** time with no offset. Assuming
-UTC would shift an evening photo into the next day and quietly corrupt every date-range query.
+UTC would shift an evening photo into the next day and quietly corrupt every date-range query. Only a
+well-formed offset (`Z`, `±HH:MM`, `±HHMM`) is appended — concatenating anything else would produce a
+string no date parser accepts.
+
+🔴 **An unusable date behaves like an absent one.** Dates are picked with `MetadataMapper.pickDate`,
+which normalises *each* candidate and takes the first that survives — not `normalizeDate(pick(...))`.
+A camera whose clock was never set writes `0000:00:00 00:00:00`, which is present, so a plain `pick`
+selected it and shadowed the perfectly good XMP date behind it. Fixed 2026-09-26.
+
+🔴 **A malformed number is null, never an exception.** `toSeconds`/`toDouble`/`toFlash` each answer
+null for anything they cannot read. One corrupt exposure tag used to escape as a
+`NumberFormatException` out of `map(...)`, which the node reports as FAILED — losing the caption, the
+licence and the coordinate along with it. Fixed 2026-09-26.
 
 ### 5.2 GPS handling
 
@@ -447,7 +461,7 @@ See [NODES.md §6.5](../NODES.md).
 | `timeoutMs` | long | `0` | inherited (`getDefaultTimeoutMs` applies when omitted) |
 | `includeRaw` | boolean | `false` | write the `raw` block |
 | `rawMaxKeys` | int | `500` | cap on `raw` entries |
-| `rawMaxValueBytes` | int | `4096` | per-value cap; longer values truncated with `…` |
+| `rawMaxValueBytes` | int | `4096` | per-value cap in **UTF-8 bytes**; longer values truncated with `…`, cut on a code-point boundary so a surrogate pair is never split |
 | `readXmpSidecar` | boolean | `true` | parse `<asset>.xmp` / `<asset>.<ext>.xmp` when present |
 | `writeGeoComponent` | boolean | `true` | persist `asset_geo_comp` rows |
 | `gpsTrackMaxSamples` | int | `1000` | decimation cap for GPS tracks |
@@ -641,6 +655,8 @@ A test needing "a photo shot in the southern hemisphere with no lens tag" writes
 | **Failure is always `.abort()`** | This node always did. `ctx.failure(msg).next()` used to report SUCCESS tree-wide; fixed 2026-08-18, and `FailurePathGuardTest` (`cortex/api`) now fails the build on the shape |
 | **An empty envelope is SUCCESS** | SKIPPED means "this item did not need processing". A JPEG with no EXIF *was* processed; that it says nothing is the result |
 | **A parse *error* is a failure** | A file that carries nothing → SUCCESS. A file that cannot be read → FAILED, loudly. Do not conflate them |
+| **A coercion never throws** | Every `to*` helper in `MetadataMapper` answers null for what it cannot read. A throw there costs the whole envelope, because `compute()` catches it as a failed parse |
+| **Absent beats wrong** | `0000:00:00` is not a date and an unrecognised `xmpRights:Marked` is not `false`. Both used to be stored as values; both are now absent, and the fallbacks behind them work |
 | **The kind string appears five times** | `MetadataNodeOptions.KEY`, the `@StringKey`, `name()`, the descriptor `kind`, the YAML key — all must read `metadata` |
 | **Do not flatten the sources in layer 1** | §4.1. This is the constraint the whole design rests on |
 | **Do not reuse `TikaNode`'s cache shape** | Keying on the path alone is its bug, and worse here because the options participate (§8.3) |
@@ -677,7 +693,13 @@ A test needing "a photo shot in the southern hemisphere with no lens tag" writes
 ---
 
 **GIT HEAD**: `9a41819442c3031f621d514d30b857f4297b4743` (master)
-**Last updated**: 2026-08-18 — the Conventions row on `ctx.failure(msg).next()` is historical: the
+**Last updated**: 2026-09-26 — four mapping defects fixed and pinned in `MetadataMapperTest`: an
+all-zero EXIF date is absent rather than stored (and no longer shadows the XMP date behind it), a
+malformed `OffsetTimeOriginal` is not concatenated, an unrecognised `xmpRights:Marked` is absent
+rather than `false`, a malformed number is null rather than a `NumberFormatException` that fails the
+item, and `raw` values are capped in UTF-8 bytes on a code-point boundary.
+
+**Previously**: 2026-08-18 — the Conventions row on `ctx.failure(msg).next()` is historical: the
 defect is fixed tree-wide and `FailurePathGuardTest` (`cortex/api`) fails the build on the shape. This
 node always aborted.
 

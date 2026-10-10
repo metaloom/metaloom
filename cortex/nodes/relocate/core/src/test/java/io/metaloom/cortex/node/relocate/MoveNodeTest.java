@@ -233,4 +233,44 @@ class MoveNodeTest {
 		Path expected = archive.toPath().resolve(hex.substring(0, 2)).resolve(hex.substring(2, 4)).resolve(hex.substring(4, 6)).resolve(hex);
 		assertTrue(Files.exists(expected), "expected the content-addressed path " + expected);
 	}
+
+	/**
+	 * With {@code nodes: move:} in the worker YAML every move node is injected with the same options instance. Two move nodes in one graph - one to
+	 * trash, one to an archive - must not see each other's definition, and a key the second one omits must not be inherited from the first.
+	 */
+	@Test
+	void testTwoMoveNodesSharingInjectedOptionsDoNotLeakIntoEachOther() throws Exception {
+		MoveNodeOptions shared = folderOptions(new File(tempDir, "default"));
+		MoveNode trashNode = folderNode(null, cortexOptions(tempDir), shared);
+		MoveNode archiveNode = folderNode(null, cortexOptions(tempDir), shared);
+
+		trashNode.configure(new io.vertx.core.json.JsonObject()
+			.put("id", "trash")
+			.put("targetFolder", new File(tempDir, "trash").getAbsolutePath())
+			.put("crossDevice", "COPY")
+			.put("sourcePolicy", "DELETE_AFTER_VERIFY"));
+		archiveNode.configure(new io.vertx.core.json.JsonObject()
+			.put("id", "archive")
+			.put("targetFolder", new File(tempDir, "archive").getAbsolutePath()));
+
+		assertEquals(new File(tempDir, "trash").toPath(), trashNode.options().getTargetFolder());
+		assertEquals(new File(tempDir, "archive").toPath(), archiveNode.options().getTargetFolder());
+		assertEquals("KEEP", archiveNode.options().getSourcePolicy(), "the archive node must not inherit the trash node's delete policy");
+		assertEquals("KEEP", shared.getSourcePolicy(), "the injected instance must stay untouched");
+
+		StubLoomMedia media = mediaWith(tempDir, "clip.mp4", "payload");
+		trashNode.process(NodeContext.create(media));
+		assertTrue(Files.exists(tempDir.toPath().resolve("trash").resolve("clip.mp4")), "the trash node must move into its own folder");
+	}
+
+	@Test
+	void testARejectedConfigureKeepsThePreviousOptions() {
+		MoveNode node = folderNode(null, cortexOptions(tempDir), folderOptions(new File(tempDir, "trash")));
+		node.configure(new io.vertx.core.json.JsonObject().put("id", "first").put("sourcePolicy", "DELETE_AFTER_VERIFY"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+			() -> node.configure(new io.vertx.core.json.JsonObject().put("id", "second").put("sourcePolicy", "KEEP").put("verify", "BOGUS")));
+
+		assertEquals("DELETE_AFTER_VERIFY", node.options().getSourcePolicy());
+	}
 }

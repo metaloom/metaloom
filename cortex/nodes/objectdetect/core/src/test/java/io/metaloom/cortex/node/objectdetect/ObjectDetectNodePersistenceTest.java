@@ -125,10 +125,12 @@ class ObjectDetectNodePersistenceTest {
 		assertEquals("person", first.getLabel(), "the indexed label column is the point of this node");
 		assertEquals(0, first.getDetectionIndex());
 		assertEquals(0, first.getFrameNumber());
-		assertEquals(10f, first.getBboxX());
-		assertEquals(20f, first.getBboxY());
-		assertEquals(30f, first.getBboxWidth());
-		assertEquals(40f, first.getBboxHeight());
+		// Normalised against the 320x240 source, the column's documented convention - the review screen
+		// draws these as percentages, so pixels put every box far off the picture.
+		assertEquals(10f / 320f, first.getBboxX());
+		assertEquals(20f / 240f, first.getBboxY());
+		assertEquals(30f / 320f, first.getBboxWidth());
+		assertEquals(40f / 240f, first.getBboxHeight());
 		assertEquals(0.91f, first.getConfidence());
 		assertNotNull(first.getProducerVersion());
 

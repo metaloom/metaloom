@@ -71,6 +71,34 @@ public class LanguageFilterStrategy implements FilterStrategy {
 		return PROMPT_VERSION;
 	}
 
+	/**
+	 * The model's confidence, read defensively.
+	 *
+	 * <p>
+	 * {@code JsonObject.getDouble} casts, so a model that answered {@code "0.9"} or {@code "high"} -
+	 * both routine for a small model asked for JSON - threw a {@code ClassCastException} out of
+	 * {@code classify} and failed the task over an answer that merely was not a number. An absent
+	 * value keeps meaning full confidence; a present but unusable one means none, so a configured
+	 * {@code minConfidence} still sends it to the catch-all.
+	 * </p>
+	 */
+	static double confidence(Object value) {
+		if (value == null) {
+			return 1.0d;
+		}
+		double parsed;
+		if (value instanceof Number number) {
+			parsed = number.doubleValue();
+		} else {
+			try {
+				parsed = Double.parseDouble(value.toString().trim());
+			} catch (NumberFormatException e) {
+				return 0d;
+			}
+		}
+		return Double.isFinite(parsed) ? Math.max(0d, Math.min(1d, parsed)) : 0d;
+	}
+
 	@Override
 	public Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets) {
 		String text = item.text();
@@ -106,7 +134,7 @@ public class LanguageFilterStrategy implements FilterStrategy {
 			return Classification.of(Classification.OTHER, 0, detail);
 		}
 
-		double confidence = answer.getDouble("confidence", 1.0);
+		double confidence = confidence(answer.getValue("confidence"));
 		for (FilterBucket bucket : buckets) {
 			if (bucket.matches(raw)) {
 				if (confidence < options.getMinConfidence()) {

@@ -187,6 +187,35 @@ class ScriptNodeTest {
 		assertEquals("true|demo|128", result.get(port("summary", "TEXT")));
 	}
 
+	/**
+	 * A params object built with {@code put(...)} holds a {@code JsonArray}, not a {@code List}. It used to reach a sandboxed script as an opaque host
+	 * object with no length and no elements.
+	 */
+	@Test
+	void shouldExposeAParamsArrayToASandboxedScript() {
+		ScriptNode node = configured(def("""
+			out.text('joined', params.tags.length + ':' + params.tags.join(','));
+			""", outputs("joined", "TEXT"))
+			.put("trusted", false)
+			.put("params", new JsonObject().put("tags", new JsonArray().add("a").add("b"))));
+
+		NodeResult result = run(node);
+
+		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
+		assertEquals("2:a,b", result.get(port("joined", "TEXT")));
+	}
+
+	/** NaN is a JavaScript number but not JSON; it fails the item as an authoring error instead of failing the persist later. */
+	@Test
+	void shouldFailOnANonFiniteNumber() {
+		ScriptNode node = configured(def("out.number('score', 0 / 0);", outputs("score", "NUMBER")));
+
+		NodeResult result = run(node);
+
+		assertEquals(ResultState.FAILED, result.getState());
+		assertTrue(result.getMessage().contains("finite"), result.getMessage());
+	}
+
 	@Test
 	void shouldFailOnAnUndeclaredOutputKey() {
 		ScriptNode node = configured(def("out.text('typo_key', 'x');", outputs("caption", "TEXT")));

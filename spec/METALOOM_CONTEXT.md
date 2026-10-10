@@ -70,7 +70,7 @@ that.
 | **loom-ui** | React / Vite / MUI web front end | `loom-ui/` |
 | **loom-app** | Electron desktop wrapper — experiment, in no build ([loom-app/LOOM_APP.md](loom-app/LOOM_APP.md)) | `loom-app/` |
 | **website** | Hugo marketing + customer documentation site | `website/` |
-| **sidecars** | HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — mostly Python FastAPI; `llamacpp` wraps upstream's image, `asr` (:9140, time-coded ASR) is a tested container; none in Helm yet | `sidecars/` |
+| **sidecars** | HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — mostly Python FastAPI; `llamacpp` wraps upstream's image, `asr` (:9140, time-coded ASR) and `voiceprint` (:9150, speaker embeddings) are tested containers; none in Helm yet | `sidecars/` |
 
 Top-level reactor modules: `bom, loom-test-env, loom-shared, loom-client, cortex, loom, cli,
 examples, integration-test, e2e-test, website`.
@@ -120,7 +120,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-145 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+147 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -375,6 +375,10 @@ spec/
 │   │   │                              #   🔴 §6 is why `tagAsset` resolves rather than inserts
 │   │   ├── tika/
 │   │   │   └── SERVICE_TIKA.md        # 🟡 The `tika` node — document body text (🔴 open defects)
+│   │   ├── voiceprint/
+│   │   │   └── NODE_VOICEPRINT.md     # 🟢 BUILT: kind `voiceprint` — speaker embeddings + who-spoke-
+│   │   │                              #   when via sidecars/voiceprint (:9150); model choice from the
+│   │   │                              #   voiceprint-eval study; speaker clusters reuse the face loop
 │   │   ├── video-captioning-results/  # Raw benchmark data for the captioning report (JSON + RUN_ENV)
 │   │   └── watermark/
 │   │       └── NODE_WATERMARK.md      # 🟢 BUILT: kind `watermark` — APPLIES a watermark (Graphics2D
@@ -505,7 +509,9 @@ spec/
 │   ├── LTX2_SIDECAR.md                # :9220 — LTX-2 video+audio generation (dual nf4, 24 GB)
 │   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
 │   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
-│   └── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
+│   ├── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
+│   └── VOICEPRINT_SIDECAR.md          # :9150 — ReDimNet2 / WeSpeaker / SpeechBrain speaker
+│                                      #   embeddings, switchable; container, live-tested
 ├── test/                              # The test tiers above unit tests. One file per tier;
 │   │                                  #   endpoint/DAO rules stay in guidelines/CODING.md
 │   ├── E2E_TESTS.md                   # NEW 2026-08-14 — e2e-test/ + loom-ui/e2e/*-backend.spec.ts:
@@ -585,6 +591,7 @@ spec/
 | **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**, current state only; open work in [tasks/LOOM_UI_UPLOAD_TASKS.md](tasks/LOOM_UI_UPLOAD_TASKS.md); the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
+| **Speaker-recognition (voiceprint) models & their licences** | [features/nodes/voiceprint/NODE_VOICEPRINT.md](features/nodes/voiceprint/NODE_VOICEPRINT.md) §2 — ReDimNet2-B6 vox2 is the best commercially usable model measured; 🔴 VoxBlink2-trained variants are **non-commercial** whatever their HF tag says |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
 | **Anything a human reviews in bulk** — rating, tagging, confirming, rejecting | [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) — the family index. Read §3 (the 7-piece anatomy) before adding a workflow and §4 (defects X1–X10) before debugging one. 🔴 Of six shipped modes, exactly one writes to the server |
 | **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟡 **stages 1–2 of 4 run.** Detections and embeddings persist; there is no clustering code and `cluster.creator_uuid` is `NOT NULL`, so a worker cannot write one. ⚠️ moved here from `features/facedetection/` on 2026-08-07; ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
@@ -866,7 +873,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Shared S3 support for nodes | `cortex/s3-common/` (design in [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md)) |
 | Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md)) |
 | Shared LLM support for nodes | `cortex/llm-common/` — the one `LLMProvider` Dagger binding (`LLMProviderModule`), the endpoint options, `LlmInvoker`, `TextChunker`. Used by `llm` and `translate` |
-| Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar,asr}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar,asr,voiceprint}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| **Speaker embeddings / who spoke when / voiceprints** — and which model and why | [features/nodes/voiceprint/NODE_VOICEPRINT.md](features/nodes/voiceprint/NODE_VOICEPRINT.md) · `sidecars/voiceprint/` — [sidecars/VOICEPRINT_SIDECAR.md](sidecars/VOICEPRINT_SIDECAR.md). Backend switchable per node (`model`) |
 | **Time-coded speech recognition as a service** (Whisper, Parakeet, Voxtral; realtime) | `sidecars/asr/` — [sidecars/ASR_SIDECAR.md](sidecars/ASR_SIDECAR.md). Its `loom` output is `WhisperResult` JSON |
 | The LLM backend those `llm`/`translate` options point at | `sidecars/llamacpp/` — llama.cpp's official image on :8080, docker or podman ([sidecars/LLAMACPP_SIDECAR.md](sidecars/LLAMACPP_SIDECAR.md)) |
 | **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
@@ -1031,8 +1039,9 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (the `ctx.failure(...).next()` cheat-sheet row — fixed tree-wide, with a `FailurePathGuardTest` build guard)_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-10-10 (registered features/nodes/voiceprint/NODE_VOICEPRINT.md and sidecars/VOICEPRINT_SIDECAR.md — the `voiceprint` node and its :9150 sidecar; routing rows for speaker embeddings and speaker-model licences; file count 145 → 147)_
+_Previously: 2026-08-18 (the `ctx.failure(...).next()` cheat-sheet row — fixed tree-wide, with a `FailurePathGuardTest` build guard)_
 
 _Previously: 2026-08-16 (registered concept/CORTEX_LOOM_1-TO-N.md — whether one Cortex worker can
 attach to several Loom instances; tree entry under concept/ and a routing row next to CLUSTERING.md.

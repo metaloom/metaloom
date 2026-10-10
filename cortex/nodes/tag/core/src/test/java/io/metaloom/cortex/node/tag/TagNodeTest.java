@@ -347,4 +347,43 @@ class TagNodeTest {
 		assertEquals(List.of("alpha"), applied(run(first, inputs)));
 		assertEquals(List.of("beta"), applied(run(second, inputs)));
 	}
+
+	/**
+	 * The node is a {@code PipelineConfigurable}: one instance is reconfigured per task while its
+	 * result cache survives, so every option left out of the config hash is a stale verdict waiting
+	 * to happen. {@code dryRun} is the dangerous one — a cached dry-run record re-emitted for a real
+	 * task would suppress the write and still report the node green.
+	 */
+	@Test
+	void testTheDryRunFlagIsPartOfTheCachedVerdict() {
+		JsonObject def = nodeDef("t", rule("r", "alpha", when("text", null, "NOT_BLANK", null)));
+		TagNode node = node(def.copy().put("dryRun", true));
+		NodeInputs inputs = NodeInputs.builder().input(TagNode.IN_TEXT, "x").build();
+
+		assertTrue(record(run(node, inputs)).getBoolean("dryRun"));
+
+		node.configure(def.copy().put("dryRun", false));
+		assertEquals(Boolean.FALSE, record(run(node, inputs)).getBoolean("dryRun"),
+			"a dry-run verdict must not be re-emitted for a task that is meant to write");
+	}
+
+	/** And minConfidence, which decides which names survive screening at all. */
+	@Test
+	void testMinConfidenceIsPartOfTheCachedVerdict() {
+		JsonObject def = nodeDef("t", rule("r", "alpha", when("text", null, "NOT_BLANK", null)));
+		TagNode node = node(def.copy().put("minConfidence", 0.0d));
+		NodeInputs inputs = NodeInputs.builder().input(TagNode.IN_TEXT, "x").build();
+
+		assertEquals(List.of("alpha"), applied(run(node, inputs)));
+
+		// The rules strategy answers at confidence 1.0, so nothing can clear a threshold above it.
+		node.configure(def.copy().put("minConfidence", 1.0d));
+		assertEquals(List.of("alpha"), applied(run(node, inputs)), "1.0 is not below 1.0");
+
+		assertTrue(node.producerVersion().contains(":"), node.producerVersion());
+		String lenient = node(def.copy().put("minConfidence", 0.0d)).producerVersion();
+		String strict = node(def.copy().put("minConfidence", 0.5d)).producerVersion();
+		org.junit.jupiter.api.Assertions.assertNotEquals(lenient, strict,
+			"a changed confidence floor is a different producer");
+	}
 }

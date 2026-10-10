@@ -3,12 +3,14 @@ package io.metaloom.cortex.fs;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,32 @@ public class LocalMoverTest {
 		sameDeviceMover.move(source, target, ConflictPolicy.SUFFIX, CrossDevicePolicy.SKIP, true, null);
 
 		assertTrue(Files.exists(target));
+	}
+
+	/**
+	 * A bare file name has no parent, so there is no destination tree to create. The rename branch used to hand that null to
+	 * {@code Files.createDirectories} and fail with an NPE instead of renaming.
+	 */
+	@Test
+	public void testABareRelativeTargetHasNoParentToCreate() throws IOException {
+		Path source = Files.writeString(dir.resolve("clip.mp4"), "payload");
+		// A parentless path can only land in the working directory; it is removed again below.
+		Path target = Path.of("localmover-bare-target-" + UUID.randomUUID() + ".mp4");
+		assertNull(target.getParent(), "The case under test is a target without a parent");
+
+		// Forced onto the rename branch, which is the one that creates the parent. FAIL makes a detour
+		// into the cross-device branch an error rather than a silent pass.
+		LocalMover forcedSameStore = new LocalMover((a, b) -> true);
+		try {
+			MoveOutcome outcome = forcedSameStore.move(source, target, ConflictPolicy.SUFFIX, CrossDevicePolicy.FAIL, true, null);
+
+			assertEquals(State.MOVED, outcome.state());
+			assertEquals(target, outcome.target());
+			assertEquals("payload", Files.readString(target, UTF_8));
+			assertFalse(Files.exists(source), "The source should be gone after a rename");
+		} finally {
+			Files.deleteIfExists(target);
+		}
 	}
 
 	// --- cross-device policies ---

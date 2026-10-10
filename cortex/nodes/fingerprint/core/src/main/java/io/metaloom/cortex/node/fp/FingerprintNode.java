@@ -74,7 +74,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	private MultiSectorVideoFingerprinter hasher = new MultiSectorVideoFingerprinterImpl();
 
 	/**
-	 * Lightweight in-memory LRU cache of media paths that already have a fingerprint, keyed by absolute path.
+	 * Lightweight in-memory LRU cache of media that already have a fingerprint, keyed by absolute path, size and mtime ({@link #cacheKey(LoomMedia)}).
 	 */
 	private final Map<String, String> fingerprintCache = Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
 		private static final long serialVersionUID = 1L;
@@ -101,7 +101,17 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	 * @param fingerprint
 	 */
 	void markFingerprinted(LoomMedia media, String fingerprint) {
-		fingerprintCache.put(media.absolutePath(), fingerprint);
+		fingerprintCache.put(cacheKey(media), fingerprint);
+	}
+
+	/**
+	 * Path + size + mtime, not the path alone: a file replaced in place, or fingerprinted while still being copied in, keeps its path but not its
+	 * frames, and a path-keyed entry replayed the old fingerprint for the worker's whole life.
+	 */
+	static String cacheKey(LoomMedia media) {
+		String path = media.absolutePath();
+		java.io.File file = new java.io.File(path);
+		return path + "|" + file.length() + "|" + file.lastModified();
 	}
 
 	@Override
@@ -132,22 +142,25 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 		// has to live here rather than in isProcessable(): skipping there reports SKIPPED and emits
 		// nothing on OUT_FINGERPRINT, which starves every node bound to that port. A cache hit is
 		// still a result, so it is reported as SUCCESS with a LOCAL origin.
-		String cached = fingerprintCache.get(media.absolutePath());
+		String cacheKey = cacheKey(media);
+		String cached = fingerprintCache.get(cacheKey);
 		if (cached != null) {
 			ctx.output(OUT_FINGERPRINT, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
-		if (asset != null && asset.getFingerprint() != null) {
-			String fp = asset.getFingerprint().getFingerprintV1();
-			ctx.output(OUT_FINGERPRINT, fp);
+		// The fingerprint block can exist without a v1 value (another algorithm wrote it). Re-emitting
+		// that null as a REMOTE success put nothing on the port and skipped the computation for good.
+		String remote = asset != null && asset.getFingerprint() != null ? asset.getFingerprint().getFingerprintV1() : null;
+		if (remote != null) {
+			ctx.output(OUT_FINGERPRINT, remote);
 			return ctx.origin(REMOTE).next();
 		} else {
 			try {
 				String hash = computeFingerprint(media);
 				String value = hash != null ? hash : "NULL";
 				ctx.output(OUT_FINGERPRINT, value);
-				fingerprintCache.put(media.absolutePath(), value);
+				fingerprintCache.put(cacheKey, value);
 				if (hash != null) {
 					persist(ctx, asset, hash);
 				}

@@ -97,7 +97,10 @@ public final class LocalMover {
 
 		if (sameStore) {
 			// A rename. Constant time, atomic, and the extended attributes travel with the inode.
-			Files.createDirectories(parent);
+			// A bare relative file name has no parent; there is nothing to create then.
+			if (parent != null) {
+				Files.createDirectories(parent);
+			}
 			AtomicFiles.move(source, target);
 			return new MoveOutcome(MoveOutcome.State.MOVED, target, bytes, false, true, null);
 		}

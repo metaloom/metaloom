@@ -83,7 +83,12 @@ public class LoomControlChannel {
 	private final dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory;
 
 	private WebSocketClient webSocketClient;
-	private WebSocket websocket;
+	/**
+	 * Volatile: written on the event loop (connect / close), but read by every worker thread that
+	 * answers a task through {@link #sendMessage}. Without it a worker could keep writing to a
+	 * socket that has already been replaced, or never see the reconnected one.
+	 */
+	private volatile WebSocket websocket;
 	private long heartbeatTimerId = -1;
 	private long statusTimerId = -1;
 	private long healthLogTimerId = -1;
@@ -196,6 +201,12 @@ public class LoomControlChannel {
 		if (returned > 0) {
 			log.info("Returned {} unfinished task(s) for immediate re-placement", returned);
 		}
+		// Results of tasks that finished during the grace period may still sit in a partial
+		// batch; they would be lost with the socket.
+		int flushed = taskHandler.flushPendingResults();
+		if (flushed > 0) {
+			log.info("Flushed {} pending result batch(es) before disconnecting", flushed);
+		}
 		// stop() closes the socket next, and a queued frame is lost when it does.
 		awaitFlush(FLUSH_TIMEOUT_MS);
 	}
@@ -217,9 +228,10 @@ public class LoomControlChannel {
 		registered.set(false);
 		connected.set(false);
 
-		if (websocket != null) {
+		WebSocket ws = websocket;
+		if (ws != null) {
 			try {
-				websocket.close();
+				ws.close();
 			} catch (Exception e) {
 				log.debug("Ignoring websocket close error", e);
 			}
@@ -386,6 +398,10 @@ public class LoomControlChannel {
 			log.error("Loom control websocket error", err);
 		});
 		ws.closeHandler(v -> {
+			if (websocket != ws) {
+				// A stale socket closing after a newer one connected must not tear the live one down.
+				return;
+			}
 			connected.set(false);
 			registered.set(false);
 			websocket = null;
@@ -568,8 +584,12 @@ public class LoomControlChannel {
 		if (!connected.get() || websocket == null || !registered.get()) {
 			return;
 		}
-		SystemStatusInfo info = collectSystemStatus();
-		sendMessage(new ProcessorMessage(ProcessorMessageType.STATUS_UPDATE, JsonObject.mapFrom(info)));
+		// Collected off the event loop: the GPU probe forks nvidia-smi and may wait up to its
+		// timeout for a hung driver, and the disk/IO probes touch the filesystem. Doing that on
+		// the timer's event-loop thread stalled heartbeats and every inbound task message.
+		vertx.executeBlocking(this::collectSystemStatus)
+			.onSuccess(info -> sendMessage(new ProcessorMessage(ProcessorMessageType.STATUS_UPDATE, JsonObject.mapFrom(info))))
+			.onFailure(err -> log.warn("Could not collect system status", err));
 	}
 
 	private SystemStatusInfo collectSystemStatus() {
@@ -744,10 +764,13 @@ public class LoomControlChannel {
 	 *         connection to write it to
 	 */
 	private io.vertx.core.Future<Void> write(ProcessorMessage message) {
-		if (websocket == null) {
+		// Read once: the close handler nulls the field on the event loop while worker threads
+		// write results, so a check-then-use on the field can NPE between the two reads.
+		WebSocket ws = websocket;
+		if (ws == null) {
 			return io.vertx.core.Future.failedFuture("no websocket");
 		}
-		return websocket.writeTextMessage(Json.encode(message))
+		return ws.writeTextMessage(Json.encode(message))
 			.onFailure(err -> {
 				connectionError = err.getMessage();
 				log.warn("Failed to send websocket message type {}", message.getType(), err);

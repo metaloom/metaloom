@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,7 +18,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +42,7 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
+import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.ServerWebSocket;
@@ -457,6 +462,94 @@ public class LoomControlChannelTest {
 		sleep(2_500);
 		assertEquals(1, connectionCount.get(), "stop() is final - a closed socket must not be chased");
 		assertFalse(channel.isReady());
+	}
+
+	/**
+	 * A socket's close handler runs on the event loop some time after the close was asked for, so a
+	 * restart has the first socket's close arriving after the channel has started replacing it. That
+	 * late close used to be taken for the live socket's: it nulled the field, every worker write
+	 * failed on "no websocket", and the reconnect it scheduled opened a third connection two seconds
+	 * later - leaving the second one, which had just registered, as the stale one.
+	 */
+	@Test
+	void testAStaleSocketClosingDoesNotTearDownTheLiveConnection() {
+		start();
+		completeRegistration();
+		assertEquals(1, connectionCount.get());
+
+		// On the event loop, so the first socket's close cannot complete before the restart has
+		// begun - the ordering the guard exists for, made deterministic rather than left to a race.
+		vertx.runOnContext(v -> {
+			channel.stop();
+			received.clear();
+			channel.start();
+		});
+
+		await("the worker to connect again", () -> connectionCount.get() == 2);
+		completeRegistration();
+
+		// Past the base reconnect delay: a stale close mistaken for the live one would show as a
+		// third connection by now.
+		sleep(2_500);
+		assertEquals(2, connectionCount.get(), "The stale close must not schedule a reconnect of a live connection");
+		assertTrue(channel.isReady(), "The stale close must not take the live connection offline");
+		assertEquals(0L, channel.healthStatus().getLong("reconnectAttempts").longValue());
+
+		// Usable, not merely flagged connected: a frame handed to the channel reaches Loom on it.
+		received.clear();
+		channel.drain(0);
+		assertNotNull(awaitFrame(ProcessorMessageType.STATE_CHANGE));
+	}
+
+	// ── Status updates ────────────────────────────────────────────────────
+
+	/**
+	 * Collecting the status forks {@code nvidia-smi}, which waits up to its timeout for a hung
+	 * driver, and reads the filesystem. Done on the event loop, that stalled heartbeats and every
+	 * inbound task frame for as long as the probe took; so the collection has to happen on a worker
+	 * thread, with only the send back on the event loop.
+	 */
+	@Test
+	void testSystemStatusIsCollectedOffTheEventLoop() throws Exception {
+		start();
+		completeRegistration();
+
+		// The GPU probe is the slow part of the collection, so it is what records where the
+		// collection runs. It is a final field with no seam, hence the reflection.
+		AtomicReference<String> probeThread = new AtomicReference<>();
+		AtomicBoolean onEventLoop = new AtomicBoolean(true);
+		AtomicBoolean onWorker = new AtomicBoolean(false);
+		GpuProbe probe = new GpuProbe(List.of("unused"), System::currentTimeMillis) {
+
+			@Override
+			public synchronized GpuStatus status() {
+				probeThread.set(Thread.currentThread().getName());
+				onEventLoop.set(Context.isOnEventLoopThread());
+				onWorker.set(Context.isOnWorkerThread());
+				return new GpuStatus(42.0d, 1L, 2L, "stub");
+			}
+		};
+		Field field = LoomControlChannel.class.getDeclaredField("gpuProbe");
+		field.setAccessible(true);
+		field.set(channel, probe);
+
+		// The status timer fires every 20 s; call what it calls, from the event loop as it would.
+		Method sendStatusUpdate = LoomControlChannel.class.getDeclaredMethod("sendStatusUpdate");
+		sendStatusUpdate.setAccessible(true);
+		vertx.runOnContext(v -> {
+			try {
+				sendStatusUpdate.invoke(channel);
+			} catch (ReflectiveOperationException e) {
+				throw new IllegalStateException(e);
+			}
+		});
+
+		ProcessorMessage status = awaitFrame(ProcessorMessageType.STATUS_UPDATE);
+		assertEquals(42.0d, status.getBody().getDouble("gpuLoad"), 0.0001d,
+			"The frame must carry what the probe reported - otherwise this test observed a different probe");
+		assertNotNull(probeThread.get(), "The probe was never consulted");
+		assertFalse(onEventLoop.get(), "Collected on the event loop (" + probeThread.get() + "): a slow probe stalls every frame");
+		assertTrue(onWorker.get(), "Expected a worker thread, got " + probeThread.get());
 	}
 
 	// ── Configuration guards ──────────────────────────────────────────────

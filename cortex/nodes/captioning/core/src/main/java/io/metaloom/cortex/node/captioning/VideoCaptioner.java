@@ -2,6 +2,7 @@ package io.metaloom.cortex.node.captioning;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,6 +44,11 @@ public class VideoCaptioner {
 	 */
 	private VideoCaptionOutput captionWhole(VideoFile video) throws Exception {
 		List<BufferedImage> frames = FrameSampler.sampleEvenly(video, options.getFrameCount(), options.getTargetFrameSize());
+		if (frames.isEmpty()) {
+			// Sending the prompt with no image at all makes the model describe a video it never saw -
+			// a fluent, invented caption stored as SUCCESS.
+			throw new IOException("No frame could be decoded from " + video.path());
+		}
 		CaptionResult result = vlm.captionFrames(frames, options.getVideoPrompt());
 		return new VideoCaptionOutput(result.text(), List.of(), result.latencyMs(), frames.size());
 	}
@@ -78,6 +84,11 @@ public class VideoCaptioner {
 			totalLatency += result.latencyMs();
 			totalFrames += frames.size();
 			sceneCaptions.add(new SceneCaption(seq++, scene.getFrom(), scene.getTo(), result.text()));
+		}
+
+		if (sceneCaptions.isEmpty()) {
+			// Same reasoning as captionWhole: no decoded frame means nothing was captioned, not an empty caption.
+			throw new IOException("No frame could be decoded from any scene of " + video.path());
 		}
 
 		// 3) Build the overall caption as a labelled timeline of the scene captions.

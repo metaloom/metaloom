@@ -25,9 +25,24 @@ public class TtsClient {
 	private final String host;
 	private final int port;
 
+	/**
+	 * One client for the lifetime of this instance. Building a new {@link HttpClient} per call started
+	 * a fresh selector thread and connection pool for every item and never closed them. HTTP/1.1 is
+	 * forced because FastAPI rejects the JDK client's HTTP/2 upgrade attempt.
+	 */
+	private final HttpClient client = HttpClient.newBuilder()
+		.version(Version.HTTP_1_1)
+		.connectTimeout(Duration.ofSeconds(30))
+		.build();
+
 	public TtsClient(String host, int port) {
 		this.host = host;
 		this.port = port;
+	}
+
+	/** Visible for testing: the one {@link HttpClient} every call of this instance goes through. */
+	HttpClient httpClient() {
+		return client;
 	}
 
 	/**
@@ -54,11 +69,6 @@ public class TtsClient {
 			.POST(HttpRequest.BodyPublishers.ofString(json.encode(), StandardCharsets.UTF_8))
 			.build();
 
-		// Force HTTP/1.1 - FastAPI rejects the default HTTP/2 upgrade attempt.
-		HttpClient client = HttpClient.newBuilder()
-			.version(Version.HTTP_1_1)
-			.connectTimeout(Duration.ofSeconds(30))
-			.build();
 
 		try {
 			HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());

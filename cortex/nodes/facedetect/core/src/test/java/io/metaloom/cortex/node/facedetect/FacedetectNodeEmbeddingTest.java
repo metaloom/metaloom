@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
@@ -143,6 +146,28 @@ class FacedetectNodeEmbeddingTest {
 	private FacedetectNode node(FacedetectNodeOptions options) {
 		return new FacedetectNode(client, new CortexOptions().setMetaPath(tempDir.toPath()), options,
 			inspireface, mock(VideoFaceScanner.class));
+	}
+
+	@Test
+	void testFailedPersistIsRetriedRatherThanServedFromTheCache() throws Exception {
+		doReturn(List.of(face(10, 20, 30, 40, new float[] { 0.1f, 0.2f, 0.3f })))
+			.when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
+		@SuppressWarnings("unchecked")
+		LoomClientRequest<DetectionBulkResponse> broken = mock(LoomClientRequest.class);
+		when(broken.sync()).thenThrow(new RuntimeException("loom is down"));
+		DetectionResponse row = new DetectionResponse();
+		row.setUuid(UUID.randomUUID());
+		LoomClientRequest<DetectionBulkResponse> working = request(new DetectionBulkResponse().setCreated(1).setTotal(1).add(row), 201);
+		when(client.bulkCreateAssetDetections(any(UUID.class), any(DetectionBulkCreateRequest.class))).thenReturn(broken, working);
+
+		FacedetectNode node = node(new FacedetectNodeOptions());
+		assertEquals(ResultState.FAILED, node.process(NodeContext.create(media)).getState());
+
+		// The ports were emitted before the write failed. Caching them answered the retry SUCCESS from
+		// LOCAL and the detections never reached Loom at all.
+		NodeResult retry = node.process(NodeContext.create(media));
+		assertEquals(ResultState.SUCCESS, retry.getState());
+		verify(client, times(2)).bulkCreateAssetDetections(any(UUID.class), any(DetectionBulkCreateRequest.class));
 	}
 
 	@Test

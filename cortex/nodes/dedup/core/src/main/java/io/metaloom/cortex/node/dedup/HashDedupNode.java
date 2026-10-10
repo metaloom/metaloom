@@ -103,7 +103,7 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 
 			// We found an item. Lets check it.
 			if (asset != null) {
-				if (asset.getFile().getFilename() == null) {
+				if (asset.getFile() == null || asset.getFile().getFilename() == null) {
 					return ctx.info("Source from db has no current path").next();
 				}
 				File dbFile = new File(asset.getFile().getFilename());
@@ -129,12 +129,16 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 						String pathA = media.absolutePath();
 						String pathB = foundMedia.absolutePath();
 
-						if (foundMedia.size() != dbFile.length()) {
+						// Identical content has identical length. The first clause alone compared the found file
+						// with itself (foundMedia was loaded from dbFile), so it could only fire for a media
+						// implementation that misreports its own size; the second is the one that catches a hash
+						// that is lying - e.g. a stale loom_sha512 xattr left on a file rewritten in place.
+						if (foundMedia.size() != dbFile.length() || media.size() != foundMedia.size()) {
 							// This used to block on System.in.read(), which hangs a headless worker forever on a condition that needs a human to
 							// look at two files. Report it and leave both files alone instead: moving one when the records disagree is exactly the
 							// case where a move could destroy the only good copy.
 							log.error("Inconsistent file found. The file sizes do not match. Please verify these files manually - skipping.");
-							log.error("[A]: " + media.shortHash() + " E: " + media.exists() + " (" + dbFile.length() + " bytes) " + " => " + pathA);
+							log.error("[A]: " + media.shortHash() + " E: " + media.exists() + " (" + media.size() + " bytes) " + " => " + pathA);
 							log.error(
 								"[B]: " + foundMedia.shortHash() + " E: " + foundMedia.exists() + " (" + foundMedia.size() + ") " + "  => " + pathB);
 							return ctx.skipped("size mismatch between the local file and the database record").next();

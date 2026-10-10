@@ -309,6 +309,33 @@ class GuardNodeTest {
 	}
 
 	@Test
+	void testAPayloadWithoutASafeFieldClosesTheGate() {
+		// The gate must fail closed. A stored payload this node cannot read the decision out of -
+		// the cache path's input is a string, not a verdict this run produced - used to default to
+		// safe=true and wave the item through the branch behind OUT_SAFE.
+		assertEquals(Boolean.FALSE, GuardNode.isSafe(new JsonObject()));
+		assertEquals(Boolean.FALSE, GuardNode.isSafe(new JsonObject().put("score", 0.01)));
+		assertEquals(Boolean.FALSE, GuardNode.isSafe(new JsonObject().put("safe", false)));
+		assertEquals(Boolean.TRUE, GuardNode.isSafe(new JsonObject().put("safe", true)));
+	}
+
+	@Test
+	void testACategorySelectionThatMatchesNothingFailsRatherThanReportingSafe() throws Exception {
+		// Llama Guard's codes against a ShieldGemma family: effectiveCategories() filters down to
+		// nothing, so no probe is built. GuardVerdict.of over an empty result list yields
+		// safe=true / score=0 / scoreExact=true - a confident clean verdict from a node that asked
+		// the model nothing at all, which is the silent hole a gate wired behind it must not have.
+		NodeResult result = node(new GuardNodeOptions()
+			.setFamily(GuardFamily.SHIELDGEMMA)
+			.setCategories(List.of("S1", "S9"))).process(ctxWithText(TEXT));
+
+		assertThat(result).isFailed();
+		assertThat(result.getMessage()).contains("select none of its criteria");
+		assertNull(result.get(GuardNode.OUT_SAFE), "A run that classified nothing must not emit a gate decision");
+		verify(guardClient, never()).complete(any(), anyString());
+	}
+
+	@Test
 	void testInexactScoreIsReportedRatherThanHidden() throws Exception {
 		when(guardClient.complete(any(), anyString())).thenReturn(GuardCompletion.textOnly("unsafe\nS1"));
 

@@ -68,8 +68,15 @@ public final class MetadataMapper {
 	private static final Pattern EXIF_DATE = Pattern
 		.compile("^(\\d{4}):(\\d{2}):(\\d{2})[ T](\\d{2}:\\d{2}:\\d{2})(.*)$");
 
+	/** A usable timezone offset: {@code Z}, {@code +09:00}, {@code -0730}. */
+	private static final Pattern OFFSET = Pattern.compile("^(Z|[+-]\\d{2}(:?\\d{2})?)$");
+
 	/** A leading number, with an optional denominator and an optional unit suffix. */
 	private static final Pattern RATIONAL = Pattern.compile("^\\s*(-?[\\d.]+)\\s*/\\s*([\\d.]+)");
+
+	/** The XMP EXIF-schema GPS coordinate: {@code DDD,MM,SSk} or {@code DDD,MM.mmk}. */
+	private static final Pattern XMP_GPS = Pattern
+		.compile("^(\\d+(?:\\.\\d+)?),(\\d+(?:\\.\\d+)?)(?:,(\\d+(?:\\.\\d+)?))?\\s*([NSEWnsew])$");
 
 	private static final Pattern LEADING_NUMBER = Pattern.compile("(-?\\d+(?:\\.\\d+)?)");
 
@@ -128,9 +135,8 @@ public final class MetadataMapper {
 		dc.getRelation().addAll(pickAll(raw, out, "dc.relation", xmp("dc:relation")));
 
 		// EXIF wins here: the camera wrote it once; every editor since has rewritten the XMP copy.
-		String date = pick(raw, out, "dc.date",
+		String date = pickDate(raw, out, "dc.date",
 			exif("DateTimeOriginal"), xmp("photoshop:DateCreated"), xmp("xmp:CreateDate"), container("CreateDate"));
-		date = normalizeDate(date, raw.first(exif("OffsetTimeOriginal")));
 		if (date == null && options.getDateFallback() == DateFallback.FILESYSTEM && fileModifiedIso != null) {
 			date = fileModifiedIso;
 			out.recordProvenance("dc.date", "file:modified");
@@ -186,9 +192,12 @@ public final class MetadataMapper {
 			rights.setLicenseId(LicenseResolver.resolve(licenseUrl));
 		}
 
-		String marked = pick(raw, out, "rights.marked", xmp("xmpRights:Marked"));
+		// Boolean.parseBoolean is not used on purpose: it answers false for everything it does not
+		// recognise, so an unparseable xmpRights:Marked would be recorded as "explicitly not
+		// rights-managed" - a stronger claim than the file made, and the one a rights query trusts.
+		Boolean marked = toBoolean(pick(raw, out, "rights.marked", xmp("xmpRights:Marked")));
 		if (marked != null) {
-			rights.setMarked(Boolean.parseBoolean(marked));
+			rights.setMarked(marked);
 		} else if (statement != null) {
 			// A copyright notice is an assertion of rights even when nothing says so explicitly.
 			rights.setMarked(Boolean.TRUE);
@@ -207,9 +216,7 @@ public final class MetadataMapper {
 		capture.setSoftware(pick(raw, out, "capture.software",
 			exif("Software"), xmp("xmp:CreatorTool"), container("CreatorTool")));
 
-		capture.setDateTimeOriginal(normalizeDate(
-			pick(raw, out, "capture.dateTimeOriginal", exif("DateTimeOriginal")),
-			raw.first(exif("OffsetTimeOriginal"))));
+		capture.setDateTimeOriginal(pickDate(raw, out, "capture.dateTimeOriginal", exif("DateTimeOriginal")));
 
 		capture.setExposureTime(toSeconds(pick(raw, out, "capture.exposureTime",
 			exif("ExposureTime"), xmp("exif:ExposureTime"))));
@@ -238,8 +245,8 @@ public final class MetadataMapper {
 		// coordinate - converting one into the other is geocoding.
 		String lat = pick(raw, out, "geo.lat", exif("GPSLatitude"), xmp("exif:GPSLatitude"));
 		String lon = pick(raw, out, "geo.lon", exif("GPSLongitude"), xmp("exif:GPSLongitude"));
-		Double latitude = toDouble(lat);
-		Double longitude = toDouble(lon);
+		Double latitude = toCoordinate(lat);
+		Double longitude = toCoordinate(lon);
 		if (latitude == null || longitude == null) {
 			return;
 		}
@@ -301,12 +308,36 @@ public final class MetadataMapper {
 				out.getRaw().put("...", "truncated at " + maxKeys + " keys of " + raw.size());
 				break;
 			}
-			String value = entry.getValue();
-			if (value.length() > maxBytes) {
-				value = value.substring(0, maxBytes) + "…";
-			}
-			out.getRaw().put(entry.getKey(), value);
+			out.getRaw().put(entry.getKey(), truncateUtf8(entry.getValue(), maxBytes));
 		}
+	}
+
+	/**
+	 * Cap a raw value at {@code maxBytes} <em>bytes</em> of UTF-8.
+	 *
+	 * <p>
+	 * The option is named in bytes and the column is sized in bytes, so counting chars let a maker note in a
+	 * non-Latin script run to three times the budget. Cutting on a char boundary is also not enough: a
+	 * {@code substring} through a surrogate pair produces an unpaired half, which is not valid text and comes
+	 * back out of the database as a replacement character.
+	 * </p>
+	 */
+	static String truncateUtf8(String value, int maxBytes) {
+		if (value.length() <= maxBytes / 4) {
+			// A char is at most 4 UTF-8 bytes, so this cannot exceed the budget. Covers nearly every value
+			// without measuring anything.
+			return value;
+		}
+		byte[] utf8 = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+		if (utf8.length <= maxBytes) {
+			return value;
+		}
+		int end = maxBytes;
+		// Back off to the start of the truncated code point: a UTF-8 continuation byte is 10xxxxxx.
+		while (end > 0 && (utf8[end] & 0xC0) == 0x80) {
+			end--;
+		}
+		return new String(utf8, 0, end, java.nio.charset.StandardCharsets.UTF_8) + "…";
 	}
 
 	// ---- Key helpers ----
@@ -377,6 +408,30 @@ public final class MetadataMapper {
 		return null;
 	}
 
+	/**
+	 * Pick a date, normalising each candidate and taking the first that survives.
+	 *
+	 * <p>
+	 * 🔴 Not {@code normalizeDate(pick(...))}. A camera that never had its clock set writes
+	 * {@code 0000:00:00 00:00:00} into {@code DateTimeOriginal}, and firmware bugs write worse; that value is
+	 * present, so a plain {@code pick} selects it, and normalising afterwards could only turn it into an
+	 * equally unusable {@code 0000-00-00T00:00:00} or into a null that also discarded the perfectly good XMP
+	 * date sitting behind it. Normalising per candidate makes an unusable date behave like an absent one,
+	 * which is what the precedence table means.
+	 * </p>
+	 */
+	private static String pickDate(RawMetadata raw, AssetMetadata out, String field, String... keys) {
+		String offset = raw.first(exif("OffsetTimeOriginal"));
+		for (String key : expand(keys)) {
+			String normalized = normalizeDate(raw.first(key), offset);
+			if (normalized != null) {
+				out.recordProvenance(field, key);
+				return normalized;
+			}
+		}
+		return null;
+	}
+
 	private static List<String> pickAll(RawMetadata raw, AssetMetadata out, String field, String... keys) {
 		for (String key : expand(keys)) {
 			List<String> values = raw.all(key);
@@ -416,22 +471,53 @@ public final class MetadataMapper {
 	 * a <b>local</b> time with no offset. Assuming UTC instead would shift an evening photo into the
 	 * next day and quietly corrupt every date-range query over the catalogue - so this never does.
 	 * </p>
+	 *
+	 * <p>
+	 * An all-zero date - {@code 0000:00:00 00:00:00}, what a camera whose clock was never set writes - is
+	 * treated as absent. It is not a date, and storing it would put an asset shot last week at the start of
+	 * the proleptic Gregorian calendar in every date-ordered view.
+	 * </p>
+	 *
+	 * @param value  the raw date, or null
+	 * @param offset {@code OffsetTimeOriginal}, appended to an EXIF date that states no zone of its own. Only
+	 *               a well-formed {@code ±HH:MM} / {@code ±HHMM} / {@code Z} offset is used: appending
+	 *               anything else would produce a string no date parser accepts
+	 * @return the ISO-8601 form, or null when the value is absent or not a usable date
 	 */
 	static String normalizeDate(String value, String offset) {
 		if (value == null) {
 			return null;
 		}
 		String trimmed = value.trim();
+		if (trimmed.isEmpty()) {
+			return null;
+		}
 		Matcher matcher = EXIF_DATE.matcher(trimmed);
 		if (matcher.matches()) {
+			if (isZeroDate(matcher)) {
+				return null;
+			}
 			String iso = matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + "T" + matcher.group(4);
 			String tail = matcher.group(5).trim();
 			if (!tail.isEmpty()) {
 				return iso + tail;
 			}
-			return offset == null || offset.isBlank() ? iso : iso + offset.trim();
+			return isOffset(offset) ? iso + offset.trim() : iso;
 		}
-		return trimmed;
+		return isZeroDate(trimmed) ? null : trimmed;
+	}
+
+	/** {@code 0000:00:00} and {@code 0000-00-00} both mean "no date was ever set". */
+	private static boolean isZeroDate(Matcher exifDate) {
+		return "0000".equals(exifDate.group(1)) || "00".equals(exifDate.group(2)) || "00".equals(exifDate.group(3));
+	}
+
+	private static boolean isZeroDate(String value) {
+		return value.startsWith("0000-00-00") || value.startsWith("0000:00:00");
+	}
+
+	private static boolean isOffset(String offset) {
+		return offset != null && OFFSET.matcher(offset.trim()).matches();
 	}
 
 	/**
@@ -441,33 +527,98 @@ public final class MetadataMapper {
 		if (value == null) {
 			return null;
 		}
-		Matcher rational = RATIONAL.matcher(value);
-		if (rational.find()) {
-			double denominator = Double.parseDouble(rational.group(2));
-			if (denominator == 0) {
-				return null;
-			}
-			return Double.parseDouble(rational.group(1)) / denominator;
-		}
+		// toDouble reads the rational form; the pattern admits "1.2.3", which is not a number, and a
+		// malformed exposure tag must yield null like every other coercion here, not abort the whole
+		// envelope with a NumberFormatException.
 		return toDouble(value);
 	}
 
+	private static Double parse(String value) {
+		try {
+			return Double.valueOf(value);
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
 	/**
-	 * The leading number in a value that may carry a unit ({@code "35 mm"}, {@code "f/8.0"}).
+	 * The leading number in a value that may carry a unit ({@code "35 mm"}, {@code "f/8.0"}), or the
+	 * quotient of a rational ({@code "28/10"}).
+	 *
+	 * <p>
+	 * 🔴 The rational form is not an edge case. XMP stores every EXIF rational that way
+	 * ({@code exif:FNumber="28/10"}, {@code exif:FocalLength="245/10"}), and metadata-extractor's
+	 * {@code getString} falls back to it whenever the decimal would need five or more characters
+	 * ({@code "367/20"} for an 18.35 mm lens, {@code "4227/20"} for a 211.35° image direction).
+	 * Reading only the leading number turned f/2.8 into f/28.
+	 * </p>
 	 */
 	static Double toDouble(String value) {
 		if (value == null) {
 			return null;
 		}
+		Matcher rational = RATIONAL.matcher(value);
+		if (rational.find()) {
+			Double numerator = parse(rational.group(1));
+			Double denominator = parse(rational.group(2));
+			if (numerator == null || denominator == null || denominator == 0) {
+				return null;
+			}
+			return numerator / denominator;
+		}
 		Matcher matcher = LEADING_NUMBER.matcher(value);
 		if (!matcher.find()) {
 			return null;
 		}
-		try {
-			return Double.valueOf(matcher.group(1));
-		} catch (NumberFormatException e) {
+		return parse(matcher.group(1));
+	}
+
+	/**
+	 * A latitude or longitude in signed decimal degrees.
+	 *
+	 * <p>
+	 * The EXIF path already hands over signed decimal degrees, but XMP does not: the XMP EXIF schema
+	 * writes {@code exif:GPSLatitude} as {@code DDD,MM,SSk} or {@code DDD,MM.mmk} with the hemisphere as
+	 * a trailing {@code N}/{@code S}/{@code E}/{@code W} - which is what Lightroom writes into every
+	 * geotagged sidecar. Taking the leading number of {@code "33,52.128S"} gave 33 - the wrong
+	 * hemisphere and up to a degree off.
+	 * </p>
+	 */
+	static Double toCoordinate(String value) {
+		if (value == null) {
 			return null;
 		}
+		Matcher dms = XMP_GPS.matcher(value.trim());
+		if (!dms.matches()) {
+			return toDouble(value);
+		}
+		Double degrees = parse(dms.group(1));
+		Double minutes = parse(dms.group(2));
+		Double seconds = dms.group(3) == null ? Double.valueOf(0d) : parse(dms.group(3));
+		if (degrees == null || minutes == null || seconds == null) {
+			return null;
+		}
+		double decimal = degrees + minutes / 60d + seconds / 3600d;
+		char hemisphere = Character.toUpperCase(dms.group(4).charAt(0));
+		return hemisphere == 'S' || hemisphere == 'W' ? -decimal : decimal;
+	}
+
+	/**
+	 * An XMP boolean. The standard spells it {@code True} / {@code False}; {@code 1} / {@code 0} and
+	 * {@code yes} / {@code no} are in the wild. Anything else is null - absent, not false.
+	 */
+	static Boolean toBoolean(String value) {
+		if (value == null) {
+			return null;
+		}
+		String normalized = value.trim().toLowerCase(Locale.ROOT);
+		if (normalized.equals("true") || normalized.equals("1") || normalized.equals("yes")) {
+			return Boolean.TRUE;
+		}
+		if (normalized.equals("false") || normalized.equals("0") || normalized.equals("no")) {
+			return Boolean.FALSE;
+		}
+		return null;
 	}
 
 	static Integer toInteger(String value) {
@@ -490,7 +641,13 @@ public final class MetadataMapper {
 		}
 		String normalized = value.trim().toLowerCase(Locale.ROOT);
 		if (normalized.matches("-?\\d+")) {
-			return (Integer.parseInt(normalized) & 1) != 0;
+			// Long, not Integer: a corrupt tag read as a huge decimal is still a bit field question, and
+			// Integer.parseInt would throw rather than answer it.
+			try {
+				return (Long.parseLong(normalized) & 1L) != 0L;
+			} catch (NumberFormatException e) {
+				return null;
+			}
 		}
 		if (normalized.equals("true") || normalized.equals("false")) {
 			return Boolean.valueOf(normalized);

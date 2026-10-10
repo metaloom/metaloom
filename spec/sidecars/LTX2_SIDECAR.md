@@ -51,7 +51,7 @@ flowchart LR
     T2V & I2V --> MUX["_to_mp4()<br/>encode_video(video, audio)"]
   end
   MUX -->|"video/mp4 bytes"| VC
-  VN -->|"MP4 -> metaPath/videogen_bin/<seg>/<sha512>.mp4"| FS[("worker local FS")]
+  VN -->|"MP4 -> metaPath/videogen_bin/<seg>/<sha512>-<digest>.mp4"| FS[("worker local FS")]
   VN -->|"POST /assets/:uuid/node-results"| LOOM[("Loom<br/>asset_node_result ledger")]
 ```
 
@@ -212,7 +212,7 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
 - **The node sends every parameter explicitly** (width, height, num_frames, fps, steps, guidance),
   so the sidecar's own defaults only apply to direct HTTP callers. `negative_prompt` is the one
   exception — the node omits it when blank so the sidecar default applies.
-- Generated MP4s go to `metaPath/videogen_bin/<hash-segment>/<sha512>.mp4` — worker-local, not Loom
+- Generated MP4s go to `metaPath/videogen_bin/<hash-segment>/<sha512>-<digest>.mp4` (digest = first 12 hex of SHA-256 over the effective prompt and every result-affecting option, so a second prompt on one asset never reuses the first clip) — worker-local, not Loom
   binaries. Wire an `s3-sink` to keep them (see [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md)).
 
 ## Key Files Reference

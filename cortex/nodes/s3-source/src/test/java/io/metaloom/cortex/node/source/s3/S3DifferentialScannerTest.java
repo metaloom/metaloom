@@ -1,8 +1,11 @@
 package io.metaloom.cortex.node.source.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.node.source.s3.S3ScanResult.ScanMode;
 import io.metaloom.cortex.s3.FakeS3ObjectStore;
+import io.metaloom.cortex.s3.S3ObjectStore;
 import io.metaloom.cortex.s3.event.S3ChangeHint;
 import io.metaloom.cortex.s3.event.S3EventBuffer;
 import io.metaloom.fs.FileState;
@@ -235,6 +239,83 @@ public class S3DifferentialScannerTest {
 		assertThat(result.size()).isZero();
 	}
 
+	// --- pagination -----------------------------------------------------------------------
+
+	@Test
+	public void testEveryPageOfAFullListingIsDiffedExactlyOnce() throws Exception {
+		for (int i = 0; i < 7; i++) {
+			store.put(BUCKET, "2026/clip-" + i + ".mp4", "c" + i);
+		}
+		store.pageSize(2);
+
+		S3ScanResult result = scanner().scan(selection(false, false), HOUR);
+
+		// 9 objects over 5 pages: the boundary key of each page must be neither dropped nor
+		// counted twice, which a listing loop gets wrong in both directions.
+		assertThat(result.objects()).extracting(r -> r.key()).doesNotHaveDuplicates().hasSize(9);
+		assertThat(store.listCalls.get()).isGreaterThan(1);
+	}
+
+	@Test
+	public void testTheLastPageOfAFullListingIsStillIndexed() throws Exception {
+		store.put(BUCKET, "2026/c.mp4", "c");
+		store.pageSize(1);
+		S3DifferentialScanner scanner = scanner();
+
+		assertThat(scanner.scan(selection(false, false), HOUR).size()).isEqualTo(3);
+		// If the final page were dropped from the index rather than only from the result, that key
+		// would come back as NEW on every run for ever.
+		assertThat(scanner.scan(selection(false, false), 2 * HOUR).size()).isZero();
+	}
+
+	@Test
+	public void testAContinuationTokenThatNeverAdvancesFailsInsteadOfLoopingForever() {
+		S3ObjectStore stuck = new FakeS3ObjectStore() {
+			@Override
+			public S3Listing list(String bucket, String prefix, String continuationToken, String startAfter) {
+				// What a broken gateway does: hand back the cursor it was given.
+				return new S3Listing(List.of(), "same-token");
+			}
+		};
+		S3DifferentialScanner scanner = new S3DifferentialScanner(stuck, new S3ObjectIndexStore(), null,
+			indexDir, ENDPOINT, RECONCILE_MS);
+
+		assertThatThrownBy(() -> scanner.scan(selection(false, false), HOUR))
+			.isInstanceOf(IOException.class)
+			.hasMessageContaining("did not advance");
+	}
+
+	// --- resume state --------------------------------------------------------------------
+
+	@Test
+	public void testTheResumeKeySurvivesARestart() throws Exception {
+		scanner().scan(selection(true, false), HOUR);
+
+		// A fresh scanner, i.e. a restarted worker: the resume path is only available if the last
+		// seen key came back out of the persisted index.
+		store.put(BUCKET, "2026/z-new.mp4", "z");
+		S3ScanResult result = scanner().scan(selection(true, false), 2 * HOUR);
+
+		assertThat(result.mode()).isEqualTo(ScanMode.RESUME);
+		assertThat(result.objects()).extracting(r -> r.key()).containsExactly("2026/z-new.mp4");
+	}
+
+	@Test
+	public void testAFailedListingLeavesThePreviousIndexUntouched() throws Exception {
+		S3DifferentialScanner scanner = scanner();
+		scanner.scan(selection(false, false), HOUR);
+
+		store.put(BUCKET, "2026/c.mp4", "c");
+		store.failNextWith(new IOException("connection reset"));
+		assertThatThrownBy(() -> scanner.scan(selection(false, false), 2 * HOUR))
+			.isInstanceOf(IOException.class);
+
+		// The new object must still be NEW: a transport failure that silently consumed the state
+		// would drop it from every future run.
+		S3ScanResult recovered = scanner.scan(selection(false, false), 3 * HOUR);
+		assertThat(recovered.objects()).extracting(r -> r.key()).containsExactly("2026/c.mp4");
+	}
+
 	@Test
 	public void testACorruptIndexIsTreatedAsEmptyRatherThanFailing() throws Exception {
 		S3DifferentialScanner scanner = scanner();
@@ -244,5 +325,80 @@ public class S3DifferentialScannerTest {
 		S3ScanResult result = scanner.scan(selection(false, false), 2 * HOUR);
 
 		assertThat(result.size()).isEqualTo(2);
+	}
+
+	// --- events vs. the reconcile listing -------------------------------------------------
+
+	/**
+	 * A notification that lands while a full listing is running may name a key the listing has
+	 * already passed. Draining the buffer after the listing threw that hint away, so the object
+	 * stayed invisible until the next reconcile.
+	 */
+	@Test
+	public void testAHintArrivingDuringAFullListingSurvivesIt() throws Exception {
+		FakeS3ObjectStore racing = new FakeS3ObjectStore() {
+			private boolean fired;
+
+			@Override
+			public S3Listing list(String bucket, String prefix, String continuationToken, String startAfter)
+				throws IOException {
+				S3Listing page = super.list(bucket, prefix, continuationToken, startAfter);
+				if (!fired) {
+					fired = true;
+					// Uploaded right after the listing read past its position.
+					put(BUCKET, "2026/0-early.mp4", "early");
+					buffer.record(new S3ChangeHint(BUCKET, "2026/0-early.mp4", false));
+				}
+				return page;
+			}
+		};
+		racing.put(BUCKET, "2026/a.mp4", "a");
+		S3DifferentialScanner scanner = new S3DifferentialScanner(racing, new S3ObjectIndexStore(), buffer,
+			indexDir, ENDPOINT, RECONCILE_MS);
+
+		S3ScanResult first = scanner.scan(selection(false, true), HOUR);
+		assertThat(first.mode()).isEqualTo(ScanMode.FULL_LIST);
+		assertThat(first.objects()).extracting(r -> r.key()).containsExactly("2026/a.mp4");
+
+		S3ScanResult second = scanner.scan(selection(false, true), 2 * HOUR);
+		assertThat(second.mode()).isEqualTo(ScanMode.EVENTS);
+		assertThat(second.objects()).extracting(r -> r.key()).containsExactly("2026/0-early.mp4");
+	}
+
+	/**
+	 * A failure half way through the event path has already taken the hints out of the buffer. A
+	 * retry on the event path would find it empty and report nothing changed.
+	 */
+	@Test
+	public void testAFailedEventRunForcesTheNextRunOntoAFullListing() throws Exception {
+		S3DifferentialScanner scanner = scanner();
+		scanner.scan(selection(false, true), HOUR);
+
+		store.put(BUCKET, "2026/c.mp4", "c");
+		buffer.record(new S3ChangeHint(BUCKET, "2026/c.mp4", false));
+		store.failNextWith(new IOException("connection reset"));
+		assertThatThrownBy(() -> scanner.scan(selection(false, true), 2 * HOUR))
+			.isInstanceOf(IOException.class);
+
+		S3ScanResult recovered = scanner.scan(selection(false, true), 3 * HOUR);
+		assertThat(recovered.mode()).isEqualTo(ScanMode.FULL_LIST);
+		assertThat(recovered.objects()).extracting(r -> r.key()).containsExactly("2026/c.mp4");
+	}
+
+	@Test
+	public void testAFailedFullListingDoesNotLetTheNextRunTrustTheDrainedBuffer() throws Exception {
+		S3DifferentialScanner scanner = scanner();
+		scanner.scan(selection(false, true), HOUR);
+
+		// Overflow marks the bucket degraded; the reconcile listing that follows fails.
+		buffer.markDegraded(BUCKET);
+		store.put(BUCKET, "2026/c.mp4", "c");
+		store.failNextWith(new IOException("connection reset"));
+		assertThatThrownBy(() -> scanner.scan(selection(false, true), 2 * HOUR))
+			.isInstanceOf(IOException.class);
+
+		S3ScanResult recovered = scanner.scan(selection(false, true), 3 * HOUR);
+		assertThat(recovered.mode()).isEqualTo(ScanMode.FULL_LIST);
+		assertThat(recovered.objects()).extracting(r -> r.key()).containsExactly("2026/c.mp4");
 	}
 }

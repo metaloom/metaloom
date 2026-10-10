@@ -174,7 +174,7 @@ record a ledger row.
 |---|---|---|
 | 1 | The KEEP exists on disk | The review record may be months old |
 | 2 | The KEEP is complete (`zeroChunkCount` null or `0`) | Never discard the more-complete file |
-| 3 | `keep.size >= dup.size` | Never discard the larger file |
+| 3 | The **live** KEEP file is `>= dup.size`, and matches the recorded `keep.size` when one is recorded; the KEEP is not the duplicate's own file | Never discard the larger file. Measuring only the record let a keeper truncated in place since discovery (which may still carry its `loom_sha512` xattr, so #5 trusts it) pass |
 | 4 | The KEEP is not inside `keepExcludeFolder` | The residue of `dupFolder`, §4.2 |
 | 5 | 🔴 The KEEP still hashes to what Loom recorded | §4.1 |
 
@@ -414,8 +414,8 @@ graph TB
 | Test | Count | What it guards against |
 |---|---|---|
 | `FingerprintDedupNodeTest` | 3 | A wrong KEEP/DUP split; a group proposed when a duplicate is larger than the keeper; a decided candidate set writing a phantom SUCCESS ledger row |
-| `FingerprintDedupApplyNodeTest` | 12 | PENDING or REJECTED acted on; the KEEP itself emitted; a missing, incomplete, smaller or **content-changed** keeper slipping through; a keeper with no recorded hash wrongly blocked; a keeper inside the exclude folder acted on; a sibling folder with a matching name prefix wrongly treated as the exclude folder |
-| `HashDedupNodeTest` | 4 | A known-elsewhere copy not reported; **a size mismatch blocking on stdin** (the `@Timeout` is the real assertion); a file reported as its own duplicate; an unknown file acted on |
+| `FingerprintDedupApplyNodeTest` | 14 | PENDING or REJECTED acted on; the KEEP itself emitted; a missing, incomplete, smaller, **truncated-on-disk** or **content-changed** keeper slipping through; a keeper that is the duplicate's own file; a keeper with no recorded hash wrongly blocked; a keeper inside the exclude folder acted on; a sibling folder with a matching name prefix wrongly treated as the exclude folder |
+| `HashDedupNodeTest` | 5 | A known-elsewhere copy not reported; **a size mismatch blocking on stdin** (the `@Timeout` is the real assertion); an equal-hash local copy of a different length reported as a duplicate; a file reported as its own duplicate; an unknown file acted on |
 | `DedupNodeOptionsValidationTest` | 5 | `keepExcludeFolder` wrongly required; common-option validation lost |
 | `FingerprintDedupDiscoverOptionsValidationTest` | 4 | Blank `algorithm`, `topK <= 0`, negative `scoreThreshold` reaching the runtime instead of failing at pipeline start |
 | `DedupGroupDaoTest` | 7 | Store/load, `listByStatus`, `listByAsset`, `findPendingByKeep` + `updateStatus`, `listDecidedByAssets` (PENDING and other algorithms excluded), invalid-role acceptance, 🔴 group-delete cascade, 🔴 asset-delete removing memberships and nulling `keep_asset_uuid` |

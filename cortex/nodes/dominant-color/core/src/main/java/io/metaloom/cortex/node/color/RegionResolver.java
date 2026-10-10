@@ -79,9 +79,21 @@ public class RegionResolver {
 			if (boxes.size() > options.getMaxRegions()) {
 				// Keep the biggest boxes. A cap that dropped the subject of the photo would be
 				// worse than no cap at all.
-				boxes.sort(Comparator.comparingLong((RegionSource r) -> r.box().area()).reversed());
 				int truncated = boxes.size() - options.getMaxRegions();
-				regions.addAll(boxes.subList(0, options.getMaxRegions()));
+				// Selection is by area; emission order is not. The class javadoc makes payload index
+				// order part of the contract, and sorting the list itself would silently reorder the
+				// regions on exactly the runs that hit the cap. So the selection happens over
+				// positions and the survivors are emitted in their original order.
+				List<Integer> byArea = new ArrayList<>();
+				for (int i = 0; i < boxes.size(); i++) {
+					byArea.add(i);
+				}
+				byArea.sort(Comparator.comparingLong((Integer i) -> boxes.get(i).box().area()).reversed());
+				List<Integer> kept = new ArrayList<>(byArea.subList(0, options.getMaxRegions()));
+				kept.sort(Comparator.naturalOrder());
+				for (int index : kept) {
+					regions.add(boxes.get(index));
+				}
 				return new Resolution(List.copyOf(regions), dropped, truncated);
 			}
 			regions.addAll(boxes);

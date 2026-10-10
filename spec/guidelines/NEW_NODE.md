@@ -64,7 +64,9 @@ copy it; flat modules exist only for `filesystem-source`, `s3-source` and `cloud
   **`NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted** — do not reintroduce either.
 - **Emit outputs by port**: `ctx.output(OUT_X, value)` (ONE) / `ctx.outputElement(OUT_X, value)` (MANY).
 - **Keep an in-heap skip cache** (`LocalResultCache<V>`, keyed by `media.absolutePath()` — plus a hash
-  of the options that change the result, if the node can appear twice in one graph). On a hit, re-emit
+  of the options that change the result, if the node can appear twice in one graph). 🔴 When the result
+  is derived from the file's bytes, key on path **+ size + mtime** (see `hash`'s `MediaCacheKey`): a
+  path-only key replays the first answer for a file rewritten in place or still being copied in. On a hit, re-emit
   the cached outputs and return `ctx.origin(LOCAL).next()` — skip both recompute *and* re-persist.
   A cache hit is SUCCESS with `ResultOrigin.LOCAL`, **not** SKIPPED. If the cached value is a file
   path, `Files.exists` it first.
@@ -204,7 +206,7 @@ mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNode
 That rewrites `loom-shared/node-model/src/main/resources/node-descriptors.json`, **which is
 committed**. `NodeSpecGoldenTest` otherwise only compares, so a stale resource is a build failure
 rather than a silently outdated palette. `NodeDescriptorServiceLoaderTest` then needs its kind count
-bumped (currently **43**) and the new kind added to its `testKindsFromEachFormerModule` list; update
+bumped (currently **46**) and the new kind added to its `testKindsFromEachFormerModule` list; update
 the same number in [NODES.md §5.2](../features/nodes/NODES.md).
 
 ⚠️ **Install `cortex/processor` too.** Touch-point 2 edits its pom, and `cortex/cli` resolves that

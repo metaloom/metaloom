@@ -105,8 +105,12 @@ public final class ColorSpaces {
 		double fx = fy + lab.a() / 500.0d;
 		double fz = fy - lab.b() / 200.0d;
 
+		// All three axes go through the same inverse. The Y axis used to carry its own open-coded
+		// copy of it, branching on L* > kappa*eps instead of on fy^3 > eps; those are the same
+		// condition (kappa*eps is exactly 8, and fy^3 > eps exactly when L* > 8) and the same two
+		// expressions, so the copy could only ever drift away from the real one.
 		double x = XN * finv(fx);
-		double y = YN * (lab.l() > KAPPA * EPS ? Math.pow((lab.l() + 16.0d) / 116.0d, 3) : lab.l() / KAPPA);
+		double y = YN * finv(fy);
 		double z = ZN * finv(fz);
 
 		double rl = 3.2404542d * x - 1.5371385d * y - 0.4985314d * z;

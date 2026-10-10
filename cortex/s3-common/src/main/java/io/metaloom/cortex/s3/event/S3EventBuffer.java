@@ -134,6 +134,21 @@ public class S3EventBuffer {
 	}
 
 	/**
+	 * Mark a bucket degraded so the next run falls back to a full listing.
+	 *
+	 * <p>For a run that drained hints and then failed before acting on all of them: those hints are
+	 * gone from the buffer, so the fast path can no longer be trusted to see the changes they
+	 * described.</p>
+	 *
+	 * @param bucket bucket
+	 */
+	public void markDegraded(String bucket) {
+		if (bucket != null) {
+			degraded.add(bucket);
+		}
+	}
+
+	/**
 	 * Clear the degraded flag. Called once a full listing has re-established the truth.
 	 *
 	 * @param bucket bucket

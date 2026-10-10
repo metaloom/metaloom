@@ -76,10 +76,16 @@ public class DateFilterStrategy implements FilterStrategy {
 				continue;
 			}
 			for (String hint : hints(bucket)) {
-				if (parse(hint, now) == null) {
+				Range range = parse(hint, now);
+				if (range == null) {
 					errors.add("bucket '" + bucket.id() + "': '" + hint
 						+ "' is not a date condition; expected '<2020-01-01', '>=2024-01-01', '2024-01-01..2024-12-31', "
 						+ "a bare '2024-03-17' or an age such as 'age<30d'");
+				} else if (range.isEmpty()) {
+					// Only a two-ended range can be empty, and a reversed one parses fine while never
+					// holding - indistinguishable at run time from data that simply did not match.
+					errors.add("bucket '" + bucket.id() + "': '" + hint
+						+ "' is an empty date range; the earlier date must come first");
 				}
 			}
 		}
@@ -123,6 +129,11 @@ public class DateFilterStrategy implements FilterStrategy {
 
 		boolean holds(long millis) {
 			return (min == null || millis >= min) && (max == null || millis < max);
+		}
+
+		/** Whether no instant can fall inside - only a two-ended range can, so only a range can. */
+		boolean isEmpty() {
+			return min != null && max != null && min >= max;
 		}
 	}
 

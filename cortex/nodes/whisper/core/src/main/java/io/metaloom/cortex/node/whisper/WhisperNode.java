@@ -17,7 +17,6 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
-import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.spec.NodeSpec;
@@ -33,9 +32,7 @@ import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
-import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 @NodeSpec(nodeId = "whisper", name = "Whisper (Speech-to-Text)", icon = "mic", category = NodeCategory.ANALYSIS,
@@ -138,10 +135,10 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 					request.setTranscriptJson(new JsonObject(json));
 					UUID assetUuid = asset.getUuid();
 					UUID transcriptUuid = client().createAssetTranscript(assetUuid, request).sync().body().getUuid();
-					recordNodeResult(assetUuid, model, ResultState.SUCCESS, null, ctx.duration(), transcriptUuid);
+					recordNodeResult(asset, ctx, ResultState.SUCCESS, null, model, resultRef("asset_transcript_comp", transcriptUuid));
 				} catch (Exception e) {
 					log.warn("Failed to persist transcript for asset {}: {}", asset.getUuid(), e.getMessage());
-					recordNodeResult(asset.getUuid(), model, ResultState.FAILED, e.getMessage(), ctx.duration(), null);
+					recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
 				}
 			}
 
@@ -152,41 +149,9 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 				log.error("Error while processing media " + path, e);
 			}
 			if (asset != null && client() != null) {
-				recordNodeResult(asset.getUuid(), model, ResultState.FAILED, e.getMessage(), ctx.duration(), null);
+				recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
 			}
 			return ctx.failure(e.getMessage()).abort();
-		}
-	}
-
-	/**
-	 * Record a {@code whisper} entry in the per-asset processing ledger. Best-effort: a ledger failure is logged but never fails the node.
-	 *
-	 * @param assetUuid      the asset processed
-	 * @param model          the producer version (whisper model)
-	 * @param state          SUCCESS or FAILED
-	 * @param reason         failure detail, or null on success
-	 * @param durationMs     how long the node ran
-	 * @param transcriptUuid the transcript row written, or null when none was written
-	 */
-	private void recordNodeResult(UUID assetUuid, String model, ResultState state, @Nullable String reason, long durationMs,
-		@Nullable UUID transcriptUuid) {
-		try {
-			NodeResultCreateRequest ledger = new NodeResultCreateRequest();
-			ledger.setNodeKind(name());
-			ledger.setNodeId("");
-			ledger.setProducerVersion(model);
-			ledger.setState(state.name());
-			ledger.setOrigin(ResultOrigin.COMPUTED.name());
-			ledger.setReason(reason);
-			ledger.setDurationMs(durationMs);
-			if (transcriptUuid != null) {
-				ledger.setResultRef(new JsonObject()
-					.put("table", "asset_transcript_comp")
-					.put("uuids", new JsonArray().add(transcriptUuid.toString())));
-			}
-			client().createAssetNodeResult(assetUuid, ledger).sync();
-		} catch (Exception e) {
-			log.warn("Failed to record node result for asset {}: {}", assetUuid, e.getMessage());
 		}
 	}
 }

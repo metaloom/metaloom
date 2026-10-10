@@ -160,7 +160,10 @@ public class PipelineTaskHandler {
 				// NodeTaskRunner already converts exceptions, so reaching here means
 				// something unexpected. Still answer - a silent drop stalls the run.
 				log.error("Unexpected failure running {}", task, t);
-				result = NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), 0, String.valueOf(t));
+				// Keep the element: a per-element task answered as element 0 would settle the wrong
+				// element of the sequence and leave its own waiting until the lease lapses.
+				result = NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), task.getElementSeq(), 0,
+					String.valueOf(t), null);
 			}
 			// Released before the answer goes out, so a drain running concurrently cannot
 			// hand back work that has in fact been done.
@@ -272,6 +275,25 @@ public class PipelineTaskHandler {
 	}
 
 	/**
+	 * Send every result still held in a partial batch, however briefly it has waited.
+	 *
+	 * <p>Called on shutdown. A finished task leaves {@link #inFlight} before its result is
+	 * batched, so a drain sees it as done and does not hand it back - and without this its
+	 * result could still be sitting in a batch when the connection closes, leaving Loom to
+	 * wait out the lease for work that had in fact been done.</p>
+	 *
+	 * @return how many batches were sent
+	 */
+	public int flushPendingResults() {
+		try {
+			return resultBatcher.flushAll();
+		} catch (Exception e) {
+			log.error("Failed to flush pending result batches", e);
+			return 0;
+		}
+	}
+
+	/**
 	 * Send any result batch that has waited long enough.
 	 *
 	 * <p>Never throws: a periodic task that throws is cancelled permanently, which
@@ -323,8 +345,15 @@ public class PipelineTaskHandler {
 			inFlight.remove(task.getTaskUuid());
 			metrics.recordTaskCompleted("segment", result.getError() == null ? "success" : "failed");
 			// Each node in the segment settles independently; record one node operation per result.
+			// Labelled by node kind, as a single node task is: the graph-local node id is per pipeline,
+			// so using it split one kind across many series and never matched the node-task series.
+			java.util.Map<String, String> kindById = new java.util.HashMap<>();
+			for (io.metaloom.loom.pipeline.model.SegmentNode node : task.getNodes()) {
+				kindById.put(node.getNodeId(), node.getNodeKind());
+			}
 			for (NodeTaskResult nodeResult : result.getResults()) {
-				metrics.recordNodeOperation(nodeResult.getNodeId(), toResultState(nodeResult.getState()), nodeResult.getDurationMs());
+				String kind = kindById.getOrDefault(nodeResult.getNodeId(), nodeResult.getNodeId());
+				metrics.recordNodeOperation(kind, toResultState(nodeResult.getState()), nodeResult.getDurationMs());
 			}
 			sender.send(new ProcessorMessage(ProcessorMessageType.SEGMENT_TASK_RESULT,
 				JsonObject.mapFrom(result)));

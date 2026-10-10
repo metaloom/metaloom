@@ -321,7 +321,11 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 		}
 
 		// Snapshot the outputs for the worker-lifetime skip cache once detection actually ran (the flag is set on both "faces found" and "none").
-		if (ctx.outputs().containsKey(OUT_FLAG.id())) {
+		//
+		// Never after a failure. The ports are emitted before persist() runs, so a run whose write to Loom
+		// failed still carries a flag - and caching it turned the failure into a permanent one: the retry
+		// hit the cache, answered SUCCESS from LOCAL and never attempted the write again.
+		if (result.getState() != ResultState.FAILED && ctx.outputs().containsKey(OUT_FLAG.id())) {
 			// A MANY port that emitted nothing is absent from the accumulator entirely, so an image
 			// with no faces has no "detections" entry at all - reading it unguarded threw.
 			PortOutput detections = ctx.outputs().get(OUT_DETECTIONS.id());
@@ -338,9 +342,19 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
+		if (image == null) {
+			// ImageIO answers null rather than throwing for a format it has no reader for. Handing that
+			// to the detector surfaced as a bare NullPointerException from deep inside the binding.
+			return ctx.failure("Could not decode " + media.absolutePath() + " as an image").abort();
+		}
 		// One pass produces the boxes and, when enabled, the vectors. Detecting and then embedding
 		// separately would re-run detection unfiltered, and its ordinals would no longer line up.
-		List<? extends Face> faces = inspireface.detectFaces(image, options().isEmbeddingsEnabled());
+		List<? extends Face> faces;
+		// The detector wraps a single native InspireFace session, which is not safe to drive from two
+		// threads at once - and this node declares defaultConcurrency = 2.
+		synchronized (inspireface) {
+			faces = inspireface.detectFaces(image, options().isEmbeddingsEnabled());
+		}
 
 		int count = faces != null ? faces.size() : 0;
 

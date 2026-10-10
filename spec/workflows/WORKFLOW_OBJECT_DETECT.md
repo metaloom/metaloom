@@ -60,9 +60,16 @@ items.add(new DetectionCreateRequest()
     .setLabel(detection.labelOrId())         // the indexed column, promoted out of meta in V2.43
     .setDetectionIndex(index++)
     .setFrameNumber(detection.frameIndex())
-    .setBboxX(...).setConfidence(detection.confidence()));
+    .setBboxX(normalise(box.x(), frameWidth))   // 0-1 factor of the frame, likewise y/width/height
+    .setConfidence(detection.confidence()));
 client().bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items)).sync();
 ```
+
+The bbox columns are **normalized 0–1** against the image (or the video's native frame), the `V2.43`
+convention `facedetect` also writes and the one `ObjectDetectionMode` draws as percentage overlays. They
+were written in absolute pixels until 2026-10, which put every stored box far off the picture; rows from
+before then still hold pixels. The emitted port elements are unchanged — they stay `ABSOLUTE_PIXELS`
+with `imageWidth`/`imageHeight`. Pinned by `ObjectDetectNodePersistenceTest`.
 
 `producerVersion` names the model file deliberately: the same pixels scanned with a VOC model and a
 COCO model yield different labels, and a ledger row that did not say which would make the two

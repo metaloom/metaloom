@@ -119,6 +119,53 @@ public final class PixelSampler {
 	 * @return the stride, at least 1
 	 */
 	static int stride(Box box, int maxSamples) {
-		return Math.max(1, (int) Math.ceil(Math.sqrt(box.area() / (double) maxSamples)));
+		int step = Math.max(1, (int) Math.ceil(Math.sqrt(box.area() / (double) maxSamples)));
+		if (samples(box, step) <= maxSamples) {
+			return step;
+		}
+		// The area-derived stride only lands inside the budget for a roughly square box. The grid
+		// actually visited is ceil(w/step) * ceil(h/step), and rounding each axis up independently
+		// overshoots badly on an extreme aspect ratio: a 100000x1 banner at maxSamples=1000 gets
+		// step 10 and then visits 10000 pixels, ten times its budget. That count is monotonically
+		// non-increasing in step, so search for the smallest step that fits.
+		int low = step;
+		int high = Math.max(1, Math.max(box.w(), box.h()));
+		while (low < high) {
+			int mid = low + (high - low) / 2;
+			if (samples(box, mid) <= maxSamples) {
+				high = mid;
+			} else {
+				low = mid + 1;
+			}
+		}
+		return low;
+	}
+
+	/**
+	 * Estimate how many pixels of a region pass the alpha gate, from the number of sampled points that did.
+	 *
+	 * <p>
+	 * A sample count is not a pixel count: once the stride exceeds 1, every sampled point stands for roughly
+	 * {@code stride²} pixels. Comparing the raw sample count with a pixel threshold such as
+	 * {@code minRegionPixels} drops every large, fully opaque region whenever the threshold exceeds what the
+	 * sample budget can deliver.
+	 * </p>
+	 *
+	 * @param box            the region
+	 * @param maxSamples     the same bound passed to {@link #sampleLab}
+	 * @param usableSamples  how many sampled points survived the alpha gate
+	 * @return the estimated opaque pixel count, scaled back to the region's area
+	 */
+	public static long estimatePixels(Box box, int maxSamples, int usableSamples) {
+		if (box.isEmpty() || maxSamples < 1 || usableSamples <= 0) {
+			return 0;
+		}
+		long visited = samples(box, stride(box, maxSamples));
+		return Math.round(usableSamples * (box.area() / (double) visited));
+	}
+
+	/** How many pixels a stride actually visits over a box. */
+	private static long samples(Box box, int step) {
+		return (long) ((box.w() + step - 1) / step) * ((box.h() + step - 1) / step);
 	}
 }

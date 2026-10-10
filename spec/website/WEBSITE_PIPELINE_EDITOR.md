@@ -37,7 +37,7 @@ links here; **do not duplicate the detail below into it**.
 * The node catalogue is a **generated static snapshot**:
   `website/static/pipeline-editor/node-descriptors.json` — the same
   `{nodeDescriptors, contentTypes}` shape as `GET /api/v1/pipeline/node-descriptors`. Currently
-  **41 node kinds** and **39 content types**. Regenerate with `loom/doc`'s `ExampleGenerator`
+  **46 node kinds** and **40 content types**. Regenerate with `loom/doc`'s `ExampleGenerator`
   (see [Regenerating the snapshot](#regenerating-the-snapshot)) — never hand-edit it.
 * The demos are **verified against the staged snapshot** — every kind and port id they name
   resolves, with Play enabled and no design errors. Nothing automated checks this; re-verify after

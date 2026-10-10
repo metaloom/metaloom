@@ -293,7 +293,7 @@ public class ObjectDetectNode extends AbstractMediaNode<ObjectDetectNodeOptions>
 			detectionElements(detections, image.getWidth(), image.getHeight()),
 			distinctLabels(detections));
 		previewDetections(ctx, new PreviewFrame(image, null), detections);
-		persist(ctx, asset, detections);
+		persist(ctx, asset, detections, image.getWidth(), image.getHeight());
 		return ctx.origin(COMPUTED).next();
 	}
 
@@ -333,7 +333,7 @@ public class ObjectDetectNode extends AbstractMediaNode<ObjectDetectNodeOptions>
 			if (ctx.capturePreviews()) {
 				previewDetections(ctx, detectionFrame(video, detections), detections);
 			}
-			persist(ctx, asset, detections);
+			persist(ctx, asset, detections, video.width(), video.height());
 			log.debug("Detected {} objects in {} over {} frames", detections.size(), media.absolutePath(), report.framesScanned());
 			return ctx.origin(COMPUTED).next();
 		}
@@ -553,7 +553,7 @@ public class ObjectDetectNode extends AbstractMediaNode<ObjectDetectNodeOptions>
 	 * higher-indexed rows in place.
 	 * </p>
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<DetectedObject> detections) {
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<DetectedObject> detections, int frameWidth, int frameHeight) {
 		if (asset == null || client() == null) {
 			return;
 		}
@@ -571,10 +571,13 @@ public class ObjectDetectNode extends AbstractMediaNode<ObjectDetectNodeOptions>
 					.setLabel(detection.labelOrId())
 					.setDetectionIndex(index++)
 					.setFrameNumber(detection.frameIndex())
-					.setBboxX((float) box.x())
-					.setBboxY((float) box.y())
-					.setBboxWidth((float) box.width())
-					.setBboxHeight((float) box.height())
+					// Normalised to a 0-1 factor of the frame: the convention V2.43 documents for the column, the
+					// one facedetect writes, and the one the review screen draws as percentage overlays. Writing
+					// absolute pixels put every stored box hundreds of frame-widths off the picture.
+					.setBboxX(normalise(box.x(), frameWidth))
+					.setBboxY(normalise(box.y(), frameHeight))
+					.setBboxWidth(normalise(box.width(), frameWidth))
+					.setBboxHeight(normalise(box.height(), frameHeight))
 					.setConfidence(detection.confidence()));
 			}
 			client().bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items)).sync();
@@ -583,6 +586,18 @@ public class ObjectDetectNode extends AbstractMediaNode<ObjectDetectNodeOptions>
 			log.warn("Failed to persist detections for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), producerVersion(), null);
 		}
+	}
+
+	/**
+	 * Express a pixel coordinate as a 0-1 factor of the frame. Falls back to the raw pixel value when the frame size is unknown - a box on the wrong
+	 * scale is visibly wrong and recoverable, a divide by zero is neither.
+	 */
+	static float normalise(int value, int extent) {
+		if (extent <= 0) {
+			log.warn("No frame extent to normalise a bounding box against; storing the raw pixel value {}", value);
+			return value;
+		}
+		return (float) value / (float) extent;
 	}
 
 	/**

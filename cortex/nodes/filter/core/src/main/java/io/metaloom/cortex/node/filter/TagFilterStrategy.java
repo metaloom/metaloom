@@ -80,7 +80,7 @@ public class TagFilterStrategy implements FilterStrategy {
 			for (String hint : hints(bucket)) {
 				// Every word is a legal tag name, so the only unusable hint is a bare '!' - a veto
 				// against nothing, which silently matches everything it was meant to exclude.
-				if (NEGATION.equals(hint)) {
+				if (hint.startsWith(NEGATION) && hint.substring(1).isBlank()) {
 					errors.add("bucket '" + bucket.id() + "': '!' negates nothing; write the tag to exclude, for example '!archive'");
 				}
 			}
@@ -143,7 +143,9 @@ public class TagFilterStrategy implements FilterStrategy {
 		boolean positiveHit = false;
 		for (String hint : hints) {
 			if (hint.startsWith(NEGATION)) {
-				if (holds(names, hint.substring(1))) {
+				// Trimmed: '! archive' is how a person types it, and the untrimmed ' archive' is a tag
+				// nobody carries - a veto that silently vetoed nothing.
+				if (holds(names, hint.substring(1).trim())) {
 					// One veto is enough, whatever else matched.
 					return false;
 				}

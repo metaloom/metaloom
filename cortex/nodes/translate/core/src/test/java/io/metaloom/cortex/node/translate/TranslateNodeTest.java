@@ -235,4 +235,27 @@ class TranslateNodeTest {
 		assertThat(retry).isSuccess();
 		assertEquals("The customer service was a disaster.", retry.get(TranslateNode.OUT_TRANSLATION));
 	}
+
+	@Test
+	void testBlankChunkAnswerFailsInsteadOfDroppingTheChunk() {
+		// A chunk the model answered with nothing used to be skipped, so the stored translation silently
+		// lost that part of the text (or was empty) and was still reported as SUCCESS.
+		when(provider.generate(any(LLMContext.class))).thenReturn("   ");
+
+		NodeResult result = node().process(ctxWithText(GERMAN));
+
+		assertThat(result).isFailed();
+		assertNull(result.get(TranslateNode.OUT_TRANSLATION), "A failed run must not emit a translation");
+	}
+
+	@Test
+	void testPlaceholderInSourceTextIsNotSubstituted() {
+		TranslateNodeOptions options = new TranslateNodeOptions().setTargetLanguage("French");
+		String text = "Set the variable ${targetLanguage} and ${sourceLanguage} in the template.";
+
+		assertThat(node(options).process(ctxWithText(text))).isSuccess();
+
+		// The text being translated must reach the model verbatim.
+		assertThat(capturedPrompts().get(0)).contains(text);
+	}
 }

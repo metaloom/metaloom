@@ -368,11 +368,14 @@ of evaluation semantics stay constructible from nothing but a graph and a dispat
   explicitly at registry construction and would otherwise be registered twice.
 - **Scrape the registry directly.** Both endpoints use `PrometheusScrapingHandler.create(registry)`,
   not the no-arg overload, so the route does not depend on Vert.x's global backend-registry lookup.
+  Cortex mounts it with `blockingHandler`: a scrape evaluates the GPU gauges, which fork
+  `nvidia-smi` (up to a 5 s timeout), and the disk/I-O gauges, which read the filesystem — none of
+  which may run on the event loop that also serves `/health` and `/ready`.
 - **Bounded label cardinality.** Label by node kind, status, message type, provider, or a stable
   `node_id`. **Never** by asset UUID, file path, user, or run UUID.
-  ⚠️ Two existing labels are only *conditionally* bounded: `loom_tasks_returned_total{node}` is the
-  worker node id, and on the **segment** path `cortex_node_operations{node_kind}` is filled from
-  `nodeResult.getNodeId()` (`PipelineTaskHandler:327`) rather than a node *kind*.
+  ⚠️ `loom_tasks_returned_total{node}` is only *conditionally* bounded: it is the worker node id.
+  (`cortex_node_operations{node_kind}` on the **segment** path used to be filled from the graph-local
+  node id; it now maps each result to its `SegmentNode` kind, matching the node-task path.)
 - **Go through the catalog.** Inject `LoomMetrics` / `CortexMetrics`; do not scatter
   `Counter.builder(...)` calls. Adding a meter means: interface method → Micrometer impl → `Noop`
   impl → call site → row in §3/§4 here.

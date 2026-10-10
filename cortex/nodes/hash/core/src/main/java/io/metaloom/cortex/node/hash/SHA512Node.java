@@ -40,7 +40,7 @@ public class SHA512Node extends AbstractMediaNode<HashNodeOptions> {
 	@PortDoc(label = "SHA-512", description = "Lowercase hex SHA-512 digest over the whole file")
 	public static final OutputPort<String> OUT_HASH = OutputPort.one("hash", ContentTypeRegistry.HASH_SHA512, String.class);
 
-	/** In-heap skip cache of computed SHA-512 hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the
+	/** In-heap skip cache of computed SHA-512 hashes, keyed by media path, size and mtime ({@link MediaCacheKey}), to avoid re-reading a file within this worker's lifetime. Non-durable - the
 	 * durable copy lives in Loom. */
 	private final LocalResultCache<SHA512> resultCache = new LocalResultCache<>(100_000);
 
@@ -67,7 +67,9 @@ public class SHA512Node extends AbstractMediaNode<HashNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
-		String path = media.absolutePath();
+		// Path + size + mtime, not the path alone: this hash becomes the media's identity, so a stale
+		// entry would point every later node at the asset of the file's previous content.
+		String path = MediaCacheKey.of(media);
 		SHA512 cached = resultCache.get(path);
 		if (cached != null) {
 			media.setSHA512(cached);

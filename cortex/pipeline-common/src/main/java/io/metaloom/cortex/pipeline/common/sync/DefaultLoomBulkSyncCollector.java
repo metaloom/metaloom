@@ -2,7 +2,6 @@ package io.metaloom.cortex.pipeline.common.sync;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +24,8 @@ public class DefaultLoomBulkSyncCollector implements LoomBulkSyncCollector {
 
 	private final int batchSize;
 	private final BulkSyncWriter writer;
-	private final List<SyncEntry> buffer = new CopyOnWriteArrayList<>();
+	/** Guarded by {@code this}. */
+	private final List<SyncEntry> buffer = new ArrayList<>();
 
 	public DefaultLoomBulkSyncCollector(BulkSyncWriter writer, int batchSize) {
 		this.writer = writer;
@@ -38,34 +38,46 @@ public class DefaultLoomBulkSyncCollector implements LoomBulkSyncCollector {
 
 	@Override
 	public void collect(LoomMedia media, String nodeId, NodeResult result) {
-		buffer.add(new SyncEntry(media, nodeId, result));
-		if (buffer.size() >= batchSize) {
+		boolean full;
+		synchronized (this) {
+			buffer.add(new SyncEntry(media, nodeId, result));
+			full = buffer.size() >= batchSize;
+		}
+		if (full) {
 			flush();
 		}
 	}
 
 	@Override
 	public int flush() {
-		if (buffer.isEmpty()) {
-			return 0;
+		// Drain under the lock. Copying and then clearing as two separate steps lost every entry
+		// another thread collected in between, and let two concurrent flushes send the same
+		// entries twice. The write itself happens outside the lock so a slow Loom does not stall
+		// every collecting thread.
+		List<SyncEntry> batch;
+		synchronized (this) {
+			if (buffer.isEmpty()) {
+				return 0;
+			}
+			batch = new ArrayList<>(buffer);
+			buffer.clear();
 		}
-		// Drain the buffer atomically
-		List<SyncEntry> batch = new ArrayList<>(buffer);
-		buffer.clear();
 		log.info("Flushing {} sync entries to Loom", batch.size());
 		try {
 			writer.writeBulk(batch);
 		} catch (Exception e) {
 			log.error("Failed to flush sync entries to Loom: {}", e.getMessage(), e);
-			// Re-add failed entries for retry on next flush
-			buffer.addAll(batch);
+			// Re-add failed entries for retry on next flush, ahead of anything collected since.
+			synchronized (this) {
+				buffer.addAll(0, batch);
+			}
 			return 0;
 		}
 		return batch.size();
 	}
 
 	@Override
-	public int pending() {
+	public synchronized int pending() {
 		return buffer.size();
 	}
 

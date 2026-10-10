@@ -84,7 +84,9 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 						NodeResult result = typedNode.process(ctx);
 						if (result == null) {
 							log.error("Node '{}' failed to process media {}. Invalid result returned.", node.name(), media);
-							return;
+							// continue, not return: inside this forEach lambda a return abandoned every
+							// remaining node for this media item because of one misbehaving node.
+							continue;
 						}
 
 						String originName = ctx.resultOrigin() != null ? ctx.resultOrigin().name() : "NA";

@@ -308,7 +308,10 @@ merely *slow* worker. A drain closes that gap (`LoomControlChannel.drain`):
 4. **Return.** Whatever is still running at the deadline is named in a
    `TASK_RETURNED`. It keeps running locally — a node cannot be interrupted —
    but Loom is free to place it elsewhere at once.
-5. **Flush.** `awaitFlush(5000)` writes one more frame and waits for it; frames
+5. **Flush.** `PipelineTaskHandler.flushPendingResults()` first sends every
+   result still held in a partial `NODE_TASK_RESULT_BATCH` — a task that finished
+   in the grace period left the in-flight set and is not returned, so its result
+   must not die in the batcher. Then `awaitFlush(5000)` writes one more frame and waits for it; frames
    on a WebSocket are ordered, so that waits for all of them. Only then does
    `stop()` close the socket — a queued frame is lost on close.
 

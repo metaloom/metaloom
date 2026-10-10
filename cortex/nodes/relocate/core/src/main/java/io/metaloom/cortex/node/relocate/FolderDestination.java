@@ -49,7 +49,15 @@ public class FolderDestination implements MoveDestination {
 		}
 
 		Path target = Layouts.resolve(root, media, options.getLayout(), options.getSourceRoot());
-		return MovePlan.filesystem(target, null, null);
+		MovePlan plan = MovePlan.filesystem(target, null, null);
+
+		// Under the content-addressed layout the destination path is the hash, so an occupied destination
+		// means the archive already holds these bytes - not that two different files want one name. Only
+		// there: for FLAT, MIRROR and DATE a collision really is a name collision, and onConflict decides.
+		if (options.getLayout() == Layout.CONTENT && Layouts.holdsSameContent(target, media)) {
+			return plan.asAlreadyThere();
+		}
+		return plan;
 	}
 
 	/**

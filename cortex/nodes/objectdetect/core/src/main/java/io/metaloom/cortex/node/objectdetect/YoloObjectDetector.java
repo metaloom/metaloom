@@ -12,8 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.payload.BoundingBox;
+import io.metaloom.opencv.core.CvType;
 import io.metaloom.opencv.core.Mat;
-import io.metaloom.opencv.imgproc.Imgproc;
 import io.metaloom.video4j.impl.MatProvider;
 import io.metaloom.video4j.opencv.CVUtils;
 import io.metaloom.yolo4j.Detection;
@@ -111,13 +111,42 @@ public class YoloObjectDetector implements ObjectDetector {
 	 */
 	@Override
 	public synchronized List<ObjectDetection> detect(BufferedImage image) {
-		Mat mat = MatProvider.mat(image, Imgproc.COLOR_BGRA2BGR565);
+		BufferedImage bgr = toBgr(image);
+		Mat mat = MatProvider.mat(bgr, CvType.CV_8UC3);
 		try {
-			CVUtils.bufferedImageToMat(image, mat);
+			CVUtils.bufferedImageToMat(bgr, mat);
 			return detect(mat);
 		} finally {
 			MatProvider.released(mat);
+			mat.close();
 		}
+	}
+
+	/**
+	 * The image as packed 8-bit BGR - the only layout {@code CVUtils.bufferedImageToMat} copies correctly into a {@code CV_8UC3} Mat.
+	 *
+	 * <p>
+	 * That helper copies the raster's bytes verbatim. {@code ImageIO.read} hands back {@code TYPE_3BYTE_BGR} for an ordinary JPEG, but a greyscale
+	 * JPEG or PNG decodes to one byte per pixel, a PNG with transparency to four ({@code ABGR}), a palette PNG to an index, and an
+	 * {@code int}-packed image is written out as RGB rather than BGR. Each of those reached the model as scrambled pixels - a greyscale photo filled a
+	 * third of the frame - and the detector quietly found nothing, or nonsense, in it.
+	 * </p>
+	 */
+	static BufferedImage toBgr(BufferedImage image) {
+		if (image.getType() == BufferedImage.TYPE_3BYTE_BGR) {
+			return image;
+		}
+		BufferedImage bgr = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+		java.awt.Graphics2D g = bgr.createGraphics();
+		try {
+			// Transparent areas land on white rather than on whatever colour their hidden RGB happened to hold.
+			g.setColor(java.awt.Color.WHITE);
+			g.fillRect(0, 0, image.getWidth(), image.getHeight());
+			g.drawImage(image, 0, 0, null);
+		} finally {
+			g.dispose();
+		}
+		return bgr;
 	}
 
 	@Override

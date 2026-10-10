@@ -86,7 +86,7 @@ public class GraniteGuardianDialect implements GuardDialect {
 		for (String code : codes) {
 			probes.add(GuardProbe.of(code, template
 				.replace("${guideline}", definition(code))
-				.replace("${text}", text), MAX_TOKENS));
+				.replace("${text}", GuardDialect.sanitize(text)), MAX_TOKENS));
 		}
 		return List.copyOf(probes);
 	}

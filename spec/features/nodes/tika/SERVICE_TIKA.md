@@ -1,8 +1,8 @@
 # Apache Tika in MetaLoom — `loom/services/tika` and `cortex/nodes/tika`
 
-Status: 🔴 **The extraction is non-functional.** `MediaTikaParser.parse()` unconditionally returns
-`null` and dumps metadata to `System.out`. Everything downstream (JSON component, search index,
-`content` port) receives an empty string. See §7.
+Status: 🟢 **The extraction works.** `MediaTikaParser.parse()` returns the body text (2026-09-26);
+until then it unconditionally returned `null` and dumped metadata to `System.out`, so everything
+downstream — JSON component, search index, `content` port — received an empty string. See §7.
 
 ## 1. Scope — which module does what
 
@@ -11,7 +11,7 @@ Two modules carry the name "tika". They are **not** related; neither depends on 
 | Module | Artifact | Reality |
 |---|---|---|
 | `loom/services/tika` | `loom-service-tika` | 🔴 **Empty stub.** One class with an empty body, no Tika dependency, zero consumers. §2 |
-| `cortex/nodes/tika/core` | `cortex-tika-node` | 🟡 The only place Apache Tika is actually on the classpath. Wired, tested, persisting — but extracts nothing. §3–§7 |
+| `cortex/nodes/tika/core` | `cortex-tika-node` | 🟢 The only place Apache Tika is actually on the classpath. Wired, tested, persisting, and extracting the document body. §3–§7 |
 
 Adjacent specs — do not duplicate them:
 - [NODES.md](NODES.md) — the Cortex node system, the per-node table (`tika` row §164), and the open
@@ -59,7 +59,7 @@ flowchart TD
     MOD["TikaNodeModule<br/>@Binds @IntoSet FilesystemNode<br/>@Binds @IntoMap @StringKey(&quot;tika&quot;)"]
     NODE["TikaNode extends AbstractMediaNode&lt;TikaNodeOptions&gt;<br/>name() = &quot;tika&quot;"]
     CACHE["LocalResultCache&lt;String&gt;(50_000)<br/>keyed by media.absolutePath()"]
-    PARSER["MediaTikaParser<br/>static AutoDetectParser, 17 parsers"]
+    PARSER["MediaTikaParser<br/>static AutoDetectParser, 17 parsers<br/>body text, 2M char limit"]
     CLI --> MOD --> NODE
     NODE --> CACHE
     NODE --> PARSER
@@ -101,7 +101,9 @@ is missing, skips `unprocessable`, fetches the `AssetResponse` (null when offlin
 1. Cache hit on `media.absolutePath()` → emit `OUT_FLAGS="DONE"`, emit `OUT_CONTENT` only when the
    cached value is non-null, return `origin(LOCAL).next()`.
 2. Otherwise `MediaTikaParser.parse(media)` → `OUT_FLAGS="DONE"`, `OUT_CONTENT` when non-null, cache
-   the result, `persist(...)`, return `origin(COMPUTED).next()`.
+   the result, `persist(...)`, return `origin(COMPUTED).next()`. The parser answers the trimmed body
+   text, or **null** when the file carries none — null rather than `""` so the port stays unwritten
+   instead of announcing an empty document to every `text/*` consumer downstream.
 3. Any exception → log, `OUT_FLAGS="FAILED"`,
    `ctx.failure("failed processing: " + e.getMessage()).abort()`. It was `.next()` with the bare
    constant until 2026-08-18, so the item reported SUCCESS *and* said nothing about why —
@@ -137,8 +139,8 @@ Commented out in the source: `RTFParser` and `JpegParser` — so **RTF and JPEG 
 
 **OOXML configuration:** `OOXMLParser` with `setUseSAXDocxExtractor(true)` and
 `setUseSAXPptxExtractor(true)`, wrapped in `ParserDecorator.withoutTypes(EXCLUDES)`.
-`EXCLUDES` is a 7-element array that dedupes to **6** MediaTypes (`vnd.ms-visio.drawing` appears
-twice): the Visio drawing / stencil / template types and their `.macroenabled.12` variants.
+`EXCLUDES` is a 6-element array of MediaTypes: the Visio drawing / stencil / template types and their
+`.macroenabled.12` variants. (It listed `vnd.ms-visio.drawing` twice until 2026-09-26.)
 
 **Detector customization: none.** The code builds
 `PARSER_INSTANCE = new AutoDetectParser(PARSERS)` and then
@@ -146,10 +148,18 @@ twice): the Visio drawing / stencil / template types and their `.macroenabled.12
 The second constructor re-uses the *default* detector taken off the first instance, so the double
 wrap is a no-op layer, not a customization.
 
-**Metadata field mapping: none.** `parse()` collects a `Metadata` object and then does
-`System.out.println(name + " " + metadata.get(name))` for every key. No field is mapped to any Loom
-column or JSON key. The claim in `TikaDescriptorProvider` ("Extract metadata and text content") is
-aspirational.
+**Metadata field mapping: none, by design.** `parse()` passes a `Metadata` object to Tika only to
+carry the file-name detection hint, and discards it afterwards: reading the metadata a file carries
+is the `metadata` node's job, and it reads EXIF/IPTC/XMP directly rather than through Tika's
+flattening image path ([../metadata/METADATA_OVERVIEW.md](../metadata/METADATA_OVERVIEW.md)). The
+claim in `TikaDescriptorProvider` ("Extract metadata and text content") overstates this node: it
+extracts text.
+
+**Write limit.** `MediaTikaParser.MAX_CONTENT_CHARS = 2_000_000`, applied through
+`new BodyContentHandler(new WriteOutContentHandler(writer, MAX_CONTENT_CHARS))`. Tika signals the
+limit by *throwing*, and `WriteLimitReachedException.isWriteLimitReached(e)` is what separates that
+from a real SAX failure: a document past the limit is truncated and logged, never failed. Tika's own
+default limit is 100 000 characters, which would have failed most PDF reports outright.
 
 ---
 
@@ -201,12 +211,14 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 
 ## 7. Suspected bugs
 
-1. 🔴 **`MediaTikaParser.parse()` returns `null` on every path.** The `BodyContentHandler` is never
-   read; the method falls out of the `try` block and returns the literal `null`. Consequences:
-   `OUT_CONTENT` is never emitted, the `tika` JSON component always stores `{"content": ""}`, and the
-   `search_document` row derived from it is always empty. The node reports `SUCCESS` regardless.
-2. 🔴 **`System.out.println` debug dump** of every metadata key in a production parse path — no
-   logger, no formatting, no rate limiting.
+1. ✅ **FIXED 2026-09-26 — `MediaTikaParser.parse()` returned `null` on every path.** The
+   `BodyContentHandler` was never read; the method fell out of the `try` block and returned the literal
+   `null`, so `OUT_CONTENT` was never emitted, the `tika` JSON component always stored
+   `{"content": ""}`, and the `search_document` row derived from it was always empty — with the node
+   reporting `SUCCESS`. It now returns the trimmed body text (null when there is none), pinned by
+   `MediaTikaParserTest` and `TikaNodeContentTest`.
+2. ✅ **FIXED 2026-09-26 — `System.out.println` debug dump** of every metadata key in a production
+   parse path. Removed; the class now has an SLF4J logger, used only for the truncation notice.
 3. 🟡 **`OUT_FLAGS` carries only `"DONE"`/`"FAILED"`**, while `TikaDescriptorProvider` documents it as
    "Processing markers recording which parsers Tika ended up using". Descriptor text and code disagree.
 4. 🟡 **`TikaNodeIntegrationTest` cannot see bug 1.** It asserts `comp.getData()` is not null, which
@@ -217,10 +229,11 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 6. 🟡 **Ledger/result divergence.** When `persist()` throws, it records `ResultState.FAILED` in
    `asset_node_result` while `compute()` still returns `origin(COMPUTED).next()` (success). Documented
    as best-effort, but a queryable ledger row contradicts the node result.
-7. ⚠️ *Unverified against this checkout:* `new BodyContentHandler()` uses Tika's default
-   write limit (documented as 100 000 characters) and throws once exceeded. If bug 1 is fixed, large
-   PDFs would take the catch branch and emit `OUT_FLAGS="FAILED"`. Use `new BodyContentHandler(-1)`
-   or an explicit limit when fixing.
+7. ✅ **FIXED 2026-09-26 (confirmed real).** `new BodyContentHandler()` uses Tika's default write
+   limit of 100 000 characters and throws once exceeded, so every longer document would have emitted
+   `OUT_FLAGS="FAILED"` the moment bug 1 was fixed. The limit is now explicit
+   (`MAX_CONTENT_CHARS = 2_000_000`) and reaching it truncates instead of failing —
+   `MediaTikaParserTest` pins both halves.
 
 ---
 
@@ -252,8 +265,11 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
   `LoomProviderExtension` — **run `./setup-pool.sh` first**, and again after any Flyway change.
 - **Do not** add a `@RegisterExtension LoomCoreTestExtension` in a subclass; configure the inherited
   field.
-- There are **no unit tests at all** for `MediaTikaParser`, and no `TikaNodePipelineTest` — both are
-  already listed as open items in [NODES.md](NODES.md).
+- **`MediaTikaParserTest`** and **`TikaNodeContentTest`** (added 2026-09-26) write their own fixtures
+  into a `@TempDir` — a text file, an HTML page with a declared charset, an empty file, one past
+  Tika's default 100 000-char limit and one past this node's own — rather than reading the unversioned
+  corpus, and assert the extracted text. Per-format coverage (pdf, docx, odt, epub, mp3) and a
+  `TikaNodePipelineTest` are still open items in [NODES.md](NODES.md).
 
 ---
 
@@ -288,16 +304,17 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 - [x] Search integration exists (`V2.58` maps `tika` → `content`)
 - [x] Options validation test, node smoke test, and an E2E integration test exist
 - [x] Local skip cache (`LocalResultCache`)
-- [ ] 🔴 **Make `MediaTikaParser.parse()` return the extracted body** (`handler.toString()`), with an
-      explicit `BodyContentHandler` write limit
-- [ ] 🔴 **Remove the `System.out.println` metadata dump**; route through SLF4J or drop it
+- [x] 🟢 **`MediaTikaParser.parse()` returns the extracted body**, with an explicit write limit that
+      truncates rather than fails (2026-09-26)
+- [x] 🟢 **The `System.out.println` metadata dump is gone** (2026-09-26)
 - [x] ~~**Map Tika `Metadata` to something.**~~ **Answered by the `metadata` node**
       ([metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md)): a separate kind reads
       EXIF/IPTC/XMP/container properties, normalises them onto Dublin Core, and writes
       `asset_json_comp` (`schemaType=metadata`) plus `asset_geo_comp`. `tika` keeps the body text and
       stops trying to own metadata as well
 - [ ] Tighten `TikaNodeIntegrationTest` to assert non-empty `content`
-- [ ] Add a `MediaTikaParser` unit test per format family (pdf, docx, odt, epub, mp3, mp4, image)
+- [x] Add `MediaTikaParser` unit tests — text, HTML/charset, empty, and both write limits
+      (`MediaTikaParserTest`, 2026-09-26). Per-format coverage (pdf, docx, odt, epub, mp3) still open
 - [ ] Add a `TikaNodePipelineTest`
 - [ ] Give `OUT_FLAGS` the meaning its descriptor claims, or fix the descriptor text
 - [ ] Give `TikaNodeOptions` real fields (parser selection, write limit, OCR toggle) or delete the
@@ -305,7 +322,7 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 - [ ] Decide `RTFParser` / `JpegParser`: re-enable or delete the commented-out lines. `JpegParser`
       is now moot for metadata — the `metadata` node reads image EXIF with `metadata-extractor`
       directly — so the only question left is whether `tika` should report JPEG dimensions
-- [ ] Deduplicate the `EXCLUDES` array (`vnd.ms-visio.drawing` listed twice)
+- [x] Deduplicate the `EXCLUDES` array — `vnd.ms-visio.drawing` was listed twice (2026-09-26)
 - [ ] **Delete `loom/services/tika`**, or give it a real `TikaProcessor` SPI that the Cortex node
       implements
 
@@ -335,6 +352,11 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 
 ---
 
-_Last updated: 2026-08-18 — git HEAD `d4e9134f` (step 3 of `compute()` aborts instead of `.next()`, and its cause names the exception)_
+_Last updated: 2026-09-26 — `MediaTikaParser.parse()` returns the body text with an explicit
+2 000 000-character write limit that truncates rather than fails, the `System.out` dump is gone, the
+duplicate `EXCLUDES` entry is gone, and `MediaTikaParserTest` / `TikaNodeContentTest` pin the content
+port_
+
+_Previously: 2026-08-18 — git HEAD `d4e9134f` (step 3 of `compute()` aborts instead of `.next()`, and its cause names the exception)_
 
 _Previously: 2026-08-02 — git HEAD `d930e222`_

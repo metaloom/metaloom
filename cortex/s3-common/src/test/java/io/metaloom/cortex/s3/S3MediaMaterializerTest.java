@@ -194,4 +194,55 @@ public class S3MediaMaterializerTest {
 			return walk.filter(Files::isRegularFile).toList();
 		}
 	}
+
+	/**
+	 * Two tasks materializing the same object at once must each end with the whole object. With one
+	 * shared partial path the slower download's tail landed in a file the faster one had already
+	 * moved away, and the cache kept a truncated entry under the correct etag.
+	 */
+	@Test
+	public void testConcurrentMaterializationsOfOneObjectDoNotCorruptTheCache() throws Exception {
+		java.util.concurrent.CountDownLatch firstHalfWritten = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.CountDownLatch secondDone = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		FakeS3ObjectStore slow = new FakeS3ObjectStore() {
+			@Override
+			public void download(String bucket, String key, Path target) throws IOException {
+				if (calls.incrementAndGet() == 1) {
+					// The first attempt streams in two halves and is overtaken in between.
+					Files.writeString(target, "video-");
+					firstHalfWritten.countDown();
+					try {
+						secondDone.await();
+					} catch (InterruptedException e) {
+						throw new IOException(e);
+					}
+					Files.writeString(target, "bytes", java.nio.file.StandardOpenOption.CREATE,
+						java.nio.file.StandardOpenOption.APPEND);
+				} else {
+					super.download(bucket, key, target);
+				}
+			}
+		};
+		slow.put(BUCKET, "2026/clip.mp4", "video-bytes");
+		S3MediaMaterializer materializer = new S3MediaMaterializer(slow, cacheRoot, 0, 0);
+		S3ObjectRef ref = slow.head(BUCKET, "2026/clip.mp4");
+
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			java.util.concurrent.Future<Path> first = pool.submit(() -> materializer.materialize(ref));
+			firstHalfWritten.await();
+			Path second = materializer.materialize(ref);
+			assertThat(Files.readString(second)).isEqualTo("video-bytes");
+			secondDone.countDown();
+
+			Path firstPath = first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+			assertThat(Files.readString(firstPath)).isEqualTo("video-bytes");
+		} finally {
+			secondDone.countDown();
+			pool.shutdownNow();
+		}
+		// No partial file left behind either.
+		assertThat(listCache()).hasSize(1);
+	}
 }

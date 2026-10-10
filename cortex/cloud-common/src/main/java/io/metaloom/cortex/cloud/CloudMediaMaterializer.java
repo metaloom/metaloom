@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -51,6 +52,15 @@ public class CloudMediaMaterializer {
 
 	/** Sweep down to this fraction of the budget so eviction is not re-triggered immediately. */
 	private static final double EVICTION_TARGET_RATIO = 0.9;
+
+	/** Suffix of an in-flight download. */
+	static final String PARTIAL_SUFFIX = ".part";
+
+	/** A partial file younger than this is an in-flight download and is never evicted. */
+	private static final long PARTIAL_GRACE_MS = 6 * 60 * 60 * 1000L;
+
+	/** Longest change token kept in a cache file name. */
+	private static final int MAX_TOKEN_CHARS = 48;
 
 	private final CloudFileStore store;
 	private final Path cacheRoot;
@@ -96,7 +106,10 @@ public class CloudMediaMaterializer {
 		}
 
 		Files.createDirectories(target.getParent());
-		Path partial = target.resolveSibling(target.getFileName() + ".part");
+		// One partial file per attempt: a shared "<target>.part" let two concurrent materializations
+		// of the same file write over each other and move a truncated file into place, which the
+		// change-token-in-the-name rule then served as correct for ever.
+		Path partial = target.resolveSibling(target.getFileName() + "." + UUID.randomUUID() + PARTIAL_SUFFIX);
 		try {
 			log.info("Materializing {} ({} bytes) into {}", ref.reference(), ref.size(), target);
 			store.download(ref, partial);
@@ -192,9 +205,14 @@ public class CloudMediaMaterializer {
 
 			long target = (long) (maxCacheBytes * EVICTION_TARGET_RATIO);
 			files.sort(Comparator.comparingLong(CloudMediaMaterializer::lastModifiedOf));
+			long now = System.currentTimeMillis();
 			for (Path path : files) {
 				if (total <= target) {
 					break;
+				}
+				if (isInFlight(path, now)) {
+					// Another task's download in progress: deleting it would only fail that task.
+					continue;
 				}
 				long size = sizeOf(path);
 				try {
@@ -209,6 +227,11 @@ public class CloudMediaMaterializer {
 		} catch (IOException e) {
 			log.warn("Failed to sweep the cloud media cache at {}", cacheRoot, e);
 		}
+	}
+
+	private static boolean isInFlight(Path path, long now) {
+		return path.getFileName().toString().endsWith(PARTIAL_SUFFIX)
+			&& now - lastModifiedOf(path) < PARTIAL_GRACE_MS;
 	}
 
 	private static long sizeOf(Path path) {
@@ -235,9 +258,16 @@ public class CloudMediaMaterializer {
 			builder.append(Character.isLetterOrDigit(c) || c == '-' || c == '_' ? c : '_');
 		}
 		// A cTag is long and a whole eTag longer still; the digest already carries identity, so the
-		// token only has to distinguish versions of one file.
+		// token only has to distinguish versions of one file. It must still distinguish them, though:
+		// plain truncation cut a OneDrive cTag ("ctag:\"c:{GUID},12\"" is 50 chars sanitized) inside
+		// its trailing version number, so versions 12 and 13 shared one cache file and the edited
+		// file was served stale. A long token keeps a readable prefix plus a digest of all of it.
 		String sanitized = builder.toString();
-		return sanitized.length() <= 48 ? sanitized : sanitized.substring(0, 48);
+		if (sanitized.length() <= MAX_TOKEN_CHARS) {
+			return sanitized;
+		}
+		String digest = sha256Hex(value);
+		return sanitized.substring(0, MAX_TOKEN_CHARS - 25) + "_" + digest.substring(0, 24);
 	}
 
 	static String sha256Hex(String value) {

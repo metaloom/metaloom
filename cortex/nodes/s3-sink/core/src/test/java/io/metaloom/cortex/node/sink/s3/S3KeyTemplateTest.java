@@ -104,6 +104,22 @@ public class S3KeyTemplateTest {
 	}
 
 	@Test
+	public void testASeparatorOnlyTemplateIsRejectedAtParseTime() {
+		// It renders to an empty key, so it can only ever fail - and failing once at parse time is
+		// a configuration error, while failing at render time is every artifact of every asset
+		// reporting "rendered an empty key".
+		assertThatThrownBy(() -> S3KeyTemplate.parse("/"))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("must not be empty");
+		assertThatThrownBy(() -> S3KeyTemplate.parse("///"))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	public void testASeparatorOnlyTemplateIsRejectedByOptionsValidation() {
+		assertThat(new S3SinkNodeOptions().setKeyTemplate("/").validate().isInvalid()).isTrue();
+	}
+
+	@Test
 	public void testTemplateWithNoPlaceholdersPassesThrough() {
 		assertThat(S3KeyTemplate.parse("a/fixed/key").render(values())).isEqualTo("a/fixed/key");
 	}

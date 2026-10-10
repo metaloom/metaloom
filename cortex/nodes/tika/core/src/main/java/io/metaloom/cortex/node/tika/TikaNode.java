@@ -87,6 +87,10 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Error while processing media " + media.path(), e);
+			// Into the ledger too, like every other node's failure path. Without the row the asset looks
+			// never-attempted rather than failed, so a retryFailed=false run re-parses it forever and a
+			// UI listing failed assets never shows it.
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 			ctx.output(OUT_FLAGS, "FAILED");
 			return ctx.failure("failed processing: " + e.getMessage()).abort();
 		}

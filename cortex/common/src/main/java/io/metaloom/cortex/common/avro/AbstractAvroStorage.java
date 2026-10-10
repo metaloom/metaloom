@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
+import org.apache.avro.specific.SpecificData;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
@@ -29,8 +31,12 @@ public abstract class AbstractAvroStorage<T extends SpecificRecord> {
 
 		DatumWriter<T> datumWriter = new SpecificDatumWriter<T>(getElementClass());
 		try (DataFileWriter<T> dataFileWriter = new DataFileWriter<>(datumWriter)) {
+			// create() opens the file once. Calling it per element - as this used to - failed on
+			// the second element with "already open", and an empty list never created the file at
+			// all, so readElements() then failed instead of returning nothing.
+			Schema schema = elements.isEmpty() ? SpecificData.get().getSchema(getElementClass()) : elements.get(0).getSchema();
+			dataFileWriter.create(schema, file);
 			for (T element : elements) {
-				dataFileWriter.create(element.getSchema(), file);
 				dataFileWriter.append(element);
 			}
 		}

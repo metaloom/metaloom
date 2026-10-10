@@ -73,9 +73,10 @@ solver is also unlicensed, dependency-free and CPU-cheap.
 
 `isProcessable` = `options().isEnabled() && ctx.media().isImage()`. Then `compute`:
 
-1. **Skip cache.** `LocalResultCache<String>` (10 000 entries, keyed on `media().absolutePath()`) —
-   a hit re-emits the three ports and returns `origin(LOCAL)`. ⚠️ It does **not** re-persist, and the
-   key ignores every input (§7).
+1. **Skip cache.** `LocalResultCache<String>` (10 000 entries, keyed on `media().absolutePath()` plus a
+   SHA-256 digest of every result-affecting option, the wired depth payload and every wired detection
+   element) — a hit re-emits the three ports and returns `origin(LOCAL)`. ⚠️ It does **not** re-persist
+   (§7). Pinned by `SceneLayoutNodePersistenceTest.testDifferentDetectionsAreNotServedTheFirstRunsLayout`.
 2. **Depth metadata** from `IN_DEPTH`. It must parse and carry a `path`; otherwise skip `"no depth map"`.
 3. **Convention gate.** `convention` must be exactly `NEARNESS`; otherwise skip
    `"unsupported depth convention '<x>'"`. The node refuses to guess which direction "closer" runs.
@@ -179,17 +180,17 @@ disappears. Optional per-element fields: `coordinates:"NORMALIZED"` plus `imageW
 `label + "-" + index`, falling back to the element's sequence number.
 
 The REST fallback (`allowLoomFallback`, default true) reads `client().listAssetDetections(uuid)` and
-has to **guess** the coordinate convention, because nothing in the schema states it:
+has to **classify** each row's coordinate convention, because nothing on the row states it:
 
 * `V2.43__rework_detection_embedding.sql` comments `bbox_*` as "normalized 0-1, the single geometry
-  convention";
-* `FacedetectNode.persist` writes **absolute pixels**;
-* `DetectionModelValidator` validates nothing;
-* no source image dimensions are stored anywhere.
+  convention", and `FacedetectNode` / `ObjectDetectNode` both write that today;
+* rows written before they did hold **absolute pixels**, and `DetectionModelValidator` validates nothing.
 
-So the node applies one heuristic — **any bbox component above 1.0 means the row is in pixels** — logs
-which branch it took, and **refuses normalized-looking rows outright** rather than rescaling them
-against dimensions it does not have. `DetectionResponse` also omits `nodeKind` and `detectionIndex`,
+So the node classifies **per row** — **any bbox component above 1.0 means pixels**, otherwise the row is
+normalized and is scaled by the depth metadata's `imageWidth`/`imageHeight` (the boxes and the map
+describe the same still). A normalized row is skipped only when the depth metadata carries no image
+size. The log line counts both branches. This used to refuse every normalized row, so once facedetect
+wrote the documented convention the fallback silently returned nothing. `DetectionResponse` also omits `nodeKind` and `detectionIndex`,
 so this path cannot tell two producers of one `type` apart, nor recover a row's ordinal. Prefer the
 wired path, which states its own convention.
 
@@ -350,10 +351,9 @@ the first naming this node in its own comment.
 | **Sample the core, not the box** | 🔴 Corners are background (§3.2) |
 | **Occlusion needs depth** | ⚠️ Overlapping boxes at the same depth are adjacent (§3.4) |
 | **One element per detection** | 🔴 `IN_DETECTIONS` is `MANY`; `readElement` reads a top-level `bbox` from *each* element. A batch wrapper silently parses to nothing (§3.5) |
-| **Detection geometry is inconsistent tree-wide** | 🔴 The migration says normalized 0–1, `FacedetectNode` writes pixels, nothing validates, no source dimensions recorded. Prefer the port payload with its explicit `coordinates` marker; on the REST fallback only the ">1.0 ⇒ pixels" branch works and normalized rows are **refused** |
+| **Detection geometry needs classifying on read-back** | ⚠️ The migration says normalized 0–1 and both detectors now write it, but older rows hold pixels and nothing validates. Prefer the port payload with its explicit `coordinates` marker; the REST fallback classifies each row (">1.0 ⇒ pixels", else normalized and scaled by the depth metadata's image size) |
 | **A missing input is a skip** | ⚠️ Six distinct skip reasons, no failures (§3.6) |
 | **🔴 `ctx.failure(msg).next()` reports SUCCESS** | `NodeContextImpl.next()` reads `skipReason` but **not** `failureCause`, so the catch block at `SceneLayoutNode:218` drops the message and returns `SUCCESS`. The ledger row is correctly `FAILED`; the pipeline sees green. `.abort()` is the fix — 19 nodes share this bug ([../NODES.md](../NODES.md)) |
-| **Cache key ignores every input** | ⚠️ `LocalResultCache` is keyed on `absolutePath` alone, so rewiring the depth map, swapping detectors or changing any threshold re-serves a stale layout. `dominant-color` is the model to copy: path + a digest of the wired payloads and every result-affecting option |
 | **A cache hit does not re-persist** | ⚠️ The `LOCAL` path emits the ports and returns. Deleting the `asset_json_comp` row and re-running on the same worker will not recreate it until the JVM restarts |
 | **`truncated.relations` lies** | 🔴 Hardcoded to `0` (§9). `objects` and `unsampled` are correct |
 | **`INSIDE` is declared but never emitted** | 🔴 `CONTAINS` has no inverse partner, unlike `OCCLUDES`/`OCCLUDED_BY` (§9) |
@@ -433,7 +433,7 @@ the first naming this node in its own comment.
       website ("drop it straight into a search index") over-claim until a `WHEN 'scene-layout'` branch
       lands. See [../../search/SEARCH.md](../../search/SEARCH.md)
 - [ ] 🔴 **`ctx.failure(...).next()` reports `SUCCESS`** — switch the catch block to `.abort()` (§7)
-- [ ] **Cache key ignores the wired inputs and every threshold** (§7)
+- [x] **Cache key ignores the wired inputs and every threshold** — now path + digest of options, depth payload and detection elements
 - [ ] **The customer page still says "faces today"** — `website/.../scene-layout/index.adoc` closes with
       "At present that means the node relates faces to faces; once object detection is available…".
       `objectdetect` shipped and its own page already links here (§3.1)

@@ -178,4 +178,46 @@ class RatingFilterNodeTest {
 
 		assertTrue(e.getMessage().contains("needs a rating condition"), e.getMessage());
 	}
+
+	/**
+	 * {@code 7..4} parses and then holds for no rating at all, which at run time looks exactly like
+	 * nobody having rated anything in that band. Reported up front instead.
+	 */
+	@Test
+	void testAReversedRangeIsRejectedAtConfigureTime() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+			() -> node(nodeDef().put("buckets", new JsonArray().add(new JsonObject().put("id", "keep").put("match", "7..4")))));
+
+		assertTrue(e.getMessage().contains("empty rating range"), e.getMessage());
+		assertTrue(e.getMessage().contains("keep"), e.getMessage());
+	}
+
+	/**
+	 * {@code >10} and {@code <0} have an operand on the scale, so they parse - and then hold for no rating at all. Reported up front like a reversed
+	 * range, while {@code >9} and {@code <1} (one value each) stay legal.
+	 */
+	@Test
+	void testABandPushedOffTheScaleIsRejectedAtConfigureTime() {
+		for (String hint : List.of(">10", "<0")) {
+			IllegalStateException e = assertThrows(IllegalStateException.class,
+				() -> node(nodeDef().put("buckets", new JsonArray().add(new JsonObject().put("id", "keep").put("match", hint)))));
+			assertTrue(e.getMessage().contains("empty rating range"), e.getMessage());
+		}
+		assertFalse(RatingFilterStrategy.parse(">9").isEmptyRange());
+		assertFalse(RatingFilterStrategy.parse("<1").isEmptyRange());
+		assertFalse(RatingFilterStrategy.parse("unrated").isEmptyRange());
+	}
+
+	/**
+	 * Both bounds are inclusive here, unlike size, so {@code 8..8} is a legal single-value band and
+	 * must not be caught by the emptiness check — nor must a bare value, which parses to the same shape.
+	 */
+	@Test
+	void testASingleValueBandAndEverySingleEndedFormStayUsable() {
+		for (String hint : List.of("8..8", "8", "0..10", ">=8", "<=2", ">7", "<3", "unrated")) {
+			Band band = RatingFilterStrategy.parse(hint);
+			assertTrue(band != null && !band.isEmptyRange(), hint + " must be a usable condition");
+		}
+		assertTrue(RatingFilterStrategy.parse("8..8").holds(8));
+	}
 }

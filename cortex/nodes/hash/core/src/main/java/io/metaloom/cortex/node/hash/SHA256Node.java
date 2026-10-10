@@ -42,7 +42,7 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 	@PortDoc(label = "SHA-256", description = "Lowercase hex SHA-256 digest over the whole file")
 	public static final OutputPort<String> OUT_HASH = OutputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
 
-	/** In-heap skip cache of computed hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the durable
+	/** In-heap skip cache of computed hashes, keyed by media path, size and mtime ({@link MediaCacheKey}), to avoid re-reading a file within this worker's lifetime. Non-durable - the durable
 	 * copy lives in Loom. */
 	private final LocalResultCache<String> resultCache = new LocalResultCache<>(100_000);
 
@@ -71,7 +71,8 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 			ctx.output(OUT_HASH, sha256);
 			return ctx.origin(REMOTE).next();
 		}
-		String path = ctx.media().absolutePath();
+		// Path + size + mtime, not the path alone - see MediaCacheKey.
+		String path = MediaCacheKey.of(ctx.media());
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			ctx.output(OUT_HASH, cached);

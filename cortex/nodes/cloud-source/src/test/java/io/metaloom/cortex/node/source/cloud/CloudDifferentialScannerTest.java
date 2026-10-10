@@ -289,6 +289,67 @@ public class CloudDifferentialScannerTest {
 		assertThat(second).isNotNull();
 	}
 
+	/**
+	 * @return the id of the deepest folder of a chain of {@code levels} folders below {@code parent}
+	 */
+	private String chainBelow(String parent, int levels) {
+		String current = parent;
+		for (int level = 0; level < levels; level++) {
+			current = store.putFolder("d", current, "L" + level);
+		}
+		return current;
+	}
+
+	@Test
+	public void testAChainDeeperThanTheHopBudgetIsLeftToTheReconcileWalk() throws IOException {
+		String watched = store.putFolder("d", null, "Watched");
+		String deepest = chainBelow(watched, CloudDifferentialScanner.PARENT_LOOKUP_DEPTH + 3);
+		CloudDifferentialScanner scanner = scanner();
+		scanner.scan(selection(watched, true), HOUR);
+
+		store.putFile("d", deepest, "too-deep.mp4", "1");
+		CloudScanResult delta = scanner.scan(selection(watched, true), 2 * HOUR);
+
+		// Conservative by design: the budget can only delay a file, never invent one...
+		assertThat(delta.size()).isZero();
+		// ... and it is not reported as a deletion either, which would be an outright lie.
+		assertThat(delta.states()).isEmpty();
+
+		// The reconcile walk is what repairs it.
+		CloudScanResult walked = scanner.scan(selection(watched, true), HOUR + RECONCILE_MS);
+		assertThat(walked.mode()).isEqualTo(ScanMode.FULL_WALK);
+		assertThat(walked.files()).extracting(f -> f.name()).contains("too-deep.mp4");
+	}
+
+	@Test
+	public void testADeepChainDoesNotPoisonMembershipForShallowerSiblings() throws IOException {
+		// 🔴 The regression this pins: the hop-budget memo used to cache "outside the selection"
+		// against every folder on the way up a too-long chain. A later change under one of those
+		// folders - well inside the budget - was then judged outside the selection, which in the
+		// delta path does not merely skip the file: it drops it from the index and reports it
+		// DELETED. One deep folder therefore deleted its shallow neighbours downstream.
+		String watched = store.putFolder("d", null, "Watched");
+		String parent = watched;
+		java.util.List<String> chain = new java.util.ArrayList<>();
+		for (int level = 0; level < CloudDifferentialScanner.PARENT_LOOKUP_DEPTH + 3; level++) {
+			parent = store.putFolder("d", parent, "L" + level);
+			chain.add(parent);
+		}
+		String shallow = chain.get(3);
+		CloudDifferentialScanner scanner = scanner();
+		scanner.scan(selection(watched, true), HOUR);
+
+		// Order matters: the deep file is resolved first and is what exhausted the budget.
+		store.putFile("d", chain.get(chain.size() - 1), "too-deep.mp4", "1");
+		String wanted = store.putFile("d", shallow, "wanted.mp4", "2");
+
+		CloudScanResult result = scanner.scan(selection(watched, true), 2 * HOUR);
+
+		assertThat(result.mode()).isEqualTo(ScanMode.DELTA);
+		assertThat(result.states())
+			.containsEntry("gdrive://d/" + wanted + "/wanted.mp4", FileState.NEW);
+	}
+
 	@Test
 	public void testReconcileZeroDisablesTheForcedWalk() throws IOException {
 		store.putFile("d", null, "a.mp4", "1");
@@ -297,5 +358,58 @@ public class CloudDifferentialScannerTest {
 
 		assertThat(scanner.scan(selection(null, true), HOUR + 1000 * RECONCILE_MS).mode())
 			.isEqualTo(ScanMode.DELTA);
+	}
+
+	/**
+	 * An already-indexed file deeper than the hop budget that is edited must not be reported
+	 * DELETED: "could not resolve the parent chain" is not "left the selection". It used to be
+	 * dropped from the index and emitted as a deletion, then come back as NEW at the next reconcile.
+	 */
+	@Test
+	public void testAnIndexedFileBeyondTheHopBudgetIsNotReportedDeletedWhenEdited() throws IOException {
+		String watched = store.putFolder("d", null, "Watched");
+		String deepest = chainBelow(watched, CloudDifferentialScanner.PARENT_LOOKUP_DEPTH + 3);
+		String deep = store.putFile("d", deepest, "deep.mp4", "1");
+		CloudDifferentialScanner scanner = scanner();
+		scanner.scan(selection(watched, true), HOUR);
+
+		store.update("d", deep, "2");
+		CloudScanResult delta = scanner.scan(selection(watched, true), 2 * HOUR);
+
+		assertThat(delta.mode()).isEqualTo(ScanMode.DELTA);
+		assertThat(delta.states()).doesNotContainValue(FileState.DELETED);
+
+		// Still indexed, so the reconcile walk sees a modification rather than a brand-new file.
+		CloudScanResult walked = scanner.scan(selection(watched, true), HOUR + RECONCILE_MS);
+		assertThat(walked.mode()).isEqualTo(ScanMode.FULL_WALK);
+		assertThat(walked.states()).containsValue(FileState.MODIFIED).doesNotContainValue(FileState.NEW);
+	}
+
+	@Test
+	public void testAFailedParentLookupIsNotTakenAsLeavingTheSelection() throws IOException {
+		java.util.concurrent.atomic.AtomicBoolean failGets = new java.util.concurrent.atomic.AtomicBoolean();
+		store = new FakeCloudFileStore(CloudProviderId.GDRIVE) {
+			@Override
+			public io.metaloom.cortex.cloud.CloudFileRef get(String driveId, String fileId) throws IOException {
+				if (failGets.get()) {
+					throw new IOException("429 Too Many Requests");
+				}
+				return super.get(driveId, fileId);
+			}
+		};
+		String watched = store.putFolder("d", null, "Watched");
+		String file = store.putFile("d", watched, "clip.mp4", "1");
+		CloudDifferentialScanner scanner = scanner();
+		scanner.scan(selection(watched, true), HOUR);
+
+		// Moved into a folder created after the walk, so its parent is not in the index and has to
+		// be fetched - and that fetch fails.
+		String fresh = store.putFolder("d", watched, "Fresh");
+		store.move("d", file, fresh);
+		failGets.set(true);
+		CloudScanResult delta = scanner.scan(selection(watched, true), 2 * HOUR);
+
+		assertThat(delta.mode()).isEqualTo(ScanMode.DELTA);
+		assertThat(delta.states()).doesNotContainValue(FileState.DELETED);
 	}
 }

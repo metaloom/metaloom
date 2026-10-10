@@ -62,11 +62,13 @@ public class DepthMap {
 		int width = image.getWidth();
 		int height = image.getHeight();
 
-		// A 16-bit grayscale PNG decodes to TYPE_USHORT_GRAY; anything else we normalise by its
-		// own bit depth rather than refusing, so a downgraded artifact degrades instead of failing.
-		int maxValue = image.getType() == BufferedImage.TYPE_USHORT_GRAY ? 65535 : 255;
-
+		// Normalise by the raster's own bit depth rather than by the image type, so a downgraded artifact
+		// degrades instead of failing. Keyed on the type, a 16-bit map ImageIO decodes as TYPE_CUSTOM - grey
+		// with an alpha channel, say - was divided by 255 and came out with nearness values up to 257.
 		Raster raster = image.getRaster();
+		int bits = raster.getSampleModel().getSampleSize(0);
+		int maxValue = bits >= 16 ? 65535 : bits > 0 ? (1 << bits) - 1 : 255;
+
 		float[] values = new float[width * height];
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {

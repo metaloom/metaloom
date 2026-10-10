@@ -163,4 +163,38 @@ public class ResultBatcherTest {
 		assertTrue(sent.isEmpty(), "An idle worker must not send empty batches forever");
 	}
 
+
+	@Test
+	void testFlushAllSendsEveryPartialBatchWithoutWaiting() {
+		// Shutdown: a result of a finished task must not be left in a partial batch when the
+		// connection closes, however briefly it has waited.
+		ResultBatcher batcher = new ResultBatcher(60_000);
+		UUID runA = UUID.randomUUID();
+		UUID runB = UUID.randomUUID();
+		batcher.add(runA, "item-1", result("hash"), 10, sink);
+		batcher.add(runB, "item-2", result("hash"), 10, sink);
+
+		assertEquals(0, batcher.flushExpired(), "Nothing has waited out the hold time yet");
+		assertEquals(2, batcher.flushAll());
+		assertEquals(2, totalEntries());
+		assertEquals(0, batcher.pendingFor(runA));
+	}
+
+	@Test
+	void testDrainedRunsDoNotAccumulate() {
+		// One buffer per run used to live for the life of the worker, so a long-running worker
+		// leaked one entry per run it had ever served.
+		ResultBatcher batcher = new ResultBatcher(0);
+		for (int i = 0; i < 50; i++) {
+			UUID run = UUID.randomUUID();
+			batcher.add(run, "item", result("hash"), 10, sink);
+			if (i % 2 == 0) {
+				batcher.flushRun(run);
+			}
+		}
+		batcher.flushExpired(Long.MAX_VALUE);
+		batcher.flushExpired(Long.MAX_VALUE);
+		assertEquals(50, totalEntries());
+		assertEquals(0, batcher.bufferedRuns(), "Every drained run must be forgotten");
+	}
 }

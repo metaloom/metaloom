@@ -173,6 +173,46 @@ class MetadataMapperTest {
 		assertThat(metadata.getProvenance()).containsEntry("dc.date", "file:modified");
 	}
 
+	/**
+	 * 🔴 A camera whose clock was never set writes {@code 0000:00:00 00:00:00}. That is present, so it used to win the precedence race and be stored as
+	 * {@code 0000-00-00T00:00:00}: a value no date parser accepts, which also shadowed the perfectly good XMP date behind it. An unusable date has to
+	 * behave like an absent one.
+	 */
+	@Test
+	void testAnAllZeroExifDateIsTreatedAsAbsent() {
+		RawMetadata raw = new RawMetadata()
+			.put(RawMetadata.EXIF, "DateTimeOriginal", "0000:00:00 00:00:00")
+			.put(RawMetadata.XMP, "photoshop:DateCreated", "2021-01-01T00:00:00");
+
+		AssetMetadata metadata = map(raw);
+
+		assertThat(metadata.getDc().getDate()).isEqualTo("2021-01-01T00:00:00");
+		assertThat(metadata.getProvenance()).containsEntry("dc.date", "xmp:photoshop:DateCreated");
+		assertThat(metadata.getCapture().getDateTimeOriginal()).isNull();
+	}
+
+	@Test
+	void testAnAllZeroDateIsNotReplacedByTheFilesystemFallbackUnlessOptedIn() {
+		RawMetadata raw = new RawMetadata().put(RawMetadata.EXIF, "DateTimeOriginal", "0000:00:00 00:00:00");
+
+		assertThat(MetadataMapper.map(raw, options, "2020-05-05T10:00:00Z").getDc().getDate()).isNull();
+
+		options.setDateFallback(DateFallback.FILESYSTEM);
+		assertThat(MetadataMapper.map(raw, options, "2020-05-05T10:00:00Z").getDc().getDate()).isEqualTo("2020-05-05T10:00:00Z");
+	}
+
+	/**
+	 * A malformed {@code OffsetTimeOriginal} is not appended. Concatenating it would produce {@code 2019-04-03T05:12:4402:00}, which is worse than the
+	 * local time it replaced: every date parser rejects it.
+	 */
+	@Test
+	void testAMalformedOffsetIsIgnoredRatherThanConcatenated() {
+		assertThat(MetadataMapper.normalizeDate("2019:04:03 05:12:44", "02:00")).isEqualTo("2019-04-03T05:12:44");
+		assertThat(MetadataMapper.normalizeDate("2019:04:03 05:12:44", "not an offset")).isEqualTo("2019-04-03T05:12:44");
+		assertThat(MetadataMapper.normalizeDate("2019:04:03 05:12:44", "Z")).isEqualTo("2019-04-03T05:12:44Z");
+		assertThat(MetadataMapper.normalizeDate("2019:04:03 05:12:44", "-0730")).isEqualTo("2019-04-03T05:12:44-0730");
+	}
+
 	// ---- rights ----
 
 	@Test
@@ -239,6 +279,29 @@ class MetadataMapperTest {
 		assertThat(map(new RawMetadata()).getRights().getMarked()).isNull();
 	}
 
+	/**
+	 * 🔴 {@code Boolean.parseBoolean} answers false for everything it does not recognise, so an unparseable {@code xmpRights:Marked} used to be recorded
+	 * as "explicitly not rights-managed" - a stronger claim than the file made, on the field a "what may I republish" query trusts. An unrecognised value
+	 * must fall through to the copyright-notice rule instead.
+	 */
+	@Test
+	void testAnUnparseableMarkedFlagDoesNotBecomeFalse() {
+		assertThat(map(new RawMetadata()
+			.put(RawMetadata.XMP, "xmpRights:Marked", "maybe")
+			.put(RawMetadata.EXIF, "Copyright", "(c) 2019")).getRights().getMarked())
+				.as("a copyright notice still implies rights are asserted").isTrue();
+
+		assertThat(map(new RawMetadata()
+			.put(RawMetadata.XMP, "xmpRights:Marked", "maybe")).getRights().getMarked()).isNull();
+
+		// The spellings that are in the wild all mean what they look like.
+		assertThat(MetadataMapper.toBoolean("True")).isTrue();
+		assertThat(MetadataMapper.toBoolean("1")).isTrue();
+		assertThat(MetadataMapper.toBoolean("no")).isFalse();
+		assertThat(MetadataMapper.toBoolean("0")).isFalse();
+		assertThat(MetadataMapper.toBoolean("")).isNull();
+	}
+
 	// ---- capture ----
 
 	@Test
@@ -260,6 +323,31 @@ class MetadataMapperTest {
 		assertThat(capture.getFocalLength()).isEqualTo(35.0d);
 		assertThat(capture.getIso()).isEqualTo(100);
 		assertThat(capture.getOrientation()).isEqualTo(6);
+	}
+
+	/**
+	 * 🔴 XMP stores every EXIF rational as {@code n/d}, and metadata-extractor falls back to that form whenever the decimal needs five characters. Only
+	 * the leading number used to be read, so f/2.8 became f/28 and an 18.35 mm lens 367 mm.
+	 */
+	@Test
+	void testRationalCaptureValuesAreDividedNotTruncatedToTheNumerator() {
+		RawMetadata raw = new RawMetadata()
+			.put(RawMetadata.XMP, "exif:FNumber", "28/10")
+			.put(RawMetadata.XMP, "exif:FocalLength", "245/10")
+			.put(RawMetadata.EXIF, "FocalLengthIn35mmFilm", "367/20")
+			.put(RawMetadata.EXIF, "GPSLatitude", "35.360833")
+			.put(RawMetadata.EXIF, "GPSLongitude", "138.727500")
+			.put(RawMetadata.EXIF, "GPSImgDirection", "4227/20")
+			.put(RawMetadata.XMP, "exif:GPSAltitude", "12345/10");
+
+		AssetMetadata metadata = map(raw);
+
+		assertThat(metadata.getCapture().getFNumber()).isEqualTo(2.8d, within(1e-9));
+		assertThat(metadata.getCapture().getFocalLength()).isEqualTo(24.5d, within(1e-9));
+		assertThat(metadata.getCapture().getFocalLength35()).isEqualTo(18.35d, within(1e-9));
+		assertThat(metadata.firstGeo().getDirectionDeg()).isEqualTo(211.35d, within(1e-9));
+		assertThat(metadata.firstGeo().getAltitudeM()).isEqualTo(1234.5d, within(1e-9));
+		assertThat(MetadataMapper.toDouble("1/0")).isNull();
 	}
 
 	@Test
@@ -299,6 +387,24 @@ class MetadataMapperTest {
 		assertThat(geo.getLat()).isEqualTo(-33.8688d, within(1e-9));
 		// The method is the source, never the file format - it is part of the component's identity.
 		assertThat(geo.getMethod()).isEqualTo(RawMetadata.XMP);
+	}
+
+	/**
+	 * 🔴 The XMP EXIF schema writes a coordinate as {@code DDD,MM.mmk} or {@code DDD,MM,SSk}, hemisphere last - Lightroom's sidecar format. The leading
+	 * number of {@code "33,52.128S"} is 33: wrong hemisphere and most of a degree off.
+	 */
+	@Test
+	void testXmpDegreesMinutesCoordinatesAreConvertedAndSigned() {
+		RawMetadata raw = new RawMetadata()
+			.put(RawMetadata.SIDECAR, "exif:GPSLatitude", "33,52.128S")
+			.put(RawMetadata.SIDECAR, "exif:GPSLongitude", "151,12,33.48E");
+
+		GeoBlock geo = map(raw).firstGeo();
+
+		assertThat(geo.getLat()).isEqualTo(-33.8688d, within(1e-9));
+		assertThat(geo.getLon()).isEqualTo(151.2093d, within(1e-9));
+		assertThat(MetadataMapper.toCoordinate("0,7.5W")).isEqualTo(-0.125d, within(1e-9));
+		assertThat(MetadataMapper.toCoordinate("-33.8688")).isEqualTo(-33.8688d, within(1e-9));
 	}
 
 	@Test
@@ -464,5 +570,40 @@ class MetadataMapperTest {
 			.put(RawMetadata.XMP, "dc:title", "t");
 
 		assertThat(map(raw).getSources()).containsExactlyInAnyOrder(RawMetadata.EXIF, RawMetadata.XMP);
+	}
+
+	// ---- coercion robustness ----
+
+	/**
+	 * A malformed numeric tag yields null, like every other coercion here. It used to escape as a
+	 * {@code NumberFormatException} out of {@code map(...)}, which the node reports as FAILED - one corrupt exposure tag losing the whole envelope,
+	 * caption and licence included.
+	 */
+	@Test
+	void testAMalformedNumberIsNullRatherThanAnException() {
+		assertThat(MetadataMapper.toSeconds("1.2.3/4")).isNull();
+		assertThat(MetadataMapper.toSeconds("1/0")).isNull();
+		assertThat(MetadataMapper.toSeconds("1/250")).isEqualTo(0.004d, within(1e-9));
+		assertThat(MetadataMapper.toFlash("99999999999999999999")).isNull();
+
+		AssetMetadata metadata = map(new RawMetadata()
+			.put(RawMetadata.EXIF, "ExposureTime", "1.2.3/4")
+			.put(RawMetadata.XMP, "dc:title", "still mapped"));
+		assertThat(metadata.getCapture().getExposureTime()).isNull();
+		assertThat(metadata.getDc().getTitle()).isEqualTo("still mapped");
+	}
+
+	/**
+	 * The raw cap is stated in bytes, and it is cut on a code-point boundary: half a surrogate pair is not text, and comes back out of the database as a
+	 * replacement character.
+	 */
+	@Test
+	void testTheRawValueCapCountsBytesAndNeverSplitsACodePoint() {
+		assertThat(MetadataMapper.truncateUtf8("abcdef", 4)).isEqualTo("abcd…");
+		// Four characters that are three UTF-8 bytes each: twelve bytes against a budget of eight.
+		assertThat(MetadataMapper.truncateUtf8("日本語訳", 8)).isEqualTo("日本…");
+		assertThat(MetadataMapper.truncateUtf8("日本語訳", 32)).isEqualTo("日本語訳");
+		// An emoji is a surrogate pair in Java and four bytes in UTF-8.
+		assertThat(MetadataMapper.truncateUtf8("ab😀cd", 5)).isEqualTo("ab…");
 	}
 }

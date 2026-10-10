@@ -257,5 +257,16 @@ class TagFilterNodeTest {
 		// One veto beats any number of positive matches.
 		assertFalse(TagFilterStrategy.matches(List.of("hero", "archive"), List.of("hero", "!archive")));
 		assertTrue(TagFilterStrategy.matches(List.of("hero"), List.of("hero", "!archive")));
+
+		// A space after the '!' is how people type it; it must still veto.
+		assertFalse(TagFilterStrategy.matches(List.of("hero", "archive"), List.of("hero", "! archive")));
+	}
+
+	@Test
+	void testANegationOfOnlyWhitespaceIsRejectedAtConfigureTime() {
+		IllegalStateException e = assertThrows(IllegalStateException.class,
+			() -> node(nodeDef().put("buckets", new JsonArray().add(new JsonObject().put("id", "publish").put("match", "hero, ! ")))));
+
+		assertTrue(e.getMessage().contains("negates nothing"), e.getMessage());
 	}
 }

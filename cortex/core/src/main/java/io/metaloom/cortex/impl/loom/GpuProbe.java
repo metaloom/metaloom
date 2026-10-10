@@ -100,19 +100,25 @@ public class GpuProbe {
 	private String run() {
 		Process process = null;
 		try {
-			process = new ProcessBuilder(command).redirectErrorStream(false).start();
-			// Read before waiting: a process whose pipe fills up never exits, and the output here is a
-			// handful of lines only because the fleet is small.
-			String out;
-			try (var in = process.getInputStream()) {
-				out = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-			}
+			// stderr is discarded rather than left unread: an undrained pipe that fills up blocks the
+			// child, which then never exits.
+			process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+			// Wait first, read second. Reading first (readAllBytes) blocks until the child closes its
+			// stdout, so a hung driver held this thread - and the status timer, and every metrics
+			// scrape waiting on this monitor - forever, and the timeout below was never reached. The
+			// output is one short line per device, far below the pipe buffer, so the child cannot
+			// block on a full stdout while we wait.
 			if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
 				process.destroyForcibly();
 				log.debug("nvidia-smi did not answer within {}s", TIMEOUT_SECONDS);
 				return null;
 			}
-			return process.exitValue() == 0 ? out : null;
+			if (process.exitValue() != 0) {
+				return null;
+			}
+			try (var in = process.getInputStream()) {
+				return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			}
 		} catch (IOException e) {
 			// No binary, no device, no permission. The ordinary case on a CPU worker.
 			log.trace("No GPU metrics available", e);

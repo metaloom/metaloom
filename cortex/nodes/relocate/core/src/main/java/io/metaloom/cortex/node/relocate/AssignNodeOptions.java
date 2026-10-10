@@ -32,6 +32,33 @@ public class AssignNodeOptions extends AbstractNodeOptions<AssignNodeOptions> {
 	@ParamDoc(label = "Dry Run", description = "Report the membership that would be written and write nothing", order = 60)
 	private boolean dryRun = false;
 
+	/**
+	 * A detached copy of these options.
+	 *
+	 * <p>
+	 * 🔴 Load-bearing, for the same reason as {@code MoveNodeOptions.copy()}: with {@code nodes: assign:} in the worker YAML every assign node is
+	 * injected with the one shared instance, and {@link AssignNode#configure(io.vertx.core.json.JsonObject)} writes into it. Without the copy a second
+	 * assign node would overwrite the first one's collection, or - when one names {@code collectionUuid} and the other {@code collectionName} - end up
+	 * carrying both.
+	 * </p>
+	 *
+	 * @return an independent instance carrying the same values
+	 */
+	public AssignNodeOptions copy() {
+		AssignNodeOptions copy = new AssignNodeOptions()
+			.setTarget(target)
+			.setCollectionUuid(collectionUuid)
+			.setCollectionName(collectionName)
+			.setLibraryUuid(libraryUuid)
+			.setOnMissing(onMissing)
+			.setDryRun(dryRun)
+			.setProcessIncomplete(isProcessIncomplete())
+			.setRetryFailed(isRetryFailed());
+		copy.setEnabled(isEnabled());
+		copy.setTimeoutMs(getTimeoutMs());
+		return copy;
+	}
+
 	public AssignTarget getTarget() {
 		return target;
 	}

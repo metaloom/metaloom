@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.tts;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -113,5 +114,26 @@ class TtsNodeTest {
 
 		// The sidecar must be hit exactly once - the second run is served from the in-heap cache.
 		verify(ttsClient, times(1)).synthesize(anyString(), anyString(), anyString());
+	}
+
+	@Test
+	void testDifferentTextOnSameMediaIsSynthesizedIntoItsOwnFile() throws Exception {
+		// Cache and file name used to be keyed by the media alone, so a second text on the same asset
+		// was answered with the first narration (and would have overwritten its WAV).
+		byte[] otherWav = "RIFF....WAVEother-audio".getBytes();
+		when(ttsClient.synthesize(eq("Guten Morgen"), anyString(), anyString())).thenReturn(otherWav);
+
+		TtsNode node = node();
+		NodeResult first = node.process(ctxWithText("Hallo Welt"));
+		NodeResult second = node.process(ctxWithText("Guten Morgen"));
+		assertThat(first).isSuccess();
+		assertThat(second).isSuccess();
+
+		String firstPath = first.get(TtsNode.OUT_AUDIO);
+		String secondPath = second.get(TtsNode.OUT_AUDIO);
+		assertNotEquals(firstPath, secondPath, "Different texts must not share one WAV");
+		assertEquals(FAKE_WAV.length, Files.size(Path.of(firstPath)), "The first narration must survive the second");
+		assertEquals(otherWav.length, Files.size(Path.of(secondPath)));
+		verify(ttsClient, times(2)).synthesize(anyString(), anyString(), anyString());
 	}
 }

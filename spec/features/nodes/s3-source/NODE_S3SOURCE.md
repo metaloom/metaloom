@@ -4,7 +4,7 @@
 > [cortex/nodes/s3-source/](../../../../cortex/nodes/s3-source/), package
 > `io.metaloom.cortex.node.source.s3`, plus the shared module
 > [cortex/s3-common/](../../../../cortex/s3-common/) (`io.metaloom.cortex.s3`).
-> 47 node unit tests, 78 `s3-common` unit tests, 9 integration tests against a real MinIO container.
+> 52 node unit tests, 78 `s3-common` unit tests, 9 integration tests against a real MinIO container.
 > Contract in the generated `node-descriptors.json`.
 > **Scope**: the `s3-source` node **and** `cortex/s3-common` — the `s3://` addressing seam, the
 > per-worker materialization cache, the object-store abstraction and the bucket-notification path.
@@ -120,9 +120,12 @@ entry, the resolver builds it from a URI. One class, one materialization path.
 * `HashUtils.segmentPath` takes a SHA-512, unknown before the download, so the 4-hex sharding is
   reimplemented over the **key** hash. The shape still matches the `*_bin` convention used by
   `thumbnail`, `tts` and `imagegen`.
-* **Atomic**: download to `<name>.part`, then `Files.move(…, ATOMIC_MOVE)`. `AtomicMoveNotSupported`
-  falls back to a plain move and a lost race is treated as a win — the path is etag-addressed, so a
-  racing writer produced identical bytes.
+* **Atomic**: download to a per-attempt `<name>.<uuid>.part`, then `Files.move(…, ATOMIC_MOVE)`.
+  `AtomicMoveNotSupported` falls back to a plain move and a lost race is treated as a win — the path
+  is etag-addressed, so a racing writer produced identical bytes. 🔴 The partial name must be unique
+  per attempt: a shared `<name>.part` let two concurrent materializations of one object write over
+  each other and move a truncated file into place, which the etag-addressed name then served as
+  correct for ever. The LRU sweep skips `.part` files younger than 6 h (in-flight downloads).
 * **Guards**: `maxObjectSize` is checked against the **listed** size before any transfer;
   `maxCacheBytes` triggers an mtime-ordered LRU sweep after each download, down to 90 % of budget so
   eviction is not immediately re-triggered.
@@ -160,8 +163,11 @@ scope.
 Classification is `NEW` when the key is unknown, `MODIFIED` when `differsFrom(etag, size)` is true,
 `PRESENT` otherwise. **The index records what the bucket holds regardless of what is emitted** —
 recording only emitted objects would make a suffix-filtered object look `NEW` forever. A full listing
-additionally treats anything indexed but absent as `DELETED`, stamps `lastFullScanMillis`, and clears
-the buffer's degraded flag.
+additionally treats anything indexed but absent as `DELETED` and stamps `lastFullScanMillis`. It
+drains the event buffer and clears the degraded flag **before** listing, not after: a hint that lands
+while the listing runs may name a key the listing already passed, and draining afterwards discarded
+exactly those. Any run that fails after draining (event path or full listing) marks the bucket
+degraded, so the retry does a full listing instead of trusting an emptied buffer.
 
 States reuse `io.metaloom.fs.FileState` from the `differential-filesystem-scanner` artifact rather
 than a parallel enum, so `emitStates` has an identical shape and shared UI `ENUM_SET` values across
@@ -366,6 +372,8 @@ container — which is exactly the test that does not exist (§8).
 | The index store is `new`-ed, not injected | `FilesystemSourceNode` does the same with `AvroFileIndexStore` |
 | `lastStates` is per-JVM | When the source's own NODE_TASK lands on another worker, `lastState()` reads `UNKNOWN`. Pre-existing in `filesystem-source`; recorded in [../NODES.md](../NODES.md) |
 | A crash between scan and persist re-emits | At-least-once, which the rest of the pipeline already assumes (nodes upsert on natural keys) |
+| A stalled continuation token fails the scan | `scanByListing` throws `IOException` ("did not advance") when a page hands back the token it was given. A gateway that echoes the cursor instead of advancing it would otherwise spin the paging loop for ever, holding a source task and a worker thread with nothing in the log. Retrying a stuck cursor cannot help, so it is reported rather than survived |
+| `chooseMode` returns `EVENTS` with no hints too | Deliberate: events on and the buffer healthy means the buffer is the truth, and "no hints" means nothing changed. The reconcile interval, not a listing, is what recovers a lost notification |
 | `versionId` is reserved and unused | It is in the Avro schema; versioned buckets and delete markers are not handled |
 | `setup-pool.sh` before any IT | And again after any Flyway change — see [../../../../.claude/CLAUDE.md](../../../../.claude/CLAUDE.md) |
 
@@ -431,7 +439,7 @@ mvn verify -pl integration-test -Dtest='S3*IntegrationTest'
 | Test | What it guards against |
 |---|---|
 | `S3SourceNodeTest` (21) | A first scan not emitting everything as `NEW`; an unchanged re-run emitting anything; a changed ETag not reading `MODIFIED`; `DELETED` leaking when it is not in `emitStates`; the stream not being cold |
-| `S3DifferentialScannerTest` (14) | `startAfter` resume skipping too much; an expired `reconcileIntervalMs` not forcing a full pass; the event fast path running without a recent full listing; a degraded buffer not falling back |
+| `S3DifferentialScannerTest` (19) | `startAfter` resume skipping too much; an expired `reconcileIntervalMs` not forcing a full pass; the event fast path running without a recent full listing; a degraded buffer not falling back. Since the 2026-09-26 sweep also: a multi-page listing dropping or double-counting a page boundary (`pageSize(1)`/`pageSize(2)`), the final page not reaching the index, a stalled continuation token looping for ever, the resume key not surviving a restart, and a failed listing consuming the diff state of an object it never reported |
 | `S3SourceNodeOptionsTest` (12) | A blank bucket, a bucket that is a path, or an unknown state name surfacing per item instead of at pipeline start |
 | `S3UriTest` (7), `S3ObjectRefTest` (6) | URI round-trips and extension extraction; ETag normalization; `differsFrom` on size as well as etag |
 | `S3MediaMaterializerTest` (15) | A cache hit downloading; an ETag change not re-downloading; a leftover `.part`; **a lost file extension**; `maxObjectSize` not rejecting before transfer; eviction ordering |
@@ -490,5 +498,8 @@ run 2 emits nothing; a fresh `mc cp` makes run 3 process exactly one item;
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-09-26 (I/O boundary sweep: the paging loop now fails on a
+continuation token that does not advance, the duplicated `EVENTS` branch in `chooseMode` was
+collapsed, and `S3DifferentialScannerTest` gained pagination-boundary, stuck-cursor, resume-restart
+and failed-listing cases. Earlier: 2026-08-11)_

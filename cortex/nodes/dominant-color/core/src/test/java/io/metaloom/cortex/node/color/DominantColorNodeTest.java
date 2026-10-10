@@ -164,6 +164,26 @@ class DominantColorNodeTest {
 		assertEquals(1, region.getJsonArray("palette").size());
 	}
 
+	/**
+	 * 🔴 The post-alpha {@code minRegionPixels} gate used to compare a <em>sample</em> count with a <em>pixel</em> threshold. 80000 opaque pixels
+	 * sampled at a budget of 256 yield at most 256 points, so a threshold of 1000 pixels dropped a fully opaque image as "no usable pixels".
+	 */
+	@Test
+	void testTheAlphaGateThresholdIsMeasuredInPixelsNotSamples() throws Exception {
+		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "big.png", STEEL, IMAGE_W, IMAGE_H));
+
+		NodeResult result = node(options().setMaxSamples(256).setMinRegionPixels(1000)).process(media, NodeInputs.empty());
+
+		assertThat(result).isSuccess();
+		assertEquals(STEEL, result.get(DominantColorNode.OUT_HEX));
+
+		// Half of it transparent still leaves 40000 opaque pixels - comfortably over the threshold - and a
+		// fully transparent one still has none.
+		LoomMedia half = image(DominantColorFixtures.writeHalfTransparent(tempDir, "half.png", RED, BLUE, IMAGE_W, IMAGE_H));
+		assertThat(node(options().setMaxSamples(256).setMinRegionPixels(1000)).process(half, NodeInputs.empty())).isSuccess();
+		assertThat(node(options().setMaxSamples(256).setMinRegionPixels(50_000)).process(half, NodeInputs.empty())).isSkipped();
+	}
+
 	@Test
 	void testAFullyTransparentImageIsSkipped() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeFullyTransparent(tempDir, "ghost.png", RED, IMAGE_W, IMAGE_H));

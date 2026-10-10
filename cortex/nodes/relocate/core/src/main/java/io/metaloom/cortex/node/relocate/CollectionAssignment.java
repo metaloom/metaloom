@@ -69,8 +69,15 @@ public class CollectionAssignment implements AssignDestination {
 	 * Resolve by name, the way the tag node resolves a tag.
 	 *
 	 * <p>
-	 * {@code collection.name} is UNIQUE, so a name identifies at most one collection and paging through the list is a correct - if unsubtle - lookup.
-	 * There is no name filter on the list route yet; when there is, this becomes one call.
+	 * {@code collection.name} is UNIQUE, so a name identifies at most one collection and scanning the list is a correct - if unsubtle - lookup.
+	 * There is no name filter on the list route yet, and {@code listCollections()} takes no paging parameters either, so only the first page can be
+	 * searched.
+	 * </p>
+	 *
+	 * <p>
+	 * 🔴 A miss on a <b>truncated</b> listing is therefore not evidence that the collection does not exist, and it must not be reported as one: with
+	 * {@code onMissing: CREATE} that answer makes the node try to create a name that already exists, and with {@code FAIL} it blames the pipeline for a
+	 * limitation of this lookup. Saying which it is costs one comparison against the total the server reported.
 	 * </p>
 	 */
 	private UUID findByName(LoomClient client, String name) throws Exception {
@@ -82,6 +89,11 @@ public class CollectionAssignment implements AssignDestination {
 			if (name.equals(collection.getName())) {
 				return collection.getUuid();
 			}
+		}
+		long total = page.getMetainfo() == null ? 0 : page.getMetainfo().getTotalCount();
+		if (total > page.getData().size()) {
+			throw new IllegalStateException("Collection '" + name + "' was not on the first page of " + page.getData().size() + " of " + total
+				+ " collections, and the list route cannot be paged. Configure 'collectionUuid' instead of 'collectionName'.");
 		}
 		return null;
 	}

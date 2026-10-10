@@ -113,7 +113,11 @@ public class PoolDestination implements MoveDestination {
 		}
 
 		Path targetPath = Layouts.resolve(root, media, Layout.CONTENT, options.getSourceRoot());
-		return MovePlan.filesystem(targetPath, libraryUuid, poolUuid);
+		MovePlan plan = MovePlan.filesystem(targetPath, libraryUuid, poolUuid);
+		// The content key is already taken by this content, which is the pool doing its job rather than a
+		// name collision. Reporting it as a conflict would file a second copy at <sha512>_1, where Loom
+		// never looks.
+		return Layouts.holdsSameContent(targetPath, media) ? plan.asAlreadyThere() : plan;
 	}
 
 	static boolean isBlank(String value) {

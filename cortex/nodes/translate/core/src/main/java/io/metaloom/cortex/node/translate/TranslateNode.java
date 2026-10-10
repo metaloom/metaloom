@@ -142,10 +142,13 @@ public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
 			List<String> chunks = TextChunker.split(text, options().getMaxChunkChars());
 
 			StringBuilder translated = new StringBuilder();
-			for (String chunk : chunks) {
-				String answer = invoker.generate(model, prompt(chunk), metrics, METRICS_LABEL);
+			for (int i = 0; i < chunks.size(); i++) {
+				String answer = invoker.generate(model, prompt(chunks.get(i)), metrics, METRICS_LABEL);
 				if (answer == null || answer.isBlank()) {
-					continue;
+					// Fail rather than skip. Dropping the chunk produced a translation with a hole in
+					// it - or, when every chunk came back empty, an empty one - that was persisted,
+					// cached and reported as SUCCESS.
+					throw new IllegalStateException("The model returned no translation for chunk " + (i + 1) + " of " + chunks.size());
 				}
 				if (!translated.isEmpty()) {
 					translated.append(TextChunker.JOIN_SEPARATOR);
@@ -174,9 +177,15 @@ public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
 	 * the invoker so an operator can rewrite the whole instruction in worker YAML.
 	 */
 	private Prompt prompt(String chunk) {
-		Prompt prompt = new PromptImpl(options().getPromptTemplate());
-		prompt.set("targetLanguage", options().getTargetLanguage());
-		prompt.set("sourceLanguage", options().getSourceLanguage());
+		// The language placeholders are filled here, before the chunk goes in, and the chunk is the
+		// prompt's only parameter. PromptImpl substitutes its parameters in HashMap order, so with all
+		// three registered the text could be substituted first - and a chunk that itself contains
+		// "${targetLanguage}" or "${sourceLanguage}" (a template, source code, a document about
+		// templating) then had those strings rewritten in the text being translated.
+		String template = options().getPromptTemplate()
+			.replace("${targetLanguage}", String.valueOf(options().getTargetLanguage()))
+			.replace("${sourceLanguage}", String.valueOf(options().getSourceLanguage()));
+		Prompt prompt = new PromptImpl(template);
 		prompt.set("text", chunk);
 		return prompt;
 	}
