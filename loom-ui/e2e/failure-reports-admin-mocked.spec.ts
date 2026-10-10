@@ -132,4 +132,23 @@ test.describe("Problem report inbox – mocked", () => {
     await expect(page.getByTestId("failure-reports-load-failure")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("failure-reports-empty-state")).toBeHidden();
   });
+
+  test("retry after a failed load asks again and shows the inbox", async ({ page }) => {
+    await mockBackend(page);
+    let calls = 0;
+    await page.route("**/api/v1/failure-reports**", route => {
+      if (route.request().method() !== "GET") return route.fallback();
+      calls += 1;
+      return calls === 1
+        ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "boom" }) })
+        : route.fallback();
+    });
+    await open(page);
+    await expect(page.getByTestId("failure-reports-load-failure")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("failure-reports-load-failure-retry").click();
+
+    await expect.poll(() => calls).toBe(2);
+    await expect(page.getByTestId("failure-reports-load-failure")).toHaveCount(0);
+  });
 });

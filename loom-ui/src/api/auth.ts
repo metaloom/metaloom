@@ -11,6 +11,22 @@ export interface LoginResponse {
 }
 
 /**
+ * The login endpoint answered, and said no. Carries the status so a refusal (4xx) can be told
+ * apart from a server that failed (5xx); a network failure never produces one of these at all.
+ */
+export class LoginFailedError extends Error {
+  constructor(readonly status: number) {
+    super(`Login failed (${status})`);
+    this.name = "LoginFailedError";
+  }
+}
+
+/** True when the server refused these credentials, as opposed to failing to answer properly. */
+export function isCredentialsRejection(e: unknown): boolean {
+  return e instanceof LoginFailedError && e.status >= 400 && e.status < 500;
+}
+
+/**
  * Call the Loom REST login endpoint.
  * POST /api/v1/login  { username, password } → { token }
  */
@@ -25,7 +41,7 @@ export async function login(
   });
 
   if (!res.ok) {
-    throw new Error(`Login failed (${res.status})`);
+    throw new LoginFailedError(res.status);
   }
 
   return res.json() as Promise<LoginResponse>;

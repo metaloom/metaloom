@@ -186,7 +186,12 @@ export interface AssetCreateRequest {
 }
 
 export interface AssetUpdateRequest {
-  filename?: string;
+  /**
+   * The filename travels as `file.filename`, the shape AssetUpdateRequest.java declares. There is
+   * no top-level `filename` on the server model: one sent there is dropped and the rename is lost.
+   */
+  file?: Partial<FileInfo>;
+  /** Replaces the asset's meta wholesale when present — send it only with the full object. */
   meta?: Record<string, unknown>;
 }
 

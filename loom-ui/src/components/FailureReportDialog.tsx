@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -56,9 +56,26 @@ export default function FailureReportDialog({ failure, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  /**
+   * The delayed close after a successful submit.
+   *
+   * Held so it can be cancelled. `onClose` closes whatever the dialog is showing *when it fires*,
+   * so a timer left running would close the next failure's report if one opened within the delay -
+   * the user would watch the form for a new problem vanish under their cursor.
+   */
+  const closeTimer = useRef<number | null>(null);
+  const cancelPendingClose = useCallback(() => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelPendingClose, [cancelPendingClose]);
+
   // Reset per failure rather than per mount: the dialog stays mounted between reports, and
   // carrying one failure's screenshot or prose into the next report would be worse than useless.
   useEffect(() => {
+    cancelPendingClose();
     if (failure) {
       setText("");
       setScreenshot(null);
@@ -67,7 +84,7 @@ export default function FailureReportDialog({ failure, onClose }: Props) {
       setCopied(false);
       setSubmitted(false);
     }
-  }, [failure]);
+  }, [failure, cancelPendingClose]);
 
   const capture = useCallback(async () => {
     setError(null);
@@ -97,7 +114,14 @@ export default function FailureReportDialog({ failure, onClose }: Props) {
   }, [failure]);
 
   const submit = useCallback(async () => {
-    if (!failure || !token) return;
+    if (!failure) return;
+    if (!token) {
+      // The session ended while the form was open - the focus check or a 401 elsewhere signed the
+      // user out, and this dialog sits above the login page. Doing nothing on "Send" would read as
+      // a report sent; saying why it was not lets them sign in and keep the trace id meanwhile.
+      setError("You have been signed out, so the report could not be sent. Sign in again and retry.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -117,7 +141,11 @@ export default function FailureReportDialog({ failure, onClose }: Props) {
       setSubmitted(true);
       // Held open briefly so the confirmation is actually seen. Closing on success would leave a
       // user who has just been told something failed with no evidence anything was sent.
-      window.setTimeout(onClose, 1200);
+      cancelPendingClose();
+      closeTimer.current = window.setTimeout(() => {
+        closeTimer.current = null;
+        onClose();
+      }, 1200);
     } catch (e) {
       // Reported inline, never through the failure surface: routing this through reportFailure
       // would raise a toast offering to report the failure of a report, which is a loop.
@@ -129,7 +157,7 @@ export default function FailureReportDialog({ failure, onClose }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [failure, onClose, screenshot, text, token]);
+  }, [cancelPendingClose, failure, onClose, screenshot, text, token]);
 
   if (!failure) return null;
 

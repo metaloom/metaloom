@@ -75,7 +75,12 @@ test.describe("Routing under the /ui base path – mocked", () => {
     // The other half of persistence, and the half that would be a security defect to get wrong:
     // a logout that leaves the token in storage is not a logout.
     expect(await page.evaluate(() => window.sessionStorage.getItem("loom.auth.token"))).toBe("fake-jwt");
-    await page.evaluate(() => window.sessionStorage.clear());
+    // Through the real control. This used to `sessionStorage.clear()` by hand, which passed just as
+    // happily when logout left the token behind - the one thing the test is named after.
+    await page.getByTestId("sidebar-avatar-button").click();
+    await page.getByTestId("sidebar-avatar-logout").click();
+    await expect(page.getByPlaceholder("Username")).toBeVisible({ timeout: 10_000 });
+    expect(await page.evaluate(() => window.sessionStorage.getItem("loom.auth.token"))).toBeNull();
     await page.reload();
     await expect(page.getByPlaceholder("Username")).toBeVisible({ timeout: 10_000 });
   });

@@ -3,7 +3,17 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import de from "./locales/de.json";
 
-const savedLang = localStorage.getItem("loom-ui-language") ?? "en";
+// Guarded: this runs at module load, before any error boundary exists, and a browser with site
+// storage blocked throws on the bare access - which used to be a white page instead of a login form.
+function readSavedLang(): string {
+  try {
+    return window.localStorage.getItem("loom-ui-language") ?? "en";
+  } catch {
+    return "en";
+  }
+}
+
+const savedLang = readSavedLang();
 
 i18n
   .use(initReactI18next)

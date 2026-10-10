@@ -48,6 +48,10 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
     setEditAlias(person.description || "");
     setEditFirstname("");
     setEditLastname("");
+    // `name` falls back to the alias when there is no first or last name (see `toUiPerson`).
+    // Splitting that fallback prefilled the alias as a first name, and saving the dialog
+    // unchanged then wrote it into `firstname`. Empty fields are sent as "unchanged".
+    if (person.name === person.description) return;
     const parts = person.name.split(" ");
     if (parts.length >= 2) {
       setEditFirstname(parts[0]);

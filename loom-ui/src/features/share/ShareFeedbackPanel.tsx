@@ -75,6 +75,8 @@ export default function ShareFeedbackPanel(props: ShareFeedbackPanelProps) {
       await props.onAddComment(text, replyTo?.uuid);
       setDraft("");
       setReplyTo(null);
+    } catch {
+      // The viewer has already said why; the draft stays so the visitor can send it again.
     } finally {
       setBusy(false);
     }
@@ -85,6 +87,8 @@ export default function ShareFeedbackPanel(props: ShareFeedbackPanelProps) {
     try {
       await props.onAddTimecodeMark(markDraft.trim());
       setMarkDraft("");
+    } catch {
+      // As above: reported by the viewer, draft kept.
     } finally {
       setBusy(false);
     }

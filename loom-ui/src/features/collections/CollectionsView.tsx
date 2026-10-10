@@ -78,6 +78,7 @@ function CollectionCard({ item, onEdit, onDelete, onShare }: { item: CollectionI
           <IconButton
             size="small"
             onClick={onEdit}
+            data-testid="collection-edit"
             sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.primary.light, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
           >
             <EditOutlined sx={{ fontSize: 13 }} />
@@ -87,6 +88,7 @@ function CollectionCard({ item, onEdit, onDelete, onShare }: { item: CollectionI
           <IconButton
             size="small"
             onClick={onDelete}
+            data-testid="collection-delete"
             sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.accent.red, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
           >
             <DeleteOutlined sx={{ fontSize: 13 }} />
@@ -209,7 +211,10 @@ export default function CollectionsView() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget || !token) return;
+    // `saving` doubles as the in-flight guard: a second click used to send a second DELETE, whose
+    // 404 then toasted a failure right after the success.
+    if (!deleteTarget || !token || saving) return;
+    setSaving(true);
     try {
       await deleteCollection(token, deleteTarget.id);
       setCollections(prev => prev.filter(c => c.id !== deleteTarget.id));
@@ -217,6 +222,8 @@ export default function CollectionsView() {
       showToast(t("collections.toast.deleted"), "success");
     } catch {
       showToast(t("collections.toast.deleteFailed"), "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -239,6 +246,7 @@ export default function CollectionsView() {
             label={t("collections.button.new")}
             size="small"
             onClick={() => { resetForm(); setCreateOpen(true); }}
+            data-testid="collections-new"
             sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
           />
         }
@@ -329,11 +337,12 @@ export default function CollectionsView() {
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 380 } }}>
         <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("collections.dialog.newCollection")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
-          <TextField label={t("collections.label.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth />
+          <TextField label={t("collections.label.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth
+            inputProps={{ "data-testid": "collection-create-name" }} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("collections.button.cancel")}</Button>
-          <Button onClick={handleCreate} size="small" variant="contained" disabled={!formName.trim() || saving}>
+          <Button onClick={handleCreate} size="small" variant="contained" disabled={!formName.trim() || saving} data-testid="collection-create-save">
             {saving ? t("collections.button.creating") : t("collections.button.create")}
           </Button>
         </DialogActions>
@@ -343,11 +352,12 @@ export default function CollectionsView() {
       <Dialog open={!!editItem} onClose={() => { setEditItem(null); resetForm(); }} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 380 } }}>
         <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("collections.dialog.editCollection")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
-          <TextField label={t("collections.label.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth />
+          <TextField label={t("collections.label.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth
+            inputProps={{ "data-testid": "collection-edit-name" }} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => { setEditItem(null); resetForm(); }} size="small" sx={{ color: tokens.text.secondary }}>{t("collections.button.cancel")}</Button>
-          <Button onClick={handleEdit} size="small" variant="contained" disabled={!formName.trim() || saving}>
+          <Button onClick={handleEdit} size="small" variant="contained" disabled={!formName.trim() || saving} data-testid="collection-edit-save">
             {t("collections.button.save")}
           </Button>
         </DialogActions>
@@ -363,7 +373,7 @@ export default function CollectionsView() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>{t("collections.button.cancel")}</Button>
-          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("collections.button.delete")}</Button>
+          <Button onClick={handleDelete} size="small" variant="contained" disabled={saving} data-testid="collection-delete-confirm" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("collections.button.delete")}</Button>
         </DialogActions>
       </Dialog>
 

@@ -1193,6 +1193,17 @@ function toPipeline(p: PipelineResponse): Pipeline {
   };
 }
 
+/**
+ * A copy of a pipeline whose definition can be edited in place.
+ *
+ * The editor's handlers mutate `selected.definition` directly. Handing them the very object that
+ * also sits in the pipeline list made a discarded edit survive the discard: switching away and
+ * back re-opened the list entry, which carried every change the user had just thrown away.
+ */
+function editableCopy(p: Pipeline): Pipeline {
+  return { ...p, definition: structuredClone(p.definition) };
+}
+
 // ── Version badge + version history dropdown ──────────────────────────────
 
 /**
@@ -2347,6 +2358,11 @@ function PipelineCanvas({
   // DEL key handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // A Delete typed into a text field is editing that field. Listening on `window` caught it
+      // too, so forward-deleting a character in the node sidebar - a parameter, a bucket alias -
+      // asked to delete the whole node.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (e.key === "Delete" && selectedId && onDeleteNode) {
         const node = nodes.find(n => n.id === selectedId);
         onDeleteNode(selectedId, (node?.data?.label as string) ?? selectedId);
@@ -3212,7 +3228,8 @@ export default function PipelineEditor() {
       setPipelines(ps);
       // A deep link names the pipeline to open; otherwise the first one, as before.
       const wanted = deepLinkRun ? ps.find(p => p.id === String(deepLinkRun.pipelineUuid)) : undefined;
-      setSelected(wanted ?? ps[0] ?? null);
+      const initial = wanted ?? ps[0];
+      setSelected(initial ? editableCopy(initial) : null);
       setLoading(false);
     }).catch(() => setLoading(false));
     // deepLinkRun is deliberately out of the dependency list: it arrives asynchronously and the
@@ -3223,13 +3240,18 @@ export default function PipelineEditor() {
   // Load run history for the selected pipeline. Extracted into a callback so live
   // pipeline events (PIPELINE_STARTED / PIPELINE_COMPLETED) and a manual run
   // dispatch can refresh the list without a reselect.
+  //
+  // Only the latest request may write: switching pipelines while the previous list is still in
+  // flight would otherwise let the late answer paint pipeline A's runs under pipeline B.
+  const runsRequestRef = useRef(0);
   const loadRuns = useCallback(() => {
-    if (!token || !selected) { setPipelineRuns([]); return; }
+    const request = ++runsRequestRef.current;
+    if (!token || !selected) { setPipelineRuns([]); setRunsLoading(false); return; }
     setRunsLoading(true);
     listPipelineRuns(token, selected.id)
-      .then(runs => setPipelineRuns(runs))
-      .catch(() => setPipelineRuns([]))
-      .finally(() => setRunsLoading(false));
+      .then(runs => { if (request === runsRequestRef.current) setPipelineRuns(runs); })
+      .catch(() => { if (request === runsRequestRef.current) setPipelineRuns([]); })
+      .finally(() => { if (request === runsRequestRef.current) setRunsLoading(false); });
   }, [token, selected?.id]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
@@ -3460,13 +3482,16 @@ export default function PipelineEditor() {
 
   // Load version history for the selected pipeline. Re-runs whenever the
   // pipeline's own version changes (save / restore) so the list stays fresh.
+  // Latest request wins, for the same reason as `loadRuns`.
+  const versionsRequestRef = useRef(0);
   const loadVersions = useCallback(() => {
-    if (!token || !selected) { setVersions([]); return; }
+    const request = ++versionsRequestRef.current;
+    if (!token || !selected) { setVersions([]); setVersionsLoading(false); return; }
     setVersionsLoading(true);
     listPipelineVersions(token, selected.id)
-      .then(vs => setVersions([...vs].sort((a, b) => b.versionNumber - a.versionNumber)))
-      .catch(() => setVersions([]))
-      .finally(() => setVersionsLoading(false));
+      .then(vs => { if (request === versionsRequestRef.current) setVersions([...vs].sort((a, b) => b.versionNumber - a.versionNumber)); })
+      .catch(() => { if (request === versionsRequestRef.current) setVersions([]); })
+      .finally(() => { if (request === versionsRequestRef.current) setVersionsLoading(false); });
   }, [token, selected?.id]);
 
   useEffect(() => {
@@ -3486,7 +3511,7 @@ export default function PipelineEditor() {
     try {
       const resp = await restorePipelineVersion(token, selected.id, versionNumber);
       const restored = toPipeline(resp);
-      setSelected(restored);
+      setSelected(editableCopy(restored));
       setPipelines(prev => prev.map(p => (p.id === restored.id ? restored : p)));
       // Drop local editing state — it belongs to the version we just replaced.
       setAddedNodes([]);
@@ -3729,7 +3754,13 @@ export default function PipelineEditor() {
       // deliberately left untouched (it already shows what we just saved).
       const versioned: Pipeline = { ...selected, versionUuid: resp.versionUuid, versionNumber: resp.versionNumber };
       setSelected(versioned);
-      setPipelines(prev => prev.map(p => (p.id === versioned.id ? versioned : p)));
+      // The list entry gets what was actually stored — the canvas graph, with its edges and
+      // positions — and never the object being edited, so re-opening it shows the saved version.
+      const stored: Pipeline = {
+        ...versioned,
+        definition: structuredClone({ nodes: definition?.nodes ?? [], edges: definition?.edges ?? [] }),
+      };
+      setPipelines(prev => prev.map(p => (p.id === stored.id ? stored : p)));
       setDirty(false);
       // The canvas is deliberately left alone by a save, so it will not emit again. Adopt what we
       // just persisted as the baseline; leaving it stale would report the next edit as clean.
@@ -3755,10 +3786,18 @@ export default function PipelineEditor() {
 
   // Select a pipeline in the sidebar, resetting the per-node inspector state.
   const applySelect = useCallback((p: Pipeline) => {
-    setSelected(p);
+    setSelected(editableCopy(p));
     setSelectedNodeId(null);
     setNodeDetailOpen(false);
+    // Every per-node edit channel is keyed by node id, and ids repeat across pipelines. Left
+    // in place they would be replayed onto the next pipeline's canvas — an added node appended to
+    // it, a rename or a parameter applied to a same-named node.
     setNodeAffinities({});
+    setAddedNodes([]);
+    setNodeDisplayNames({});
+    setNodeParameters({});
+    setGraphJson(null);
+    setValidationErrors([]);
     setDirty(false);
   }, []);
 

@@ -21,6 +21,7 @@ import Title from "../../components/Title";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { isApiError } from "../../api/http";
 import {
   ChatSessionContextRef,
   ChatSessionResponse,
@@ -47,6 +48,8 @@ export default function ChatSessionDetail() {
   const [session, setSession] = useState<ChatSessionResponse | null>(null);
   const [library, setLibrary] = useState<ChatSessionResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  /** The load failed for a reason other than "no such session" - that is not the same message. */
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -58,6 +61,7 @@ export default function ChatSessionDetail() {
   const load = useCallback(() => {
     if (!id || !token) return;
     setLoading(true);
+    setLoadFailed(false);
     Promise.all([loadChatSession(token, id), listChatSessions(token, "published")])
       .then(([s, lib]) => {
         setSession(s);
@@ -79,7 +83,10 @@ export default function ChatSessionDetail() {
           setFilesUnavailable(true);
         }
       })
-      .catch(() => setSession(null))
+      .catch((e) => {
+        setSession(null);
+        setLoadFailed(!(isApiError(e) && e.status === 404));
+      })
       .finally(() => setLoading(false));
   }, [id, token]);
 
@@ -166,7 +173,15 @@ export default function ChatSessionDetail() {
   };
 
   if (loading) return <Box sx={{ p: 3 }}><CircularProgress size={20} /></Box>;
-  if (!session) return <Box sx={{ p: 3 }}><Typography>Session not found.</Typography></Box>;
+  if (!session) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography data-testid={loadFailed ? "chat-session-load-failed" : "chat-session-not-found"}>
+          {loadFailed ? "The session could not be loaded. Please try again." : "Session not found."}
+        </Typography>
+      </Box>
+    );
+  }
 
   const owned = !!session.status?.creator; // detail is only editable for owned sessions; server enforces this.
 

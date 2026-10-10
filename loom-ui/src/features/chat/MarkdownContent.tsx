@@ -3,12 +3,15 @@ import { Box } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { tokens } from "../../theme";
+import { isInlineImageAllowed } from "./markdownUrls";
 
 /**
  * Renders assistant/user chat content as GitHub-flavored markdown.
  *
  * Security: LLM output is untrusted — raw HTML stays escaped (no rehype-raw),
- * which is the sanitization story. Links always open in a new tab.
+ * which is the sanitization story; react-markdown's default urlTransform blanks `javascript:` and
+ * other unsafe schemes. Links always open in a new tab, and images from other hosts are not
+ * fetched (that would let a prompt-injected answer exfiltrate the conversation).
  */
 export default function MarkdownContent({ content, muted = false }: { content: string; muted?: boolean }) {
   return (
@@ -71,6 +74,17 @@ export default function MarkdownContent({ content, muted = false }: { content: s
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+          // Only this deployment's images load inline; anything else is a link (see markdownUrls.ts).
+          img: ({ node: _node, src, alt, ...props }) =>
+            isInlineImageAllowed(typeof src === "string" ? src : undefined, window.location.origin) ? (
+              <img {...props} src={src} alt={alt ?? ""} />
+            ) : src ? (
+              <a href={src} target="_blank" rel="noopener noreferrer" data-testid="markdown-blocked-image">
+                {alt || src}
+              </a>
+            ) : (
+              <span>{alt}</span>
+            ),
         }}
       >
         {content}

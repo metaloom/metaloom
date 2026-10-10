@@ -25,9 +25,10 @@ import ListPaging from "../../components/ListPaging";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import {
-  listAssets, AssetResponse, deleteAsset, bulkUpdateAssets,
+  listAssets, AssetResponse, deleteAsset,
 } from "../../api/assets";
-import { hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
+import { tagAsset, DEFAULT_TAG_COLLECTION } from "../../api/tags";
+import { formatBrowserDuration, hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
 import { SearchApiError, searchAssets } from "../../api/search";
 import type { PagingParams } from "../../api/paging";
 import { useSearch } from "../../context/SearchContext";
@@ -56,13 +57,7 @@ function formatBytes(bytes: number): string {
   return `${Math.round(bytes / 1024)} KB`;
 }
 
-function formatDuration(seconds?: number): string {
-  if (!seconds) return "";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+const formatDuration = formatBrowserDuration;
 
 const typeIcon: Record<AssetType, React.ReactNode> = {
   video: <PlayCircleOutline sx={{ fontSize: 14 }} />,
@@ -95,6 +90,7 @@ interface CardProps {
 
 function AssetCard({ asset, cardSize = "medium", probedDuration, selectionMode = false, selected = false, onToggleSelect, onDelete }: CardProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const sc = statusColor[asset.status];
   const duration = asset.duration || probedDuration;
 
@@ -125,6 +121,8 @@ function AssetCard({ asset, cardSize = "medium", probedDuration, selectionMode =
           boxShadow: `0 4px 20px rgba(0,0,0,0.35)`,
         },
         "&:hover .asset-actions": { opacity: 1 },
+        // Reached by Tab the button is focused but was still invisible; show it on focus too.
+        "&:focus-within .asset-actions": { opacity: 1 },
       }}
     >
       {/* Selection checkbox */}
@@ -139,9 +137,10 @@ function AssetCard({ asset, cardSize = "medium", probedDuration, selectionMode =
       {/* Hover delete action */}
       {!selectionMode && onDelete && (
         <Box className="asset-actions" sx={{ position: "absolute", top: 6, right: 6, zIndex: 3, opacity: 0, transition: "opacity 140ms ease" }}>
-          <Tooltip title="Delete asset">
+          <Tooltip title={t("assets.button.delete")}>
             <IconButton
               size="small"
+              aria-label={t("assets.button.delete")}
               onClick={(e) => { e.stopPropagation(); onDelete(asset); }}
               sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.accent.red, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
             >
@@ -185,7 +184,7 @@ function AssetCard({ asset, cardSize = "medium", probedDuration, selectionMode =
                 ))}
               </Box>
               <Box sx={{ display: "flex", gap: 1, mt: 0.75, alignItems: "center" }}>
-                {duration && (
+                {formatDuration(duration) && (
                   <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
                     {formatDuration(duration)}
                   </Typography>
@@ -214,6 +213,7 @@ interface RowProps {
 
 function AssetRow({ asset, probedDuration, selectionMode = false, selected = false, onToggleSelect, onDelete }: RowProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const sc = statusColor[asset.status];
   const duration = asset.duration || probedDuration;
 
@@ -227,6 +227,7 @@ function AssetRow({ asset, probedDuration, selectionMode = false, selected = fal
 
   return (
     <Box
+      data-testid="asset-row"
       onClick={handleClick}
       sx={{
         display: "flex", alignItems: "center", gap: 1.5,
@@ -236,6 +237,8 @@ function AssetRow({ asset, probedDuration, selectionMode = false, selected = fal
         bgcolor: selected ? tokens.primary.subtle : "transparent",
         "&:hover": { bgcolor: selected ? tokens.primary.subtle : tokens.bg.hover },
         "&:hover .asset-row-delete": { opacity: 1 },
+        // Reached by Tab the button is focused but was still invisible; show it on focus too.
+        "&:focus-within .asset-row-delete": { opacity: 1 },
       }}
     >
       {selectionMode && (
@@ -261,7 +264,7 @@ function AssetRow({ asset, probedDuration, selectionMode = false, selected = fal
         {typeIcon[asset.type]}
         <Typography variant="caption" sx={{ fontSize: "0.7rem", minWidth: 28 }}>{asset.type}</Typography>
       </Box>
-      {duration && (
+      {formatDuration(duration) && (
         <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem", minWidth: 40, textAlign: "right" }}>
           {formatDuration(duration)}
         </Typography>
@@ -274,6 +277,7 @@ function AssetRow({ asset, probedDuration, selectionMode = false, selected = fal
         <IconButton
           className="asset-row-delete"
           size="small"
+          aria-label={t("assets.button.delete")}
           onClick={(e) => { e.stopPropagation(); onDelete(asset); }}
           sx={{ opacity: 0, transition: "opacity 140ms ease", color: tokens.accent.red, width: 24, height: 24 }}
         >
@@ -370,6 +374,8 @@ export default function AssetBrowser({ embedded = false }: Props) {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  /** A double click on the confirm button used to send a second DELETE whose 404 read as a failure. */
+  const [deleting, setDeleting] = useState(false);
 
   // Multi-select + bulk
   const [selectionMode, setSelectionMode] = useState(false);
@@ -519,15 +525,19 @@ export default function AssetBrowser({ embedded = false }: Props) {
   }, [settledCount, reload]);
 
   const handleDelete = async () => {
-    if (!token || !deleteTarget) return;
+    if (!token || !deleteTarget || deleting) return;
+    const target = deleteTarget;
+    setDeleting(true);
     try {
-      await deleteAsset(token, deleteTarget.id);
-      page.setItems(prev => prev.filter(a => a.id !== deleteTarget.id));
-      setSearchHits(prev => prev?.filter(a => a.id !== deleteTarget.id) ?? null);
+      await deleteAsset(token, target.id);
+      page.setItems(prev => prev.filter(a => a.id !== target.id));
+      setSearchHits(prev => prev?.filter(a => a.id !== target.id) ?? null);
       setDeleteTarget(null);
       showToast(t("assets.toast.deleted"), "success");
     } catch {
       showToast(t("assets.toast.deleteFailed"), "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -619,28 +629,35 @@ export default function AssetBrowser({ embedded = false }: Props) {
     exitSelection();
   };
 
+  /**
+   * Tag every selected asset.
+   *
+   * One `POST /assets/:uuid/tags` per asset — the route the detail view tags through. This used to
+   * send `/assets/bulk/update` with `update.meta.tags`, which did two wrong things at once: the
+   * server *replaces* `meta` on update, so every other meta key on each selected asset was wiped,
+   * and a key called `tags` inside meta is not a tag — nothing reads it, so the assets came back
+   * untagged. It also resolved the selection against `assets`, the browsed pages, so anything
+   * selected from search results was silently skipped while the toast reported success.
+   */
   const handleBulkTag = async () => {
-    if (!token || selected.size === 0 || !bulkTag.trim()) return;
+    const name = bulkTag.trim();
+    if (!token || selected.size === 0 || !name) return;
     setBulkBusy(true);
-    // Bulk update is keyed by sha512; resolve it from the loaded asset responses.
-    const selectedAssets = assets.filter(a => selected.has(a.id));
-    const entries = selectedAssets
-      .filter(a => a.sha512)
-      .map(a => ({
-        hashes: { sha512: a.sha512! },
-        update: { meta: { tags: [...a.tags, bulkTag.trim()] } },
-      }));
+    const ids = Array.from(selected);
     try {
-      if (entries.length > 0) {
-        await bulkUpdateAssets(token, { assets: entries });
+      const results = await Promise.allSettled(ids.map(id => tagAsset(token, id, { name, collection: DEFAULT_TAG_COLLECTION })));
+      const ok = results.filter(r => r.status === "fulfilled").length;
+      const failed = ids.length - ok;
+      if (failed === 0) {
+        showToast(t("assets.toast.bulkTagged", { count: ok }), "success");
+        setBulkTagOpen(false);
+        setBulkTag("");
+        exitSelection();
+      } else {
+        // Keep the dialog and the selection: the ones that failed are the ones to retry.
+        showToast(ok === 0 ? t("assets.toast.bulkTagFailed") : t("assets.toast.bulkTaggedPartial", { ok, failed }), "error");
       }
-      showToast(t("assets.toast.bulkTagged", { count: entries.length }), "success");
-      setBulkTagOpen(false);
-      setBulkTag("");
-      exitSelection();
-      reload();
-    } catch {
-      showToast(t("assets.toast.bulkTagFailed"), "error");
+      if (ok > 0) reload();
     } finally {
       setBulkBusy(false);
     }
@@ -764,10 +781,10 @@ export default function AssetBrowser({ embedded = false }: Props) {
           )}
 
           <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)} size="small">
-            <ToggleButton value="grid" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>
+            <ToggleButton value="grid" aria-label={t("assets.view.grid")} data-testid="assets-view-grid" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>
               <GridViewOutlined sx={{ fontSize: 16 }} />
             </ToggleButton>
-            <ToggleButton value="list" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>
+            <ToggleButton value="list" aria-label={t("assets.view.list")} data-testid="assets-view-list" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>
               <FormatListBulletedOutlined sx={{ fontSize: 16 }} />
             </ToggleButton>
           </ToggleButtonGroup>
@@ -779,13 +796,13 @@ export default function AssetBrowser({ embedded = false }: Props) {
             size="small"
             sx={{ visibility: viewMode === "grid" ? "visible" : "hidden" }}
           >
-            <ToggleButton value="small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+            <ToggleButton value="small" aria-label={t("assets.tooltip.small")} data-testid="assets-card-size-small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
               <Tooltip title={t("assets.tooltip.small")}><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
-            <ToggleButton value="medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+            <ToggleButton value="medium" aria-label={t("assets.tooltip.medium")} data-testid="assets-card-size-medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
               <Tooltip title={t("assets.tooltip.medium")}><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
-            <ToggleButton value="large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+            <ToggleButton value="large" aria-label={t("assets.tooltip.large")} data-testid="assets-card-size-large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
               <Tooltip title={t("assets.tooltip.large")}><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
           </ToggleButtonGroup>
@@ -1058,8 +1075,8 @@ export default function AssetBrowser({ embedded = false }: Props) {
           <Typography variant="body2" color="text.secondary">{t("assets.confirm.delete", { name: deleteTarget?.name })}</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
-          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("assets.button.delete")}</Button>
+          <Button onClick={() => setDeleteTarget(null)} data-testid="asset-delete-cancel" size="small" sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
+          <Button onClick={handleDelete} disabled={deleting} data-testid="asset-delete-confirm" size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("assets.button.delete")}</Button>
         </DialogActions>
       </Dialog>
 

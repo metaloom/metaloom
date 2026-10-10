@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { Box, Tooltip, Typography } from "@mui/material";
 import { tokens } from "../../theme";
 import { formatDuration } from "./helpers";
+import { timelinePct, timelineSpanPct } from "./timelineMath";
 
 export interface TimelineMarker {
   time: number;
@@ -173,7 +174,7 @@ export function VideoTimeline({
             bgcolor: tokens.bg.overlay, borderRadius: "3px 3px 0 0",
           }}
         >
-          <Box sx={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(currentTime / duration) * 100}%`, bgcolor: tokens.primary.main, borderRadius: "3px 3px 0 0", transition: "width 50ms linear" }} />
+          <Box sx={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${timelinePct(currentTime, duration)}%`, bgcolor: tokens.primary.main, borderRadius: "3px 3px 0 0", transition: "width 50ms linear" }} />
         </Box>
       </Box>
 
@@ -195,6 +196,9 @@ export function VideoTimeline({
           const to = Math.max(rangeSel.start, rangeSel.end);
           return (
             <Box
+              data-testid="video-timeline-range-selection"
+              data-from={from}
+              data-to={to}
               sx={{
                 position: "absolute",
                 left: `${(from / duration) * 100}%`,
@@ -217,8 +221,8 @@ export function VideoTimeline({
             below them. That, plus the point dot that used to sit exactly on top of the start
             handle, is why a region tag could not be grabbed. */}
         {markers.filter(m => m.endTime && m.endTime > m.time).map(m => {
-          const left = (m.time / duration) * 100;
-          const width = ((m.endTime! - m.time) / duration) * 100;
+          const left = timelinePct(m.time, duration);
+          const width = timelineSpanPct(m.time, m.endTime!, duration);
           const isHovered = hoveredMarkerId === m.id;
           return (
             <Box
@@ -349,7 +353,7 @@ export function VideoTimeline({
                 onMouseLeave={() => onMarkerHover(null)}
                 sx={{
                   position: "absolute",
-                  left: `${(m.time / duration) * 100}%`,
+                  left: `${timelinePct(m.time, duration)}%`,
                   // A quarter down rather than centred: the lower half of the bar belongs to the
                   // transcript tiles, and a marker sitting on top of one hid both.
                   top: "25%",
@@ -370,7 +374,7 @@ export function VideoTimeline({
         })}
 
         {/* Playhead indicator */}
-        <Box data-testid="video-timeline-playhead" sx={{ position: "absolute", left: `${(currentTime / duration) * 100}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 7, pointerEvents: "none", transition: "left 50ms linear" }} />
+        <Box data-testid="video-timeline-playhead" sx={{ position: "absolute", left: `${timelinePct(currentTime, duration)}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 7, pointerEvents: "none", transition: "left 50ms linear" }} />
       </Box>
 
       <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.25 }}>

@@ -51,7 +51,9 @@ export function AnnotationItem({
         border: highlighted ? `1px solid ${ann.color}44` : `1px solid transparent`,
         transition: "all 160ms ease",
         cursor: "default",
-        "&:hover .annotation-actions": { opacity: 1 },
+        // Focus as well as hover: the buttons are reachable by Tab, and a keyboard user landed on
+        // controls that stayed fully transparent.
+        "&:hover .annotation-actions, & .annotation-actions:focus-within": { opacity: 1 },
       }}
     >
       <Box sx={{ width: 3, bgcolor: ann.color, borderRadius: 2, alignSelf: "stretch", flexShrink: 0 }} />

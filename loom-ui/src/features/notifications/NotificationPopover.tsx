@@ -15,6 +15,7 @@ import { useNotifications } from "../../context/NotificationContext";
 import { useLayout } from "../../context/LayoutContext";
 import { NotificationResponse, NotificationType } from "../../api/notifications";
 import { notificationLink } from "./notificationLink";
+import { relativeTime } from "./relativeTime";
 
 const typeIcon: Record<NotificationType, React.ElementType> = {
   TASK_ASSIGNED: AssignmentIndOutlined,
@@ -24,17 +25,6 @@ const typeIcon: Record<NotificationType, React.ElementType> = {
   COMMENT_REPLY: ReplyOutlined,
   PIPELINE_RUN_FAILED: ErrorOutlineOutlined,
 };
-
-function relativeTime(iso?: string): string {
-  if (!iso) return "";
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
 
 function NotificationRow({
   notification, onOpen, onDismiss,
@@ -46,6 +36,7 @@ function NotificationRow({
   const { t } = useTranslation();
   const Icon = typeIcon[notification.type] ?? NotificationsNoneOutlined;
   const clickable = notificationLink(notification) !== null;
+  const age = relativeTime(notification.status?.created);
 
   return (
     <ListItemButton
@@ -60,7 +51,7 @@ function NotificationRow({
         px: 1.5,
         cursor: clickable ? "pointer" : "default",
         bgcolor: notification.read ? "transparent" : tokens.primary.subtle,
-        "&:hover .notification-dismiss": { opacity: 1 },
+        "&:hover .notification-dismiss, & .notification-dismiss:focus-visible": { opacity: 1 },
       }}
     >
       <Icon sx={{ fontSize: 16, mt: 0.25, color: tokens.text.tertiary, flexShrink: 0 }} />
@@ -77,7 +68,7 @@ function NotificationRow({
           </Typography>
         )}
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem" }}>
-          {relativeTime(notification.status?.created)}
+          {age ? t(age.key, { count: age.count }) : ""}
         </Typography>
       </Box>
       {!notification.read && (

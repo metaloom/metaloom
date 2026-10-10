@@ -161,8 +161,9 @@ test.describe("Asset binary – mocked request mapping", () => {
     await page.locator('[data-testid="MoreVertOutlinedIcon"]').click();
     await page.getByTestId("asset-register-binary-menu-item").click();
 
-    // Enter a filesystem path and submit.
+    // Enter a filesystem path and submit. The library defaults to the first one listed.
     await page.getByTestId("asset-register-binary-path-input").fill("/storage/ab/cd/photo.jpg");
+    await expect(page.getByTestId("asset-register-binary-library-select")).toHaveValue("lib-1");
     const [createReq] = await Promise.all([
       page.waitForRequest(req => /\/binary$/.test(req.url()) && req.method() === "POST"),
       page.getByTestId("asset-register-binary-submit-button").click(),
@@ -170,8 +171,11 @@ test.describe("Asset binary – mocked request mapping", () => {
 
     expect(createReq.method()).toBe("POST");
     expect(createReq.headers()["content-type"] ?? "").toContain("application/json");
-    expect(captured.binaryMetaCreates).toBe(1);
-    expect(captured.binaryMetaCreateBodies[0]).toMatchObject({
+    await expect.poll(() => captured.binaryMetaCreates, { timeout: 5_000 }).toBe(1);
+    // libraryUuid is what the backend validator requires. It used to be sent as "" (the asset
+    // response carries no library), and `toMatchObject` on the path alone could not notice.
+    expect(captured.binaryMetaCreateBodies[0]).toEqual({
+      libraryUuid: "lib-1",
       filesystem: { path: "/storage/ab/cd/photo.jpg" },
     });
   });

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
-import { login as apiLogin, getMe, decodeJwt, isJwtExpired } from "../api/auth";
+import { login as apiLogin, getMe, decodeJwt, isJwtExpired, isCredentialsRejection } from "../api/auth";
 import { SESSION_EXPIRED_EVENT } from "../api/http";
 import { useToast } from "./ToastContext";
 
@@ -8,6 +8,10 @@ interface AuthContextValue {
   username: string | null;
   userUuid: string | null;
   token: string | null;
+  /**
+   * Resolves false when the server refused the credentials. Rejects when it could not be asked
+   * (network down, 5xx), so the caller does not tell the user their password is wrong.
+   */
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -95,8 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Keep the JWT-derived uuid (if any) as a best-effort fallback.
       }
       return true;
-    } catch {
-      return false;
+    } catch (e) {
+      if (isCredentialsRejection(e)) return false;
+      throw e;
     }
   }, []);
 

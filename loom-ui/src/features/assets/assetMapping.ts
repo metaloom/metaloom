@@ -109,3 +109,20 @@ export function hitToCard(hit: SearchHitResponse): Asset {
     metadata: {},
   };
 }
+
+/**
+ * The compact length shown on a list row and a large card: `m:ss`, or `1h 5m` past the hour.
+ *
+ * Rounded to whole seconds first. Durations come off `asset_video_comp` (milliseconds, divided by
+ * {@link durationSeconds}) and off the ffprobe fallback, both fractional, and this used to take
+ * `seconds % 60` as is — a 13.37 second clip read `0:13.366999999999999`. Empty for 0 or unknown,
+ * which the callers render as nothing rather than "0:00".
+ */
+export function formatBrowserDuration(seconds?: number): string {
+  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return "";
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}

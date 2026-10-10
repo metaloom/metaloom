@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import type { AreaInfo } from "./annotations";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 export type { AreaInfo };
 
@@ -101,10 +101,7 @@ export async function deleteTag(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── Per-user tag rating (/tags/:uuid/rating) ──────────────────────────
@@ -134,10 +131,7 @@ export async function deleteTagRating(token: string, uuid: string): Promise<void
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── Asset tagging (/assets/:uuid/tags) ────────────────────────────────
@@ -194,10 +188,7 @@ export async function untagAsset(token: string, assetUuid: string, tagUuid: stri
       headers: authHeaders(token),
     },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /**

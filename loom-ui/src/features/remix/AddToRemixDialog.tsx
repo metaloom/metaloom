@@ -53,12 +53,17 @@ export default function AddToRemixDialog({ open, assetUuid, onClose, onAdded }: 
     setBusy(true);
     try {
       let remix: RemixResponse;
-      if (typeof value === "string") {
+      // Typing an existing remix's exact name without clicking its option still means that remix:
+      // creating a second one of the same name is never what was asked for.
+      const target = typeof value === "string"
+        ? remixes.find(r => r.name === value.trim()) ?? value
+        : value;
+      if (typeof target === "string") {
         // A name that matched nothing: create the remix with this asset already in it, so a
         // failure cannot leave a named but empty remix behind.
-        remix = await createRemix(token, { name: value.trim(), assetUuids: [assetUuid] });
+        remix = await createRemix(token, { name: target.trim(), assetUuids: [assetUuid] });
       } else {
-        remix = await addRemixAssets(token, value.uuid, [assetUuid]);
+        remix = await addRemixAssets(token, target.uuid, [assetUuid]);
       }
       showToast(t("toast.added"), "success");
       onAdded?.(remix);

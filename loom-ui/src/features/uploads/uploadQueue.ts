@@ -116,6 +116,8 @@ let token: string | null = null;
 let uploader = uploadAssetWithProgress;
 /** Counters for the batch currently draining; reset once the queue goes idle. */
 let batch: BatchOutcome = { uploaded: 0, duplicates: 0, failed: 0, cancelled: 0 };
+/** Bumped by {@link reset}, so transfers aborted by it settle silently instead of into the next batch. */
+let generation = 0;
 
 function isTerminal(status: UploadStatus): boolean {
   return status === "done" || status === "duplicate" || status === "error" || status === "cancelled";
@@ -149,11 +151,15 @@ function emit(): void {
  * left running.
  */
 function pump(): void {
-  const running = items.filter((i) => i.status === "uploading").length;
+  let running = items.filter((i) => i.status === "uploading").length;
   const queued = items.filter((i) => i.status === "queued");
 
-  for (const item of queued.slice(0, Math.max(0, MAX_CONCURRENT - running))) {
+  // Count only what actually started: an item that fails on the spot (no token) holds no slot, so
+  // a precomputed slice would strand the rest of the queue as "queued" forever.
+  for (const item of queued) {
+    if (running >= MAX_CONCURRENT) break;
     start(item);
+    if (item.status === "uploading") running += 1;
   }
 
   // A paused item counts as busy, so the batch stays open and no toast is raised while the user is
@@ -183,6 +189,7 @@ function start(item: UploadItem): void {
   item.status = "uploading";
   item.loaded = 0;
   emit();
+  const startedIn = generation;
 
   const handle = uploader(token, item.file, item.libraryUuid, {
     origin: item.origin,
@@ -196,6 +203,7 @@ function start(item: UploadItem): void {
 
   handle.promise
     .then((result: UploadResult) => {
+      if (startedIn !== generation) return;
       item.status = result.created ? "done" : "duplicate";
       item.assetUuid = result.asset?.uuid;
       item.loaded = item.size;
@@ -203,6 +211,7 @@ function start(item: UploadItem): void {
       else batch.duplicates += 1;
     })
     .catch((err: unknown) => {
+      if (startedIn !== generation) return;
       if (err instanceof UploadAbortedError) {
         item.status = "cancelled";
         batch.cancelled += 1;
@@ -213,6 +222,9 @@ function start(item: UploadItem): void {
       }
     })
     .finally(() => {
+      // A reset() in between wiped the queue: this settlement belongs to nobody, and counting it
+      // would raise a "cancelled" toast for a batch that no longer exists.
+      if (startedIn !== generation) return;
       handles.delete(item.id);
       emit();
       pump();
@@ -359,6 +371,7 @@ export function clearFinished(): void {
 
 /** Wipe the queue, aborting anything in flight. Used on logout. */
 export function reset(): void {
+  generation += 1;
   handles.forEach((h) => h.abort());
   handles.clear();
   items.length = 0;

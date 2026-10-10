@@ -201,16 +201,24 @@ test.describe("Workflow object review – mocked e2e", () => {
     // Wait for the batch to actually go out: the chips appear optimistically, well before the
     // debounce window closes, so asserting on them would count requests that had not been sent yet.
     await flushed;
-    // ...and then a little longer than the window, so a second request would have been seen.
-    await page.waitForTimeout(1_000);
 
-    expect(requests).toHaveLength(1);
-    expect(JSON.parse(requests[0])).toMatchObject({
+    // Fence instead of a sleep: one more decision opens a new window. Any stray second flush of
+    // the first run was scheduled earlier, so it would be on the wire before this one.
+    const fence = page.waitForRequest(
+      req => req.method() === "POST" && /detections\/review-bulk$/.test(req.url())
+    );
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("n");
+    await fence;
+
+    await expect.poll(() => requests.length).toBe(2);
+    expect(JSON.parse(requests[0])).toEqual({
       reviews: [
         { uuid: DETECTION_DOG, status: "CONFIRMED" },
         { uuid: DETECTION_CAT, status: "REJECTED" },
       ],
     });
+    expect(JSON.parse(requests[1])).toMatchObject({ reviews: [{ uuid: DETECTION_DOG, status: "REJECTED" }] });
   });
 
   test("a failed write is rolled back rather than left on screen", async ({ page }) => {

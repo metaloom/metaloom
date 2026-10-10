@@ -56,7 +56,9 @@ export function CommentItem({
         border: highlighted ? `1px solid ${tokens.primary.glow}` : "1px solid transparent",
         transition: "all 160ms ease",
         cursor: "default",
-        "&:hover .comment-actions": { opacity: 1 },
+        // Focus as well as hover: the buttons are reachable by Tab, and a keyboard user landed on
+        // controls that stayed fully transparent.
+        "&:hover .comment-actions, & .comment-actions:focus-within": { opacity: 1 },
         ...(isReply ? { ml: 4, borderLeft: `2px solid ${tokens.border.subtle}`, borderRadius: 0, pl: 1.5 } : {}),
       }}
       data-testid={isReply ? "comment-reply-item" : "comment-item"}

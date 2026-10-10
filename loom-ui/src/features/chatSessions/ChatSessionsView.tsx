@@ -88,6 +88,12 @@ export default function ChatSessionsView() {
   const loading = page.loading;
   const refresh = page.reload;
 
+  // A failed listing would otherwise read as "No sessions yet".
+  useEffect(() => {
+    if (page.error) showToast(t("chatSessions.toast.loadFailed"), "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.error]);
+
   const handleTogglePublish = async (session: ChatSessionResponse) => {
     if (!token) return;
     try {

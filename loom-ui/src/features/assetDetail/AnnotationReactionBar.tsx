@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Tooltip, Typography } from "@mui/material";
 import { ThumbUpAltOutlined, ThumbDownAltOutlined } from "@mui/icons-material";
@@ -29,6 +29,14 @@ export function AnnotationReactionBar({
   const { t } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const { showToast } = useToast();
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
+  /**
+   * A toggle is in flight.
+   *
+   * `mine` reads the reactions from the last render, so a second click before the first request
+   * answered saw "no reaction of mine" again and POSTed a duplicate — a double-click left two
+   * thumbs-up from one person. A ref, because the guard has to hold before React re-renders.
+   */
+  const busy = useRef(false);
 
   useEffect(() => {
     if (!token || !annotationUuid) {
@@ -50,7 +58,8 @@ export function AnnotationReactionBar({
 
   const toggle = useCallback(
     async (type: TaskReactionType) => {
-      if (!token || !annotationUuid) return;
+      if (!token || !annotationUuid || busy.current) return;
+      busy.current = true;
       const own = mine(type);
       try {
         if (own) {
@@ -62,6 +71,8 @@ export function AnnotationReactionBar({
         }
       } catch {
         showToast(own ? t("reaction.deleteError") : t("reaction.addError"), "error");
+      } finally {
+        busy.current = false;
       }
     },
     [token, annotationUuid, mine, showToast, t],

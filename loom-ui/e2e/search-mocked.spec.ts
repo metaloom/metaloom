@@ -183,23 +183,41 @@ test.describe("Search – mocked e2e", () => {
     const recorder = await installMocks(page);
     await login(page);
 
+    // Fake timers make the debounce deterministic: the 250ms timer fires on runFor, not on a sleep.
+    await page.clock.install();
     await page.getByTestId("global-search-input").fill("s");
-    await page.waitForTimeout(600);
-
-    expect(recorder.suggestions).toHaveLength(0);
+    await page.clock.runFor(1_000);
     await expect(page.getByTestId("global-search-suggestions")).toHaveCount(0);
+
+    // A second character does fire, and its dropdown renders. Requests leave in order, so had the
+    // single character fired, its request would be recorded before this one.
+    await page.getByTestId("global-search-input").fill("su");
+    await page.clock.runFor(1_000);
+    await expect(page.getByTestId("global-search-suggestion-0")).toContainText("street-crossing.jpg", { timeout: 5_000 });
+    expect(recorder.suggestions).toHaveLength(1);
+    expect(new URL(recorder.suggestions[0]).searchParams.get("q")).toBe("su");
   });
 
   test("a suggestions response without a data key does not crash the dropdown", async ({ page }) => {
     // The list envelope omits `data` entirely when nothing matched.
-    await installMocks(page, { suggestions: {} });
+    const recorder = await installMocks(page, { suggestions: {} });
     await login(page);
 
+    const answered = page.waitForResponse(/\/api\/v1\/search\/suggestions/);
     await page.getByTestId("global-search-input").fill("zzz");
-    await page.waitForTimeout(600);
-
+    await answered;
+    expect(new URL(recorder.suggestions[0]).searchParams.get("q")).toBe("zzz");
     await expect(page.getByTestId("global-search-suggestions")).toHaveCount(0);
-    await expect(page.getByTestId("global-search-input")).toBeVisible();
+
+    // The field still works afterwards: a later term with matches renders its dropdown. Had the
+    // empty envelope thrown inside the render, this would never paint.
+    await page.route(/\/api\/v1\/search\/suggestions/, (route) => {
+      recorder.suggestions.push(route.request().url());
+      return json(route, { data: [{ text: "zzz-top.jpg", type: "asset", uuid: "asset-9", score: 0.5 }] });
+    });
+    await page.getByTestId("global-search-input").fill("zzzt");
+    await expect(page.getByTestId("global-search-suggestion-0")).toContainText("zzz-top.jpg", { timeout: 5_000 });
+    expect(recorder.suggestions).toHaveLength(2);
   });
 
   test("Enter navigates to the search route with the term", async ({ page }) => {
@@ -336,10 +354,12 @@ test.describe("Search – mocked e2e", () => {
     await expect(page.getByTestId("search-pager-next")).toBeDisabled();
     await expect(page.getByTestId("search-pager-depth-limit")).toBeVisible();
 
-    const before = recorder.results.length;
     await page.getByTestId("search-pager-next").click({ force: true }).catch(() => {});
-    await page.waitForTimeout(300);
-    expect(recorder.results).toHaveLength(before);
+    // Fence: Prev does issue a request. Once it is on the wire, any request the forced Next click
+    // could have caused would already have been recorded before it.
+    await page.getByTestId("search-pager-prev").click();
+    await expect.poll(() => recorder.results.some((q) => new URLSearchParams(q).get("offset") === "975")).toBe(true);
+    expect(recorder.results.some((q) => Number(new URLSearchParams(q).get("offset")) > 1000)).toBe(false);
   });
 
   test("an offset past the cap is clamped rather than sent", async ({ page }) => {
@@ -442,5 +462,68 @@ test.describe("Search – mocked e2e", () => {
 
     await expect(page).not.toHaveURL(/types=/);
     await expect(page).not.toHaveURL(/mime=/);
+  });
+
+  test("choosing a mode chip sends that mode, and LEXICAL takes it off the wire again", async ({ page }) => {
+    // Regression: the chips wrote ?mode= into the URL but the request never carried it, so
+    // SEMANTIC silently ran a lexical query.
+    const recorder = await installMocks(page, {
+      status: { provider: "future", available: true, capabilities: [...POSTGRES_CAPABILITIES, "SEMANTIC"], documentCount: 1, dirtyCount: 0 },
+    });
+    await openSearch(page, "?q=quarterly");
+    await expect(page.getByTestId("search-results")).toBeVisible({ timeout: 10_000 });
+    expect(new URLSearchParams(recorder.results.at(-1)).get("mode")).toBeNull();
+
+    await page.getByTestId("search-mode-SEMANTIC").click();
+    await expect(page).toHaveURL(/mode=SEMANTIC/);
+    await expect.poll(() => new URLSearchParams(recorder.results.at(-1)).get("mode")).toBe("SEMANTIC");
+
+    await page.getByTestId("search-mode-LEXICAL").click();
+    await expect(page).not.toHaveURL(/mode=/);
+    await expect.poll(() => recorder.results.length).toBeGreaterThanOrEqual(3);
+    expect(new URLSearchParams(recorder.results.at(-1)).get("mode")).toBeNull();
+  });
+
+  test("a failing follow-up query does not leave the previous query's hits on screen", async ({ page }) => {
+    await installMocks(page);
+    // Registered last, so it wins over the fixture route for the one failing term.
+    await page.route(/\/api\/v1\/search\/results/, (route) => {
+      const term = new URL(route.request().url()).searchParams.get("q");
+      if (term === "broken") return json(route, { message: "bad syntax near broken" }, 400);
+      return route.fallback();
+    });
+    await openSearch(page, "?q=quarterly");
+    await expect(page.getByTestId("search-results")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("search-input").fill("broken");
+    await page.getByTestId("search-input").press("Enter");
+
+    await expect(page.getByTestId("search-error")).toContainText("bad syntax near broken", { timeout: 10_000 });
+    await expect(page.getByTestId("search-results")).toHaveCount(0);
+    await expect(page.getByTestId("search-pager")).toHaveCount(0);
+  });
+
+  test("clearing the term while a query is in flight drops the spinner and shows the empty state", async ({ page }) => {
+    await installMocks(page);
+    let releaseSlow: () => void = () => {};
+    const slowGate = new Promise<void>((resolve) => { releaseSlow = resolve; });
+    await page.route(/\/api\/v1\/search\/results/, async (route) => {
+      const term = new URL(route.request().url()).searchParams.get("q");
+      if (term !== "slow") return route.fallback();
+      await slowGate;
+      return route.fulfill({ status: 200, contentType: "application/json", body: "{}" }).catch(() => {});
+    });
+    await openSearch(page, "?q=slow");
+    await expect(page.getByTestId("search-view").getByRole("progressbar")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("search-input").fill("");
+    await page.getByTestId("search-input").press("Enter");
+
+    await expect(page).not.toHaveURL(/q=/);
+    // Regression: the aborted request never cleared `loading`, so the spinner spun forever and
+    // the empty state (gated on !loading) never came back.
+    await expect(page.getByTestId("search-empty-state")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("search-view").getByRole("progressbar")).toHaveCount(0);
+    releaseSlow();
   });
 });

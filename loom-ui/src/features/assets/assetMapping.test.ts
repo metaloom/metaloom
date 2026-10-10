@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { API_BASE_URL } from "../../api/config";
-import { assetTypeFromMime, hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
+import { assetTypeFromMime, formatBrowserDuration, hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
 
 describe("assetTypeFromMime", () => {
   it("classifies the media prefixes", () => {
@@ -148,5 +148,25 @@ describe("hitToCard", () => {
     expect(hitToCard({ ...hit, mimeType: undefined }).thumbnailUrl).toBe("");
     expect(hitToCard({ ...hit, mimeType: "video/mp4" }).thumbnailUrl).toBe(`${API_BASE_URL}/assets/h1/binary/data`);
     expect(hitToCard({ ...hit, mimeType: "audio/mpeg" }).thumbnailUrl).toBe("");
+  });
+});
+
+describe("formatBrowserDuration", () => {
+  it("rounds a fractional length to whole seconds", () => {
+    // durationSeconds(13367) — what a millisecond-precise component row turns into.
+    expect(formatBrowserDuration(13.367)).toBe("0:13");
+    expect(formatBrowserDuration(59.6)).toBe("1:00");
+    expect(formatBrowserDuration(125.2)).toBe("2:05");
+  });
+
+  it("switches to hours and minutes past the hour", () => {
+    expect(formatBrowserDuration(3600 + 5 * 60 + 12.4)).toBe("1h 5m");
+  });
+
+  it("is empty for a zero, missing or nonsensical length", () => {
+    expect(formatBrowserDuration(undefined)).toBe("");
+    expect(formatBrowserDuration(0)).toBe("");
+    expect(formatBrowserDuration(Number.NaN)).toBe("");
+    expect(formatBrowserDuration(-3)).toBe("");
   });
 });

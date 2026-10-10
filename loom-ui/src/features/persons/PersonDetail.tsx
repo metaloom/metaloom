@@ -4,7 +4,7 @@ import {
   Avatar, Box, Button, Chip, CircularProgress, IconButton, Paper, Tooltip, Typography,
 } from "@mui/material";
 import {
-  ArrowBackOutlined, CheckCircle, CheckCircleOutlined, DeleteOutlined,
+  ArrowBackOutlined, CheckCircle, CheckCircleOutlined, DeleteOutlined, ErrorOutlineOutlined,
   PhotoLibraryOutlined, UploadOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,7 @@ import {
   setPersonAvatar, uploadPersonImage,
   type PersonImageResponse, type PersonResponse,
 } from "../../api/persons";
+import { isApiError } from "../../api/http";
 
 /** A face crop offered as a source for one of this person's pictures. */
 interface CropCandidate {
@@ -51,6 +52,11 @@ export default function PersonDetail() {
   const [images, setImages] = useState<PersonImageResponse[]>([]);
   const [candidates, setCandidates] = useState<CropCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load and a missing person are different statements: "they may have been deleted"
+  // after a 500 sends somebody looking for a deletion that never happened. Only a 404 is "gone".
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Bumped by the retry button; the effect depends on it.
+  const [reloadToken, setReloadToken] = useState(0);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,6 +71,13 @@ export default function PersonDetail() {
     if (!token || !id) return;
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
+    // The route is reused from one person to the next. Without a reset, a failed load for the new
+    // id went on showing the previous person under the new URL, and the previous person's faces
+    // stayed on offer as import candidates until the new ones arrived.
+    setPerson(null);
+    setImages([]);
+    setCandidates([]);
 
     Promise.all([loadPerson(token, id), listPersonImages(token, id), listPersonClusters(token, id)])
       .then(async ([fresh, list, clusters]) => {
@@ -87,8 +100,11 @@ export default function PersonDetail() {
         }
         setCandidates(crops);
       })
-      .catch(() => {
-        if (!cancelled) showToast(t("person.toast.loadFailed"), "error");
+      .catch(e => {
+        if (cancelled) return;
+        if (isApiError(e) && e.status === 404) return;
+        setLoadFailed(true);
+        showToast(t("person.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -97,7 +113,7 @@ export default function PersonDetail() {
     return () => {
       cancelled = true;
     };
-  }, [token, id, showToast, t]);
+  }, [token, id, showToast, t, reloadToken]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,7 +133,9 @@ export default function PersonDetail() {
   };
 
   const handleImport = async (detectionUuid: string) => {
-    if (!token || !id) return;
+    // The candidate is a plain element, not a disableable button, so it has to refuse a second
+    // click itself: a double-click used to import the same face twice.
+    if (!token || !id || busy) return;
     setBusy(true);
     try {
       await importPersonImage(token, id, detectionUuid);
@@ -162,6 +180,21 @@ export default function PersonDetail() {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 8 }} data-testid="person-detail-loading">
         <CircularProgress size={28} />
+      </Box>
+    );
+  }
+
+  if (!person && loadFailed) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <EmptyState
+          icon={ErrorOutlineOutlined}
+          title={t("person.empty.loadError")}
+          description={t("person.empty.loadErrorHint")}
+          actionLabel={t("person.button.retry")}
+          onAction={() => setReloadToken(n => n + 1)}
+          testId="person-detail-load-failure"
+        />
       </Box>
     );
   }
@@ -307,10 +340,15 @@ export default function PersonDetail() {
                 <Box
                   role="button"
                   tabIndex={0}
+                  aria-disabled={busy}
                   data-testid="person-crop-candidate"
                   onClick={() => handleImport(candidate.detectionUuid)}
                   onKeyDown={e => {
-                    if (e.key === "Enter" || e.key === " ") handleImport(candidate.detectionUuid);
+                    if (e.key === "Enter" || e.key === " ") {
+                      // Space would otherwise also scroll the page.
+                      e.preventDefault();
+                      handleImport(candidate.detectionUuid);
+                    }
                   }}
                   sx={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1, borderRadius: 1 }}
                 >

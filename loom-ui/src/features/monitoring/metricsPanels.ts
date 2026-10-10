@@ -191,6 +191,10 @@ export function toLiveSample(response: MetricsResponse): LiveSample {
  */
 export function appendSample(history: LiveSample[], sample: LiveSample): LiveSample[] {
   if (sample.ts <= 0) return history;
+  // A slow poll that lands after a newer one carries an older snapshot. Appending it would put the
+  // series out of time order and difference a negative interval into the rate.
+  const last = history[history.length - 1];
+  if (last && sample.ts <= last.ts) return history;
   return [...history, sample].slice(-MAX_SAMPLES);
 }
 

@@ -27,12 +27,21 @@ export default function SkillsPanel({
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [skills, setSkills] = useState<SkillResponse[]>([]);
+  // A failed load is not "no skills": telling the user to go and create one would send them to
+  // author a skill they already have.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     listSkills(token, { limit: PAGE_SIZE })
-      .then(res => setSkills((res.data ?? []).filter(s => s.enabled)))
-      .catch(() => setSkills([]));
+      .then(res => {
+        setSkills((res.data ?? []).filter(s => s.enabled));
+        setLoadFailed(false);
+      })
+      .catch(() => {
+        setSkills([]);
+        setLoadFailed(true);
+      });
   }, [token, anchor]);
 
   const toggle = (uuid: string) => {
@@ -75,8 +84,12 @@ export default function SkillsPanel({
               </IconButton>
             </Tooltip>
           </Box>
-          {skills.length === 0 ? (
-            <Typography variant="caption" sx={{ px: 1.75, py: 1, display: "block", color: tokens.text.tertiary, fontSize: "0.74rem" }}>
+          {loadFailed ? (
+            <Typography variant="caption" data-testid="chat-skills-error" sx={{ px: 1.75, py: 1, display: "block", color: tokens.accent.red, fontSize: "0.74rem" }}>
+              {t("chat.skills.loadFailed")}
+            </Typography>
+          ) : skills.length === 0 ? (
+            <Typography variant="caption" data-testid="chat-skills-empty" sx={{ px: 1.75, py: 1, display: "block", color: tokens.text.tertiary, fontSize: "0.74rem" }}>
               {t("chat.skills.none")}
             </Typography>
           ) : (

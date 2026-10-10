@@ -74,13 +74,27 @@ async function mockShare(
     /** Feedback the recipient left on an earlier visit, already on the server when the page loads. */
     seedComments?: Record<string, unknown>[];
     seedAnnotations?: Record<string, unknown>[];
+    /** Status for every comment POST, to script a refused comment. */
+    commentStatus?: number;
+    /** Status for every session POST, e.g. 429 for the throttle. */
+    sessionStatus?: number;
+    /** Status for the asset listing, e.g. 401 for a session token that has lapsed. */
+    assetsStatus?: number;
+    /** Reactions already on the link, e.g. another reviewer's. */
+    seedReactions?: Record<string, unknown>[];
+    /** Status for every reaction POST/DELETE, to script a refused reaction. */
+    reactionStatus?: number;
+    /** The challenge recognises this browser's visitor from an earlier visit. */
+    knownVisitorName?: string;
   } = {},
 ) {
   const slug = options.slug ?? OPEN_SLUG;
   const targetType = options.targetType ?? "COLLECTION";
   const assets = options.assets ?? [VIDEO, STILL];
   const comments: Record<string, unknown>[] = [...(options.seedComments ?? [])];
-  const reactions: Record<string, unknown>[] = [];
+  const reactions: Record<string, unknown>[] = [...(options.seedReactions ?? [])];
+  /** Who the session was opened as; the server writes it onto everything the visitor leaves. */
+  let visitorName = "Anonymous";
   const annotations: Record<string, unknown>[] = [...(options.seedAnnotations ?? [])];
   /** Every uuid a DELETE named, so a removed row can be told apart from one that never rendered. */
   const deleted: string[] = [];
@@ -100,6 +114,9 @@ async function mockShare(
 
   await page.route(/\/api\/v1\/shares\/[^/]+\/comments(\?|$)/, async (route) => {
     if (route.request().method() === "POST") {
+      if (options.commentStatus && options.commentStatus >= 400) {
+        return route.fulfill(json({ message: "refused" }, options.commentStatus));
+      }
       const body = JSON.parse(route.request().postData() ?? "{}");
       const created = {
         uuid: `c${comments.length + 1}`,
@@ -122,10 +139,21 @@ async function mockShare(
     return route.fulfill({ status: 204, body: "" });
   });
 
+  await page.route(/\/api\/v1\/shares\/[^/]+\/reactions\/[^/]+$/, (route) => {
+    if (options.reactionStatus && options.reactionStatus >= 400) {
+      return route.fulfill(json({ message: "refused" }, options.reactionStatus));
+    }
+    removeFrom(reactions, route.request().url());
+    return route.fulfill({ status: 204, body: "" });
+  });
+
   await page.route(/\/api\/v1\/shares\/[^/]+\/reactions(\?|$)/, async (route) => {
     if (route.request().method() === "POST") {
+      if (options.reactionStatus && options.reactionStatus >= 400) {
+        return route.fulfill(json({ message: "refused" }, options.reactionStatus));
+      }
       const body = JSON.parse(route.request().postData() ?? "{}");
-      const created = { uuid: `r${reactions.length + 1}`, type: body.type, assetUuid: body.assetUuid, authorName: "Maria from Acme", created: "" };
+      const created = { uuid: `r${reactions.length + 1}`, type: body.type, assetUuid: body.assetUuid, authorName: visitorName, created: "" };
       reactions.push(created);
       return route.fulfill(json(created, 201));
     }
@@ -147,13 +175,21 @@ async function mockShare(
     return route.fulfill({ status: 204, body: "" });
   });
 
-  await page.route(/\/api\/v1\/shares\/[^/]+\/assets(\?|$)/, (route) => route.fulfill(json({ data: assets })));
+  await page.route(/\/api\/v1\/shares\/[^/]+\/assets(\?|$)/, (route) =>
+    options.assetsStatus && options.assetsStatus >= 400
+      ? route.fulfill(json({ message: "session lapsed" }, options.assetsStatus))
+      : route.fulfill(json({ data: assets })),
+  );
 
   await page.route(/\/api\/v1\/shares\/[^/]+\/sessions$/, async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
+    if (options.sessionStatus && options.sessionStatus >= 400) {
+      return route.fulfill(json({ message: "no" }, options.sessionStatus));
+    }
     if (options.passwordRequired && body.password !== PASSWORD) {
       return route.fulfill(json({ message: "The password is not correct." }, 401));
     }
+    visitorName = body.visitorName || "Anonymous";
     return route.fulfill(
       json({
         sessionToken: "payload.signature",
@@ -173,11 +209,16 @@ async function mockShare(
   await page.route(/\/api\/v1\/shares\/[^/?]+(\?|$)/, (route) => {
     if (options.gone) return route.fulfill(json({ message: "not available" }, 404));
     return route.fulfill(
-      json({ targetType, passwordRequired: options.passwordRequired ?? false, visitorNameKnown: false }),
+      json({
+        targetType,
+        passwordRequired: options.passwordRequired ?? false,
+        visitorNameKnown: !!options.knownVisitorName,
+        ...(options.knownVisitorName ? { visitorName: options.knownVisitorName } : {}),
+      }),
     );
   });
 
-  return { slug, annotations, comments, deleted };
+  return { slug, annotations, comments, reactions, deleted };
 }
 
 test.describe("Customer share area – mocked", () => {
@@ -352,7 +393,10 @@ test.describe("Customer share area – mocked", () => {
     if (!frame) throw new Error("the player has no box");
     await page.mouse.click(frame.x + frame.width * 0.5, frame.y + frame.height * 0.5);
 
-    await page.waitForTimeout(500);
+    // No sleep: the overlay disarms itself the moment a box is drawn
+    // (addRegionMark disarms synchronously, before its POST), and a frame later nothing was sent.
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await expect(page.getByTestId("share-draw-region")).toHaveText("Drag a box on the media…");
     // The database refuses a zero-extent box; discarding it here means the visitor never sees a 400.
     expect(annotations).toHaveLength(0);
   });
@@ -451,6 +495,213 @@ test.describe("Customer share area – mocked", () => {
     // The list is re-read after the delete, so the row goes without a reload.
     await expect(page.getByTestId("share-comment")).toHaveCount(0);
     await expect(page.getByTestId("share-comments-empty")).toBeVisible();
+  });
+
+  test("a refused comment keeps the visitor's text and says so", async ({ page }) => {
+    await mockShare(page, { targetType: "ASSET", assets: [VIDEO], commentStatus: 500 });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+    await expect(page.getByTestId("share-comments-empty")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("share-comment-input").fill("A long carefully worded note");
+    await page.getByTestId("share-comment-submit").click();
+
+    await expect(page.getByTestId("share-viewer-error")).toContainText("Something went wrong");
+    // Before the fix the draft was cleared as if the comment had been posted.
+    await expect(page.getByTestId("share-comment-input")).toHaveValue("A long carefully worded note");
+    await expect(page.getByTestId("share-comment-submit")).toBeEnabled();
+  });
+
+  test("a refused mark keeps its text", async ({ page }) => {
+    const { annotations } = await mockShare(page, { targetType: "ASSET", assets: [VIDEO] });
+    await page.route(/\/api\/v1\/shares\/[^/]+\/annotations(\?|$)/, (route) =>
+      route.request().method() === "POST"
+        ? route.fulfill(json({ message: "refused" }, 500))
+        : route.fulfill(json({ data: [] })),
+    );
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+    await expect(page.getByTestId("share-media-video")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("share-mark-input").fill("Colour shifts here");
+    await page.getByTestId("share-mark-submit").click();
+
+    await expect(page.getByTestId("share-viewer-error")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("share-mark-input")).toHaveValue("Colour shifts here");
+    expect(annotations).toHaveLength(0);
+  });
+
+  test("a lapsed session puts the gate back and forgets the stored token", async ({ page }) => {
+    await mockShare(page, { assetsStatus: 401 });
+    // A token remembered from an earlier visit, which the server no longer honours.
+    await page.addInitScript((slug: string) => {
+      window.sessionStorage.setItem(`loom.share.${slug}`, JSON.stringify({
+        slug, token: "stale.token", visitorName: "Maria", targetType: "COLLECTION",
+        allowDownload: true, showMetadata: true, allowComments: false, allowReactions: false, allowAnnotations: false,
+      }));
+    }, OPEN_SLUG);
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+
+    await expect(page.getByTestId("share-gate")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("share-viewer")).toHaveCount(0);
+    expect(await page.evaluate((slug) => window.sessionStorage.getItem(`loom.share.${slug}`), OPEN_SLUG)).toBeNull();
+  });
+
+  test("the throttle is reported as such, not as another wrong password", async ({ page }) => {
+    await mockShare(page, { passwordRequired: true, sessionStatus: 429 });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+
+    await page.getByTestId("share-gate-password").fill(PASSWORD);
+    await page.getByTestId("share-gate-submit").click();
+
+    await expect(page.getByTestId("share-gate-error")).toContainText("Too many attempts");
+    await expect(page.getByTestId("share-gate-password")).toHaveValue(PASSWORD);
+  });
+
+  test("the session token travels in a header, never in a URL, and no Loom bearer is sent", async ({ page }) => {
+    const shareRequests: { url: string; headers: Record<string, string> }[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/v1/shares/")) {
+        shareRequests.push({ url: request.url(), headers: request.headers() });
+      }
+    });
+    await mockShare(page, { targetType: "ASSET", assets: [VIDEO] });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+    await expect(page.getByTestId("share-media-video")).toBeVisible({ timeout: 10_000 });
+
+    const listing = shareRequests.find((r) => /\/assets(\?|$)/.test(r.url));
+    expect(listing?.headers["x-loom-share-session"]).toBe("payload.signature");
+    for (const r of shareRequests) {
+      expect(r.url).not.toContain("payload.signature");
+      expect(r.headers["authorization"]).toBeUndefined();
+    }
+    expect(page.url()).not.toContain("payload.signature");
+  });
+
+  test("moving to another link in the same tab does not carry the first link's session", async ({ page }) => {
+    const OTHER_SLUG = "demoOtherLink00000001";
+    await mockShare(page, { passwordRequired: true });
+    // Signed into the first link already.
+    await page.addInitScript((slug: string) => {
+      window.sessionStorage.setItem(`loom.share.${slug}`, JSON.stringify({
+        slug, token: "first.link.token", visitorName: "Maria", targetType: "COLLECTION", targetName: "Demo Videos",
+        allowDownload: true, showMetadata: true, allowComments: false, allowReactions: false, allowAnnotations: false,
+      }));
+    }, OPEN_SLUG);
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await expect(page.getByTestId("share-viewer")).toBeVisible({ timeout: 10_000 });
+
+    // A client-side navigation: the route element is reused with a new :slug.
+    await page.evaluate((slug) => {
+      window.history.pushState({}, "", `/ui/share/${slug}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }, OTHER_SLUG);
+
+    // The second link has its own password, and nothing proves it was satisfied.
+    await expect(page.getByTestId("share-gate")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("share-viewer")).toHaveCount(0);
+  });
+
+  test("a file the browser cannot show gets the no-preview placeholder, not a broken element", async ({ page }) => {
+    const ARCHIVE = { uuid: "a0000000-0000-0000-0000-000000000003", filename: "masters.zip", mimeType: "application/zip", size: 1000 };
+    await mockShare(page, { assets: [STILL, ARCHIVE] });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    // An unknown type never tries to render.
+    await page.getByTestId("share-tile").filter({ hasText: "masters.zip" }).click();
+    await expect(page.getByTestId("share-media-unavailable")).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId("share-back").click();
+
+    // An image whose bytes do not decode (the mock serves an mp4 for every binary) falls back too.
+    await page.getByTestId("share-tile").filter({ hasText: "Hero shot" }).click();
+    await expect(page.getByTestId("share-media-unavailable")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("share-media-image")).toHaveCount(0);
+  });
+
+  test("a returning visitor is greeted by name; a new one gets the generic title", async ({ page }) => {
+    await mockShare(page, { knownVisitorName: "Maria from Acme" });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await expect(page.getByTestId("share-gate")).toContainText("Welcome back, Maria from Acme", { timeout: 10_000 });
+    await expect(page.getByTestId("share-gate")).not.toContainText("You have been sent something to look at");
+  });
+
+  test("a new visitor gets the generic gate title, not a welcome back", async ({ page }) => {
+    await mockShare(page);
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await expect(page.getByTestId("share-gate")).toContainText("You have been sent something to look at", { timeout: 10_000 });
+    await expect(page.getByTestId("share-gate")).not.toContainText("Welcome back");
+  });
+
+  test("clicking your own reaction again takes it back", async ({ page }) => {
+    const { reactions, deleted } = await mockShare(page, { targetType: "ASSET", assets: [VIDEO] });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-name").fill("Maria from Acme");
+    await page.getByTestId("share-gate-submit").click();
+
+    const approve = page.getByTestId("share-reaction-APPROVE");
+    await approve.click();
+    await expect(approve).toHaveText(/Approve 1$/, { timeout: 10_000 });
+
+    await approve.click();
+    await expect(approve).not.toHaveText(/\d$/);
+    expect(deleted).toEqual(["r1"]);
+    expect(reactions).toHaveLength(0);
+  });
+
+  test("another reviewer's reaction is added to, never deleted, by a click", async ({ page }) => {
+    const { reactions, deleted } = await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedReactions: [{ uuid: "theirs", type: "APPROVE", assetUuid: VIDEO.uuid, authorName: "Jon from Acme", created: "" }],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-name").fill("Maria from Acme");
+    await page.getByTestId("share-gate-submit").click();
+
+    const approve = page.getByTestId("share-reaction-APPROVE");
+    await expect(approve).toHaveText(/Approve 1$/, { timeout: 10_000 });
+    await approve.click();
+
+    await expect(approve).toHaveText(/Approve 2$/);
+    expect(deleted).toEqual([]);
+    expect(reactions.map((r) => r.authorName)).toEqual(["Jon from Acme", "Maria from Acme"]);
+  });
+
+  test("a refused reaction says so and keeps the visitor on the link", async ({ page }) => {
+    await mockShare(page, { targetType: "ASSET", assets: [VIDEO], reactionStatus: 403 });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    const approve = page.getByTestId("share-reaction-APPROVE");
+    await approve.click();
+
+    await expect(page.getByTestId("share-viewer-error")).toHaveText("Something went wrong loading this.");
+    // A 403 is not a lapsed session: the gate must not come back.
+    await expect(page.getByTestId("share-gate")).toHaveCount(0);
+    await expect(approve).not.toHaveText(/\d$/);
+  });
+
+  test("an audio file plays in an audio element and a PDF is embedded as a document", async ({ page }) => {
+    const AUDIO = { uuid: "a0000000-0000-0000-0000-000000000004", filename: "voiceover.mp3", mimeType: "audio/mpeg", size: 1000, duration: 30_000 };
+    const PDF = { uuid: "a0000000-0000-0000-0000-000000000005", filename: "brief.pdf", mimeType: "application/pdf", size: 1000 };
+    await mockShare(page, { assets: [AUDIO, PDF] });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    await page.getByTestId("share-tile").filter({ hasText: "voiceover.mp3" }).click();
+    const audio = page.getByTestId("share-media-audio");
+    await expect(audio).toBeAttached({ timeout: 10_000 });
+    await expect(audio).toHaveAttribute("src", new RegExp(`/shares/${OPEN_SLUG}/assets/${AUDIO.uuid}/binary`));
+    await expect(page.getByTestId("share-media-video")).toHaveCount(0);
+    await page.getByTestId("share-back").click();
+
+    await page.getByTestId("share-tile").filter({ hasText: "brief.pdf" }).click();
+    const pdf = page.getByTestId("share-media-pdf");
+    await expect(pdf).toBeAttached({ timeout: 10_000 });
+    await expect(pdf).toHaveAttribute("type", "application/pdf");
+    await expect(pdf).toHaveAttribute("data", new RegExp(`/shares/${OPEN_SLUG}/assets/${PDF.uuid}/binary`));
   });
 
   test("a revoked, expired or unknown link says so without saying which", async ({ page }) => {

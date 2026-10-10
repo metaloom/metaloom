@@ -410,6 +410,41 @@ describe("uploadQueue", () => {
     expect(getSummary().items[0].error).toBe("Not authenticated");
   });
 
+  it("fails every queued item when the session is gone, not just the first slot-full", async () => {
+    // Regression: pump() sliced the queue to the free slots up front, and an item failing on the
+    // spot held no slot — so 3 of 5 failed and the other 2 sat "queued" forever, keeping the
+    // batch (and the beforeunload warning) open with nothing left to pump the queue.
+    setUploadToken(null);
+    const outcomes: BatchOutcome[] = [];
+    subscribeBatch((o) => outcomes.push(o));
+    enqueue([1, 2, 3, 4, 5].map((n) => fileOf(`f${n}.bin`, 10)), { libraryUuid: "lib-1" });
+    await settle();
+
+    expect(calls).toHaveLength(0);
+    expect(getSummary().items.map((i) => i.status)).toEqual(["error", "error", "error", "error", "error"]);
+    expect(getSummary().isActive).toBe(false);
+    expect(outcomes).toEqual([{ uploaded: 0, duplicates: 0, failed: 5, cancelled: 0 }]);
+  });
+
+  it("a reset does not leak its aborted transfers into the next batch", async () => {
+    // Regression: reset() aborted in-flight handles whose rejections settled afterwards, counted
+    // as "cancelled" in the fresh batch and raised a toast for uploads that no longer exist.
+    enqueue([fileOf("a.jpg", 10), fileOf("b.jpg", 10)], { libraryUuid: "lib-1" });
+    const outcomes: BatchOutcome[] = [];
+    const unsubscribe = subscribeBatch((o) => outcomes.push(o));
+    reset();
+    await settle();
+
+    expect(outcomes).toEqual([]);
+    expect(getSummary().items).toHaveLength(0);
+
+    enqueue([fileOf("c.jpg", 10)], { libraryUuid: "lib-1" });
+    calls[calls.length - 1].resolve(ok());
+    await settle();
+    expect(outcomes).toEqual([{ uploaded: 1, duplicates: 0, failed: 0, cancelled: 0 }]);
+    unsubscribe();
+  });
+
   it("clearFinished drops settled items but leaves transfers running", async () => {
     enqueue([fileOf("done.jpg", 10), fileOf("running.jpg", 10)], { libraryUuid: "lib-1" });
     calls[0].resolve(ok());

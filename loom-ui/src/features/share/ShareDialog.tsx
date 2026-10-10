@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -56,6 +56,12 @@ export default function ShareDialog({ open, onClose, targetType, targetUuid, tar
   const [allowDownload, setAllowDownload] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * The password the server holds for this link. Blurring the field only writes when it differs:
+   * an unconditional write on blur sets `busy`, which disables the regenerate button between its
+   * mousedown (the blur) and its click, so the click was swallowed. An empty field is never sent.
+   */
+  const appliedPassword = useRef<string>("");
 
   // A fresh dialog is a fresh link. Reopening on the same asset deliberately mints a new one
   // rather than resurrecting the last: two reviewers should get two links, which is also the only
@@ -71,7 +77,11 @@ export default function ShareDialog({ open, onClose, targetType, targetUuid, tar
     setAllowFeedback(true);
     setAllowDownload(true);
     setBusy(true);
+    appliedPassword.current = generated;
 
+    // A close-and-reopen (or a different target) before this answers starts another create; the
+    // stale response must not land, or the dialog shows link #1 beside the password of link #2.
+    let cancelled = false;
     createShareLink(token, {
       targetType,
       targetUuid,
@@ -83,10 +93,22 @@ export default function ShareDialog({ open, onClose, targetType, targetUuid, tar
       allowReactions: true,
       allowAnnotations: true,
     })
-      .then(setShare)
-      .catch(() => setError(t("share.dialog.createFailed")))
-      .finally(() => setBusy(false));
-  }, [open, token, targetType, targetUuid, t]);
+      .then((created) => {
+        if (!cancelled) setShare(created);
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("share.dialog.createFailed"));
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `t` is left out on purpose: a language switch while the dialog is open must not mint a
+    // second link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, token, targetType, targetUuid]);
 
   const copyLink = async () => {
     if (!share) return;
@@ -105,6 +127,8 @@ export default function ShareDialog({ open, onClose, targetType, targetUuid, tar
     setBusy(true);
     try {
       const updated = await updateShareLink(token, share.uuid, changes);
+      if (changes.password) appliedPassword.current = changes.password;
+      if (changes.removePassword) appliedPassword.current = "";
       // The password is only ever returned once, on create, so carry the one already on screen
       // rather than letting the update response blank it.
       setShare({ ...updated, password: share.password });
@@ -209,14 +233,22 @@ export default function ShareDialog({ open, onClose, targetType, targetUuid, tar
               fullWidth
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onBlur={() => void apply({ password })}
+              onBlur={() => {
+                if (password !== "" && password !== appliedPassword.current) void apply({ password });
+              }}
               disabled={!share || busy}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
                     <Tooltip title={t("share.dialog.regenerate")}>
                       <span>
-                        <IconButton size="small" onClick={regeneratePassword} disabled={!share || busy}>
+                        <IconButton
+                          size="small"
+                          onClick={regeneratePassword}
+                          disabled={!share || busy}
+                          aria-label={t("share.dialog.regenerate")}
+                          data-testid="share-dialog-regenerate"
+                        >
                           <RefreshOutlined sx={{ fontSize: 17 }} />
                         </IconButton>
                       </span>

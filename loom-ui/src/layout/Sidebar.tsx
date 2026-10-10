@@ -325,7 +325,12 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           <MenuItem data-testid="sidebar-avatar-profile" onClick={() => { setUserMenuAnchor(null); go("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
             <PersonOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.profile")}
           </MenuItem>
-          <MenuItem data-testid="sidebar-avatar-logout" onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
+          <MenuItem data-testid="sidebar-avatar-logout" onClick={() => {
+            setUserMenuAnchor(null);
+            // Signing out leaves the screen as surely as a nav click does - more so, it unmounts the
+            // whole shell - so a guarding screen (the pipeline editor with unsaved edits) is asked first.
+            requestNavigation(logout);
+          }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
             <LogoutOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.logout")}
           </MenuItem>
         </Menu>

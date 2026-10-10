@@ -158,7 +158,9 @@ test.describe("Transcripts – mocked e2e", () => {
       titleField.press("Enter"),
     ]);
 
-    expect(captured.updates).toHaveLength(1);
+    // Polled: waitForRequest resolves when the request is issued; the handler that records it
+    // runs afterwards.
+    await expect.poll(() => captured.updates.length, { timeout: 5_000 }).toBe(1);
     const body = captured.updates[0] as { transcriptJson?: { sections?: Array<{ title: string }> } };
     expect(body.transcriptJson?.sections?.[0]?.title).toBe("Opening remarks");
   });
@@ -177,7 +179,7 @@ test.describe("Transcripts – mocked e2e", () => {
       deleteBtn.click(),
     ]);
 
-    expect(captured.deletes).toEqual([TRANSCRIPT_UUID]);
+    await expect.poll(() => captured.deletes, { timeout: 5_000 }).toEqual([TRANSCRIPT_UUID]);
     await expect(page.getByTestId("transcript-section-title")).toBeHidden({ timeout: 10_000 });
   });
 

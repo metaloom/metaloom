@@ -608,6 +608,42 @@ test.describe("Remix – mocked", () => {
     await expect(page.getByTestId("asset-remix-chip")).toContainText("Sunset timelapse");
   });
 
+  /**
+   * Typing an existing remix's exact name without clicking its option. freeSolo reports that as a
+   * plain string, which used to be taken as "create a new remix of this name" — leaving two remixes
+   * with the same name and the asset in the wrong one.
+   */
+  test("typing an existing remix's exact name adds to it instead of creating a duplicate", async ({ page }) => {
+    const captured = await mockRest(page, { moreRemixes: true });
+    await openAssetDetail(page);
+    await openAddToRemix(page);
+
+    // Surrounding spaces as well: the comparison is on the trimmed name.
+    await page.getByTestId("add-to-remix-input").fill("  Sunset timelapse ");
+    await page.getByTestId("add-to-remix-input").press("Escape");
+    await page.getByTestId("add-to-remix-submit").click();
+
+    await expect.poll(() => captured.memberAdds.length).toBe(1);
+    expect(captured.memberAddUrls[0]).toContain(`/remixes/${REMIX_B_UUID}/assets`);
+    expect(captured.creates).toHaveLength(0);
+    await expect(page.getByTestId("add-to-remix-dialog")).toHaveCount(0);
+  });
+
+  test("a typed name that matches no remix creates one with this asset in it", async ({ page }) => {
+    const captured = await mockRest(page, { moreRemixes: true });
+    await openAssetDetail(page);
+    await openAddToRemix(page);
+
+    // A prefix of an existing name is still a new name.
+    await page.getByTestId("add-to-remix-input").fill("Sunset");
+    await page.getByTestId("add-to-remix-input").press("Escape");
+    await page.getByTestId("add-to-remix-submit").click();
+
+    await expect.poll(() => captured.creates.length).toBe(1);
+    expect(captured.creates[0]).toEqual({ name: "Sunset", assetUuids: [ASSET_A] });
+    expect(captured.memberAdds).toHaveLength(0);
+  });
+
   // --- The opened remix: rename, membership, delete ------------------------
 
   /**

@@ -59,7 +59,7 @@ interface Captured {
   chatsCreated: number;
 }
 
-async function installMocks(page: Page, opts: { uploadStatus?: number; uploadBody?: string } = {}) {
+async function installMocks(page: Page, opts: { uploadStatus?: number; uploadBody?: string; promoteStatus?: number; promoteGate?: Promise<void> } = {}) {
   const chats: StoredChat[] = [];
   const attachments = new Map<string, StoredAttachment[]>();
   const captured: Captured = { uploads: [], deletes: [], promotes: [], chatsCreated: 0 };
@@ -83,8 +83,12 @@ async function installMocks(page: Page, opts: { uploadStatus?: number; uploadBod
 
   // Attachment routes MUST be registered before the generic /chats/:uuid matcher, or that one
   // swallows them — the same ordering the backend endpoint has to observe.
-  await page.route(/\/api\/v1\/chats\/[^/]+\/attachments\/[^/]+\/asset/, route => {
+  await page.route(/\/api\/v1\/chats\/[^/]+\/attachments\/[^/]+\/asset/, async route => {
     captured.promotes.push(route.request().url());
+    if (opts.promoteGate) await opts.promoteGate;
+    if (opts.promoteStatus && opts.promoteStatus >= 400) {
+      return route.fulfill({ status: opts.promoteStatus, contentType: "text/plain", body: "refused" });
+    }
     return json(route, { uuid: `asset-${++seq}` }, 201);
   });
 
@@ -261,8 +265,36 @@ test.describe("Chat attachments – mocked", () => {
     await page.getByTestId("chat-attachment-keeper.jpg").getByRole("button", { name: /save to library/i }).click();
 
     await expect.poll(() => captured.promotes.length).toBe(1);
+    await expect(page.getByText("keeper.jpg was saved to the library")).toBeVisible();
     // The file stays in the conversation: it is in both places, not moved.
     await expect(page.getByTestId("chat-attachment-keeper.jpg")).toBeVisible();
+  });
+
+  test("a refused save says so and does not also claim success", async ({ page }) => {
+    let releasePromote: () => void = () => {};
+    const promoteGate = new Promise<void>(resolve => { releasePromote = resolve; });
+    const captured = await installMocks(page, { promoteStatus: 500, promoteGate });
+    await login(page);
+
+    await page.getByTestId("chat-attachment-input").setInputFiles([
+      { name: "keeper.jpg", mimeType: "image/jpeg", buffer: Buffer.from("hello") },
+    ]);
+    await expect(page.getByTestId("chat-attachment-keeper.jpg")).toHaveAttribute("data-status", "ready", { timeout: 10_000 });
+    // Toasts come and go; record every success text that ever reaches the DOM rather than sampling.
+    await page.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { __toasts: string[] }).__toasts = seen;
+      new MutationObserver(() => {
+        if (document.body.textContent?.includes("was saved to the library")) seen.push("success");
+      }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+    await page.getByTestId("chat-attachment-keeper.jpg").getByRole("button", { name: /save to library/i }).click();
+
+    await expect.poll(() => captured.promotes.length).toBe(1);
+    releasePromote();
+    await expect(page.getByText("keeper.jpg could not be saved to the library.")).toBeVisible();
+    // Before the fix the success toast fired synchronously on click, before the promote answered.
+    expect(await page.evaluate(() => (window as unknown as { __toasts: string[] }).__toasts)).toEqual([]);
   });
 
   test("shows several files as several chips", async ({ page }) => {

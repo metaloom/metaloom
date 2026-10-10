@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
@@ -31,32 +31,49 @@ export function PipelineVersionDiff({
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<DiffRow[]>([]);
+  /**
+   * `null` until a comparison has actually been computed. An empty array used to double as "not
+   * loaded yet", so the dialog's first frame announced "no differences" before anything had been
+   * fetched.
+   */
+  const [rows, setRows] = useState<DiffRow[] | null>(null);
+  /** Only the latest comparison may write; closing and reopening on another version is common. */
+  const requestRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!token || baseVersion === null || currentVersion === undefined) return;
+    const request = ++requestRef.current;
     setLoading(true);
     setError(null);
+    setRows(null);
     try {
       const [base, current] = await Promise.all([
         loadPipelineVersion(token, uuid, baseVersion),
         loadPipelineVersion(token, uuid, currentVersion),
       ]);
+      if (request !== requestRef.current) return;
       setRows(diffLines(
         normalizeDefinition(base.definition),
         normalizeDefinition(current.definition),
       ));
     } catch (err) {
+      if (request !== requestRef.current) return;
       setError((err as Error).message || t("pipeline.diff.failed"));
-      setRows([]);
+      setRows(null);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   }, [token, uuid, baseVersion, currentVersion, t]);
 
   useEffect(() => {
     if (open) load();
-    else { setRows([]); setError(null); }
+    else {
+      // Abandon anything in flight, so a late answer cannot land in the next comparison.
+      requestRef.current += 1;
+      setRows(null);
+      setError(null);
+      setLoading(false);
+    }
   }, [open, load]);
 
   const rowBg = (kind: DiffRow["kind"]) => {
@@ -118,13 +135,13 @@ export function PipelineVersionDiff({
           </Typography>
         )}
 
-        {!loading && !error && !hasChanges(rows) && (
+        {!loading && !error && rows !== null && !hasChanges(rows) && (
           <Typography data-testid="pipeline-version-diff-empty" variant="caption" sx={{ display: "block", color: tokens.text.tertiary, p: 2 }}>
             {t("pipeline.diff.empty")}
           </Typography>
         )}
 
-        {!loading && !error && hasChanges(rows) && (
+        {!loading && !error && rows !== null && hasChanges(rows) && (
           <Box>
             {/* Column headers */}
             <Box sx={{

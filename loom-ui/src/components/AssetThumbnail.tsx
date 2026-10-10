@@ -42,7 +42,11 @@ interface Props {
 export default function AssetThumbnail({
   type, src, assetUuid, iconSize = 40, alt = "", fit = "cover", posterWidth = 480,
 }: Props) {
-  const [failed, setFailed] = useState(false);
+  // The URL that failed, not a flag. A flag outlives the URL it was about: a caller that hands the
+  // same instance the next asset (the workflow queue does, unkeyed) would keep the first asset's
+  // broken-image placeholder forever, and a video poster that failed because the media token was
+  // still the previous asset's would never be retried once the right token arrived.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   // Only minted for video: an image tile serves straight from the binary route.
   const mediaToken = useMediaToken(type === "video" ? assetUuid : null);
 
@@ -51,7 +55,7 @@ export default function AssetThumbnail({
     : null;
   const effectiveSrc = type === "video" ? posterSrc : src;
 
-  if (!effectiveSrc || failed) {
+  if (!effectiveSrc || failedSrc === effectiveSrc) {
     return <MediaPlaceholder type={type} iconSize={iconSize} />;
   }
 
@@ -63,7 +67,7 @@ export default function AssetThumbnail({
       alt={alt}
       loading="lazy"
       data-testid={type === "video" ? "asset-poster" : undefined}
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(effectiveSrc)}
       sx={type === "video" ? { ...sx, bgcolor: "#000" } : sx}
     />
   );

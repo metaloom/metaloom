@@ -189,16 +189,26 @@ function TaskDetailDrawer({
       .catch(() => { /* keep the embedded comments on failure */ });
   }, [token, taskUuid, task?.comments]);
 
+  // A failed write is said out loud, as on the asset view - it used to be an unhandled rejection
+  // and the click simply did nothing.
   const handleAddReaction = async (type: TaskReactionType) => {
     if (!token || !taskUuid) return;
-    const created = await createTaskReaction(token, taskUuid, { type });
-    setReactions((prev) => [created, ...prev]);
+    try {
+      const created = await createTaskReaction(token, taskUuid, { type });
+      setReactions((prev) => [created, ...prev]);
+    } catch {
+      showToast(t("assetDetail.reaction.addError"), "error");
+    }
   };
 
   const handleDeleteReaction = async (reactionUuid: string) => {
     if (!token || !taskUuid) return;
-    await deleteTaskReaction(token, taskUuid, reactionUuid);
-    setReactions((prev) => prev.filter((r) => r.uuid !== reactionUuid));
+    try {
+      await deleteTaskReaction(token, taskUuid, reactionUuid);
+      setReactions((prev) => prev.filter((r) => r.uuid !== reactionUuid));
+    } catch {
+      showToast(t("assetDetail.reaction.deleteError"), "error");
+    }
   };
 
   const handlePostComment = async () => {

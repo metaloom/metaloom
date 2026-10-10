@@ -133,6 +133,26 @@ test.describe("Failure feedback – mocked", () => {
     await expect(page.getByTestId("library-empty-state")).toBeHidden();
   });
 
+  test("retry on a failed library load asks again and shows what came back", async ({ page }) => {
+    await mockBackend(page);
+    let calls = 0;
+    await page.route("**/api/v1/libraries**", route => {
+      calls += 1;
+      return calls === 1
+        ? route.fulfill(serverError())
+        : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) });
+    });
+    await login(page);
+    await page.getByTestId("sidebar-item-/library").click();
+    await expect(page.getByTestId("library-load-failure")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("library-load-failure-retry").click();
+
+    await expect.poll(() => calls).toBeGreaterThanOrEqual(2);
+    await expect(page.getByTestId("library-load-failure")).toHaveCount(0);
+    await expect(page.getByTestId("library-empty-state")).toBeVisible();
+  });
+
   test("a rejected blacklist delete keeps the row", async ({ page }) => {
     const entry = {
       uuid: "33333333-3333-3333-3333-333333333333",
@@ -184,5 +204,7 @@ test.describe("Failure feedback – mocked", () => {
     // suppressed for 401 on purpose: the session is the failure, not each screen that noticed it.
     await expect(page.getByPlaceholder("Username")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/session has expired/i)).toHaveCount(1);
+    // The other half of "one message": no per-widget failure toast offering a report alongside it.
+    await expect(page.getByTestId("toast-report-failure")).toHaveCount(0);
   });
 });

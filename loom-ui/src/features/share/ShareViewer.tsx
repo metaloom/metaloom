@@ -130,10 +130,13 @@ export default function ShareViewer({ session }: { session: ShareSession }) {
   const addComment = async (text: string, parentUuid?: string) => {
     try {
       await createSharedComment(slug, token, { text, parentUuid, assetUuid: selected?.uuid });
-      await refreshFeedback();
     } catch (e) {
       handleError(e);
+      // Rethrown so the panel keeps the draft: a refused comment must not take the visitor's text
+      // with it.
+      throw e;
     }
+    await refreshFeedback();
   };
 
   const removeComment = async (uuid: string) => {
@@ -147,7 +150,15 @@ export default function ShareViewer({ session }: { session: ShareSession }) {
 
   const toggleReaction = async (type: string) => {
     try {
-      const existing = reactions.find((r) => r.type === type && (!selected || r.assetUuid === selected.uuid));
+      // Only this visitor's own reaction toggles off. The list carries every visitor's reactions on
+      // the link, and the server deletes any of them by uuid - matching on type alone made a second
+      // reviewer's "approve" silently delete the first reviewer's instead of adding their own.
+      const existing = reactions.find(
+        (r) =>
+          r.type === type &&
+          r.authorName === session.visitorName &&
+          (!selected || r.assetUuid === selected.uuid),
+      );
       if (existing) {
         await deleteSharedReaction(slug, token, existing.uuid);
       } else {
@@ -171,10 +182,11 @@ export default function ShareViewer({ session }: { session: ShareSession }) {
         timeFrom: Number.isFinite(at) ? at : 0,
         text,
       });
-      await refreshFeedback();
     } catch (e) {
       handleError(e);
+      throw e; // see addComment: the panel keeps the draft
     }
+    await refreshFeedback();
   };
 
   /**

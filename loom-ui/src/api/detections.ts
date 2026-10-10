@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 /** The three review verdicts, mirroring the `review_status` Postgres enum. */
 export type ReviewStatus = "PENDING" | "CONFIRMED" | "REJECTED";
@@ -96,7 +96,7 @@ export async function listAssetDetections(
   token: string,
   assetUuid: string
 ): Promise<DetectionListResponse> {
-  const res = await fetch(`${API_BASE_URL}/assets/${assetUuid}/detections`, {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections`, {
     method: "GET",
     headers: authHeaders(token),
   });
@@ -109,7 +109,7 @@ export async function loadDetection(
   detectionUuid: string
 ): Promise<DetectionResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}`,
     {
       method: "GET",
       headers: authHeaders(token),
@@ -123,7 +123,7 @@ export async function createDetection(
   assetUuid: string,
   request: DetectionCreateRequest
 ): Promise<DetectionResponse> {
-  const res = await fetch(`${API_BASE_URL}/assets/${assetUuid}/detections`, {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections`, {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(request),
@@ -138,7 +138,7 @@ export async function updateDetection(
   request: DetectionUpdateRequest
 ): Promise<DetectionResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}`,
     {
       method: "POST",
       headers: authHeaders(token),
@@ -154,16 +154,13 @@ export async function deleteDetection(
   detectionUuid: string
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}`,
     {
       method: "DELETE",
       headers: authHeaders(token),
     }
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 export async function bulkCreateDetections(
@@ -172,7 +169,7 @@ export async function bulkCreateDetections(
   request: DetectionBulkCreateRequest
 ): Promise<DetectionBulkResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/bulk`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/bulk`,
     {
       method: "POST",
       headers: authHeaders(token),
@@ -195,7 +192,7 @@ export async function confirmDetection(
   request?: DetectionConfirmRequest
 ): Promise<DetectionResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}/confirm`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}/confirm`,
     {
       method: "POST",
       headers: authHeaders(token),
@@ -217,7 +214,7 @@ export async function rejectDetection(
   detectionUuid: string
 ): Promise<DetectionResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}/reject`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}/reject`,
     {
       method: "POST",
       headers: authHeaders(token),
@@ -240,7 +237,7 @@ export async function bulkReviewDetections(
   request: DetectionBulkReviewRequest
 ): Promise<DetectionBulkResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/assets/${assetUuid}/detections/review-bulk`,
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/review-bulk`,
     {
       method: "POST",
       headers: authHeaders(token),
@@ -301,9 +298,6 @@ export async function fetchDetectionCrop(
   if (res.status === 404) {
     return null;
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   return res.blob();
 }

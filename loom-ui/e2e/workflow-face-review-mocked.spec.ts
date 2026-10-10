@@ -343,6 +343,13 @@ test.describe("Workflow face review – mocked e2e", () => {
     // detection in a 43-minute episode drawn on one frame at once. These two are 995 seconds
     // apart, so at the start of the file neither belongs on screen.
     await expect(page.getByTestId("workflow-face-box")).toHaveCount(0);
+
+    // A count of zero would also pass with no overlay at all. Go to the first face: exactly that
+    // one is drawn, and the other — still in the data, a thousand seconds on — is not.
+    await page.getByTestId("workflow-cluster").first().getByTestId("face-crop").first().click();
+    await expect(page.getByTestId("workflow-face-box")).toHaveCount(1, { timeout: 10_000 });
+    await expect(page.getByTestId("workflow-face-box")).toHaveAttribute("data-face-id", DETECTION_A);
+    await expect(page.locator(`[data-testid="workflow-face-box"][data-face-id="${DETECTION_B}"]`)).toHaveCount(0);
   });
 
   test("clicking a crop seeks the player to the frame it was cut from", async ({ page }) => {

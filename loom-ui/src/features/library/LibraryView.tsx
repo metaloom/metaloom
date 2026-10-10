@@ -114,6 +114,8 @@ export default function LibraryView() {
   const { showToast } = useToast();
   const { reportFailure } = useFailure();
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Bumped by the failure panel's retry, to run the library load again. */
+  const [reloadToken, setReloadToken] = useState(0);
   const { token } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -206,7 +208,7 @@ export default function LibraryView() {
       // statement about the user's data rather than about the request, and the wrong one.
       setLoadError(reportFailure("loadLibraries", e).message);
     });
-  }, [reportFailure, token]);
+  }, [reportFailure, token, reloadToken]);
 
   useEffect(() => {
     if (!selectedLib) return;
@@ -320,6 +322,10 @@ export default function LibraryView() {
       setNewName("");
       setNewDesc("");
       setCreateOpen(false);
+    } catch {
+      // Was try/finally with no catch: a refused create was an unhandled rejection and a dialog
+      // that simply stopped saying "Creating…", with no word on why nothing appeared.
+      showToast(t("library.toast.createFailed"), "error");
     } finally {
       setCreating(false);
     }
@@ -344,6 +350,8 @@ export default function LibraryView() {
         : lib));
       setSelectedLib(prev => prev ? { ...prev, name: updated.name, description, meta: updated.meta ?? {} } : prev);
       setEditOpen(false);
+    } catch {
+      showToast(t("library.toast.updateFailed"), "error");
     } finally {
       setUpdating(false);
     }
@@ -351,7 +359,14 @@ export default function LibraryView() {
 
   const handleDelete = async () => {
     if (!deleteTarget || !token) return;
-    await deleteLibrary(token, deleteTarget.id);
+    try {
+      await deleteLibrary(token, deleteTarget.id);
+    } catch {
+      // No try at all before: a 403/409 left the confirmation open, the library listed, and an
+      // unhandled rejection as the only trace.
+      showToast(t("library.toast.deleteFailed"), "error");
+      return;
+    }
     const updated = libraries.filter(l => l.id !== deleteTarget.id);
     setLibraries(updated);
     if (selectedLib?.id === deleteTarget.id) setSelectedLib(updated[0] ?? null);
@@ -420,7 +435,7 @@ export default function LibraryView() {
             </Box>
           </Box>
           <Tooltip title={t("library.tooltip.newLibrary")}>
-            <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
+            <IconButton size="small" aria-label={t("library.tooltip.newLibrary")} data-testid="library-new" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
               <AddOutlined sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
@@ -452,8 +467,10 @@ export default function LibraryView() {
               <Tooltip title={t("library.tooltip.deleteLibrary")}>
                 <IconButton
                   size="small"
+                  aria-label={t("library.tooltip.deleteLibrary")}
+                  data-testid="library-delete"
                   onClick={(e) => { e.stopPropagation(); setDeleteTarget(lib); }}
-                  sx={{ opacity: 0, ".MuiListItemButton-root:hover &": { opacity: 1 }, color: tokens.accent.red, ml: 0.5, width: 24, height: 24 }}
+                  sx={{ opacity: 0, ".MuiListItemButton-root:hover &, &:focus-visible": { opacity: 1 }, color: tokens.accent.red, ml: 0.5, width: 24, height: 24 }}
                 >
                   <DeleteOutlined sx={{ fontSize: 14 }} />
                 </IconButton>
@@ -471,9 +488,11 @@ export default function LibraryView() {
               <Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                   <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
-                  <Tooltip title="Edit library">
+                  <Tooltip title={t("library.tooltip.editLibrary")}>
                     <IconButton
                       size="small"
+                      aria-label={t("library.tooltip.editLibrary")}
+                      data-testid="library-edit"
                       onClick={() => {
                         setEditName(selectedLib.name);
                         setEditDesc(selectedLib.description);
@@ -607,7 +626,7 @@ export default function LibraryView() {
                       {/* The filename alone. "video/x-matroska" under every tile restated what
                           the poster already shows and crowded out the name it sat under. */}
                       <Box sx={{ px: 1.25, py: 1 }}>
-                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.name || "Untitled"}</Typography>
+                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.name || t("library.untitled")}</Typography>
                       </Box>
                     </Paper>
                   ))}
@@ -650,7 +669,7 @@ export default function LibraryView() {
             // Checked BEFORE the empty state, which is the whole point: "no libraries" and "the
             // libraries could not be loaded" are different statements, and this branch used to
             // make the second one look like the first.
-            <LoadFailure message={loadError} testId="library-load-failure" />
+            <LoadFailure message={loadError} onRetry={() => setReloadToken(n => n + 1)} testId="library-load-failure" />
           ) : libraries.length === 0 ? (
             // No libraries in this space yet — offer to create the first one.
             <EmptyState
@@ -688,7 +707,7 @@ export default function LibraryView() {
 
       {/* Edit library dialog */}
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Edit Library</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("library.dialog.editLibrary")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           <TextField label={t("library.label.name")} size="small" value={editName} onChange={e => setEditName(e.target.value)} autoFocus fullWidth />
           <TextField label={t("library.label.description")} size="small" value={editDesc} onChange={e => setEditDesc(e.target.value)} multiline rows={2} fullWidth />
@@ -696,7 +715,7 @@ export default function LibraryView() {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setEditOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("library.button.cancel")}</Button>
           <Button onClick={handleUpdate} size="small" variant="contained" disabled={!editName.trim() || updating}>
-            {updating ? t("library.button.creating") : t("common.save")}
+            {updating ? t("library.button.saving") : t("common.save")}
           </Button>
         </DialogActions>
       </Dialog>

@@ -6,8 +6,8 @@ import { test, expect, Page } from "@playwright/test";
  * No running Loom backend is required: all REST calls are intercepted with
  * `page.route`. The tests drive the real UI (upload dialog, multi-select bulk
  * actions) and assert the shape/method of the outgoing requests the client
- * produces — in particular the multipart upload and the `{ assets: [...] }` bulk
- * update body.
+ * produces — in particular the multipart upload and the per-asset tag request a
+ * bulk tag sends.
  */
 
 const SHA512 = "a".repeat(128);
@@ -24,8 +24,8 @@ function assetResponse() {
 
 /** Install the baseline REST mocks. Returns a record of captured mutating requests. */
 async function mockRest(page: Page) {
-  const captured: { uploads: number; deletes: string[]; bulkUpdates: unknown[] } = {
-    uploads: 0, deletes: [], bulkUpdates: [],
+  const captured: { uploads: number; deletes: string[]; bulkUpdates: unknown[]; tagPosts: { url: string; body: unknown }[] } = {
+    uploads: 0, deletes: [], bulkUpdates: [], tagPosts: [],
   };
 
   // Catch-all first (lowest priority): empty lists for anything unmatched.
@@ -56,6 +56,13 @@ async function mockRest(page: Page) {
   await page.route("**/api/v1/assets/bulk/update", route => {
     captured.bulkUpdates.push(route.request().postDataJSON());
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], total: 1, created: 1, failed: 0 }) });
+  });
+
+  // Tag one asset — what a bulk tag must send, once per selected asset.
+  await page.route(/\/api\/v1\/assets\/[0-9a-f-]+\/tags$/, route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    captured.tagPosts.push({ url: route.request().url(), body: route.request().postDataJSON() });
+    return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ uuid: "tag-1", name: "reviewed", collection: "default" }) });
   });
 
   // Delete by uuid.
@@ -121,10 +128,12 @@ test.describe("Asset CRUD – mocked request mapping", () => {
       page.getByRole("button", { name: "Delete" }).first().click(),
     ]);
 
-    expect(captured.deletes.length).toBe(1);
+    // Polled: waitForRequest resolves when the request is issued, the counter moves when the
+    // route handler runs.
+    await expect.poll(() => captured.deletes.length, { timeout: 5_000 }).toBe(1);
   });
 
-  test("bulk tag sends { assets: [{ hashes, update }] } to /assets/bulk/update", async ({ page }) => {
+  test("bulk tag POSTs a real tag per selected asset and never rewrites asset meta", async ({ page }) => {
     const captured = await mockRest(page);
     await login(page);
 
@@ -134,14 +143,33 @@ test.describe("Asset CRUD – mocked request mapping", () => {
     await page.getByRole("button", { name: "Tag", exact: true }).first().click();
     await page.getByRole("dialog").getByRole("textbox").fill("reviewed");
     await Promise.all([
-      page.waitForRequest("**/api/v1/assets/bulk/update"),
+      page.waitForRequest(req => /\/assets\/[0-9a-f-]+\/tags$/.test(req.url()) && req.method() === "POST"),
       page.getByRole("button", { name: "Apply" }).click(),
     ]);
 
-    expect(captured.bulkUpdates.length).toBe(1);
-    const body = captured.bulkUpdates[0] as { assets: { hashes: { sha512: string }; update: { meta: { tags: string[] } } }[] };
-    expect(body.assets).toHaveLength(1);
-    expect(body.assets[0].hashes.sha512).toBe(SHA512);
-    expect(body.assets[0].update.meta.tags).toContain("reviewed");
+    await expect.poll(() => captured.tagPosts.length, { timeout: 5_000 }).toBe(1);
+    expect(captured.tagPosts[0].url).toContain("/assets/11111111-1111-1111-1111-111111111111/tags");
+    expect(captured.tagPosts[0].body).toEqual({ name: "reviewed", collection: "default" });
+    // The old path: /assets/bulk/update with update.meta.tags, which replaced the asset's whole
+    // meta object server-side and created no tag at all.
+    expect(captured.bulkUpdates).toHaveLength(0);
+    await expect(page.getByRole("dialog")).toBeHidden();
+  });
+
+  test("a refused bulk tag says so and keeps the dialog open", async ({ page }) => {
+    const captured = await mockRest(page);
+    await page.route(/\/api\/v1\/assets\/[0-9a-f-]+\/tags$/, route =>
+      route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "forbidden" }) }));
+    await login(page);
+
+    await page.getByRole("button", { name: "Select" }).click();
+    await page.getByRole("checkbox").first().click();
+    await page.getByRole("button", { name: "Tag", exact: true }).first().click();
+    await page.getByRole("dialog").getByRole("textbox").fill("reviewed");
+    await page.getByRole("button", { name: "Apply" }).click();
+
+    await expect(page.getByText("Failed to tag assets")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(captured.bulkUpdates).toHaveLength(0);
   });
 });

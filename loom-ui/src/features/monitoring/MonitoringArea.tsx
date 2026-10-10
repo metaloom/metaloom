@@ -38,6 +38,7 @@ function KPICard({
   subtitle?: string;
   testId?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Paper
       elevation={0}
@@ -82,7 +83,7 @@ function KPICard({
       {subtitle && <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{subtitle}</Typography>}
       {delta && (
         <Typography variant="caption" sx={{ color: delta.startsWith("+") ? tokens.accent.green : tokens.accent.red, fontWeight: 600, fontSize: "0.72rem" }}>
-          {delta} vs last 7d
+          {t("monitoring.kpi.vsLast7d", { delta })}
         </Typography>
       )}
     </Paper>

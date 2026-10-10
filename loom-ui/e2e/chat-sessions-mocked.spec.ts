@@ -443,4 +443,90 @@ test.describe("Chat sessions – mocked e2e", () => {
     // An empty-but-live workspace must not be reported as a missing sandbox.
     await expect(panel.getByTestId("session-files-empty")).toHaveText("No files in the session workspace.");
   });
+
+  // --- Failure paths ---------------------------------------------------------
+
+  test("a session whose sandbox is not running says the files are unavailable", async ({ page }) => {
+    await installMocks(page);
+    // Registered after installMocks, so it wins: the files proxy has no live runner to ask.
+    await page.route(/\/api\/v1\/sessions\/[^/]+\/files(\?.*)?$/, route =>
+      json(route, { message: "no live coding session" }, 404));
+    await login(page);
+    await openSessionsView(page);
+
+    await page.getByTestId("chat-session-row-shared-pipeline").click();
+
+    const panel = page.getByTestId("session-files-panel");
+    await expect(panel.getByTestId("session-files-empty")).toHaveText(
+      "No live coding session — files are only available while the session's sandbox is running.",
+    );
+    await expect(panel.getByTestId("session-files-list")).toHaveCount(0);
+  });
+
+  test("a failed listing says so instead of reading as no sessions", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/chat-sessions(\?.*)?$/, route =>
+      route.request().method() === "GET"
+        ? json(route, { message: "boom" }, 500)
+        : route.fallback());
+    await login(page);
+    await page.getByRole("button", { name: "Chat Sessions" }).first().click();
+
+    await expect(page.getByText("Loading the sessions failed", { exact: true })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("a detail load that fails on the server is not reported as a missing session", async ({ page }) => {
+    await installMocks(page);
+    let failDetail = false;
+    await page.route(/\/api\/v1\/chat-sessions\/session-shared(\?.*)?$/, route =>
+      failDetail && route.request().method() === "GET"
+        ? json(route, { message: "boom" }, 500)
+        : route.fallback());
+    await login(page);
+    await openSessionsView(page);
+
+    failDetail = true;
+    await page.getByTestId("chat-session-row-shared-pipeline").click();
+
+    await expect(page.getByTestId("chat-session-load-failed")).toHaveText(
+      "The session could not be loaded. Please try again.",
+    );
+    await expect(page.getByTestId("chat-session-not-found")).toHaveCount(0);
+  });
+
+  test("a detail load that 404s still says the session was not found", async ({ page }) => {
+    await installMocks(page);
+    let goneDetail = false;
+    await page.route(/\/api\/v1\/chat-sessions\/session-shared(\?.*)?$/, route =>
+      goneDetail && route.request().method() === "GET"
+        ? json(route, { message: "gone" }, 404)
+        : route.fallback());
+    await login(page);
+    await openSessionsView(page);
+
+    goneDetail = true;
+    await page.getByTestId("chat-session-row-shared-pipeline").click();
+
+    await expect(page.getByTestId("chat-session-not-found")).toHaveText("Session not found.");
+    await expect(page.getByTestId("chat-session-load-failed")).toHaveCount(0);
+  });
+
+  test("a refused publish toggle says so and leaves the button as it was", async ({ page }) => {
+    const { calls } = await installMocks(page);
+    await page.route(/\/api\/v1\/chat-sessions\/[^/]+\/(publish|unpublish)$/, route => {
+      calls.push({ method: route.request().method(), url: route.request().url(), body: null });
+      return json(route, { message: "forbidden" }, 403);
+    });
+    await login(page);
+    await openSessionsView(page);
+    await page.getByTestId("chat-session-row-shared-pipeline").click();
+
+    const toggle = page.getByTestId("chat-session-publish-toggle");
+    const before = await toggle.textContent();
+    await toggle.click();
+
+    await expect(page.getByText("Failed to change publish state", { exact: true })).toBeVisible();
+    await expect.poll(() => matching(calls, "POST", /\/session-shared\/(publish|unpublish)$/).length).toBe(1);
+    await expect(toggle).toHaveText(before ?? "");
+  });
 });

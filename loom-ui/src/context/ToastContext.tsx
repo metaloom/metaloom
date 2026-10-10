@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { Snackbar, Alert, AlertColor, Button } from "@mui/material";
+import { Snackbar, Alert, AlertColor, Button, Portal } from "@mui/material";
 
 /** An optional button rendered inside the toast. Used by the failure surface for "Report". */
 export interface ToastAction {
@@ -72,9 +72,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
+      {/* Each toast gets its own body-level portal, mounted when it is shown. Rendered inside the app
+          root, a toast raised while a drawer or dialog was open sat under the aria-hidden that MUI's
+          modal puts on everything outside it: on screen, but never announced to a screen reader. */}
       {toasts.map((toast, idx) => (
+        <Portal key={toast.id}>
         <Snackbar
-          key={toast.id}
           open
           autoHideDuration={toast.duration ?? null}
           // A click anywhere else must not dismiss a toast carrying an action: the user reaching
@@ -116,6 +119,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             {toast.message}
           </Alert>
         </Snackbar>
+        </Portal>
       ))}
     </ToastContext.Provider>
   );

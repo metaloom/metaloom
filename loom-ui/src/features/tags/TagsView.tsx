@@ -403,16 +403,28 @@ export default function TagsView() {
     });
   }, []);
 
+  /**
+   * The tag the detail panel is showing, readable from a promise callback.
+   *
+   * Rating lookups are one request per click and answer in any order. Without this, clicking tag A
+   * and then tag B could land A's answer last and show A's stars in B's panel.
+   */
+  const selectedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedIdRef.current = selectedNode?.id ?? null;
+  }, [selectedNode]);
+
   const handleSelectNode = useCallback((node: TagNode) => {
     setSelectedNode(node);
+    selectedIdRef.current = node.id;
     if (node.isTag) {
       setEditName(node.label);
       setEditCollection(node.collection);
       setRating(null);
       if (token) {
         loadTagRating(token, node.id)
-          .then(r => setRating(r.rating ?? null))
-          .catch(() => setRating(null));
+          .then(r => { if (selectedIdRef.current === node.id) setRating(r.rating ?? null); })
+          .catch(() => { if (selectedIdRef.current === node.id) setRating(null); });
       }
     }
   }, [token]);
@@ -434,10 +446,10 @@ export default function TagsView() {
       // Reload the persisted value on failure to keep the widget in sync.
       loadTagRating(token, selectedNode.id)
         .then(r => {
-          setRating(r.rating ?? null);
+          if (selectedIdRef.current === selectedNode.id) setRating(r.rating ?? null);
           setRatings(prev => ({ ...prev, [selectedNode.id]: r.rating ?? null }));
         })
-        .catch(() => setRating(null));
+        .catch(() => { if (selectedIdRef.current === selectedNode.id) setRating(null); });
     }
   };
 

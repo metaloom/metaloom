@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Paper, Chip, TextField, InputAdornment,
-  Avatar, IconButton, Tooltip,
+  Avatar, IconButton, Tooltip, CircularProgress,
 } from "@mui/material";
 import {
   SearchOutlined, CenterFocusStrongOutlined,
@@ -13,9 +13,11 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { listAssets, AssetResponse } from "../../api/assets";
-import { listAssetDetections, updateDetection, deleteDetection } from "../../api/detections";
+import { listAssetDetections, updateDetection, deleteDetection, type DetectionResponse } from "../../api/detections";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 import { ListFilterSelect } from "../../components/ListControls";
+import { useFailure } from "../../context/FailureContext";
+import LoadFailure from "../../components/LoadFailure";
 
 /**
  * Confidence bands for the review filter.
@@ -32,6 +34,26 @@ function matchesConfidence(value: number, band: string): boolean {
   return true;
 }
 
+/**
+ * The class a detection is grouped under.
+ *
+ * The reviewer's correction first, then the model's own `label` column - which is where the
+ * objectdetect node writes the class. Reading only `meta.label` (where the demo seed used to keep
+ * it) filed every real pipeline detection under the one group "objectdetection".
+ */
+export function detectionLabel(d: DetectionResponse): string {
+  const metaLabel = (d.meta as Record<string, unknown> | undefined)?.label;
+  return d.correctedLabel || d.label || (typeof metaLabel === "string" && metaLabel ? metaLabel : "") || d.type;
+}
+
+/** The verdict already on record: the review columns, or the `meta.confirmed` this screen writes. */
+function storedVerdict(d: DetectionResponse): "confirmed" | "rejected" | null {
+  if (d.reviewStatus === "CONFIRMED") return "confirmed";
+  if (d.reviewStatus === "REJECTED") return "rejected";
+  if ((d.meta as Record<string, unknown> | undefined)?.confirmed === true) return "confirmed";
+  return null;
+}
+
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
   const [decisions, setDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
@@ -41,9 +63,18 @@ export default function ObjectDetectionManagement() {
   const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
   const [confidence, setConfidence] = useState("");
+  // Loading, failed and loaded-but-empty are three different things to say. A failed asset list
+  // used to be swallowed, and the screen then claimed there were no detections at all.
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped by the retry button; the effect depends on it.
+  const [reloadToken, setReloadToken] = useState(0);
+  const { reportFailure } = useFailure();
 
   useEffect(() => {
     if (!token) return;
+    setLoading(true);
+    setLoadError(null);
     listAssets(token, { limit: PAGE_SIZE }).then(r => {
       const assets = r.data ?? [];
       const map: Record<string, AssetResponse> = {};
@@ -51,27 +82,35 @@ export default function ObjectDetectionManagement() {
       setAssetMap(map);
 
       // Fetch detections for all assets
-      Promise.all(assets.map(a => listAssetDetections(token, a.uuid).catch(() => ({ data: [] as never[] }))))
+      return Promise.all(assets.map(a => listAssetDetections(token, a.uuid).catch(() => ({ data: [] as never[] }))))
         .then(results => {
           const objects: DetectedObject[] = [];
+          const reviewed: Record<string, "confirmed" | "rejected"> = {};
           results.forEach(resp => {
             for (const d of (resp.data ?? [])) {
               if (d.type === "objectdetection") {
                 objects.push({
                   id: d.uuid,
                   assetId: d.assetUuid,
-                  label: ((d.meta as Record<string, unknown>)?.label as string) ?? d.type,
+                  label: detectionLabel(d),
                   confidence: d.confidence,
                   boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
                   timestamp: d.frameNumber,
                 });
+                const verdict = storedVerdict(d);
+                if (verdict) reviewed[d.uuid] = verdict;
               }
             }
           });
           setDetectedObjects(objects);
+          // A verdict given in an earlier session is still a verdict. These used to be local state
+          // only, so every reload offered the same confirm/reject buttons on rows already decided.
+          setDecisions(reviewed);
         });
-    }).catch(() => {});
-  }, [token]);
+    }).catch(e => {
+      setLoadError(reportFailure("loadObjectDetections", e).message);
+    }).finally(() => setLoading(false));
+  }, [token, reloadToken]);
 
   const grouped = useMemo(() => {
     const byLabel: Record<string, DetectedObject[]> = {};
@@ -144,6 +183,15 @@ export default function ObjectDetectionManagement() {
 
       {/* Content */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }} data-testid="objectdetection-loading">
+            <CircularProgress size={28} />
+          </Box>
+        )}
+        {!loading && loadError && (
+          <LoadFailure message={loadError} onRetry={() => setReloadToken(n => n + 1)} testId="objectdetection-load-failure" />
+        )}
+        {!loading && !loadError && (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           {filtered.map(([label, objects]) => (
             <Paper key={label} elevation={0} data-testid="objectdetection-group" sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
@@ -164,7 +212,7 @@ export default function ObjectDetectionManagement() {
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }} noWrap>{asset?.file?.filename ?? obj.assetId}</Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                          {t("objectDetection.label.confidence", { pct: Math.round(obj.confidence * 100) })}{obj.timestamp != null && ` · ${obj.timestamp}s`}
+                          {t("objectDetection.label.confidence", { pct: Math.round(obj.confidence * 100) })}{obj.timestamp != null && ` · ${t("objectDetection.label.frame", { frame: obj.timestamp })}`}
                         </Typography>
                       </Box>
                       {dec ? (
@@ -188,6 +236,7 @@ export default function ObjectDetectionManagement() {
             </Box>
           )}
         </Box>
+        )}
       </Box>
     </Box>
   );

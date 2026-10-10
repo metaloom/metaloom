@@ -141,14 +141,35 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
    * made every card read "0 faces" no matter what was in it.
    */
   const [memberIds, setMemberIds] = useState<Record<string, string[]>>({});
+  /**
+   * Clusters whose member list has been asked for, answered or not.
+   *
+   * The parent hands down a freshly filtered array on every render - a keystroke in the search
+   * box, a slider step - and this effect used to cancel its in-flight batch whenever that array
+   * changed and then ask again for the same clusters. On a slow link the thumbnails never landed
+   * while somebody was typing, and every keystroke cost one request per card. Remembering what was
+   * requested makes a re-render free; only unmounting discards an answer.
+   */
+  const requestedRef = useRef<Set<string>>(new Set());
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    // A different session may see different members.
+    requestedRef.current = new Set();
+    setMemberIds({});
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
-    let cancelled = false;
 
-    // Only the clusters that have members and have not been fetched yet.
-    const pending = clusters.filter(c => c.faceCount > 0 && memberIds[c.id] === undefined);
+    // Only the clusters that have members and have not been asked about yet.
+    const pending = clusters.filter(c => c.faceCount > 0 && !requestedRef.current.has(c.id));
     if (pending.length === 0) return;
+    for (const c of pending) requestedRef.current.add(c.id);
 
     Promise.all(
       pending.map(c =>
@@ -157,7 +178,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
           .catch(() => [c.id, [] as string[]] as const),
       ),
     ).then(entries => {
-      if (cancelled) return;
+      if (!mountedRef.current) return;
       setMemberIds(prev => {
         const next = { ...prev };
         for (const [id, ids] of entries) {
@@ -166,11 +187,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
         return next;
       });
     });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, clusters, memberIds]);
+  }, [token, clusters]);
 
   const handleDelete = async (id: string) => {
     if (!token) return;
@@ -184,14 +201,19 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
 
   const openEdit = (cluster: FaceCluster) => {
     setEditCluster(cluster);
-    setEditName(cluster.label);
+    // An unnamed machine proposal is labelled with a placeholder for display only. Prefilling the
+    // editor with it meant that opening and saving wrote the placeholder in as the cluster's name.
+    setEditName(cluster.label === t("faceDetection.label.unnamedCluster") ? "" : cluster.label);
   };
 
   const handleUpdate = async () => {
     if (!editCluster || !token) return;
+    const name = editName.trim();
+    if (!name) return;
     try {
-      await apiUpdateCluster(token, editCluster.id, { name: editName });
-      onClusterUpdated?.({ ...editCluster, label: editName });
+      const updated = await apiUpdateCluster(token, editCluster.id, { name });
+      // Whatever the server stored, not what was typed.
+      onClusterUpdated?.({ ...editCluster, label: updated?.name || name });
       setEditCluster(null);
     } catch (e) {
       reportFailure("updateCluster", e);

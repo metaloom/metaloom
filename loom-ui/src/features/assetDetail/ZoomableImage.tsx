@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Box, IconButton, Typography } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import {
   ZoomInOutlined, ZoomOutOutlined, CenterFocusStrongOutlined,
 } from "@mui/icons-material";
@@ -66,6 +67,7 @@ export function ZoomableImage({
   /** Existing regions to render as read-only overlays (normalized 0-1). */
   regions?: ImageRegion[];
 }) {
+  const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const containerRef = useRef<HTMLDivElement | null>(null);
   /**
    * The layer the picture and its overlays share.
@@ -307,9 +309,9 @@ export function ZoomableImage({
       </Box>
       {/* Zoom controls */}
       <Box sx={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: tokens.radius.md, px: 0.5, py: 0.25 }}>
-        <IconButton size="small" onClick={() => setScale(s => Math.min(8, s + 0.5))} sx={{ color: "#fff", p: 0.5 }}><ZoomInOutlined sx={{ fontSize: 16 }} /></IconButton>
-        <IconButton size="small" onClick={reset} sx={{ color: "#fff", p: 0.5 }}><CenterFocusStrongOutlined sx={{ fontSize: 16 }} /></IconButton>
-        <IconButton size="small" onClick={() => { const ns = Math.max(1, scale - 0.5); setScale(ns); if (ns <= 1) setPan({ x: 0, y: 0 }); }} sx={{ color: "#fff", p: 0.5 }}><ZoomOutOutlined sx={{ fontSize: 16 }} /></IconButton>
+        <IconButton size="small" aria-label={tAD("zoom.in")} data-testid="zoomable-image-zoom-in" onClick={() => setScale(s => Math.min(8, s + 0.5))} sx={{ color: "#fff", p: 0.5 }}><ZoomInOutlined sx={{ fontSize: 16 }} /></IconButton>
+        <IconButton size="small" aria-label={tAD("zoom.reset")} data-testid="zoomable-image-zoom-reset" onClick={reset} sx={{ color: "#fff", p: 0.5 }}><CenterFocusStrongOutlined sx={{ fontSize: 16 }} /></IconButton>
+        <IconButton size="small" aria-label={tAD("zoom.out")} data-testid="zoomable-image-zoom-out" onClick={() => { const ns = Math.max(1, scale - 0.5); setScale(ns); if (ns <= 1) setPan({ x: 0, y: 0 }); }} sx={{ color: "#fff", p: 0.5 }}><ZoomOutOutlined sx={{ fontSize: 16 }} /></IconButton>
         {scale > 1 && (
           <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.65rem", alignSelf: "center", px: 0.5 }}>
             {Math.round(scale * 100)}%
@@ -318,9 +320,10 @@ export function ZoomableImage({
       </Box>
       {/* Minimap */}
       {scale > 1 && (
-        <Box sx={{ position: "absolute", top: 8, right: 8, width: 100, height: 70, bgcolor: "rgba(0,0,0,0.5)", border: `1px solid ${tokens.border.default}`, borderRadius: tokens.radius.sm, overflow: "hidden" }}>
+        <Box data-testid="zoomable-image-minimap" sx={{ position: "absolute", top: 8, right: 8, width: 100, height: 70, bgcolor: "rgba(0,0,0,0.5)", border: `1px solid ${tokens.border.default}`, borderRadius: tokens.radius.sm, overflow: "hidden" }}>
           <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", opacity: 0.7 }} />
           <Box
+            data-testid="zoomable-image-minimap-viewport"
             sx={{
               position: "absolute",
               left: `${vpX * 100}%`,

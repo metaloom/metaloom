@@ -196,6 +196,45 @@ test.describe("Share dialog – mocked", () => {
     expect(captured.updates[captured.updates.length - 1]).toMatchObject({ removePassword: true });
   });
 
+  test("leaving the password field unchanged writes nothing, and an emptied field is never sent", async ({ page }) => {
+    const captured = newCaptured();
+    await mockBackend(page, captured);
+    await openAndLogin(page, "/ui/collections");
+    await page.getByTestId("collection-share").first().click({ force: true });
+    const field = page.getByTestId("share-dialog-password");
+    await expect(page.getByTestId("share-dialog-link")).toHaveValue(SHARE_URL, { timeout: 10_000 });
+
+    await field.click();
+    await page.getByTestId("share-dialog-title").click();
+    await field.fill("");
+    await page.getByTestId("share-dialog-title").click();
+    await field.fill("my-own-pass-11");
+    await page.getByTestId("share-dialog-title").click();
+
+    // Exactly one write: the real change. Neither the no-op blur nor the empty one reached the server.
+    await expect.poll(() => captured.updates.length).toBe(1);
+    expect(captured.updates[0]).toEqual({ password: "my-own-pass-11" });
+  });
+
+  test("regenerate works straight after clicking into the password field", async ({ page }) => {
+    const captured = newCaptured();
+    await mockBackend(page, captured);
+    await openAndLogin(page, "/ui/collections");
+    await page.getByTestId("collection-share").first().click({ force: true });
+    const field = page.getByTestId("share-dialog-password");
+    await expect(page.getByTestId("share-dialog-link")).toHaveValue(SHARE_URL, { timeout: 10_000 });
+    const original = await field.inputValue();
+
+    // Focus the field (to read or copy it), then press regenerate. The blur used to write the
+    // unchanged password and disable the button before its click landed, swallowing the click.
+    await field.click();
+    await page.getByTestId("share-dialog-regenerate").click();
+
+    await expect(field).not.toHaveValue(original);
+    await expect.poll(() => captured.updates.length).toBe(1);
+    expect(captured.updates[0].password).toBe(await field.inputValue());
+  });
+
   test("the dialog warns that one link carries one name", async ({ page }) => {
     const captured = newCaptured();
     await mockBackend(page, captured);
@@ -277,5 +316,60 @@ test.describe("Share dialog – mocked", () => {
       allowAnnotations: false,
     });
     await expect(feedback).not.toBeChecked();
+  });
+});
+
+test.describe("Share dialog – close and reopen race", () => {
+  /**
+   * The create runs on open. Closing before it answers and opening again starts a second create;
+   * if the first answer then lands it must be ignored, or the dialog shows link #1 next to the
+   * password that was minted for link #2.
+   *
+   * Today both call sites (CollectionsView, AssetDetail) unmount the dialog on close, which already
+   * drops the late answer; the `cancelled` guard inside ShareDialog is defence in depth for a call
+   * site that keeps it mounted. This test pins the user-visible guarantee, whichever layer keeps it.
+   */
+  test("a slow first link that answers after a reopen does not replace the second", async ({ page }) => {
+    const captured = newCaptured();
+    await mockBackend(page, captured);
+
+    const FIRST_URL = "https://loom.example/ui/share/first-link-slow";
+    const SECOND_URL = "https://loom.example/ui/share/second-link-fast";
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let posts = 0;
+    // Registered after mockBackend, so it wins for the create.
+    await page.route(/\/api\/v1\/share-links$/, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      posts += 1;
+      if (posts === 1) {
+        await gate;
+        return route.fulfill(json(shareResponse({ url: FIRST_URL, slug: "first-link-slow", password: body.password }), 201));
+      }
+      return route.fulfill(json(shareResponse({ url: SECOND_URL, slug: "second-link-fast", password: body.password }), 201));
+    });
+
+    await openAndLogin(page, "/ui/collections");
+    await page.getByTestId("collection-share").first().click({ force: true });
+    await expect(page.getByTestId("share-dialog-title")).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => posts).toBe(1);
+
+    await page.getByTestId("share-dialog-done").click();
+    await expect(page.getByTestId("share-dialog-title")).toHaveCount(0);
+
+    await page.getByTestId("collection-share").first().click({ force: true });
+    await expect(page.getByTestId("share-dialog-link")).toHaveValue(SECOND_URL, { timeout: 10_000 });
+    const secondPassword = await page.getByTestId("share-dialog-password").inputValue();
+
+    // Now let the first answer arrive, and give React a couple of frames to (not) apply it.
+    const firstAnswered = page.waitForResponse((r) => r.url().endsWith("/share-links") && r.request().method() === "POST");
+    release();
+    await firstAnswered;
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+    await expect(page.getByTestId("share-dialog-link")).toHaveValue(SECOND_URL);
+    await expect(page.getByTestId("share-dialog-password")).toHaveValue(secondPassword);
+    await expect(page.getByTestId("share-dialog-error")).toHaveCount(0);
   });
 });

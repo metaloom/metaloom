@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Box, Typography, Chip, Button, Menu, MenuItem } from "@mui/material";
 import { AddOutlined, CloseOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
@@ -28,7 +28,8 @@ interface ReactionsPanelProps {
   reactions: ReactionResponseItem[];
   currentUserUuid?: string | null;
   onAdd: (type: TaskReactionType) => void;
-  onDelete: (reactionUuid: string) => void;
+  /** May return the request's promise; a second remove of the same row is ignored until it settles. */
+  onDelete: (reactionUuid: string) => void | Promise<void>;
   /** Prefix for data-testid attributes, e.g. "tasks" or "assets". */
   testIdPrefix?: string;
 }
@@ -36,6 +37,15 @@ interface ReactionsPanelProps {
 export function ReactionsPanel({ reactions, currentUserUuid, onAdd, onDelete, testIdPrefix = "reaction" }: ReactionsPanelProps) {
   const { t } = useTranslation("translation", { keyPrefix: "reactions" });
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  // Rows whose DELETE is still in flight. A double click on the x used to send two, and the second
+  // one 404ed into a "failed to delete" toast for a reaction that had just been deleted.
+  const deleting = useRef(new Set<string>());
+
+  const handleDelete = (reactionUuid: string) => {
+    if (deleting.current.has(reactionUuid)) return;
+    deleting.current.add(reactionUuid);
+    void Promise.resolve(onDelete(reactionUuid)).finally(() => deleting.current.delete(reactionUuid));
+  };
 
   const handleAdd = (type: TaskReactionType) => {
     setMenuAnchor(null);
@@ -97,7 +107,7 @@ export function ReactionsPanel({ reactions, currentUserUuid, onAdd, onDelete, te
                     {type === "RATING" && typeof r.rating === "number" && ` ${r.rating}`}
                   </Box>
                 }
-                onDelete={owned ? () => onDelete(r.uuid) : undefined}
+                onDelete={owned ? () => handleDelete(r.uuid) : undefined}
                 deleteIcon={
                   <CloseOutlined data-testid={`${testIdPrefix}-reaction-delete`} sx={{ fontSize: 14 }} />
                 }

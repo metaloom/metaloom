@@ -122,7 +122,8 @@
     "title": "Loom Studio",
     "subtitle": "Sign in to continue",
     "error": {
-      "invalidCredentials": "Invalid credentials."
+      "invalidCredentials": "Invalid credentials.",
+      "unavailable": "The server could not be reached. Please try again."
     },
     "placeholder": {
       "username": "Username",
@@ -152,6 +153,10 @@
       "remixCount_other": "{{count}} remixes",
       "allCreators": "All creators",
       "allCollections": "All collections"
+    },
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
     },
     "tooltip": {
       "small": "Small — thumbnail only",
@@ -207,7 +212,8 @@
       "bulkDeletedPartial": "Deleted {{ok}} assets, {{failed}} failed",
       "bulkTagged": "Tagged {{count}} assets",
       "bulkTagFailed": "Failed to tag assets",
-      "uploadQueued": "{{count}} file(s) queued for upload"
+      "uploadQueued": "{{count}} file(s) queued for upload",
+      "bulkTaggedPartial": "Tagged {{ok}} assets, {{failed}} failed"
     }
   },
   "uploads": {
@@ -277,7 +283,8 @@
     "tooltip": {
       "info": "Libraries are used to aggregate and organise assets into logical collections within a space.",
       "newLibrary": "New library",
-      "deleteLibrary": "Delete library"
+      "deleteLibrary": "Delete library",
+      "editLibrary": "Edit library"
     },
     "count": {
       "assets": "assets",
@@ -301,7 +308,8 @@
     },
     "dialog": {
       "newLibrary": "New Library",
-      "deleteLibrary": "Delete Library"
+      "deleteLibrary": "Delete Library",
+      "editLibrary": "Edit Library"
     },
     "label": {
       "name": "Name",
@@ -310,13 +318,17 @@
     "button": {
       "cancel": "Cancel",
       "creating": "Creating…",
-      "create": "Create"
+      "create": "Create",
+      "saving": "Saving…"
     },
     "confirm": {
       "delete": "Delete {{name}}? This cannot be undone."
     },
     "toast": {
-      "deleted": "Library deleted"
+      "deleted": "Library deleted",
+      "createFailed": "Failed to create library",
+      "updateFailed": "Failed to update library",
+      "deleteFailed": "Failed to delete library"
     },
     "emptyState": {
       "title": "Looking to start a project?",
@@ -330,7 +342,8 @@
     },
     "filter": {
       "allCreators": "All creators"
-    }
+    },
+    "untitled": "Untitled"
   },
   "collections": {
     "title": "Collections",
@@ -500,7 +513,8 @@
       "dispatchFailures": "Dispatch Failures",
       "deadLettered": "{{count}} tasks dead-lettered",
       "parkedKinds": "Parked Node Kinds",
-      "allKindsDispatching": "Every node kind is dispatching"
+      "allKindsDispatching": "Every node kind is dispatching",
+      "vsLast7d": "{{delta}} vs previous 7d"
     },
     "chart": {
       "pipelineRuns": "Pipeline Runs (14d)",
@@ -650,7 +664,8 @@
       "untitled": "Untitled",
       "toggle": "Toggle conversation list",
       "search": "Search chats",
-      "noMatch": "No chat matches."
+      "noMatch": "No chat matches.",
+      "delete": "Delete chat"
     },
     "panel": {
       "recentAssets": "Recent Assets",
@@ -696,7 +711,8 @@
       "title": "Skills",
       "active": "Active skills ({{count}})",
       "none": "No skills yet — create one under Skills",
-      "manage": "Manage skills"
+      "manage": "Manage skills",
+      "loadFailed": "The skills could not be loaded"
     },
     "greeting": {
       "hello": "Hello {{name}}",
@@ -1674,7 +1690,8 @@
       "reject": "Reject"
     },
     "label": {
-      "confidence": "Confidence: {{pct}}%"
+      "confidence": "Confidence: {{pct}}%",
+      "frame": "frame {{frame}}"
     },
     "confirmError": "Failed to confirm detection",
     "rejectError": "Failed to delete detection",
@@ -1958,6 +1975,11 @@
     },
     "filter": {
       "allCreators": "All creators"
+    },
+    "capacity": {
+      "tooltip": "{{free}} free / {{total}} total ({{pct}}% free)",
+      "free": "{{size}} free",
+      "used": "{{size}} used"
     }
   },
   "reactions": {
@@ -2054,7 +2076,9 @@
       "description": "Point this asset at bytes that already exist on the server's filesystem. No file is uploaded.",
       "pathLabel": "Filesystem path",
       "pathPlaceholder": "/data/library/clip.mp4",
-      "submit": "Register"
+      "submit": "Register",
+      "libraryLabel": "Library",
+      "noLibraries": "No libraries available"
     },
     "confirm": {
       "delete": "Delete {{name}}? This cannot be undone."
@@ -2082,7 +2106,9 @@
       "regionCaptured": "Region captured — type a name and press Enter",
       "regionTooltip": "Region tag (time / area)",
       "moveError": "The region could not be moved.",
-      "newRegion": "new region"
+      "newRegion": "new region",
+      "addError": "The tag could not be added.",
+      "removeError": "The tag could not be removed."
     },
     "detection": {
       "label": "Detections",
@@ -2148,6 +2174,8 @@
       "matchCount_one": "{{count}} section",
       "matchCount_other": "{{count}} sections",
       "noMatch": "No match",
+      "boundaryEarlier": "Move section start earlier",
+      "boundaryLater": "Move section start later",
       "search": {
         "placeholder": "Search what is said in this video",
         "clear": "Clear",
@@ -2171,6 +2199,13 @@
     },
     "media": {
       "resize": "Resize the player"
+    },
+    "loadFailed": "This asset could not be loaded. It may have been deleted, or you may not have access to it.",
+    "backToAssets": "Back to assets",
+    "zoom": {
+      "in": "Zoom in",
+      "out": "Zoom out",
+      "reset": "Reset zoom"
     }
   },
   "skills": {
@@ -2187,6 +2222,8 @@
     "deleted": "Skill deleted",
     "saveFailed": "Saving the skill failed",
     "installFailed": "Installing the skill failed",
+    "loadFailed": "Loading the skills failed",
+    "deleteFailed": "Deleting the skill failed",
     "installed": "Installed as \"{{name}}\"",
     "install": "Install",
     "own": "Yours",
@@ -2273,6 +2310,12 @@
     "markAllRead": "Mark all read",
     "clearAll": "Clear all",
     "dismiss": "Dismiss",
+    "time": {
+      "justNow": "just now",
+      "minutes": "{{count}}m",
+      "hours": "{{count}}h",
+      "days": "{{count}}d"
+    },
     "emptyState": {
       "title": "You're all caught up",
       "description": "Assignments, comments and run failures will show up here."
@@ -2359,12 +2402,16 @@
     },
     "filter": {
       "allCreators": "All creators"
+    },
+    "toast": {
+      "loadFailed": "Loading the sessions failed"
     }
   },
   "person": {
     "button": {
       "uploadImage": "Upload image",
-      "back": "Back to detection"
+      "back": "Back to detection",
+      "retry": "Try again"
     },
     "label": {
       "images": "Pictures",
@@ -2381,7 +2428,9 @@
       "images": "No pictures yet",
       "imagesHint": "Upload one, or add a face from a group confirmed to this person.",
       "notFound": "This person could not be loaded",
-      "notFoundHint": "They may have been deleted."
+      "notFoundHint": "They may have been deleted.",
+      "loadError": "Loading this person failed",
+      "loadErrorHint": "The request failed - that does not mean the person was deleted. Try again in a moment."
     },
     "toast": {
       "imageUploaded": "Picture added",

@@ -38,7 +38,7 @@ import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
-import { assetTypeFromMime } from "../assets/assetMapping";
+import { assetTypeFromMime, durationSeconds } from "../assets/assetMapping";
 import { listCollections, CollectionResponse } from "../../api/collections";
 import { listTasks, TaskResponse } from "../../api/tasks";
 import { PAGE_SIZE } from "../../hooks/pagedList";
@@ -312,18 +312,27 @@ function WorkspacePanel({ mode, results, selectedAssetId, selectedAssetStart, on
 
   useEffect(() => {
     if (!selectedAssetId || !token) { setSelectedAsset(null); return; }
-    apiLoadAsset(token, selectedAssetId).then(setSelectedAsset).catch(() => setSelectedAsset(null));
+    // Picking a second result before the first has loaded must not let the first one land last.
+    let cancelled = false;
+    apiLoadAsset(token, selectedAssetId)
+      .then(a => { if (!cancelled) setSelectedAsset(a); })
+      .catch(() => { if (!cancelled) setSelectedAsset(null); });
+    return () => { cancelled = true; };
   }, [selectedAssetId, token]);
 
   // If an asset is selected from the chat, show it inline
-  if (selectedAssetId && selectedAsset) {
+  // `selectedAsset.uuid === selectedAssetId`: while the next pick loads, the previous asset must not
+  // be shown under the new pick's start position.
+  if (selectedAssetId && selectedAsset && selectedAsset.uuid === selectedAssetId) {
     const mime = selectedAsset.file?.mimeType ?? "";
     const filename = selectedAsset.file?.filename ?? selectedAsset.uuid;
     const fileSize = selectedAsset.file?.size ?? 0;
     const tags = (selectedAsset.tags ?? []).map(t => t.name);
     const width = selectedAsset.imageComponents?.[0]?.width ?? selectedAsset.videoComponents?.[0]?.width;
     const height = selectedAsset.imageComponents?.[0]?.height ?? selectedAsset.videoComponents?.[0]?.height;
-    const duration = selectedAsset.videoComponents?.[0]?.duration ?? selectedAsset.audioComponents?.[0]?.duration;
+    // The components carry milliseconds (asset_video_comp.media_duration); read raw, a 42 second
+    // clip rendered as "700:00".
+    const duration = durationSeconds(selectedAsset.videoComponents?.[0]?.duration ?? selectedAsset.audioComponents?.[0]?.duration);
     return (
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
         {/* The same viewer the transcript embeds. This slot used to be a 40x28 grey rectangle — a
@@ -352,7 +361,7 @@ function WorkspacePanel({ mode, results, selectedAssetId, selectedAssetStart, on
             <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
               {[
                 [t("chat.detail.size"), `${(fileSize / 1e6).toFixed(1)} MB`],
-                ...(duration ? [[t("chat.detail.duration"), `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, "0")}`]] : []),
+                ...(duration ? [[t("chat.detail.duration"), `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, "0")}`]] : []),
                 ...(width ? [[t("chat.detail.dimensions"), `${width}×${height}`]] : []),
               ].map(([k, v]) => (
                 <React.Fragment key={k}>
@@ -556,6 +565,17 @@ export default function ChatWorkspace() {
   const abortRef = useRef<AbortController | null>(null);
   const attachmentsRef = useRef<ReturnType<typeof useChatAttachments> | null>(null);
   const activeChatRef = useRef<string | null>(null);
+  /**
+   * Which conversation the transcript currently shows, bumped on every switch (new chat, opening a
+   * session, deleting the open one).
+   *
+   * An aborted stream still resolves afterwards and appends its partial answer, and a slow
+   * `loadChat` still resolves after a faster one. Both compare the generation they started under
+   * against this one and drop their result when the user has moved on — otherwise the previous
+   * conversation's half-answer lands in a fresh chat, or a session clicked earlier overwrites the
+   * one clicked last.
+   */
+  const transcriptGenRef = useRef(0);
 
   // Abort a running stream on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -621,6 +641,7 @@ export default function ChatWorkspace() {
   }, []);
 
   const newChat = () => {
+    transcriptGenRef.current += 1;
     abortRef.current?.abort();
     setSessionId(null);
     setMessages([]);
@@ -632,9 +653,11 @@ export default function ChatWorkspace() {
 
   const loadSession = async (uuid: string) => {
     if (!token) return;
+    const gen = ++transcriptGenRef.current;
     abortRef.current?.abort();
     try {
       const res = await loadChat(token, uuid);
+      if (gen !== transcriptGenRef.current) return;
       setMessages(res.messages ?? []);
       setSessionId(uuid);
       // The panel belongs to the conversation, so it is restored with it rather than left
@@ -753,6 +776,7 @@ export default function ChatWorkspace() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setSending(true);
+    const gen = transcriptGenRef.current;
 
     // The panel used to be driven from here, by looking for the words "asset" or "show" in what
     // was typed. It opened the asset browser on "show me the pipeline" and left it on the
@@ -863,6 +887,10 @@ export default function ChatWorkspace() {
         render();
       }, controller.signal);
 
+      // The user switched conversation while this one was streaming: whatever it produced belongs
+      // to a transcript that is no longer on screen (the server persisted it there).
+      if (gen !== transcriptGenRef.current) return;
+
       if (finalMsg !== null) {
         // The authoritative persisted message replaces the accumulated deltas;
         // the live action rows are kept for display.
@@ -887,6 +915,7 @@ export default function ChatWorkspace() {
         }]);
       }
     } catch (e) {
+      if (gen !== transcriptGenRef.current) return;
       if (e instanceof AgentBusyError) {
         showToast(t("chat.error.busy"), "warning");
       } else {
@@ -1000,6 +1029,7 @@ export default function ChatWorkspace() {
               visibleSessions.map((s) => (
                 <Box
                   key={s.uuid}
+                  data-testid={`chat-rail-session-${s.uuid}`}
                   onClick={() => loadSession(s.uuid)}
                   sx={{
                     display: "flex", alignItems: "center", gap: 1,
@@ -1019,6 +1049,7 @@ export default function ChatWorkspace() {
                   <IconButton
                     className="chat-del"
                     size="small"
+                    aria-label={t("chat.sessions.delete")}
                     onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.uuid); }}
                     sx={{ opacity: 0, p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red }, transition: "opacity 120ms ease" }}
                   >
@@ -1160,9 +1191,12 @@ export default function ChatWorkspace() {
             <ChatAttachmentChips
               items={attachments.items}
               onRemove={item => attachments.remove(item)}
-              onSave={item => {
-                attachments.save(item);
-                showToast(t("chat.attachments.saved", { name: item.filename }), "success");
+              onSave={async item => {
+                // Only once the server has it: a refused promote already says so, and a success
+                // toast beside that error would contradict it.
+                if (await attachments.save(item)) {
+                  showToast(t("chat.attachments.saved", { name: item.filename }), "success");
+                }
               }}
             />
             <input

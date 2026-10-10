@@ -5,6 +5,7 @@ import { ArrowUpwardOutlined, ArrowDownwardOutlined, SearchOutlined } from "@mui
 import { tokens } from "../../theme";
 import { TranscriptSection } from "../../types";
 import { formatDuration } from "./helpers";
+import { moveSectionBoundary } from "./transcriptMapping";
 
 /**
  * The palette the chapters cycle through.
@@ -128,18 +129,8 @@ export function TranscriptPanel({
   }, [reveal, sections]);
 
   const moveBoundary = (idx: number, direction: "up" | "down") => {
-    const updated = [...sections];
-    const step = 0.5;
-    if (direction === "up" && idx > 0) {
-      const newTime = Math.max(updated[idx - 1].startTime + 0.5, updated[idx].startTime - step);
-      updated[idx - 1] = { ...updated[idx - 1], endTime: newTime };
-      updated[idx] = { ...updated[idx], startTime: newTime, words: updated[idx].words.filter(w => w.startTime >= newTime) };
-    } else if (direction === "down" && idx < updated.length - 1) {
-      const newTime = Math.min(updated[idx + 1].endTime - 0.5, updated[idx].endTime + step);
-      updated[idx] = { ...updated[idx], endTime: newTime };
-      updated[idx + 1] = { ...updated[idx + 1], startTime: newTime, words: updated[idx + 1].words.filter(w => w.startTime >= newTime) };
-    }
-    onSectionsChange(updated);
+    const updated = moveSectionBoundary(sections, idx, direction);
+    if (updated !== sections) onSectionsChange(updated);
   };
 
   return (
@@ -211,13 +202,13 @@ export function TranscriptPanel({
             {idx > 0 && (
               <Box sx={{ display: "flex", justifyContent: "center", py: 0.25 }}>
                 <Box sx={{ display: "flex", gap: 0.25, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm, px: 0.5 }}>
-                  <IconButton size="small" onClick={() => moveBoundary(idx, "up")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
+                  <IconButton size="small" aria-label={tAD("transcript.boundaryEarlier")} data-testid="transcript-boundary-up" onClick={() => moveBoundary(idx, "up")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
                     <ArrowUpwardOutlined sx={{ fontSize: 12 }} />
                   </IconButton>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.6rem", alignSelf: "center", px: 0.25 }}>
+                  <Typography variant="caption" data-testid="transcript-boundary-time" sx={{ color: tokens.text.tertiary, fontSize: "0.6rem", alignSelf: "center", px: 0.25 }}>
                     {formatDuration(Math.round(section.startTime))}
                   </Typography>
-                  <IconButton size="small" onClick={() => moveBoundary(idx, "down")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
+                  <IconButton size="small" aria-label={tAD("transcript.boundaryLater")} data-testid="transcript-boundary-down" onClick={() => moveBoundary(idx, "down")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
                     <ArrowDownwardOutlined sx={{ fontSize: 12 }} />
                   </IconButton>
                 </Box>

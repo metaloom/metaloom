@@ -122,7 +122,8 @@
     "title": "Loom Studio",
     "subtitle": "Melden Sie sich an, um fortzufahren",
     "error": {
-      "invalidCredentials": "Ungültige Anmeldedaten."
+      "invalidCredentials": "Ungültige Anmeldedaten.",
+      "unavailable": "Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut."
     },
     "placeholder": {
       "username": "Benutzername",
@@ -152,6 +153,10 @@
       "remixCount_other": "{{count}} Remixe",
       "allCreators": "Alle Ersteller",
       "allCollections": "Alle Sammlungen"
+    },
+    "view": {
+      "grid": "Rasteransicht",
+      "list": "Listenansicht"
     },
     "tooltip": {
       "small": "Klein — nur Vorschaubild",
@@ -207,7 +212,8 @@
       "bulkDeletedPartial": "{{ok}} Assets gelöscht, {{failed}} fehlgeschlagen",
       "bulkTagged": "{{count}} Assets getaggt",
       "bulkTagFailed": "Assets konnten nicht getaggt werden",
-      "uploadQueued": "{{count}} Datei(en) zum Upload eingereiht"
+      "uploadQueued": "{{count}} Datei(en) zum Upload eingereiht",
+      "bulkTaggedPartial": "{{ok}} Assets getaggt, {{failed}} fehlgeschlagen"
     }
   },
   "uploads": {
@@ -277,7 +283,8 @@
     "tooltip": {
       "info": "Bibliotheken werden verwendet, um Assets innerhalb eines Spaces zu logischen Sammlungen zusammenzufassen.",
       "newLibrary": "Neue Bibliothek",
-      "deleteLibrary": "Bibliothek löschen"
+      "deleteLibrary": "Bibliothek löschen",
+      "editLibrary": "Bibliothek bearbeiten"
     },
     "count": {
       "assets": "Assets",
@@ -301,7 +308,8 @@
     },
     "dialog": {
       "newLibrary": "Neue Bibliothek",
-      "deleteLibrary": "Bibliothek löschen"
+      "deleteLibrary": "Bibliothek löschen",
+      "editLibrary": "Bibliothek bearbeiten"
     },
     "label": {
       "name": "Name",
@@ -310,13 +318,17 @@
     "button": {
       "cancel": "Abbrechen",
       "creating": "Wird erstellt…",
-      "create": "Erstellen"
+      "create": "Erstellen",
+      "saving": "Wird gespeichert…"
     },
     "confirm": {
       "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
     },
     "toast": {
-      "deleted": "Bibliothek gelöscht"
+      "deleted": "Bibliothek gelöscht",
+      "createFailed": "Bibliothek konnte nicht erstellt werden",
+      "updateFailed": "Bibliothek konnte nicht aktualisiert werden",
+      "deleteFailed": "Bibliothek konnte nicht gelöscht werden"
     },
     "emptyState": {
       "title": "Willst du ein Projekt starten?",
@@ -330,7 +342,8 @@
     },
     "filter": {
       "allCreators": "Alle Ersteller"
-    }
+    },
+    "untitled": "Ohne Titel"
   },
   "collections": {
     "title": "Sammlungen",
@@ -341,7 +354,9 @@
       "new": "Neue Sammlung",
       "cancel": "Abbrechen",
       "creating": "Wird erstellt…",
-      "create": "Erstellen"
+      "create": "Erstellen",
+      "save": "Speichern",
+      "delete": "Löschen"
     },
     "search": {
       "placeholder": "Sammlungen suchen…"
@@ -364,6 +379,7 @@
     },
     "dialog": {
       "newCollection": "Neue Sammlung",
+      "editCollection": "Sammlung bearbeiten",
       "deleteCollection": "Sammlung löschen"
     },
     "label": {
@@ -375,7 +391,13 @@
       "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
     },
     "toast": {
-      "deleted": "Sammlung gelöscht"
+      "deleted": "Sammlung gelöscht",
+      "created": "Sammlung erstellt",
+      "updated": "Sammlung aktualisiert",
+      "loadFailed": "Sammlungen konnten nicht geladen werden",
+      "createFailed": "Sammlung konnte nicht erstellt werden",
+      "updateFailed": "Sammlung konnte nicht aktualisiert werden",
+      "deleteFailed": "Sammlung konnte nicht gelöscht werden"
     },
     "filter": {
       "allCreators": "Alle Ersteller"
@@ -491,7 +513,8 @@
       "dispatchFailures": "Zuweisungsfehler",
       "deadLettered": "{{count}} Tasks endgültig verworfen",
       "parkedKinds": "Pausierte Node-Typen",
-      "allKindsDispatching": "Alle Node-Typen werden zugewiesen"
+      "allKindsDispatching": "Alle Node-Typen werden zugewiesen",
+      "vsLast7d": "{{delta}} ggü. den 7 Tagen davor"
     },
     "chart": {
       "pipelineRuns": "Pipeline-Läufe (14 T)",
@@ -641,7 +664,8 @@
       "untitled": "Unbenannt",
       "toggle": "Unterhaltungsliste umschalten",
       "search": "Chats durchsuchen",
-      "noMatch": "Kein Chat gefunden."
+      "noMatch": "Kein Chat gefunden.",
+      "delete": "Chat löschen"
     },
     "panel": {
       "recentAssets": "Neueste Assets",
@@ -687,7 +711,8 @@
       "title": "Skills",
       "active": "Aktive Skills ({{count}})",
       "none": "Noch keine Skills — unter Skills anlegen",
-      "manage": "Skills verwalten"
+      "manage": "Skills verwalten",
+      "loadFailed": "Die Skills konnten nicht geladen werden"
     },
     "greeting": {
       "hello": "Hallo {{name}}",
@@ -1665,7 +1690,8 @@
       "reject": "Ablehnen"
     },
     "label": {
-      "confidence": "Konfidenz: {{pct}}%"
+      "confidence": "Konfidenz: {{pct}}%",
+      "frame": "Frame {{frame}}"
     },
     "confirmError": "Erkennung konnte nicht bestätigt werden",
     "rejectError": "Erkennung konnte nicht gelöscht werden",
@@ -1949,6 +1975,11 @@
     },
     "filter": {
       "allCreators": "Alle Ersteller"
+    },
+    "capacity": {
+      "tooltip": "{{free}} frei / {{total}} gesamt ({{pct}} % frei)",
+      "free": "{{size}} frei",
+      "used": "{{size}} belegt"
     }
   },
   "reactions": {
@@ -2045,7 +2076,9 @@
       "description": "Verweist dieses Asset auf bereits im Dateisystem des Servers vorhandene Daten. Es wird keine Datei hochgeladen.",
       "pathLabel": "Dateisystempfad",
       "pathPlaceholder": "/data/library/clip.mp4",
-      "submit": "Registrieren"
+      "submit": "Registrieren",
+      "libraryLabel": "Bibliothek",
+      "noLibraries": "Keine Bibliotheken verfügbar"
     },
     "confirm": {
       "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
@@ -2073,7 +2106,9 @@
       "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
       "regionTooltip": "Region-Tag (Zeit / Bereich)",
       "moveError": "Der Bereich konnte nicht verschoben werden.",
-      "newRegion": "neue Region"
+      "newRegion": "neue Region",
+      "addError": "Das Tag konnte nicht hinzugefügt werden.",
+      "removeError": "Das Tag konnte nicht entfernt werden."
     },
     "detection": {
       "label": "Erkennungen",
@@ -2139,6 +2174,8 @@
       "matchCount_one": "{{count}} Abschnitt",
       "matchCount_other": "{{count}} Abschnitte",
       "noMatch": "Kein Treffer",
+      "boundaryEarlier": "Abschnittsbeginn nach vorne",
+      "boundaryLater": "Abschnittsbeginn nach hinten",
       "search": {
         "placeholder": "Gesprochenen Text in diesem Video durchsuchen",
         "clear": "Leeren",
@@ -2162,6 +2199,13 @@
     },
     "media": {
       "resize": "Player-Größe ändern"
+    },
+    "loadFailed": "Dieses Asset konnte nicht geladen werden. Möglicherweise wurde es gelöscht oder Sie haben keinen Zugriff darauf.",
+    "backToAssets": "Zurück zu den Assets",
+    "zoom": {
+      "in": "Vergrößern",
+      "out": "Verkleinern",
+      "reset": "Zoom zurücksetzen"
     }
   },
   "skills": {
@@ -2178,6 +2222,8 @@
     "deleted": "Skill gelöscht",
     "saveFailed": "Speichern des Skills fehlgeschlagen",
     "installFailed": "Installation des Skills fehlgeschlagen",
+    "loadFailed": "Laden der Skills fehlgeschlagen",
+    "deleteFailed": "Löschen des Skills fehlgeschlagen",
     "installed": "Installiert als \"{{name}}\"",
     "install": "Installieren",
     "own": "Eigener",
@@ -2264,6 +2310,12 @@
     "markAllRead": "Alle als gelesen markieren",
     "clearAll": "Alle löschen",
     "dismiss": "Verwerfen",
+    "time": {
+      "justNow": "gerade eben",
+      "minutes": "{{count}} Min.",
+      "hours": "{{count}} Std.",
+      "days": "{{count}} T."
+    },
     "emptyState": {
       "title": "Alles erledigt",
       "description": "Zuweisungen, Kommentare und fehlgeschlagene Läufe erscheinen hier."
@@ -2350,12 +2402,16 @@
     },
     "filter": {
       "allCreators": "Alle Ersteller"
+    },
+    "toast": {
+      "loadFailed": "Laden der Sitzungen fehlgeschlagen"
     }
   },
   "person": {
     "button": {
       "uploadImage": "Bild hochladen",
-      "back": "Zurück zur Erkennung"
+      "back": "Zurück zur Erkennung",
+      "retry": "Erneut versuchen"
     },
     "label": {
       "images": "Bilder",
@@ -2372,7 +2428,9 @@
       "images": "Noch keine Bilder",
       "imagesHint": "Lade eines hoch oder füge ein Gesicht aus einer dieser Person zugeordneten Gruppe hinzu.",
       "notFound": "Diese Person konnte nicht geladen werden",
-      "notFoundHint": "Möglicherweise wurde sie gelöscht."
+      "notFoundHint": "Möglicherweise wurde sie gelöscht.",
+      "loadError": "Laden dieser Person fehlgeschlagen",
+      "loadErrorHint": "Die Anfrage ist fehlgeschlagen - das heißt nicht, dass die Person gelöscht wurde. Versuche es gleich noch einmal."
     },
     "toast": {
       "imageUploaded": "Bild hinzugefügt",

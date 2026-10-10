@@ -198,4 +198,87 @@ test.describe("Pipeline versioning – mocked", () => {
     await expect(page.getByTestId("pipeline-version-badge")).toHaveText("v3");
     await expect(canvas.locator(".react-flow__node")).toHaveCount(3);
   });
+
+  // ── Compare with current (PipelineVersionDiff) ─────────────────────────────
+
+  /** Serve GET /pipelines/:uuid/versions/:n; `gate` lets a test hold one version back. */
+  async function mockVersionReads(page: Page, opts: { failVersion?: number; gate?: { version: number; until: Promise<void> } } = {}) {
+    await page.route(/\/api\/v1\/pipelines\/[^/]+\/versions\/(\d+)$/, async route => {
+      const n = Number(route.request().url().match(/versions\/(\d+)$/)![1]);
+      if (opts.gate && opts.gate.version === n) await opts.gate.until;
+      if (opts.failVersion === n) {
+        return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "version store offline" }) }).catch(() => {});
+      }
+      return route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify(pipelineAt(n, n === 1 ? V1_DEFINITION : V3_DEFINITION)),
+      }).catch(() => {});
+    });
+  }
+
+  async function openCompare(page: Page, version: number) {
+    await page.getByTestId("pipeline-version-badge").click();
+    await expect(page.getByTestId("pipeline-version-list")).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId(`pipeline-version-compare-${version}`).click();
+    await expect(page.getByTestId("pipeline-version-diff")).toBeVisible({ timeout: 5_000 });
+  }
+
+  test("comparing v1 with the current version marks the thumbnail node as added", async ({ page }) => {
+    await mockBackend(page);
+    await mockVersionReads(page);
+    await login(page);
+    await openCompare(page, 1);
+
+    const diff = page.getByTestId("pipeline-version-diff");
+    await expect(diff.locator('[data-diff-kind="added"]').first()).toBeVisible({ timeout: 5_000 });
+    await expect(diff.locator('[data-diff-kind="added"]').filter({ hasText: '"thumb"' }).first()).toBeVisible();
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toHaveCount(0);
+
+    await page.getByTestId("pipeline-version-diff-close").click();
+    await expect(diff).toBeHidden();
+  });
+
+  test("an identical version says so instead of drawing a diff", async ({ page }) => {
+    await mockBackend(page);
+    await mockVersionReads(page);
+    await login(page);
+    await openCompare(page, 2);
+
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("pipeline-version-diff-changed")).toHaveCount(0);
+  });
+
+  test("a failed version read is reported, not shown as 'no differences'", async ({ page }) => {
+    await mockBackend(page);
+    await mockVersionReads(page, { failVersion: 1 });
+    await login(page);
+    await openCompare(page, 1);
+
+    await expect(page.getByTestId("pipeline-version-diff-error")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toHaveCount(0);
+  });
+
+  test("a late answer for a closed comparison does not land in the next one", async ({ page }) => {
+    // Regression: nothing tied a response to the comparison that asked for it, so v1's slow diff
+    // arrived after the user had closed it and opened v2, and painted v1's changes under v2's title.
+    let release: () => void = () => {};
+    const until = new Promise<void>(resolve => { release = resolve; });
+    await mockBackend(page);
+    await mockVersionReads(page, { gate: { version: 1, until } });
+    await login(page);
+
+    await openCompare(page, 1);
+    await expect(page.getByTestId("pipeline-version-diff")).toContainText("Loading versions");
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toHaveCount(0);
+    await page.getByTestId("pipeline-version-diff-close").click();
+    await expect(page.getByTestId("pipeline-version-diff")).toBeHidden();
+
+    await openCompare(page, 2);
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toBeVisible({ timeout: 5_000 });
+
+    release();
+    await page.waitForTimeout(500); // negative assertion: give the late answer time to (not) land
+    await expect(page.getByTestId("pipeline-version-diff-changed")).toHaveCount(0);
+    await expect(page.getByTestId("pipeline-version-diff-empty")).toBeVisible();
+  });
 });

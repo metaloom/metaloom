@@ -22,6 +22,7 @@ import { DEFAULT_SORT, ListFilterSelect, ListSortControl, type SortState } from 
 import { useCreatorOptions } from "../../hooks/useCreatorOptions";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
+import { poolCapacity, type PoolCapacity } from "./poolCapacity";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e15) return `${(bytes / 1e15).toFixed(1)} PB`;
@@ -44,16 +45,18 @@ function PoolIcon({ type }: { type: AssetPoolType }) {
 }
 
 // ── Free Space Donut Chart ────────────────────────────────────────────────
-function FreeSpaceDonut({ freeSpace, usedSpace, totalSize, size = 52 }: { freeSpace: number; usedSpace?: number; totalSize: number; size?: number }) {
-  const used = usedSpace != null ? usedSpace : totalSize - freeSpace;
-  const pct = totalSize > 0 ? Math.min(used / totalSize, 1) : 0;
+function FreeSpaceDonut({ capacity, size = 52 }: { capacity: PoolCapacity; size?: number }) {
+  const { t } = useTranslation();
+  const pct = capacity.usedFraction;
   const r = (size - 6) / 2;
   const circ = 2 * Math.PI * r;
   const usedColor = pct > 0.9 ? tokens.accent.red : pct > 0.7 ? tokens.accent.amber : tokens.accent.green;
 
   return (
-    <Tooltip title={`${formatBytes(freeSpace)} free / ${formatBytes(totalSize)} total (${Math.round((1 - pct) * 100)}% free)`}>
-      <Box sx={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+    <Tooltip title={t("assetPools.capacity.tooltip", {
+      free: formatBytes(capacity.free), total: formatBytes(capacity.total), pct: Math.round((1 - pct) * 100),
+    })}>
+      <Box data-testid="pool-capacity" data-used-pct={Math.round(pct * 100)} sx={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tokens.border.subtle} strokeWidth={5} />
           <circle
@@ -79,8 +82,9 @@ function FreeSpaceDonut({ freeSpace, usedSpace, totalSize, size = 52 }: { freeSp
 
 // ── Pool Detail Card ──────────────────────────────────────────────────────
 function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => void; onDelete: () => void }) {
+  const { t } = useTranslation();
   const hasFreeSpace = pool.freeSpace != null && pool.freeSpace >= 0;
-  const totalForChart = hasFreeSpace && pool.totalSize > 0 ? pool.totalSize : (hasFreeSpace ? pool.freeSpace! : 0);
+  const capacity = poolCapacity(pool.freeSpace, pool.usedSpace, pool.totalSize);
 
   return (
     <Paper
@@ -93,7 +97,8 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
         overflow: "hidden",
         transition: "border-color 140ms ease, box-shadow 140ms ease",
         "&:hover": { borderColor: tokens.border.strong, boxShadow: "0 4px 20px rgba(0,0,0,0.35)" },
-        "&:hover .pool-actions": { opacity: 1 },
+        // Focus as well as hover, so the buttons are not invisible to a keyboard user.
+        "&:hover .pool-actions, & .pool-actions:focus-within": { opacity: 1 },
         position: "relative",
       }}
     >
@@ -105,18 +110,22 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
           display: "flex", gap: 0.5, opacity: 0, transition: "opacity 140ms ease",
         }}
       >
-        <Tooltip title="Edit pool">
+        <Tooltip title={t("assetPools.tooltip.editPool")}>
           <IconButton
             size="small"
+            aria-label={t("assetPools.tooltip.editPool")}
+            data-testid="pool-edit"
             onClick={onEdit}
             sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.primary.light, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
           >
             <EditOutlined sx={{ fontSize: 13 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Delete pool">
+        <Tooltip title={t("assetPools.tooltip.deletePool")}>
           <IconButton
             size="small"
+            aria-label={t("assetPools.tooltip.deletePool")}
+            data-testid="pool-delete"
             onClick={onDelete}
             sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.accent.red, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
           >
@@ -142,7 +151,7 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
             {pool.name}
           </Typography>
           <Chip
-            label={pool.type === "s3" ? "S3 Bucket" : "Filesystem"}
+            label={pool.type === "s3" ? t("assetPools.chip.s3Bucket") : t("assetPools.chip.filesystemLabel")}
             size="small"
             sx={{
               height: 18, fontSize: "0.65rem", mt: 0.25,
@@ -176,18 +185,22 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
 
       {/* Stats + Free Space Chart */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, pb: 2 }}>
-        {hasFreeSpace && totalForChart > 0 && (
-          <FreeSpaceDonut freeSpace={pool.freeSpace!} usedSpace={pool.usedSpace} totalSize={totalForChart} />
-        )}
+        {capacity && <FreeSpaceDonut capacity={capacity} />}
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, flex: 1 }}>
-          <Chip label={`${formatCount(pool.assetCount)} assets`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
+          {/* `/pools` reports no asset count or capacity; mapResponseToPool fills both with 0. Printing
+              "0 assets" / "0 KB" on every card stated a fact about the pool that nobody measured. */}
+          {pool.assetCount > 0 && (
+            <Chip label={`${formatCount(pool.assetCount)} ${t("assetPools.chip.assets")}`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
+          )}
           {hasFreeSpace && (
-            <Chip label={`${formatBytes(pool.freeSpace!)} free`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(52,213,138,0.12)", color: tokens.accent.green }} />
+            <Chip label={t("assetPools.capacity.free", { size: formatBytes(pool.freeSpace!) })} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(52,213,138,0.12)", color: tokens.accent.green }} />
           )}
           {pool.usedSpace != null && pool.usedSpace > 0 && (
-            <Chip label={`${formatBytes(pool.usedSpace)} used`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(46,168,255,0.12)", color: tokens.accent.blue }} />
+            <Chip label={t("assetPools.capacity.used", { size: formatBytes(pool.usedSpace) })} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(46,168,255,0.12)", color: tokens.accent.blue }} />
           )}
-          <Chip label={formatBytes(pool.totalSize)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
+          {pool.totalSize > 0 && (
+            <Chip label={formatBytes(pool.totalSize)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
+          )}
           <Chip label={new Date(pool.updatedAt).toLocaleDateString()} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
         </Box>
       </Box>
@@ -301,10 +314,13 @@ export default function AssetPoolsView() {
     try {
       const resp = await updatePool(token, editPool.id, {
         name: formName.trim(),
-        fsPath: formType === "filesystem" ? formFsPath.trim() : undefined,
-        s3Bucket: formType === "s3" ? formS3Bucket.trim() : undefined,
-        s3Region: formType === "s3" ? formS3Region.trim() : undefined,
-        s3Endpoint: formType === "s3" ? formS3Endpoint.trim() : undefined,
+        // The server skips null fields on update, so leaving the other type's fields out kept them:
+        // an S3 pool switched to filesystem stayed S3, because S3-ness is "has a bucket". An empty
+        // string is what clears a field (a blank bucket reads as "not S3" server-side too).
+        fsPath: formType === "filesystem" ? formFsPath.trim() : "",
+        s3Bucket: formType === "s3" ? formS3Bucket.trim() : "",
+        s3Region: formType === "s3" ? formS3Region.trim() : "",
+        s3Endpoint: formType === "s3" ? formS3Endpoint.trim() : "",
       });
       const updated = mapResponseToPool(resp);
       setPools(prev => prev.map(p => p.id === updated.id ? updated : p));
@@ -384,8 +400,10 @@ export default function AssetPoolsView() {
           <>
             <Chip label={`${fsCount} ${t("assetPools.chip.filesystem")}`} size="small" icon={<FolderOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
             <Chip label={`${s3Count} ${t("assetPools.chip.s3")}`} size="small" icon={<CloudOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
-            <Chip label={`${formatCount(totalAssets)} ${t("assetPools.chip.assets")}`} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
-            <Chip label={formatBytes(totalSize)} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
+            {totalAssets > 0 && (
+              <Chip label={`${formatCount(totalAssets)} ${t("assetPools.chip.assets")}`} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
+            )}
+            {totalSize > 0 && <Chip label={formatBytes(totalSize)} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />}
             <Chip
               icon={<AddOutlined sx={{ fontSize: 14 }} />}
               label={t("assetPools.button.new")}

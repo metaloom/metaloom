@@ -315,6 +315,26 @@ test.describe("Asset detail player – mocked e2e", () => {
     // Nothing to snap to at zero, and the first request must not wait on a probe to find that out.
     await expect(page.getByTestId("asset-video")).toHaveAttribute("data-stream-offset", "0");
     expect(rec.seekPointRequests).toEqual([]);
+
+    // Away to the middle (that one does ask), then back to the very start.
+    const bar = page.getByTestId("video-timeline-bar");
+    const box = (await bar.boundingBox())!;
+    await bar.click({ position: { x: box.width / 2, y: 14 } });
+    await expect.poll(() => rec.seekPointRequests.length, { timeout: 10_000 }).toBe(1);
+    await expect(page.getByTestId("asset-video")).not.toHaveAttribute("data-stream-offset", "0");
+    const streamsBefore = rec.streamRequests.length;
+
+    // A click at the bar's exact left edge is second zero. Dispatched with that clientX rather than
+    // clicked, because a real click lands on a whole pixel that is a fraction past the edge.
+    await bar.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: r.left, clientY: r.top + 2 }));
+    });
+
+    await expect(page.getByTestId("asset-video")).toHaveAttribute("data-stream-offset", "0", { timeout: 10_000 });
+    await expect.poll(() => rec.streamRequests.length, { timeout: 10_000 }).toBeGreaterThan(streamsBefore);
+    // Still the one lookup from the middle seek: zero was served without asking.
+    expect(rec.seekPointRequests).toHaveLength(1);
   });
 
   test("with no probe the player still renders and the timeline says nothing false", async ({ page }) => {
@@ -545,7 +565,9 @@ test.describe("Asset detail player – mocked e2e", () => {
     const rec = recorder();
     await open(page, rec);
 
-    const metadata = page.getByTestId("asset-section").filter({ has: page.locator("[data-section-id='metadata']") });
+    // The section element itself carries data-section-id; `filter({ has })` only matches
+    // descendants, so the old `getByTestId("asset-section").filter({ has: … })` matched nothing.
+    const metadata = page.locator("[data-testid='asset-section'][data-section-id='metadata']");
     const section = page.locator("[data-section-id='metadata']");
     await expect(section).toBeVisible({ timeout: 10_000 });
     // Metadata ships shut: it is reference material, and it used to be the one band that scrolled
@@ -558,7 +580,9 @@ test.describe("Asset detail player – mocked e2e", () => {
     await page.reload();
     await login(page);
     await expect(page.locator("[data-section-id='metadata']")).toHaveAttribute("data-expanded", "true", { timeout: 10_000 });
-    expect(metadata).toBeTruthy();
+    // A Locator is always truthy, so this used to be `expect(metadata).toBeTruthy()` - an assertion
+    // that could not fail. What the reload has to preserve is that the section is still there.
+    await expect(metadata).toHaveCount(1);
   });
 
   test("the timeline shows transcript chapters only while the transcript is unfolded", async ({ page }) => {

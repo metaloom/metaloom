@@ -10,13 +10,25 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  /** Which message to show: wrong credentials, or a server that could not be reached / failed. */
+  const [error, setError] = useState<"invalidCredentials" | "unavailable" | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await login(username, password);
-    if (!ok) {
-      setError(true);
+    // Enter pressed twice, or a double click, used to send two logins in flight at once.
+    if (busy) return;
+    setBusy(true);
+    try {
+      const ok = await login(username, password);
+      if (!ok) {
+        setError("invalidCredentials");
+      }
+    } catch {
+      // Network failure or a 5xx: the credentials were never judged, so do not say they are wrong.
+      setError("unavailable");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -68,15 +80,15 @@ export default function LoginPage() {
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ width: "100%", fontSize: "0.8rem" }}>
-            {t("auth.error.invalidCredentials")}
+          <Alert severity="error" data-testid={`login-error-${error}`} sx={{ width: "100%", fontSize: "0.8rem" }}>
+            {t(`auth.error.${error}`)}
           </Alert>
         )}
 
         <TextField
           placeholder={t("auth.placeholder.username")}
           value={username}
-          onChange={(e) => { setUsername(e.target.value); setError(false); }}
+          onChange={(e) => { setUsername(e.target.value); setError(null); }}
           fullWidth
           size="small"
           autoFocus
@@ -90,7 +102,7 @@ export default function LoginPage() {
           placeholder={t("auth.placeholder.password")}
           type="password"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); setError(false); }}
+          onChange={(e) => { setPassword(e.target.value); setError(null); }}
           fullWidth
           size="small"
           sx={{
@@ -104,6 +116,7 @@ export default function LoginPage() {
           type="submit"
           variant="contained"
           fullWidth
+          disabled={busy}
           sx={{
             mt: 1,
             textTransform: "none",

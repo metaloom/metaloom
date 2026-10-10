@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useToast } from "./ToastContext";
 import { toFailure, type Failure } from "../failure/failure";
 import FailureReportDialog from "../components/FailureReportDialog";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 /**
  * The single way a screen tells the user that something failed.
@@ -92,7 +93,14 @@ export function FailureProvider({ children }: { children: React.ReactNode }) {
   return (
     <FailureContext.Provider value={value}>
       {children}
-      <FailureReportDialog failure={reported} onClose={() => setReported(null)} />
+      {/* Its own boundary, because nothing else is above it: this sits outside AppShell's route
+          boundary, so a throw in the report form unmounted the entire app - and the form opens
+          precisely when something has just broken, so whatever broke the screen is the likeliest
+          thing to break it too. No onError: reporting a failure of the report form would open the
+          report form. Keyed by the failure so the next report gets a fresh attempt. */}
+      <ErrorBoundary key={reported ? `${reported.action}:${reported.traceId ?? ""}:${reported.message}` : "none"} feature="the problem report form">
+        <FailureReportDialog failure={reported} onClose={() => setReported(null)} />
+      </ErrorBoundary>
     </FailureContext.Provider>
   );
 }

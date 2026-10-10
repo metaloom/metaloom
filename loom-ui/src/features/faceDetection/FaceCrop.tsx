@@ -61,6 +61,11 @@ export function FaceCrop({
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Drop the previous crop first. Its object URL is revoked by the cleanup below, so keeping it
+    // in state rendered a dead blob - and when the new detection has no crop (404), that broken
+    // image stayed for good instead of the placeholder.
+    setUrl(null);
+    setAnchorEl(null);
     if (!token || !assetUuid || !detectionUuid) {
       return;
     }

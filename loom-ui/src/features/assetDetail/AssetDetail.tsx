@@ -34,6 +34,7 @@ import { useFaceFlash } from "../../hooks/useFaceFlash";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
+import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, updateTagPlacement, loadTagVocabulary, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
@@ -216,6 +217,8 @@ export default function AssetDetail() {
   const navigate = useNavigate();
   const { token, userUuid } = useAuth();
   const [asset, setAsset] = useState<Asset | null>(null);
+  /** The asset itself could not be loaded (404, 403, network) — render that instead of a spinner. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
@@ -374,6 +377,29 @@ export default function AssetDetail() {
   const [binaryBusy, setBinaryBusy] = useState(false);
   const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
   const [registerBinaryPath, setRegisterBinaryPath] = useState("");
+  /**
+   * The library the registered bytes belong to.
+   *
+   * The backend refuses a binary without a `libraryUuid`, and this used to send
+   * `asset.libraryId` — which `apiToAsset` hardcodes to "" because an asset response carries no
+   * library. The menu item only shows while the asset has no location, so there is nothing on the
+   * asset to derive it from either: the reviewer has to pick one.
+   */
+  const [registerBinaryLibrary, setRegisterBinaryLibrary] = useState("");
+  const [registerLibraries, setRegisterLibraries] = useState<LibraryResponse[]>([]);
+  useEffect(() => {
+    if (!registerBinaryOpen || !token) return;
+    let cancelled = false;
+    listLibraries(token, { limit: PAGE_SIZE })
+      .then(resp => {
+        if (cancelled) return;
+        const libs = resp.data ?? [];
+        setRegisterLibraries(libs);
+        setRegisterBinaryLibrary(prev => (libs.some(l => l.uuid === prev) ? prev : libs[0]?.uuid ?? ""));
+      })
+      .catch(() => { if (!cancelled) setRegisterLibraries([]); });
+    return () => { cancelled = true; };
+  }, [registerBinaryOpen, token]);
 
   // Refresh the asset's object detections from the backend (used after each mutation).
   const reloadDetections = useCallback(() => {
@@ -405,7 +431,11 @@ export default function AssetDetail() {
       // Extract annotations from the asset response
       const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => annotationResponseToAnnotation(a, id));
       setAnnotations(restAnnotations);
-    }).catch(() => { /* asset not found */ });
+    }).catch(() => {
+      // Without this the screen sat on its loading bar forever: a 404 (deleted asset, stale link)
+      // or a 403 looked exactly like a slow server.
+      setLoadFailed(true);
+    });
 
     // Load pipelines for the "Process" menu
     listPipelines(token).then(resp => setPipelines(resp.data ?? [])).catch(() => { /* pipelines optional */ });
@@ -415,11 +445,16 @@ export default function AssetDetail() {
       .then(resp => setReactions(resp.data ?? []))
       .catch(() => { /* reactions load failed */ });
 
-    // Comments, tasks and transcripts from the REST API
+    // Comments, tasks and transcripts from the REST API.
+    //
+    // Every member settles on its own: this used to be a bare Promise.all in which only the tasks
+    // call had a catch, so a single 403 (a reviewer without READ on persons, say) rejected the whole
+    // batch — comments, transcripts, faces and clusters all stayed empty, and the rejection went
+    // unhandled. Each list is independent, so each one failing means only that one is empty.
     Promise.all([
-      token ? listCommentsForAsset(token, id).then(r => (r.data ?? []).map((c: CommentResponse) => commentResponseToComment(c, id))) : Promise.resolve([] as Comment[]),
+      token ? listCommentsForAsset(token, id).then(r => (r.data ?? []).map((c: CommentResponse) => commentResponseToComment(c, id))).catch(() => [] as Comment[]) : Promise.resolve([] as Comment[]),
       token ? listAssetTasks(token, id).then(r => r.data ?? []).catch(() => [] as TaskResponse[]) : Promise.resolve([] as TaskResponse[]),
-      token ? listAssetTranscripts(token, id).then(resp => (resp.data ?? []).map(transcriptResponseToGroup)) : Promise.resolve([] as TranscriptGroup[]),
+      token ? listAssetTranscripts(token, id).then(resp => (resp.data ?? []).map(transcriptResponseToGroup)).catch(() => [] as TranscriptGroup[]) : Promise.resolve([] as TranscriptGroup[]),
       token ? listAssetDetections(token, id).then(resp => (resp.data ?? [])
         // "face" is what FacedetectNode writes. This read "facedetection" — which is the node's *options*
         // key, not its detection type — so the panel matched the demo seed and never a real asset.
@@ -433,7 +468,7 @@ export default function AssetDetail() {
           thumbnailUrl: "",
           clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
         }))
-      ) : Promise.resolve([] as DetectedFace[]),
+      ).catch(() => [] as DetectedFace[]) : Promise.resolve([] as DetectedFace[]),
       // The clusters computed within THIS asset, not every cluster in the library. The panel groups the
       // asset's faces by subject, so a library-wide list could only ever have produced groups whose
       // members are not here.
@@ -447,8 +482,8 @@ export default function AssetDetail() {
         reviewStatus: c.reviewStatus,
         score: c.score,
         personId: c.personUuid,
-      }))) : Promise.resolve([] as FaceCluster[]),
-      token ? listPersons(token, { limit: PAGE_SIZE }).then(r => r.data.map((p: PersonResponse) => toUiPerson(p)))
+      }))).catch(() => [] as FaceCluster[]) : Promise.resolve([] as FaceCluster[]),
+      token ? listPersons(token, { limit: PAGE_SIZE }).then(r => (r.data ?? []).map((p: PersonResponse) => toUiPerson(p))).catch(() => [] as Person[])
         : Promise.resolve([] as Person[]),
     ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);
@@ -907,6 +942,17 @@ export default function AssetDetail() {
     armFlash(face.id);
   }, [faceTimeOf, seekTo, armFlash]);
 
+  if (!asset && loadFailed) {
+    return (
+      <Box data-testid="asset-load-failed" sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1.5, height: "100%", bgcolor: tokens.bg.base }}>
+        <Typography variant="body2" color="text.secondary">{tAD("loadFailed")}</Typography>
+        <Button size="small" startIcon={<ArrowBack sx={{ fontSize: 16 }} />} onClick={() => navigate("/assets")}>
+          {tAD("backToAssets")}
+        </Button>
+      </Box>
+    );
+  }
+
   if (!asset) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: tokens.bg.base }}>
@@ -950,7 +996,11 @@ export default function AssetDetail() {
   const handleSave = () => {
     if (!token || !nameDirty) return;
     setSaving(true);
-    updateAsset(token, asset.id, { filename: editName.trim(), meta: asset.metadata })
+    // The filename lives under `file`, which is the only place the server reads it from: a top
+    // level `filename` is dropped and the 200 that follows echoes the old name back. Nothing else
+    // goes along — `asset.metadata` is never loaded (it is always `{}`), so sending it as `meta`
+    // overwrote whatever the asset's meta held with an empty object on every rename.
+    updateAsset(token, asset.id, { file: { filename: editName.trim() } })
       .then(resp => {
         setAsset(apiToAsset(resp));
         setEditName(apiToAsset(resp).name);
@@ -1025,13 +1075,13 @@ export default function AssetDetail() {
   };
 
   // Register binary *metadata* — point the asset at bytes already present on disk
-  // (no upload). The backend requires libraryUuid, sourced from the asset itself.
+  // (no upload). The backend requires libraryUuid, picked in the dialog.
   const handleRegisterBinary = () => {
     const path = registerBinaryPath.trim();
-    if (!token || !path) return;
+    if (!token || !path || !registerBinaryLibrary) return;
     setBinaryBusy(true);
     createAssetBinaryMeta(token, asset.id, {
-      libraryUuid: asset.libraryId,
+      libraryUuid: registerBinaryLibrary,
       filesystem: { path },
     })
       .then(() => {
@@ -1063,7 +1113,9 @@ export default function AssetDetail() {
     const name = rawName.trim();
     if (!name || !token) return;
     const request = { name, collection: DEFAULT_TAG_COLLECTION, ...(pendingArea ? { area: pendingArea } : {}) };
-    apiTagAsset(token, asset.id, request).then(() => reloadTags()).catch(() => { /* tag failed */ });
+    // The input is cleared optimistically below, so a refusal has to be said out loud - it used to
+    // be swallowed, and the word simply vanished as though it had been added.
+    apiTagAsset(token, asset.id, request).then(() => reloadTags()).catch(() => showToast(tAD("tag.addError"), "error"));
     setTagInput("");
     setPendingArea(null);
     setRegionMode(false);
@@ -1071,7 +1123,7 @@ export default function AssetDetail() {
 
   const handleRemoveTag = (uuid: string) => {
     if (!token) return;
-    apiUntagAsset(token, asset.id, uuid).then(() => reloadTags()).catch(() => { /* untag failed */ });
+    apiUntagAsset(token, asset.id, uuid).then(() => reloadTags()).catch(() => showToast(tAD("tag.removeError"), "error"));
   };
 
   // Existing spatial region tags (normalized 0-1) plus the in-progress selection preview.
@@ -1581,7 +1633,10 @@ export default function AssetDetail() {
                 fullWidth
                 value={asset.description}
                 size="small"
-                InputProps={{ sx: { fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 } }}
+                // Read-only: nothing persists a description (Save sends the filename), and a
+                // controlled field without onChange swallowed every keystroke while looking editable.
+                InputProps={{ readOnly: true, sx: { fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 } }}
+                inputProps={{ "data-testid": "asset-description", "aria-label": tAD("meta.description") }}
                 sx={{ "& .MuiOutlinedInput-root": { bgcolor: tokens.bg.elevated } }}
               />
             </CollapsibleSection>
@@ -2260,6 +2315,20 @@ export default function AssetDetail() {
             autoFocus
             inputProps={{ "data-testid": "asset-register-binary-path-input" }}
           />
+          <TextField
+            value={registerBinaryLibrary}
+            onChange={e => setRegisterBinaryLibrary(e.target.value)}
+            label={tAD("registerBinary.libraryLabel")}
+            size="small"
+            select
+            fullWidth
+            SelectProps={{ native: true }}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ "data-testid": "asset-register-binary-library-select" }}
+          >
+            {registerLibraries.length === 0 && <option value="">{tAD("registerBinary.noLibraries")}</option>}
+            {registerLibraries.map(l => <option key={l.uuid} value={l.uuid}>{l.name}</option>)}
+          </TextField>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setRegisterBinaryOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("assets.button.cancel")}</Button>
@@ -2268,7 +2337,7 @@ export default function AssetDetail() {
             onClick={handleRegisterBinary}
             size="small"
             variant="contained"
-            disabled={!registerBinaryPath.trim() || binaryBusy}
+            disabled={!registerBinaryPath.trim() || !registerBinaryLibrary || binaryBusy}
             startIcon={binaryBusy ? <CircularProgress size={13} /> : undefined}
           >
             {tAD("registerBinary.submit")}

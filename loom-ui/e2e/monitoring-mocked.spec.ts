@@ -165,7 +165,7 @@ test.describe("monitoring dashboard (mocked)", () => {
     // 5 runs in the current 7-day window of the mocked stats.
     await expect(kpi).toContainText("5", { timeout: 10_000 });
     // The delta is computed from the mocked series (5 vs 4 → +25%), not hardcoded.
-    await expect(kpi).toContainText("+25%");
+    await expect(kpi).toContainText("+25% vs previous 7d");
     await expect(kpi).not.toContainText("+8%");
     expect(statsFetch.calls).toBeGreaterThan(0);
   });

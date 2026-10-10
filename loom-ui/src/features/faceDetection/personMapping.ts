@@ -22,3 +22,23 @@ export function toUiPerson(r: PersonResponse, clusterIds: string[] = []): Person
     createdAt: r.status?.created ?? new Date().toISOString(),
   };
 }
+
+/**
+ * Move clusters onto one person in the local person list.
+ *
+ * A cluster belongs to at most one person (`cluster.person_uuid` is scalar), so attributing it to
+ * somebody also takes it off whoever held it before. The screen used to only add, which left a
+ * re-assigned cluster listed under both people until the next reload. A person not in the list is
+ * left alone - the caller decides whether a newly created one should be appended.
+ */
+export function moveClustersToPerson(persons: Person[], personId: string, clusterIds: string[]): Person[] {
+  const moving = new Set(clusterIds);
+  return persons.map(p => {
+    if (p.id === personId) {
+      return { ...p, clusterIds: [...new Set([...p.clusterIds, ...clusterIds])] };
+    }
+    return p.clusterIds.some(id => moving.has(id))
+      ? { ...p, clusterIds: p.clusterIds.filter(id => !moving.has(id)) }
+      : p;
+  });
+}

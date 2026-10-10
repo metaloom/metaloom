@@ -87,6 +87,12 @@ export default function SkillManagementView() {
   const skills = minePage.items;
   const library = libraryPage.items;
 
+  // Without this a failed listing renders as "no skills yet" and offers to author the first one.
+  useEffect(() => {
+    if (minePage.error || libraryPage.error) showToast(t("skills.loadFailed"), "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minePage.error, libraryPage.error]);
+
   const refresh = useCallback(() => {
     minePage.reload();
     libraryPage.reload();
@@ -177,7 +183,7 @@ export default function SkillManagementView() {
       showToast(t("skills.deleted"), "success");
     } catch (e) {
       console.error("Failed to delete skill", e);
-      showToast(t("skills.saveFailed"), "error");
+      showToast(t("skills.deleteFailed"), "error");
     }
   };
 

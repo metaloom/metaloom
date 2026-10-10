@@ -24,8 +24,11 @@ import ShareViewer from "./ShareViewer";
 export default function SharePage() {
   const { slug } = useParams<{ slug: string }>();
   if (!slug) return <ShareUnavailable />;
+  // Keyed by slug: the route element is reused when only the param changes, and without a remount
+  // the provider would keep the previous link's session (read once, in its state initialiser) and
+  // the route its previous challenge - one link's token opening another link's page.
   return (
-    <ShareSessionProvider slug={slug}>
+    <ShareSessionProvider key={slug} slug={slug}>
       <ShareRoute slug={slug} />
     </ShareSessionProvider>
   );

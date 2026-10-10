@@ -195,6 +195,20 @@ export function noteUnauthorized(status: number): void {
   }
 }
 
+/**
+ * Throw an {@link ApiError} for a failed response whose success body is not read - a DELETE, a
+ * fire-and-forget POST.
+ *
+ * Those call sites used to inline `if (!res.ok) throw new Error(...)`, which is the exact copy this
+ * module replaced elsewhere: a 401 on a delete never fired the session-expired event, and the
+ * trace id of a failed delete was dropped before the failure report could carry it.
+ */
+export async function ensureOk(res: Response, context?: RequestContext): Promise<void> {
+  if (!res.ok) {
+    await handleResponse<never>(res, context);
+  }
+}
+
 /** Absolute URL for a path relative to the API root. */
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;

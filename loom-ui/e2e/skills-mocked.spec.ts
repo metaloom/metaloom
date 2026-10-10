@@ -200,7 +200,7 @@ test.describe("Skills – mocked e2e", () => {
     await expect(page.getByTestId("skill-row-chat-skill")).toBeVisible();
 
     // Activate it for the conversation
-    await page.getByRole("button", { name: "Chat" }).first().click();
+    await page.getByRole("button", { name: "Chat", exact: true }).first().click();
     await page.getByTestId("chat-skills-button").click();
     await expect(page.getByTestId("chat-skills-panel")).toBeVisible();
     await page.getByTestId("skill-toggle-chat-skill").click();
@@ -215,5 +215,104 @@ test.describe("Skills – mocked e2e", () => {
     expect(streamBodies.length).toBe(1);
     const sent = JSON.parse(streamBodies[0]);
     expect(sent.skillUuids).toEqual(["skill-1"]);
+  });
+
+  // --- Validation and failure paths -----------------------------------------
+
+  /** Create a skill through the editor and wait for its row. */
+  async function createSkillViaEditor(page: Page, name: string) {
+    await page.getByTestId("skill-create-button").click();
+    await page.getByTestId("skill-editor-name").fill(name);
+    await page.getByTestId("skill-editor-description").fill("desc");
+    await page.getByTestId("skill-editor-content").fill("# body");
+    await page.getByTestId("skill-editor-save").click();
+    await expect(page.getByTestId(`skill-row-${name}`)).toBeVisible({ timeout: 5_000 });
+  }
+
+  test("a failed listing says the skills could not be loaded", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/skills(\?|$)/, route =>
+      route.request().method() === "GET" ? json(route, { message: "boom" }, 500) : route.fallback());
+    await login(page);
+    await page.getByRole("button", { name: "Skills", exact: true }).first().click();
+
+    await expect(page.getByText("Loading the skills failed", { exact: true })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("save stays disabled until name, description and content are all filled, blanks included", async ({ page }) => {
+    await installMocks(page);
+    await login(page);
+    await openSkillsView(page);
+
+    await page.getByTestId("skill-create-button").click();
+    const save = page.getByTestId("skill-editor-save");
+    await expect(save).toBeDisabled();
+
+    await page.getByTestId("skill-editor-name").fill("helper");
+    await page.getByTestId("skill-editor-description").fill("desc");
+    await expect(save).toBeDisabled();
+
+    // Whitespace is not content.
+    await page.getByTestId("skill-editor-content").fill("   ");
+    await expect(save).toBeDisabled();
+
+    await page.getByTestId("skill-editor-content").fill("# body");
+    await expect(save).toBeEnabled();
+
+    await page.getByTestId("skill-editor-name").fill("  ");
+    await expect(save).toBeDisabled();
+  });
+
+  test("a refused create says so and keeps the editor open with what was typed", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/skills(\?|$)/, route =>
+      route.request().method() === "POST" ? json(route, { message: "name taken" }, 409) : route.fallback());
+    await login(page);
+    await openSkillsView(page);
+
+    await page.getByTestId("skill-create-button").click();
+    await page.getByTestId("skill-editor-name").fill("review-helper");
+    await page.getByTestId("skill-editor-description").fill("desc");
+    await page.getByTestId("skill-editor-content").fill("# body");
+    await page.getByTestId("skill-editor-save").click();
+
+    await expect(page.getByText("Saving the skill failed", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("skill-editor-name")).toHaveValue("review-helper");
+    await expect(page.getByTestId("skill-row-review-helper")).toHaveCount(0);
+  });
+
+  test("a refused delete says the delete failed, not the save, and keeps the row", async ({ page }) => {
+    await installMocks(page);
+    await login(page);
+    await openSkillsView(page);
+    await createSkillViaEditor(page, "keep-me");
+
+    let deletes = 0;
+    await page.route(/\/api\/v1\/skills\/[^/]+$/, route => {
+      if (route.request().method() !== "DELETE") return route.fallback();
+      deletes += 1;
+      return json(route, { message: "forbidden" }, 403);
+    });
+    await page.getByTestId("skill-delete-keep-me").click();
+    await page.getByTestId("skill-delete-confirm").click();
+
+    await expect(page.getByText("Deleting the skill failed", { exact: true })).toBeVisible();
+    await expect(page.getByText("Saving the skill failed", { exact: true })).toHaveCount(0);
+    await expect.poll(() => deletes).toBe(1);
+    await expect(page.getByTestId("skill-row-keep-me")).toBeVisible();
+  });
+
+  test("a refused install says so and adds nothing to the own list", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/skills\/[^/]+\/install$/, route => json(route, { message: "nope" }, 500));
+    await login(page);
+    await openSkillsView(page);
+
+    await page.getByTestId("skills-library-tab").click();
+    await page.getByTestId("skill-install-transcript-summarizer").click();
+
+    await expect(page.getByText("Installing the skill failed", { exact: true })).toBeVisible();
+    await page.getByTestId("skills-mine-tab").click();
+    await expect(page.getByTestId("skill-row-transcript-summarizer")).toHaveCount(0);
   });
 });

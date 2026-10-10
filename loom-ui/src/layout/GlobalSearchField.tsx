@@ -52,20 +52,34 @@ export default function GlobalSearchField({ collapsed }: { collapsed: boolean })
     setActiveIndex(-1);
   }, []);
 
+  /**
+   * Make every suggestions request still in flight land as a no-op.
+   *
+   * The sequence check below only orders requests against each other. A request can also be
+   * overtaken by something that sends no request at all - the field cleared below two characters,
+   * or Enter pressed - and without this its answer arrived afterwards and reopened the dropdown:
+   * suggestions for "su" under an empty field, or floating over the results page just navigated to.
+   */
+  const discardPendingSuggestions = useCallback(() => {
+    requestSeq.current += 1;
+  }, []);
+
   const runSearch = useCallback(
     (term: string) => {
       const trimmed = term.trim();
       if (!trimmed) return;
+      discardPendingSuggestions();
       closeDropdown();
       navigate(`/search?q=${encodeURIComponent(trimmed)}`);
     },
-    [navigate, closeDropdown],
+    [navigate, closeDropdown, discardPendingSuggestions],
   );
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     const term = value.trim();
     if (!token || term.length < MIN_SUGGEST_CHARS) {
+      discardPendingSuggestions();
       setItems([]);
       closeDropdown();
       return;
@@ -91,7 +105,7 @@ export default function GlobalSearchField({ collapsed }: { collapsed: boolean })
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [value, token, closeDropdown]);
+  }, [value, token, closeDropdown, discardPendingSuggestions]);
 
   if (!available) return null;
 
@@ -123,6 +137,8 @@ export default function GlobalSearchField({ collapsed }: { collapsed: boolean })
       return;
     }
     if (event.key === "Escape") {
+      // Dismissed means dismissed: an answer already on its way must not pop the list back up.
+      discardPendingSuggestions();
       closeDropdown();
       return;
     }

@@ -149,6 +149,13 @@ describe("live sampling", () => {
     expect(appendSample(history, toLiveSample(response("not-a-date", 1, 1, 1)))).toBe(history);
   });
 
+  it("drops a sample that is not newer than the last one — an overtaken poll", () => {
+    const history: LiveSample[] = [{ ts: 2000, resultsTotal: 20, inFlight: 0, ceiling: 0 }];
+    expect(appendSample(history, { ts: 1000, resultsTotal: 10, inFlight: 0, ceiling: 0 })).toBe(history);
+    expect(appendSample(history, { ts: 2000, resultsTotal: 20, inFlight: 0, ceiling: 0 })).toBe(history);
+    expect(appendSample(history, { ts: 3000, resultsTotal: 30, inFlight: 0, ceiling: 0 })).toHaveLength(2);
+  });
+
   it("keeps only the most recent window", () => {
     let history: LiveSample[] = [];
     for (let i = 1; i <= MAX_SAMPLES + 10; i++) {

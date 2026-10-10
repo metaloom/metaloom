@@ -19,7 +19,7 @@ import {
 import {
   SEARCHABLE_ENTITY_TYPES, SEARCH_FACET_NAMES, SEARCH_MAX_OFFSET,
   SEARCH_MAX_QUERY_LENGTH, SEARCH_PAGE_SIZE,
-  type SearchEntityType, type SearchSortMode,
+  type SearchEntityType, type SearchMode, type SearchSortMode,
 } from "../../types";
 import SearchHitRow from "./SearchHitRow";
 import SearchUnavailable from "./SearchUnavailable";
@@ -50,6 +50,8 @@ export default function SearchView() {
   const sort = (searchParams.get("sort") as SearchSortMode | null) ?? "RELEVANCE";
   const mime = searchParams.get("mime") ?? "";
   const lang = searchParams.get("lang") ?? "";
+  const mode = (searchParams.get("mode") as SearchMode | null) ?? "LEXICAL";
+  const cursor = searchParams.get("cursor") ?? "";
   const types = useMemo(() => parseCsv(searchParams.get("types")) as SearchEntityType[], [searchParams]);
   const tags = useMemo(() => parseCsv(searchParams.get("tag")), [searchParams]);
 
@@ -89,8 +91,11 @@ export default function SearchView() {
   useEffect(() => {
     // A blank term is a guaranteed 400, and "no query yet" is a legitimate resting state.
     if (!token || !query.trim()) {
+      // Also drop the spinner: the request this replaces was aborted, and an aborted request
+      // never reaches the setLoading(false) below.
       setResult(null);
       setError(null);
+      setLoading(false);
       return;
     }
     const controller = new AbortController();
@@ -103,6 +108,10 @@ export default function SearchView() {
         types: types.length ? types : undefined,
         limit: SEARCH_PAGE_SIZE,
         offset,
+        cursor: cursor || undefined,
+        // Only sent while the toggle exists — LEXICAL is the default and the only mode some
+        // providers accept, so it never goes on the wire.
+        mode: canChooseMode && mode !== "LEXICAL" ? mode : undefined,
         // RELEVANCE is the server default; omitting it keeps the wire minimal.
         sort: sort !== "RELEVANCE" ? sort : undefined,
         highlight: true,
@@ -120,6 +129,8 @@ export default function SearchView() {
       .catch((err) => {
         if (controller.signal.aborted) return;
         setLoading(false);
+        // The previous query's hits must not survive under this query's error alert.
+        setResult(null);
         if (!(err instanceof SearchApiError)) {
           setError(new SearchApiError(0, String(err?.message ?? err)));
           return;
@@ -133,7 +144,7 @@ export default function SearchView() {
       });
     return () => controller.abort();
     // paramKey covers q/types/offset/sort/mime/lang/tag without re-firing on array identity.
-  }, [token, paramKey, canFacet]);
+  }, [token, paramKey, canFacet, canChooseMode]);
 
   if (statusLoading) {
     return (
@@ -217,13 +228,14 @@ export default function SearchView() {
       {canChooseMode && (
         <Box sx={{ display: "flex", gap: 1, mt: 1.5 }} data-testid="search-mode-toggle">
           {(["LEXICAL", has("SEMANTIC") ? "SEMANTIC" : null, has("HYBRID") ? "HYBRID" : null]
-            .filter(Boolean) as string[]).map((mode) => (
+            .filter(Boolean) as string[]).map((chipMode) => (
             <Chip
-              key={mode}
+              key={chipMode}
               size="small"
-              label={mode}
-              variant={(searchParams.get("mode") ?? "LEXICAL") === mode ? "filled" : "outlined"}
-              onClick={() => updateParams({ mode: mode === "LEXICAL" ? undefined : mode })}
+              label={chipMode}
+              data-testid={`search-mode-${chipMode}`}
+              variant={mode === chipMode ? "filled" : "outlined"}
+              onClick={() => updateParams({ mode: chipMode === "LEXICAL" ? undefined : chipMode })}
             />
           ))}
         </Box>

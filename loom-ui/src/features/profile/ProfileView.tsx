@@ -101,7 +101,11 @@ export default function ProfileView() {
   const handleLanguageChange = (_: React.MouseEvent<HTMLElement>, lang: string | null) => {
     if (!lang) return;
     i18n.changeLanguage(lang);
-    localStorage.setItem("loom-ui-language", lang);
+    try {
+      localStorage.setItem("loom-ui-language", lang);
+    } catch {
+      // Site storage blocked: the switch still applies to this visit, it just is not remembered.
+    }
     setLanguage(lang);
   };
 

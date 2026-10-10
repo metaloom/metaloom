@@ -24,7 +24,7 @@ import ClustersPanel, {
   CLUSTER_SIZE_DEFAULT, CLUSTER_SIZE_MAX, CLUSTER_SIZE_MIN, CLUSTER_SIZE_STEPS, clampClusterSize,
 } from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
-import { toUiPerson } from "./personMapping";
+import { moveClustersToPerson, toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 import { ListFilterSelect } from "../../components/ListControls";
 import { useFailure } from "../../context/FailureContext";
@@ -243,11 +243,12 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       setClusters(prev => prev.map(c => (c.id === assignOpen ? { ...c, ...toUiCluster(confirmed), faceIds: c.faceIds } : c)));
       const personId = confirmed.personUuid ?? existing?.id;
       if (personId) {
+        // `moveClustersToPerson` also takes the cluster off whoever held it before: re-assigning
+        // used to leave it listed under both people.
         setPersons(prev => (prev.some(p => p.id === personId)
-          ? prev.map(p => (p.id === personId && !p.clusterIds.includes(assignOpen)
-            ? { ...p, clusterIds: [...p.clusterIds, assignOpen] }
-            : p))
-          : [...prev, { id: personId, name: typed, description: "", avatarUrl: "", clusterIds: [assignOpen], createdAt: new Date().toISOString() }]));
+          ? moveClustersToPerson(prev, personId, [assignOpen])
+          : [...moveClustersToPerson(prev, personId, [assignOpen]),
+            { id: personId, name: typed, description: "", avatarUrl: "", clusterIds: [assignOpen], createdAt: new Date().toISOString() }]));
       }
       setAssignOpen(null);
       setAssignPersonName("");
@@ -274,9 +275,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       const confirmed = await apiConfirmCluster(token, clusterId, { personUuid });
       setClusters(prev => prev.map(c => (c.id === clusterId ? { ...c, ...toUiCluster(confirmed), faceIds: c.faceIds } : c)));
     }
-    setPersons(prev => prev.map(p => (p.id === personUuid
-      ? { ...p, clusterIds: [...new Set([...p.clusterIds, ...clusterIds])] }
-      : p)));
+    setPersons(prev => moveClustersToPerson(prev, personUuid, clusterIds));
   }, [token]);
 
   /** Take the person back off a cluster. The person row stays: it may hold other clusters. */
@@ -293,12 +292,15 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
   /** A card dropped on a person's group: the same confirm, with the person already known. */
   const handleAssignToPerson = useCallback(async (clusterId: string, personId: string) => {
+    // A card let go inside its own person's group is not a statement; re-confirming it would only
+    // rewrite the review timestamp.
+    if (clusters.find(c => c.id === clusterId)?.personId === personId) return;
     try {
       await mergeInto(personId, [clusterId]);
     } catch (e) {
       reportFailure("confirmCluster", e);
     }
-  }, [mergeInto, reportFailure]);
+  }, [clusters, mergeInto, reportFailure]);
 
   const handleMergeClusters = useCallback(async (sourceId: string, targetId: string) => {
     if (!token) return;
@@ -512,7 +514,11 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
               setAssignOpen(clusterId);
               setAssignPersonName(persons.find(p => p.id === current?.personId)?.name ?? "");
             }}
-            onClusterDeleted={(id) => setClusters(prev => prev.filter(c => c.id !== id))}
+            onClusterDeleted={(id) => {
+              setClusters(prev => prev.filter(c => c.id !== id));
+              // Or the person card goes on counting a cluster that no longer exists.
+              setPersons(prev => prev.map(p => (p.clusterIds.includes(id) ? { ...p, clusterIds: p.clusterIds.filter(c => c !== id) } : p)));
+            }}
             onClusterUpdated={(updated) => setClusters(prev => prev.map(c => c.id === updated.id ? updated : c))}
             onMergeClusters={handleMergeClusters}
             onDetachPerson={handleDetachPerson}
@@ -524,7 +530,13 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           <PersonsPanel
             persons={filteredPersons}
             clusters={clusters}
-            onPersonDeleted={(id) => setPersons(prev => prev.filter(p => p.id !== id))}
+            onPersonDeleted={(id) => {
+              setPersons(prev => prev.filter(p => p.id !== id));
+              // `cluster.person_uuid` is ON DELETE SET NULL, so the server has already detached
+              // every cluster this person held. Without the same here they stayed grouped under a
+              // heading that, with the person gone, could only print the raw uuid.
+              setClusters(prev => prev.map(c => (c.personId === id ? { ...c, personId: undefined } : c)));
+            }}
             onPersonUpdated={(updated) => setPersons(prev => prev.map(p => p.id === updated.id ? updated : p))}
           />
         )}

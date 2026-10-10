@@ -136,6 +136,29 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
      */
     const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
 
+    /**
+     * Everything above describes *one* asset, and the workflow review queue hands the same instance
+     * the next asset without a `key`. Left alone, the next video was requested at the previous one's
+     * seek offset, its clock started at the previous one's position, and the overlay was laid out
+     * for the previous one's frame size until its metadata arrived.
+     *
+     * Reset during render rather than in an effect, so the first render for the new asset already
+     * asks for its start - an effect would let one request at the stale offset out first.
+     */
+    const [shownAsset, setShownAsset] = useState(assetUuid);
+    if (shownAsset !== assetUuid) {
+      setShownAsset(assetUuid);
+      setStream({ at: 0, origin: 0 });
+      setPosition(0);
+      setNatural(null);
+      setPaused(!autoPlay);
+    }
+    // A seek-point lookup still in flight for the previous asset is about a file nobody is
+    // watching any more. Bumping the nonce turns its answer into a no-op.
+    useEffect(() => {
+      restartNonce.current += 1;
+    }, [assetUuid]);
+
     // The element is rebuilt on every seek (`key={streamUrl}`), so the volume has to be pushed
     // back onto it rather than only set once — a fresh <video> starts at 1.0.
     useEffect(() => {
@@ -161,9 +184,10 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
     const restartAt = useCallback((target: number) => {
       // Without an answer the origin is the best guess there is, which is what this did before the
       // route existed: the clock is then as wrong as it used to be, rather than the seek failing.
-      const fallback = () => setStream({ at: target, origin: target });
-      if (!token) { fallback(); return; }
       const request = ++restartNonce.current;
+      const fallback = () => setStream({ at: target, origin: target });
+      // The top of the file is always a keyframe: nothing to ask, and no reason to wait on a probe.
+      if (!token || target <= 0) { fallback(); return; }
       void loadStreamStart(token, assetUuid, target)
         .then(start => {
           // A later seek has already been asked for; this answer is about a position nobody is
@@ -171,7 +195,11 @@ export const AssetVideoPlayer = forwardRef<AssetVideoPlayerHandle, AssetVideoPla
           if (restartNonce.current !== request) return;
           setStream({ at: target, origin: Math.min(start, target) });
         })
-        .catch(fallback);
+        // The same ordering rule on the failure path: a slow lookup that fails after a newer seek
+        // has already landed must not drag the player back to the older position.
+        .catch(() => {
+          if (restartNonce.current === request) fallback();
+        });
     }, [token, assetUuid]);
 
     const seekTo = useCallback((seconds: number) => {

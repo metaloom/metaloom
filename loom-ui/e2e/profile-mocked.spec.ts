@@ -146,6 +146,46 @@ test.describe("Profile – mocked e2e", () => {
     expect(saveBodies[1]).toEqual({ firstname: "Grace Hopper" });
   });
 
+  test("switching to German translates the app, is remembered, and survives a reload", async ({ page }) => {
+    await installMocks(page);
+    await login(page);
+    await openProfileFromAvatarMenu(page);
+
+    const view = page.getByTestId("profile-view");
+    await expect(view).toContainText("Language");
+    await page.getByRole("button", { name: /Germa/ }).click();
+
+    await expect(view).toContainText("Sprache");
+    await expect(view).not.toContainText("Language");
+    await expect(page.getByRole("button", { name: /Deutsch/ })).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => localStorage.getItem("loom-ui-language"))).toBe("de");
+
+    await page.reload();
+    await expect(page.getByTestId("profile-view")).toContainText("Sprache", { timeout: 10_000 });
+
+    // And back.
+    await page.getByRole("button", { name: /Englisch/ }).click();
+    await expect(page.getByTestId("profile-view")).toContainText("Language");
+    expect(await page.evaluate(() => localStorage.getItem("loom-ui-language"))).toBe("en");
+  });
+
+  test("with site storage blocked the language still switches for this visit", async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === "loom-ui-language") throw new DOMException("blocked", "SecurityError");
+        return original.call(this, key, value);
+      };
+    });
+    await installMocks(page);
+    await login(page);
+    await openProfileFromAvatarMenu(page);
+
+    await page.getByRole("button", { name: /Germa/ }).click();
+    await expect(page.getByTestId("profile-view")).toContainText("Sprache");
+    await expect(page.getByRole("button", { name: /Deutsch/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("logout from the same menu returns to the login form", async ({ page }) => {
     await installMocks(page);
     await login(page);

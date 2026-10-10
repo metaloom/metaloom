@@ -29,7 +29,8 @@ export interface ChatAttachmentsApi {
   /** Attach files, creating the chat if this is the first thing to happen in it. */
   add: (files: File[]) => Promise<void>;
   remove: (item: AttachmentItem) => Promise<void>;
-  save: (item: AttachmentItem) => Promise<void>;
+  /** Resolves true once the server has promoted it; a failure has already been reported. */
+  save: (item: AttachmentItem) => Promise<boolean>;
   /** Replace the list when a different conversation is opened. */
   load: (chatUuid: string | null) => void;
   /** Start again with nothing, for a new chat. */
@@ -150,12 +151,14 @@ export function useChatAttachments(
 
   const save = useCallback(
     async (item: AttachmentItem) => {
-      if (!token || !chatUuid || !item.uuid) return;
+      if (!token || !chatUuid || !item.uuid) return false;
       try {
         await promoteChatAttachment(token, chatUuid, item.uuid);
+        return true;
       } catch (e) {
         console.error("Failed to save attachment to the library", e);
         onError(`${item.filename} could not be saved to the library.`);
+        return false;
       }
     },
     [token, chatUuid, onError]

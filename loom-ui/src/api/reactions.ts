@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API reaction models ──────────────────
 
@@ -86,10 +86,7 @@ export async function deleteAssetReaction(token: string, assetUuid: string, reac
       headers: authHeaders(token),
     },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── API for task reactions (sub-resource of tasks) ────────────────────
@@ -140,10 +137,7 @@ export async function deleteTaskReaction(token: string, taskUuid: string, reacti
       headers: authHeaders(token),
     },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── API for comment reactions (sub-resource of comments) ──────────────
@@ -194,10 +188,7 @@ export async function deleteCommentReaction(token: string, commentUuid: string, 
       headers: authHeaders(token),
     },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── API for annotation reactions (sub-resource of annotations) ────────
@@ -260,8 +251,5 @@ export async function deleteAnnotationReaction(token: string, annotationUuid: st
       headers: authHeaders(token),
     },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

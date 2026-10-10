@@ -11,6 +11,11 @@ import { test, expect, Page } from "@playwright/test";
  */
 
 const PIPELINE_UUID = "11111111-1111-1111-1111-111111111111";
+/**
+ * The original pipeline's row in the list. Role-name matching is substring-based, so a bare
+ * "Quick Hash" also matches the "Quick Hash (copy)" row the clone tests create.
+ */
+const QUICK_HASH_ROW = /^Quick Hash(?! \(copy\))/;
 
 /** The seeded pipeline's definition — 3 nodes, so clone/selection is visible. */
 const DEFINITION = {
@@ -337,7 +342,7 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     await expect(page.getByRole("button", { name: "Second" })).toBeHidden({ timeout: 10_000 });
     await expect.poll(() => state.deleted.length).toBe(1);
     // … while the original remains and is reselected.
-    await expect(page.getByRole("button", { name: "Quick Hash" })).toBeVisible();
+    await expect(page.getByRole("button", { name: QUICK_HASH_ROW })).toBeVisible();
     await expect(page.getByTestId("pipeline-canvas").locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
   });
 
@@ -482,8 +487,133 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
 
     // And back again: the second load must re-baseline rather than compare against Beta's graph.
-    await page.getByRole("button", { name: "Quick Hash" }).click();
+    await page.getByRole("button", { name: QUICK_HASH_ROW }).click();
     await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
     await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+  });
+
+  /**
+   * Discard has to discard. The editor edited `selected.definition` in place, and `selected` shared
+   * that object with the pipeline list — so a parameter typed and then discarded was still there
+   * when the pipeline was opened again, and would ride along into the next save.
+   */
+  test("a discarded parameter edit is gone when the pipeline is opened again", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.pipelines.push(pipelineResponse("33333333-3333-3333-3333-333333333333", "Beta", { nodes: [], edges: [] }));
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    await page.getByTestId("pipeline-node-sha512").click();
+    const chunkSize = page.getByTestId("pipeline-node-param-chunkSize");
+    await expect(chunkSize).toHaveValue("8192", { timeout: 5_000 });
+    await chunkSize.fill("4096");
+
+    await page.getByRole("button", { name: "Beta" }).click();
+    await page.getByTestId("pipeline-switch-confirm").click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
+
+    await page.getByRole("button", { name: QUICK_HASH_ROW }).click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+    await page.getByTestId("pipeline-node-sha512").click();
+    await expect(page.getByTestId("pipeline-node-param-chunkSize")).toHaveValue("8192", { timeout: 5_000 });
+  });
+
+  /**
+   * Per-canvas edit channels are keyed by node id, and node ids are not unique across pipelines.
+   * A node added to one pipeline and then discarded must not be appended to the next one's canvas.
+   */
+  test("a discarded added node does not reappear on the pipeline switched to", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.pipelines.push(pipelineResponse("33333333-3333-3333-3333-333333333333", "Beta", { nodes: [], edges: [] }));
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    const search = page.getByPlaceholder(/add node/i);
+    await search.click();
+    await search.fill("thumbnail");
+    await page.getByTestId("add-node-thumbnail").click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(4, { timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Beta" }).click();
+    await page.getByTestId("pipeline-switch-confirm").click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
+
+    // And the switch back shows the stored three, not three plus the discarded fourth.
+    await page.getByRole("button", { name: QUICK_HASH_ROW }).click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+    // Settle: a leaked node is appended by an effect after the reload, not in the same commit.
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3);
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+  });
+
+  /**
+   * The other half of keeping the list entry and the edited copy apart: a save has to land in the
+   * list, or re-opening the pipeline would show the version from before the save.
+   */
+  test("a saved added node is still there after switching away and back", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.pipelines.push(pipelineResponse("33333333-3333-3333-3333-333333333333", "Beta", { nodes: [], edges: [] }));
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    const search = page.getByPlaceholder(/add node/i);
+    await search.click();
+    await search.fill("thumbnail");
+    await page.getByTestId("add-node-thumbnail").click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(4, { timeout: 5_000 });
+
+    const saved = page.waitForRequest(req => req.method() === "POST" && /\/pipelines\/[0-9a-f-]{36}$/.test(new URL(req.url()).pathname));
+    await page.getByText("Save", { exact: true }).click();
+    expect((await saved).postDataJSON().definition.nodes).toHaveLength(4);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Beta" }).click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
+    await page.getByRole("button", { name: QUICK_HASH_ROW }).click();
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(4, { timeout: 10_000 });
+  });
+
+  /**
+   * The run list is fetched per pipeline with no cancellation. A slow answer for the pipeline the
+   * user just left must not land under the one they switched to.
+   */
+  test("a late run list for the previous pipeline does not overwrite the current one", async ({ page }) => {
+    const state = await mockBackend(page);
+    const BETA = "33333333-3333-3333-3333-333333333333";
+    state.pipelines.push(pipelineResponse(BETA, "Beta", { nodes: [], edges: [] }));
+    let releaseQuickHash: () => void = () => {};
+    const quickHashGate = new Promise<void>(resolve => { releaseQuickHash = resolve; });
+    const run = (uuid: string, pipelineUuid: string) => ({
+      uuid, pipelineUuid, status: "COMPLETED", started: "2026-07-01T10:00:00Z",
+      finished: "2026-07-01T10:01:00Z", mediaCount: 1, successCount: 1, failureCount: 0, dryRun: false,
+    });
+    await page.route(/\/api\/v1\/pipelines\/[^/]+\/runs$/, async route => {
+      const uuid = route.request().url().match(/pipelines\/([^/]+)\/runs/)![1];
+      if (uuid === PIPELINE_UUID) {
+        await quickHashGate;
+        return route.fulfill({ status: 200, contentType: "application/json",
+          body: JSON.stringify({ data: [run("aaaaaaaa-0000-0000-0000-000000000001", PIPELINE_UUID)] }) }).catch(() => {});
+      }
+      return route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ data: [run("bbbbbbbb-0000-0000-0000-000000000001", BETA)] }) });
+    });
+    await login(page);
+
+    await page.getByRole("button", { name: "Beta" }).click();
+    await expect(page.getByTestId("pipeline-run-row-bbbbbbbb-0000-0000-0000-000000000001")).toBeVisible({ timeout: 10_000 });
+
+    // Quick Hash's first request answers only now, long after Beta's.
+    releaseQuickHash();
+    await page.waitForTimeout(500); // nothing to wait *for*: the assertion is that nothing changes
+    await expect(page.getByTestId("pipeline-run-row-aaaaaaaa-0000-0000-0000-000000000001")).toHaveCount(0);
+    await expect(page.getByTestId("pipeline-run-row-bbbbbbbb-0000-0000-0000-000000000001")).toBeVisible();
   });
 });
