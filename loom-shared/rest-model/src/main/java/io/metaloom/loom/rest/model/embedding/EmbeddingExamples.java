@@ -38,6 +38,35 @@ public interface EmbeddingExamples extends ExampleValues {
 		EmbeddingResponse model = new EmbeddingResponse();
 		model.setUuid(uuidA());
 		model.setMeta(meta());
+		model.setType("voiceprint");
+		model.setSource("voiceprint");
+		model.setModel("redimnet2-b6-vox2-lm");
+		model.setDimensions(VECTOR_DATA.length);
+		model.setVector(VECTOR_DATA);
+		model.setFrameNumber(0);
+		model.setSubjectIndex(3);
+		model.setNormalized(true);
+		model.setTimeFrom(12_000L);
+		model.setTimeTo(15_000L);
+		return model;
+	}
+
+	/**
+	 * An audio-window embedding: a speaker's voiceprint for one three-second stretch of speech. {@code timeFrom}/{@code timeTo} are what
+	 * distinguish it from a face vector, which points at a detection instead.
+	 */
+	default EmbeddingCreateRequest voiceprintEmbeddingCreateRequest() {
+		EmbeddingCreateRequest model = new EmbeddingCreateRequest();
+		model.setVector(VECTOR_DATA);
+		model.setType("voiceprint");
+		model.setNodeKind("voiceprint");
+		model.setModel("redimnet2-b6-vox2-lm");
+		model.setProducerVersion("voiceprint/1:redimnet2-b6-vox2-lm");
+		model.setFrameNumber(0);
+		model.setSubjectIndex(3);
+		model.setNormalized(true);
+		model.setTimeFrom(12_000L);
+		model.setTimeTo(15_000L);
 		return model;
 	}
 
@@ -62,7 +91,7 @@ public interface EmbeddingExamples extends ExampleValues {
 
 	default EmbeddingBulkCreateRequest embeddingBulkCreateRequest() {
 		EmbeddingBulkCreateRequest model = new EmbeddingBulkCreateRequest();
-		model.setEmbeddings(Arrays.asList(embeddingCreateRequest(), embeddingCreateRequest()));
+		model.setEmbeddings(Arrays.asList(embeddingCreateRequest(), voiceprintEmbeddingCreateRequest()));
 		return model;
 	}
 

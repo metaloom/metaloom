@@ -4187,6 +4187,178 @@
   "defaultBlocking" : true,
   "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
 }, {
+  "nodeId" : "voiceprint",
+  "kind" : "voiceprint",
+  "name" : "Voiceprint (Speaker Embeddings)",
+  "description" : "Find the speakers in audio or video speech and compute a voiceprint (speaker embedding) per speaker and per speech window.",
+  "icon" : "record_voice_over",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "audio",
+    "label" : "Audio",
+    "contentType" : "media/audio",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "An audio file whose speakers are to be found"
+  }, {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A video whose audio track is demuxed and analysed"
+  } ],
+  "outputPorts" : [ {
+    "id" : "speaker_count",
+    "label" : "Speaker Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many distinct voices were found"
+  }, {
+    "id" : "speakers",
+    "label" : "Speakers",
+    "contentType" : "struct/embedding",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "One element per speaker, longest first: its index, when it speaks, and its voiceprint vector"
+  }, {
+    "id" : "voiceprint",
+    "label" : "Voiceprint",
+    "contentType" : "struct/embedding",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "One pooled voiceprint over all speech in the item - the vector to enrol a single-speaker recording with"
+  }, {
+    "id" : "timeline",
+    "label" : "Timeline",
+    "contentType" : "struct/segments",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The speaker turns as time segments, each labelled with its speaker"
+  }, {
+    "id" : "result",
+    "label" : "Result",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The full analysis without the vectors: model, thresholds, speakers, windows"
+  } ],
+  "inputGroups" : [ {
+    "id" : "media_alt",
+    "mode" : "XOR",
+    "required" : true,
+    "label" : "Media"
+  } ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "voiceprintHost",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the /v1/voiceprints sidecar"
+  }, {
+    "key" : "voiceprintPort",
+    "type" : "INTEGER",
+    "defaultValue" : 9150,
+    "label" : "Sidecar Port",
+    "description" : "Port of the /v1/voiceprints sidecar",
+    "min" : 1
+  }, {
+    "key" : "model",
+    "type" : "STRING",
+    "defaultValue" : "",
+    "label" : "Model",
+    "description" : "Sidecar backend: redimnet2, wespeaker or speechbrain (or a full model id). Empty uses the sidecar's default"
+  }, {
+    "key" : "windowSeconds",
+    "type" : "NUMBER",
+    "defaultValue" : 3.0,
+    "label" : "Window (s)",
+    "description" : "Length of the speech window one voiceprint covers",
+    "min" : 0.5,
+    "max" : 30,
+    "step" : 0.5
+  }, {
+    "key" : "hopSeconds",
+    "type" : "NUMBER",
+    "defaultValue" : 1.5,
+    "label" : "Hop (s)",
+    "description" : "Step between windows; at most the window length",
+    "min" : 0.1,
+    "max" : 30,
+    "step" : 0.5
+  }, {
+    "key" : "minSpeechSeconds",
+    "type" : "NUMBER",
+    "defaultValue" : 1.0,
+    "label" : "Min Speech (s)",
+    "description" : "Shortest stretch of speech that still gets a voiceprint",
+    "min" : 0.1,
+    "max" : 30,
+    "step" : 0.1
+  }, {
+    "key" : "clusterThreshold",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Cluster Threshold",
+    "description" : "Cosine similarity at which two windows are the same speaker; 0 uses the backend's calibrated default",
+    "min" : -1,
+    "max" : 1,
+    "step" : 0.05
+  }, {
+    "key" : "maxSpeakers",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Max Speakers",
+    "description" : "Upper bound on the speakers found per item; 0 = unlimited",
+    "min" : 0
+  }, {
+    "key" : "persistWindows",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Persist Windows",
+    "description" : "Store one embedding per speech window (true) or only one per speaker (false)"
+  }, {
+    "key" : "ffmpegPath",
+    "type" : "STRING",
+    "defaultValue" : "ffmpeg",
+    "label" : "ffmpeg Path",
+    "description" : "The ffmpeg binary used to demux a video's audio track before upload"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per item for the demux and the sidecar call; 0 means 10 minutes",
+    "min" : 0
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
   "nodeId" : "watermark",
   "kind" : "watermark",
   "name" : "Watermark",

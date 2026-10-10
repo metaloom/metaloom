@@ -57,6 +57,7 @@ The built-in nodes fall into four categories.
 | link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
 | link:vlm/[VLM] (`vlm`) | Image | Read images with a vision-language model; olmOCR document transcription
 | link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
+| link:voiceprint/[Voiceprint] (`voiceprint`) | Video, Audio | Find who speaks when and compute a voiceprint per speaker — its `speakers` port carries **one element per voice**
 | link:tts/[Text-to-Speech] (`tts`) | Any (text connected to its `text` port) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
 | link:sentiment/[Sentiment Analysis] (`sentiment`) | Any (text connected to its `text` port) | Score the tone of extracted text (German and English)
 | link:translate/[Translate] (`translate`) | Any (text connected to its `text` port) | Translate extracted text into a target language with a language model
@@ -125,6 +126,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | An image-generation sidecar (SDXL-Turbo / diffusion model; GPU recommended) | `imagegen`
 | A video-generation sidecar (LTX-2; a 24 GB GPU is required) | `videogen`
 | A sentiment sidecar (german-sentiment-bert + twitter-roberta; CPU is enough) | `sentiment`
+| A voiceprint sidecar (ReDimNet2, WeSpeaker or SpeechBrain; CPU works, a GPU is much faster) and `ffmpeg` for video | `voiceprint`
 | A depth sidecar (Depth Anything V2 Small; CPU is enough, GPU is much faster) | `depthmap`
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`, `move` (bucket target only)
@@ -205,6 +207,14 @@ link:ocr/[`ocr`] extracts text from images and document pages with Tesseract;
 link:vlm/[`vlm`] transcribes document pages with a vision-language model such as olmOCR, which keeps
 the layout — tables, columns, formulas — that plain glyph recognition flattens;
 link:whisper/[`whisper`] transcribes audio and video soundtracks with the Whisper model.
+
+Speakers and voiceprints::
+link:voiceprint/[`voiceprint`] finds the distinct voices in an audio or video soundtrack, tells you
+when each one speaks, and computes a voiceprint — a speaker embedding — for every voice and every few
+seconds of speech. The voices are stored as speaker clusters, so the review and person-assignment
+workflow you use for faces applies to voices too. It is the audio counterpart of
+link:facedetect/[`facedetect`], and pairs naturally with link:whisper/[`whisper`] to say who said
+what.
 
 AI captioning and enrichment::
 link:captioning/[`captioning`] generates natural-language descriptions of both images and videos with

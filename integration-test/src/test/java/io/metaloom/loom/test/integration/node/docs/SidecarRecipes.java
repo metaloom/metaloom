@@ -36,6 +36,9 @@ import io.metaloom.cortex.node.videogen.VideoGenClient;
 import io.metaloom.cortex.node.videogen.VideoGenMode;
 import io.metaloom.cortex.node.videogen.VideoGenNode;
 import io.metaloom.cortex.node.videogen.VideoGenNodeOptions;
+import io.metaloom.cortex.node.voiceprint.VoiceprintClient;
+import io.metaloom.cortex.node.voiceprint.VoiceprintNode;
+import io.metaloom.cortex.node.voiceprint.VoiceprintNodeOptions;
 import io.metaloom.cortex.node.whisper.WhisperMediaProcessor;
 import io.metaloom.cortex.node.whisper.WhisperNode;
 import io.metaloom.cortex.node.whisper.WhisperOptions;
@@ -199,6 +202,64 @@ public final class SidecarRecipes {
 					new JsonObject().put("language", options.getLanguage()));
 			}
 		};
+	}
+
+	// ------------------------------------------------------------------------
+	// voiceprint
+	// ------------------------------------------------------------------------
+
+	/**
+	 * Two voices taking turns, at the shipped defaults (ReDimNet2-B6, 3 s windows).
+	 *
+	 * <p>
+	 * The corpus has no speech recording with more than one speaker, so the media is the sidecar's own
+	 * live-test fixture: two synthetic TTS voices reading five alternating turns, with the turn positions
+	 * known to the sample. Synthetic voices are distinct "speakers" to every embedding model, and the
+	 * fixture carries nobody's real voice - which matters for a node whose output is biometric.
+	 * Previews are on, because the timeline table is what makes this card readable.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe voiceprint() {
+		return new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "voiceprint";
+			}
+
+			@Override
+			public List<Upstream> upstream() {
+				// The recording arrives on the audio half of the media_alt XOR group, as in the whisper recipe.
+				return List.of(new Upstream("filesystem-source", "media", "audio"));
+			}
+
+			@Override
+			public Requirement requirement() {
+				Path wav = voiceprintFixture();
+				Requirement sidecar = sidecar("voiceprint", new VoiceprintNodeOptions().getVoiceprintPort(), "voiceprint");
+				return both(sidecar, Requirement.file(wav, "sidecars/voiceprint/tests/data/two_speakers.wav is committed; run from the repository"));
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				Path wav = voiceprintFixture();
+				VoiceprintNodeOptions options = new VoiceprintNodeOptions();
+				VoiceprintNode node = new VoiceprintNode(null, env.cortexOptions("voiceprint"), options,
+					new VoiceprintClient(options.getVoiceprintHost(), options.getVoiceprintPort()));
+				node.initialize();
+				return new Outcome(node.process(context(env.media(wav))), wav.getFileName().toString(),
+					new JsonObject().put("model", "redimnet2 (sidecar default)").put("windowSeconds", options.getWindowSeconds()));
+			}
+		};
+	}
+
+	private static Path voiceprintFixture() {
+		for (Path base : List.of(Path.of(""), Path.of(".."))) {
+			Path p = base.resolve("sidecars/voiceprint/tests/data/two_speakers.wav").toAbsolutePath().normalize();
+			if (java.nio.file.Files.exists(p)) {
+				return p;
+			}
+		}
+		return Path.of("sidecars/voiceprint/tests/data/two_speakers.wav");
 	}
 
 	// ------------------------------------------------------------------------

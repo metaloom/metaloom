@@ -30,6 +30,8 @@ public interface EmbeddingModelBuilder extends ModelBuilder, UserModelBuilder {
 		response.setFrameNumber(embedding.getFrameNumber());
 		response.setSubjectIndex(embedding.getSubjectIndex());
 		response.setNormalized(embedding.getNormalized());
+		response.setTimeFrom(embedding.getTimeFrom());
+		response.setTimeTo(embedding.getTimeTo());
 		setStatus(embedding, response);
 		return response;
 	}

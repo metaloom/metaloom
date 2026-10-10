@@ -29,6 +29,10 @@ public class EmbeddingResponse extends AbstractCreatorEditorRestResponse<Embeddi
 
 	private Boolean normalized;
 
+	private Long timeFrom;
+
+	private Long timeTo;
+
 	/**
 	 * Return the readable model identifier this vector was produced by, e.g. inspireface-r18. Part of the embedding identity, so two models can coexist
 	 * for one asset and a caller can tell them apart.
@@ -87,6 +91,30 @@ public class EmbeddingResponse extends AbstractCreatorEditorRestResponse<Embeddi
 
 	public EmbeddingResponse setNormalized(Boolean normalized) {
 		this.normalized = normalized;
+		return this;
+	}
+
+	/**
+	 * Return the start of the window this vector covers, in milliseconds into the asset, or null when it covers no time range.
+	 */
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	public EmbeddingResponse setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	/**
+	 * Return the end of the window this vector covers, in milliseconds into the asset, or null.
+	 */
+	public Long getTimeTo() {
+		return timeTo;
+	}
+
+	public EmbeddingResponse setTimeTo(Long timeTo) {
+		this.timeTo = timeTo;
 		return this;
 	}
 

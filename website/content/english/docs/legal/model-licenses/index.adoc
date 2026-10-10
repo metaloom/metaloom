@@ -75,6 +75,17 @@ and displaying "Built with Qwen" on anything trained or fine-tuned from it.
 ====
 
 [#conditional]
+[NOTE]
+====
+**Speaker models and VoxCeleb.** Every voiceprint model the link:../../nodes/voiceprint/[Voiceprint]
+node offers by default was trained on VoxCeleb, a dataset of interview audio taken from YouTube. Its
+annotations are licensed CC-BY, but the copyright in the audio stays with the uploaders, and the
+dataset was collected under a research exemption. Using models trained on it commercially is common
+industry practice; it is still a residual risk your legal review should see. Model hub licence tags
+are not reliable here: several mirrors of VoxBlink2-trained speaker models are tagged MIT or Apache,
+while the dataset itself forbids commercial use. The training data decides, not the tag.
+====
+
 == Models With Conditions Attached
 
 These are usable commercially, but not under a plain permissive license. Read the terms before you
@@ -234,6 +245,26 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | `ibm-granite/granite-guardian-3.*` (`family: GRANITE_GUARDIAN`)
 | Apache-2.0
 | ✅ Yes
+
+| link:../../nodes/voiceprint/[Voiceprint] — default
+| ReDimNet2-B6 trained on VoxCeleb2 (`model: redimnet2`) behind the voiceprint sidecar
+| **MIT** — code and the `vox2` checkpoints; training data VoxCeleb, see below
+| ✅ Yes
+
+| link:../../nodes/voiceprint/[Voiceprint] — `wespeaker`
+| WeSpeaker ResNet34-LM ONNX export (`Wespeaker/wespeaker-voxceleb-resnet34-LM`), the embedding inside pyannote 3.1
+| CC-BY-4.0 — attribute WeSpeaker wherever results are shown
+| ✅ Yes, with attribution
+
+| link:../../nodes/voiceprint/[Voiceprint] — `speechbrain`
+| SpeechBrain ECAPA-TDNN (`speechbrain/spkrec-ecapa-voxceleb`)
+| Apache-2.0
+| ✅ Yes
+
+| link:../../nodes/voiceprint/[Voiceprint] — research variants
+| ReDimNet2-B6 trained on VoxBlink2 (+ CN-Celeb), selectable in the sidecar's configuration
+| MIT code, but **training data CC-BY-NC-SA** — the dataset authors forbid commercial application
+| ❌ **No**
 
 | link:../../nodes/facedetect/[Face Detection]
 | InspireFace runtime + model pack, default `packs/Pikachu` (`inspirefacePackPath`)

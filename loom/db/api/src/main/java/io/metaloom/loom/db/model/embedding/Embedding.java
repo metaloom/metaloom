@@ -80,6 +80,22 @@ public interface Embedding extends CUDElement<Embedding> {
 	Embedding setSubjectIndex(int subjectIndex);
 
 	/**
+	 * Return the start of the window this embedding covers, in milliseconds into the asset, or null when it covers no time range (an image, a whole
+	 * recording). Audio-window embeddings - a speaker's voiceprint for one stretch of speech - set both ends.
+	 */
+	Long getTimeFrom();
+
+	Embedding setTimeFrom(Long timeFrom);
+
+	/**
+	 * Return the end of the window this embedding covers, in milliseconds into the asset, or null. Never before {@link #getTimeFrom()}: the table
+	 * checks it.
+	 */
+	Long getTimeTo();
+
+	Embedding setTimeTo(Long timeTo);
+
+	/**
 	 * Return the free-text embedding type, e.g. "face" or "clip". Deliberately not an enum: the embedding model is expected to change, and a new model
 	 * must not require a code change and a redeploy to be storable.
 	 */

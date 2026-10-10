@@ -1,0 +1,32 @@
+# Cortex voiceprint sidecar. Python 3.10+.
+#
+# torch and torchaudio are intentionally absent here and are installed FIRST, matched to your
+# CUDA, by setup.sh / the Dockerfile. A CUDA mismatch fails late and confusingly, so it is not
+# left to pip to guess.
+
+# --- HTTP layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.9
+python-multipart>=0.0.9
+
+# --- audio io + clustering ---
+numpy>=1.26
+scipy>=1.11
+soundfile>=0.12
+soxr>=0.3
+
+# --- redimnet2: vendored model code under third_party/, weights from the GitHub release ---
+# (needs torch + torchaudio only)
+
+# --- wespeaker: ONNX exports from the Hugging Face hub ---
+huggingface_hub>=0.25
+pyyaml>=6
+onnxruntime-gpu>=1.19
+
+# --- speechbrain: ECAPA-TDNN ---
+speechbrain>=1.0
+
+# --- tests ---
+pytest>=8
+httpx>=0.27

@@ -209,6 +209,9 @@ public class EmbeddingEndpointService extends AbstractCRUDEndpointService<Embedd
 		update(request::getConfidence, embedding::setConfidence);
 		update(request::getProducerVersion, embedding::setProducerVersion);
 		update(request::getNormalized, embedding::setNormalized);
+		// The window an audio embedding covers. V2.43 added the columns; nothing wrote or read them until the voiceprint node.
+		update(request::getTimeFrom, embedding::setTimeFrom);
+		update(request::getTimeTo, embedding::setTimeTo);
 		if (request.getFrameNumber() != null) {
 			embedding.setFrameNumber(request.getFrameNumber());
 		}

@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(45, registry.size(),
-			"Expected 45 advertised node kinds but found " + registry.size()
+		assertEquals(46, registry.size(),
+			"Expected 46 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -86,6 +86,7 @@ public class NodeDescriptorServiceLoaderTest {
 			"captioning",         // former cortex-captioning-api
 			"hash-dedup",         // former cortex-dedup-api
 			"sentiment",          // sentiment analysis node
+			"voiceprint",         // speaker embeddings + who-spoke-when via the /v1/voiceprints sidecar
 			"depthmap",           // monocular depth estimation
 			"sam2",               // SAM 2 segmentation; the first producer of struct/masks
 			"scene-layout",       // depth + boxes -> spatial relations

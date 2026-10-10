@@ -37,6 +37,8 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 	private Integer indexVersion;
 
 	private Boolean normalized;
+	private Long timeFrom;
+	private Long timeTo;
 
 	public EmbeddingImpl() {
 	}
@@ -137,6 +139,28 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 	@Override
 	public Embedding setType(String type) {
 		this.type = type;
+		return this;
+	}
+
+	@Override
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	@Override
+	public Embedding setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	@Override
+	public Long getTimeTo() {
+		return timeTo;
+	}
+
+	@Override
+	public Embedding setTimeTo(Long timeTo) {
+		this.timeTo = timeTo;
 		return this;
 	}
 

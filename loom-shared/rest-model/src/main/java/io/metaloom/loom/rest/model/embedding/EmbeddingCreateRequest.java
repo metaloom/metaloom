@@ -37,6 +37,10 @@ public class EmbeddingCreateRequest extends AbstractMetaModel<EmbeddingCreateReq
 
 	private Boolean normalized;
 
+	private Long timeFrom;
+
+	private Long timeTo;
+
 	public String getSource() {
 		return source;
 	}
@@ -188,6 +192,31 @@ public class EmbeddingCreateRequest extends AbstractMetaModel<EmbeddingCreateReq
 
 	public EmbeddingCreateRequest setNormalized(Boolean normalized) {
 		this.normalized = normalized;
+		return this;
+	}
+
+	/**
+	 * Return the start of the window this vector covers, in milliseconds into the asset. Null for an image or a whole recording; set together with
+	 * {@link #getTimeTo()} for an audio-window embedding such as a speaker's voiceprint for one stretch of speech.
+	 */
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	public EmbeddingCreateRequest setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	/**
+	 * Return the end of the window this vector covers, in milliseconds into the asset, or null. Must not precede {@link #getTimeFrom()}.
+	 */
+	public Long getTimeTo() {
+		return timeTo;
+	}
+
+	public EmbeddingCreateRequest setTimeTo(Long timeTo) {
+		this.timeTo = timeTo;
 		return this;
 	}
 

@@ -34,6 +34,7 @@ import io.metaloom.cortex.node.guard.GuardNodeModule;
 import io.metaloom.cortex.node.translate.TranslateNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
 import io.metaloom.cortex.node.vlm.VlmNodeModule;
+import io.metaloom.cortex.node.voiceprint.VoiceprintNodeModule;
 import io.metaloom.cortex.node.filter.FilterNodeModule;
 import io.metaloom.cortex.node.watermark.WatermarkNodeModule;
 import io.metaloom.cortex.node.whisper.WhisperNodeModule;
@@ -64,6 +65,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	WhisperNodeModule.class,
 	TtsNodeModule.class,
 	SentimentNodeModule.class,
+	VoiceprintNodeModule.class,
 	ScriptNodeModule.class,
 	DepthmapNodeModule.class,
 	Sam2NodeModule.class,

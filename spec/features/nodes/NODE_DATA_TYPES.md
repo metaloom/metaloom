@@ -312,6 +312,7 @@ itself (§3.3).
 | `scene-layout` | `depth : struct/depthmap`, `detections : detection/*` **MANY** | `result : struct/scene-layout`, `object_count : scalar/integer`, `relation_count : scalar/integer` |
 | `dominant-color` | `media : media/image`, `detections : detection/*` **MANY** *(opt)* | `result : struct/color`, `hex : scalar/string`, `term : scalar/string`, `name_en : scalar/string`, `name_de : scalar/string`, `region_count : scalar/integer` |
 | `whisper` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `transcript : text/transcript` |
+| `voiceprint` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `speaker_count : scalar/integer`, `speakers : struct/embedding` **MANY** (one element per voice, longest first), `voiceprint : struct/embedding`, `timeline : struct/segments`, `result : struct/json` |
 | `sentiment` | `text : text/*` | `label : scalar/string`, `score : scalar/number`, `result : struct/json` |
 | `translate` | `text : text/*` | `translation : text/plain`, `language : scalar/string`, `result : struct/json` |
 | `guard` | `text : text/*` *(opt)*, `media : media/image` *(opt)* | `safe : control/filter`, `label : scalar/string`, `score : scalar/number`, `categories : scalar/string` **MANY**, `result : struct/json` |
@@ -1157,8 +1158,9 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-_Git HEAD revision: `67000540`_
-_Last updated: 2026-08-20 (gaps 2 and 3 closed — `origin` on the wire and run/task identity on the
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-10-10 (§4.3: the `voiceprint` row — the first node whose ports actually emit `struct/embedding`, MANY per voice and ONE pooled)_
+_Previously: 2026-08-20 (gaps 2 and 3 closed — `origin` on the wire and run/task identity on the
 ledger; see §9). Earlier: 2026-08-16 (moved here from `features/pipeline/` and re-verified against the tree.
 The 26 hand-written descriptor providers are gone — a node declares its contract with
 `@NodeSpec`/`@PortDoc`/`@ParamDoc` and the build-time harvest is committed and guarded by

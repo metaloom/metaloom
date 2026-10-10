@@ -32,6 +32,7 @@
         <module>whisper</module>
         <module>tts</module>
         <module>sentiment</module>
+        <module>voiceprint</module>
         <module>script</module>
         <module>depthmap</module>
         <module>sam2</module>

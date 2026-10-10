@@ -99,6 +99,21 @@ nodeExec:
   maxActiveJobsPerUser: 3
   resultMaxChars: 4000
   persistDefault: false
+imageGenTool:
+  enabled: false
+  host: "localhost"
+  port: 9230
+  maxImages: 5
+  timeoutMs: 300000
+  libraryUuid: ""
+  steps: 40
+chatAttachment:
+  enabled: true
+  maxFiles: 10
+  maxBytes: 26214400
+  maxReadChars: 20000
+  maxReadBytes: 8388608
+  libraryUuid: ""
 search:
   enabled: true
   provider: "postgres"

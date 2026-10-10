@@ -22,6 +22,7 @@ production.
 | [`depth/`](./depth) | `depthmap` (`io.metaloom.cortex.node.depthmap`) | Monocular depth — Depth-Anything-V2-Small (relative), ZoeDepth (metric), `POST /v1/depth` | `9120` |
 | [`sam2/`](./sam2) | `sam2` (`io.metaloom.cortex.node.sam2`) | Segmentation — SAM 2.1 Hiera, `POST /v1/segment` (segment-everything or box-prompted) + `/v1/track` (video propagation) | `9130` |
 | [`asr/`](./asr) | none yet | Speech recognition with word + segment time codes — Whisper large-v3-turbo, Parakeet-TDT-v3 (CPU), Voxtral Realtime (streaming). OpenAI-style `POST /v1/audio/transcriptions` + `WS /v1/realtime`. Ships as a container (`container.sh`) | `9140` |
+| [`voiceprint/`](./voiceprint) | `voiceprint` (`io.metaloom.cortex.node.voiceprint`) | Speaker embeddings and who-spoke-when — ReDimNet2-B6 (default, MIT), WeSpeaker ResNet34 ONNX, SpeechBrain ECAPA, `POST /v1/voiceprints` + `/v1/compare`. Ships as a container (`container.sh`) | `9150` |
 | [`ideogram-sidecar/`](./ideogram-sidecar) | `imagegen` (`io.metaloom.cortex.node.imagegen`) | Image generation — SDXL-Turbo by default, Ideogram 4 if you accept its gate, `POST /generate` + `/remix` | `9200` |
 | [`mage-flow-sidecar/`](./mage-flow-sidecar) | `imagegen` (same node, `port` option) | Image generation + instruction editing — Mage-Flow 4B, **MIT weights**, `POST /generate` + `/remix` | `9210` |
 | [`ltx2-sidecar/`](./ltx2-sidecar) | `videogen` (`io.metaloom.cortex.node.videogen`) | Text/image-to-video — LTX-2 19B, `POST /generate` + `/animate` → `video/mp4` | `9220` |
@@ -87,7 +88,7 @@ its own host/port options (for `tts`: `ttsHost` / `ttsPort`, default `localhost:
 its listener via its own env vars (`TTS_HOST` / `TTS_PORT`, `SENTIMENT_HOST` / `SENTIMENT_PORT`,
 `DEPTH_HOST` / `DEPTH_PORT`, `SAM2_HOST` / `SAM2_PORT`, `MAGEFLOW_HOST` / `MAGEFLOW_PORT`,
 `QWENIMAGE_HOST` / `QWENIMAGE_PORT`,
-`LTX2_HOST` / `LTX2_PORT`,
+`LTX2_HOST` / `LTX2_PORT`, `VOICEPRINT_HOST` / `VOICEPRINT_PORT`,
 `LLAMACPP_HOST` / `LLAMACPP_PORT`). See the [Cortex Helm chart](../helm/cortex) for deploying
 workers. `ltx2-sidecar` is the model server for the `videogen` Cortex node
 (`cortex/nodes/video-generation`).

@@ -21,6 +21,7 @@
 > | `image-manipulation` — EXIF autorotate, crop, subject crop, aspect/VVS, resize | [image-manipulation/NODE_IMAGE_MANIPULATION.md](image-manipulation/NODE_IMAGE_MANIPULATION.md) |
 > | `tika` — document body text | [SERVICE_TIKA.md](SERVICE_TIKA.md) |
 > | `facedetect` / `facedescription` — the face model and licensing landscape | [facedetect/FACEDETECTION_OVERVIEW.md](facedetect/FACEDETECTION_OVERVIEW.md) |
+> | `voiceprint` — speaker embeddings, who-spoke-when, the sidecar and model choice | [voiceprint/NODE_VOICEPRINT.md](voiceprint/NODE_VOICEPRINT.md) |
 > | `facedetect` — the identity **workflow**: detect → embed → cluster → confirm a person | [../../workflows/WORKFLOW_FACE.md](../../workflows/WORKFLOW_FACE.md) — 🟢 all four stages run; clustering is per asset, so cross-asset identity is still open |
 >
 > **Source of truth is the code under `cortex/`.** Where this file and the code disagree, the code
@@ -135,6 +136,7 @@ shadows the base method — do not copy it.
 | `consistency` | `assets/:uuid` update → `asset` consistency block | `updateAsset` |
 | `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (window 0) | `createAssetFingerprintComp` |
 | `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=face`), then `…/embeddings/bulk` → `embedding`, then `…/clusters/bulk` → `cluster` + `embedding_cluster`, plus one `FACE_CROP` `attachment` per face | `bulkCreateAssetDetections`, `bulkCreateAssetEmbeddings`, `bulkCreateAssetClusters`, `uploadFaceCrop` |
+| `voiceprint` | `…/embeddings/bulk` → `embedding` (`type=voiceprint`, one per speech window, `time_from`/`time_to` set, no detection), then `…/clusters/bulk` → `cluster` (`type=speaker`, centroid = the speaker's voiceprint) + `embedding_cluster`, then `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=voiceprint`, the timeline without vectors); ledger `result_ref` → the component. Silence → SKIPPED ledger row, no writes | `bulkCreateAssetEmbeddings`, `bulkCreateAssetClusters`, `createAssetJsonComp` |
 | `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) — `transcriptJson.segments`, **absolute milliseconds**; see below | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
@@ -168,7 +170,7 @@ shadows the base method — do not copy it.
 > restarted worker re-transcribes; there is no whisper xattr, so nothing else skips.
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
-`quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,
+`quality`, `tika`, `metadata`, `sentiment`, `voiceprint`, `translation`, `scene-layout`, `dominant-color`, `script`,
 `s3-artifact`, `tags`.
 
 `tag` is the only node that writes into the **catalog** rather than a per-asset component table. Since
@@ -227,6 +229,7 @@ Port ids only; content types and cardinality are in
 | `tika` | `TikaNode` · tika | image, audio, video, document | `media` → `content`, `flags` | `asset_json_comp` | — |
 | `metadata` | `MetadataNode` · metadata | image, audio, video, document | `media` → `metadata`, `text`, `geo` | `asset_json_comp` + `asset_geo_comp` | — |
 | `whisper` | `WhisperNode` · whisper | video, audio | `audio` \| `video` → `transcript` | `asset_transcript_comp` | whisper.cpp |
+| `voiceprint` | `VoiceprintNode` · voiceprint | video, audio | `audio` \| `video` → `speaker_count`, `speakers` (MANY, one per voice), `voiceprint`, `timeline`, `result` | `embedding` (per window), `cluster` + `embedding_cluster` (per speaker), `asset_json_comp` | sidecar `9150`; `ffmpeg` for video |
 | `llm` | `LLMNode` · llm | any (filename-driven) | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compatible |
 | `vlm` | `VlmNode` · vlm | image | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compat VLM |
 | `captioning` | `CaptioningNode` · captioning | image, video | `image` \| `video` → `caption` | `asset_json_comp` | SmolVLM / Qwen2.5-VL |
@@ -474,12 +477,14 @@ a key that omits *one* result-affecting option is the same bug as a path-only ke
 | `watermark` | `absolutePath \| sha256(watermark bytes, relX/relY, scale, opacity, codec, crf, preset)`, re-checked with `Files.exists` |
 | `image-manipulation` | `absolutePath \| sha256(every result-affecting option + the surviving subject boxes)` — the boxes belong in the key because they change the output pixels; re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
-| `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags)` — two tag nodes over one asset are the normal case and must not share a verdict |
+| `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags, minConfidence, dryRun, removeWithdrawn)` — two tag nodes over one asset are the normal case and must not share a verdict. `dryRun` is in there for a sharper reason than staleness: the node is a `PipelineConfigurable`, so one instance is reconfigured per task while its cache survives, and a cached dry-run record re-emitted for a real task would **suppress the write and still report green** |
+| `filter` | `absolutePath \| configHash(filterBy, buckets, model, tagSource, openaiUrl, maxTextChars, minConfidence, strategy.version())` — same instance-reconfigured-per-task argument; `minConfidence` demotes a matched bucket to `other`, so leaving it out routes an item by a threshold that is no longer set |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | `guard` | `absolutePath \| hash(input text, image path, family, model, effective categories, threshold, prompt template, maxImageDim)` — the text arrives from an edge, so a path-keyed cache would answer a different question than the one asked |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
 | `objectdetect` | `absolutePath \| modelPath, minConfidence, videoChopRate, videoScaleSize, maxDetections, classFilter` — a permissive pass and a `person`-only pass over the same file are two different answers |
 | `sam2` | `absolutePath \| digest(model, mode, maxDim, pointsPerSide, predIouThresh, stabilityScoreThresh, minMaskArea, maxMasks, multimask, videoChopRate, maxFrames, trackFrame, emitOverlay, **and the prompt boxes**)` — the digest is in the artifact directory name too, so an automatic pass and a prompted one neither serve nor overwrite each other. The boxes are in it for `image-manipulation`'s reason: a re-run against better detections must not be handed the first run's masks |
+| `voiceprint` | `absolutePath \| size \| mtime \| hash(model, windowSeconds, hopSeconds, minSpeechSeconds, clusterThreshold, maxSpeakers)` — size and mtime for the `MediaCacheKey` reason; `persistWindows` is deliberately not in it because it changes only what is written, and a hit writes nothing |
 | everything else | `absolutePath` **only** |
 
 The consequence is concrete: `sentiment` re-uses the first score for a file even when a different
@@ -510,16 +515,16 @@ flowchart TD
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>generated node-descriptors.json → 45 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 46 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **40** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **41** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `objectdetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
-  `whisper`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `sam2`, `scene-layout`,
+  `whisper`, `voiceprint`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `sam2`, `scene-layout`,
   `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`, `move`, `assign`.
   All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
@@ -619,7 +624,7 @@ a node whose workers are all offline is still authorable and simply cannot be *r
 Everything else matches its kind, except the four hash kinds which share `KEY = "hash"` and the two
 `dedup` classes which share `DedupNodeOptions`. Full set: `hash`, `thumbnail`, `fingerprint` (no
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
-`scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `objectdetect`,
+`scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `voiceprint`, `tts`, `objectdetect`,
 `depthmap`, `sam2`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
 `guard`, `script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
@@ -638,6 +643,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `llm` | `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `prompts` (`Map<String, LLMNodePrompt>`) |
 | `vlm` | `endpointUrl`, `apiKey`, `prompts` (`Map<String, VlmNodePrompt>`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | `sentiment` | `sentimentHost` (`localhost`), `sentimentPort` (9110), `language` (`auto`), `modelDe`/`modelEn` (null), `maxChars` (200000) |
+| `voiceprint` | `voiceprintHost` (`localhost`), `voiceprintPort` (9150), `model` (`` = the sidecar's default, `redimnet2`), `windowSeconds` (3.0), `hopSeconds` (1.5, at most the window), `minSpeechSeconds` (1.0), `clusterThreshold` (0 = the backend's calibrated threshold), `maxSpeakers` (0 = unbounded), `persistWindows` (true), `ffmpegPath` (`ffmpeg`), `timeoutMs` (0 = 10 min). Blank `model` and zero threshold/max are **not sent**, so the sidecar's defaults apply |
 | `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`google/gemma-2-27b-it`), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
 | `guard` | `family` (`LLAMA_GUARD_3`), `model` (`meta-llama/Llama-Guard-3-8B`), `categories` (`[]` = all), `threshold` (0.5), `maxChars` (8000), `maxImageDim` (1024), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `apiKey` (null), `promptTemplate` (null = the family's built-in) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
@@ -744,13 +750,13 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 45 advertised kinds, no duplicates |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 46 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
 `PipelineAssertions`, `PipelineResultAssert`, `PipelineNodeResultAssert`. **19 subclasses** today:
-18 `*NodePipelineTest` (hash ×3, depthmap, dominant-color, facedetect, fingerprint, imagegen, llm,
-metadata, scene-layout, script, sentiment, thumbnail, tts, videogen, watermark, whisper) plus
+19 `*NodePipelineTest` (hash ×3, depthmap, dominant-color, facedetect, fingerprint, imagegen, llm,
+metadata, scene-layout, script, sentiment, thumbnail, tts, videogen, voiceprint, watermark, whisper) plus
 `AbstractFilterNodeTest`.
 
 ⚠️ **There are no edges in that harness** — a node's input port is filled from whatever earlier node
@@ -953,22 +959,13 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`, `bulkTagAsset`) |
 | Per-node end-to-end ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` |
 | Test scaffolding | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/` |
-| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `imagegen` 9200/9210/9230, `videogen` 9220) |
+| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `asr` 9140, `voiceprint` 9150, `imagegen` 9200/9210/9230, `videogen` 9220) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Customer-facing node docs | `website/content/english/docs/nodes/<kind>/index.adoc` |
 | Per-node design specs | `spec/features/nodes/<kind>/NODE_*.md` |
 
 ---
 
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (§1.2, §9 and §10 — the `ctx.failure(cause).next()` list is empty: the last 15 sites in 13 node classes were converted to `.abort()`, `NodeContextImpl.next()` is fail-closed, and `FailurePathGuardTest` (cortex/api) fails the build on the shape)_
-
-_Previously: 2026-08-16 (V2.105 renames the column to `window_index`, so §"Media components" and the `fingerprint` row name it that; the conflation with the algorithm's internal sectors is spelled out rather than only flagged. Earlier: §"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
-
-_Previously: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
-all four `filterBy` values are implemented. Earlier the same day: added the routing row for
-`features/facedetection/FACE_WORKFLOW.md`, which owns the face identity loop — and recorded that the
-`faceClusterEPS` / `faceClusterMinimum` options listed in §5 here are now read by `FaceClusterer`, and `facedescription` is bound and runnable). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
-one request per item, one transaction, and a rejected withdrawal fails the item; added
-`TagNodeIntegrationTest` to the per-node ITs. Also finished removing `NodePortConformanceTest` from the
-test tables and the file map, where three references survived the 2026-08-04 correction)_
+_Git HEAD revision: `3da90863`_
+_Last updated: 2026-10-10 (the `voiceprint` node: speaker embeddings and who-spoke-when through the `sidecars/voiceprint` sidecar on :9150 — rows in §2, §3.1, §4, §5.1, §5.2, §6.2, §6.3 and §8; 41 kind bindings, 46 advertised kinds. It is the first node to write `embedding.time_from`/`time_to`, which V2.43 added and no layer could read until now. The §5.2 reconciliation row was recounted.)_
+_Previously: 2026-09-26 (§3.3, §4 and §9 — review of the three decision nodes. The `filter` and `tag`

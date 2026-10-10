@@ -75,6 +75,7 @@ export const PAGES = [
   { page: "tts", kind: "tts" },
   { page: "videogen", kind: "videogen" },
   { page: "vlm", kind: "vlm" },
+  { page: "voiceprint", kind: "voiceprint" },
   { page: "watermark", kind: "watermark" },
   { page: "whisper", kind: "whisper" },
 ];

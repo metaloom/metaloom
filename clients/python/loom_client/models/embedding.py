@@ -47,6 +47,8 @@ class EmbeddingCreateRequest(MetaModel):
     confidence: float | None = None
     producer_version: str | None = None
     normalized: bool | None = None
+    time_from: int | None = None
+    time_to: int | None = None
 
 
 @dataclass
@@ -84,6 +86,8 @@ class EmbeddingResponse(CreatorEditorResponse):
     frame_number: int | None = None
     subject_index: int | None = None
     normalized: bool | None = None
+    time_from: int | None = None
+    time_to: int | None = None
 
 
 @dataclass

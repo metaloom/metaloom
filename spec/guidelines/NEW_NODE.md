@@ -289,7 +289,8 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
   `depthmap`, `videogen`) are deliberately left out because the demo container has no sidecar —
   follow that precedent and note it rather than seeding a pipeline that cannot run.
 - **Sidecar** — GPU/model runtimes live in `sidecars/<name>-sidecar/` (FastAPI, one free port after
-  the last one; `videogen` → LTX-2 → `9220`). The Java node is a **pure HTTP client** of it. See the
+  the last one in its block: analysis sidecars 9100–9150, `voiceprint` → `9150`; generative ones 9200+,
+  `videogen` → LTX-2 → `9220`). The Java node is a **pure HTTP client** of it. See the
   sidecars README for the port table and the heavy-GPU template.
 
 ---

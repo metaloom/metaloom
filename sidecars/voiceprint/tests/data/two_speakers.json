@@ -1,0 +1,39 @@
+{
+ "rate": 16000,
+ "voices": {
+  "A": "af_heart",
+  "B": "am_michael"
+ },
+ "turns": [
+  {
+   "speaker": "A",
+   "start": 24000,
+   "end": 116480,
+   "text": "Good evening. Tonight we look at how the river shaped the old town, and why the bridge was moved twice."
+  },
+  {
+   "speaker": "B",
+   "start": 140480,
+   "end": 225120,
+   "text": "Thank you. The first bridge stood further downstream, close to where the market square is today."
+  },
+  {
+   "speaker": "A",
+   "start": 249120,
+   "end": 316480,
+   "text": "And the second one was built after the flood of the following decade, is that right?"
+  },
+  {
+   "speaker": "B",
+   "start": 340480,
+   "end": 465440,
+   "text": "That is right. The flood took the mill with it, and the council decided to rebuild on higher ground, where the road already crossed."
+  },
+  {
+   "speaker": "A",
+   "start": 489440,
+   "end": 576320,
+   "text": "Which brings us to the stone bridge we still walk across today. Thank you for joining us this evening."
+  }
+ ]
+}

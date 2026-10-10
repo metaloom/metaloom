@@ -10,6 +10,7 @@ import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
@@ -142,6 +143,53 @@ public class EmbeddingEndpointTest extends AbstractCRUDEndpointTest {
 			EmbeddingResponse reloaded = client.loadEmbedding(first.getUuid()).sync().body();
 			assertEquals("inspireface-r18", reloaded.getModel());
 			assertEquals(3, reloaded.getVector().length);
+		}
+	}
+
+	/**
+	 * The write shape the voiceprint node needs: no detection to point at, but a time window per vector. The window has to come back on the
+	 * bulk response and on a reload - a column that is written and never read is the defect NEW_NODE.md section 1.4 is about.
+	 */
+	@Test
+	public void testBulkCreateAudioWindowEmbeddings() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetResponse asset = createTestAsset(client);
+
+			EmbeddingBulkCreateRequest request = new EmbeddingBulkCreateRequest();
+			for (int i = 0; i < 3; i++) {
+				request.add(new EmbeddingCreateRequest()
+					.setType("voiceprint")
+					.setNodeKind("voiceprint")
+					.setModel("redimnet2-b6-vox2-lm")
+					.setVector(new Float[] { 0.1f * i, 0.2f, 0.3f })
+					.setNormalized(true)
+					.setFrameNumber(0)
+					.setSubjectIndex(i)
+					.setTimeFrom(1_500L * i)
+					.setTimeTo(1_500L * i + 3_000L));
+			}
+			EmbeddingBulkResponse response = client.bulkCreateAssetEmbeddings(asset.getUuid(), request).sync().body();
+			assertEquals(3, response.getCreated());
+			assertEquals(0, response.getFailed());
+
+			EmbeddingResponse second = response.getEmbeddings().get(1);
+			assertEquals(1_500L, second.getTimeFrom());
+			assertEquals(4_500L, second.getTimeTo());
+			assertNull(second.getDetectionUuid(), "an audio window points at no detection");
+
+			EmbeddingResponse reloaded = client.loadEmbedding(second.getUuid()).sync().body();
+			assertEquals(1_500L, reloaded.getTimeFrom());
+			assertEquals(4_500L, reloaded.getTimeTo());
+			assertEquals(Boolean.TRUE, reloaded.getNormalized());
+
+			// A window that ends before it starts violates the table's range check and must be reported, not stored.
+			EmbeddingBulkCreateRequest inverted = new EmbeddingBulkCreateRequest();
+			inverted.add(new EmbeddingCreateRequest()
+				.setType("voiceprint").setNodeKind("voiceprint").setModel("redimnet2-b6-vox2-lm")
+				.setVector(new Float[] { 0.1f, 0.2f, 0.3f }).setSubjectIndex(9).setTimeFrom(5_000L).setTimeTo(1_000L));
+			EmbeddingBulkResponse rejected = client.bulkCreateAssetEmbeddings(asset.getUuid(), inverted).sync().body();
+			assertEquals(1, rejected.getFailed());
 		}
 	}
 

@@ -4365,18 +4365,20 @@ paths:
                 model: inspireface-r18
                 frameNumber: 0
                 subjectIndex: 0
-              - meta:
-                  abc: cdef
-                type: face
+              - type: voiceprint
                 vector:
                 - 0.42
                 - 0.24
                 - 0.44
                 - 21.5
-                nodeKind: facedetect
-                model: inspireface-r18
+                nodeKind: voiceprint
+                model: redimnet2-b6-vox2-lm
                 frameNumber: 0
-                subjectIndex: 0
+                subjectIndex: 3
+                producerVersion: voiceprint/1:redimnet2-b6-vox2-lm
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
       responses:
         "200":
           description: The embedding bulk response
@@ -4388,10 +4390,38 @@ paths:
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 total: 2
                 created: 2
                 failed: 0
@@ -13006,10 +13036,38 @@ paths:
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -13069,6 +13127,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -13195,6 +13267,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -13248,6 +13334,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -17294,11 +17394,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 62febd51-251f-4336-b8f8-9a1651991cfb
-                pipelineUuid: 6231a85c-db61-49ad-82b2-61e2c1e916b2
+                uuid: c6c17fbf-2b7f-4739-8e1b-ea74d3c8c1c1
+                pipelineUuid: 5240a87c-71fe-41e4-a574-98b21ae548ed
                 pipelineVersion: 1
-                started: 2026-09-21T09:29:09.206655699Z
-                finished: 2026-09-21T09:29:09.206657839Z
+                started: 2026-10-10T23:37:20.660898694Z
+                finished: 2026-10-10T23:37:20.660902384Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17547,7 +17647,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: dfe705fa-ed4a-4569-81c0-aa43c81c36cf
+                  versionUuid: 623d23e3-996c-437f-81a8-02913da82bfb
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17568,7 +17668,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: b7f0122b-0f70-4255-a3c6-0566d14db881
+                  versionUuid: 03ed43fe-3d5f-449a-8b8a-2bcd0306849c
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17641,7 +17741,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: becefc53-3c8d-43c7-a83d-1539b27ab92b
+                versionUuid: 05285b82-8cbc-46bb-9fc8-f93656baf12b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17700,7 +17800,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 94d128ef-c10e-472e-a314-9e0088e2050e
+                versionUuid: dd06c481-7f24-46c9-869a-7f0ccb8e649d
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17772,7 +17872,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 2b5c6581-0457-4aef-904a-8b0e30ce961c
+                versionUuid: c6db0206-9041-491a-8fc2-4bbe6a8d4ebf
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17881,7 +17981,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: c92f5e83-7130-4bed-bebc-5ed12c75fc98
+                runUuid: c29d02ad-f85f-4d66-aae4-2678efaf6242
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -17969,11 +18069,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: a3bb81e1-34d9-43a8-abbb-c3d51e0f72ac
-                  pipelineUuid: 4dc95db9-29a7-4afb-b393-d19401b5a8ef
+                - uuid: 47fd8ec0-8116-4c03-84ca-41e13f57e27e
+                  pipelineUuid: 659de199-33c3-40c0-b642-35e4e966e104
                   pipelineVersion: 1
-                  started: 2026-09-21T09:29:09.206534669Z
-                  finished: 2026-09-21T09:29:09.206544649Z
+                  started: 2026-10-10T23:37:20.660630009Z
+                  finished: 2026-10-10T23:37:20.660660408Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17981,11 +18081,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: e3793b30-c12e-45f6-919b-0139eabd6b44
-                  pipelineUuid: da9d0770-8aec-49d6-9309-ccf24779d723
+                - uuid: 9de57563-155d-4c09-90f1-3088a679d239
+                  pipelineUuid: a422e364-a2c0-4b83-b092-40902d424d9d
                   pipelineVersion: 1
-                  started: 2026-09-21T09:29:09.206560589Z
-                  finished: 2026-09-21T09:29:09.206563049Z
+                  started: 2026-10-10T23:37:20.660685808Z
+                  finished: 2026-10-10T23:37:20.660689248Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -18048,11 +18148,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: d9a28d80-b275-4b97-92ff-5b218bb7bd26
-                pipelineUuid: 9ba704f8-53b8-4b6f-8ef1-e4a904649a63
+                uuid: 16a24240-20e0-43d6-8fca-41897c0c244e
+                pipelineUuid: caadf906-ea52-4052-9760-5777aa6811e1
                 pipelineVersion: 1
-                started: 2026-09-21T09:29:09.206621749Z
-                finished: 2026-09-21T09:29:09.206625189Z
+                started: 2026-10-10T23:37:20.660835575Z
+                finished: 2026-10-10T23:37:20.660841805Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -18394,15 +18494,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: b2d01228-21f1-498f-88e4-a283b4f3dd37
-                  runUuid: e447583f-bd6f-492c-8248-17c1eca30058
+                - uuid: 8f07b9a0-8d12-4def-aa46-5eebc6f0d4a0
+                  runUuid: 7c14de7f-86b5-4d9d-8e72-9c5f9d4a3fe9
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 9cd6b454-6014-419e-a742-7714278e2079
-                  runUuid: ad6a8a5a-24ad-4919-a8b9-3c291889ca42
+                - uuid: 51d85982-fb96-4bd7-bcce-92b85967a279
+                  runUuid: 8a630981-9ef9-46c4-912f-989815a89cf8
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -18474,9 +18574,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 20f66c03-ba50-48be-9f0e-0e1b8d3ea4c5
-                  itemUuid: 23329731-2c48-47e0-a69e-cad4799378aa
-                  runUuid: 0a0d1d9a-8cad-44ec-af8a-f5a229884abb
+                - uuid: c63e9314-319f-47f5-a562-3543d206fe79
+                  itemUuid: becfc648-6843-4502-a94d-680f0b02a458
+                  runUuid: b0d5a28a-400e-49cd-8cd9-21005d6b7ead
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -18939,7 +19039,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 0db2e7f1-9b6b-4a55-8a0b-54d149ccf45f
+                  versionUuid: 0368a7d7-29d9-43fb-ad58-edec975de5bf
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18960,7 +19060,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 6f5417d0-cfb0-4e00-b6ff-5f66c1a7d8c9
+                  versionUuid: 0d5ed76d-bcaf-41af-95b7-a16121f54a5d
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -19036,7 +19136,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: ea8618dd-8858-4ed7-b255-3779d863073e
+                versionUuid: ea24c024-7e97-444a-9322-05d6bd49c922
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -19122,7 +19222,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 97e25047-0a36-41b1-afea-dc074a2c0a69
+                versionUuid: f57ecdac-9cd7-4b53-b6b3-f93ca4ede4a9
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

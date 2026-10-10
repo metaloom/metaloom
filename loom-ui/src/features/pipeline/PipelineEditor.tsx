@@ -36,6 +36,7 @@ import {
   TransformOutlined, CloseOutlined, SearchOutlined,
   SaveOutlined, HistoryOutlined, RestoreOutlined,
   CompareArrowsOutlined, DeleteOutline,
+  RecordVoiceOverOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
@@ -130,6 +131,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   movie_filter:             <MovieFilterOutlined sx={{ fontSize: 14 }} />,
   description:              <Description sx={{ fontSize: 14 }} />,
   mic:                      <Mic sx={{ fontSize: 14 }} />,
+  record_voice_over:        <RecordVoiceOverOutlined sx={{ fontSize: 14 }} />,
   text_fields:              <TextFields sx={{ fontSize: 14 }} />,
   psychology:               <Psychology sx={{ fontSize: 14 }} />,
   label:                    <LocalOfferOutlined sx={{ fontSize: 14 }} />,

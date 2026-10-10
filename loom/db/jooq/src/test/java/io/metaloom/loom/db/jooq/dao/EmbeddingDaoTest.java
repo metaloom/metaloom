@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -171,6 +172,27 @@ public class EmbeddingDaoTest extends AbstractJooqTest implements CRUDDaoTestcas
 		assertTrue(alive.contains(embedding.getUuid()));
 		assertFalse(alive.contains(gone), "a uuid with no row must be reported as an orphan");
 		assertTrue(getDao().filterExisting(List.of()).isEmpty(), "an empty request must not hit the database");
+	}
+
+	/**
+	 * V2.43 gave the table {@code time_from}/{@code time_to} for audio-window embeddings, and for eight migrations nothing in the DAO could set or
+	 * read them. A voiceprint says WHEN a voice was heard, or it is just a vector on an asset.
+	 */
+	@Test
+	public void shouldRoundTripTheTimeWindow() {
+		Embedding window = getDao().createEmbedding(dummyUser(), asset(), VECTOR_DATA, "voiceprint");
+		window.setNodeKind("voiceprint").setModel("redimnet2-b6-vox2-lm").setSubjectIndex(51).setTimeFrom(12_000L).setTimeTo(15_000L);
+		getDao().upsertEmbedding(window);
+
+		Embedding loaded = getDao().load(window.getUuid());
+		assertEquals(12_000L, loaded.getTimeFrom());
+		assertEquals(15_000L, loaded.getTimeTo());
+
+		Embedding still = getDao().createEmbedding(dummyUser(), asset(), VECTOR_DATA, "face");
+		still.setNodeKind("facedetect").setModel("inspireface-r18").setSubjectIndex(52);
+		getDao().upsertEmbedding(still);
+		assertNull(getDao().load(still.getUuid()).getTimeFrom(), "an image embedding covers no time range");
+		assertNull(getDao().load(still.getUuid()).getTimeTo());
 	}
 
 	@Test

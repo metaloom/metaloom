@@ -474,6 +474,7 @@ public class DocsFixtureGenerator {
 		recipes.add(SidecarRecipes.sam2());
 		recipes.add(SidecarRecipes.sentiment());
 		recipes.add(SidecarRecipes.tts());
+		recipes.add(SidecarRecipes.voiceprint());
 		recipes.add(SidecarRecipes.imagegen());
 		recipes.add(SidecarRecipes.videogen());
 		recipes.add(SidecarRecipes.whisper(WHISPER_MODEL));
