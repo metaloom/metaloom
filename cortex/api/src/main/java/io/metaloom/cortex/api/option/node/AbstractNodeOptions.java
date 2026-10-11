@@ -9,7 +9,7 @@ import io.metaloom.cortex.api.node.spec.ParamDoc;
  * Common options every node inherits.
  *
  * <p>
- * The {@link ParamDoc} annotations here are the reason the three shared parameters are declared once
+ * The {@link ParamDoc} annotations here are the reason the shared parameters are declared once
  * rather than 34 times. Every hand-written descriptor provider used to restate {@code enabled},
  * {@code processIncomplete} and {@code retryFailed} through a local {@code commonEnabled()} helper —
  * identical prose, copy-pasted, with nothing checking it stayed identical.
@@ -28,6 +28,14 @@ public abstract class AbstractNodeOptions<T extends AbstractNodeOptions<T>> impl
 
 	@ParamDoc(label = "Retry Failed", description = "Retry processing media that previously failed", order = 30)
 	private boolean retryFailed;
+
+	/**
+	 * Off by default, so a node whose output for this asset, options and inputs is already stored in Loom replays it instead of computing. On, the
+	 * node computes again and replaces the stored output. Read by {@code AbstractMediaNode} for every node, and also accepted directly on a pipeline
+	 * node definition for nodes whose options come from the worker's configuration.
+	 */
+	@ParamDoc(label = "Recompute", description = "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result", order = 40)
+	private boolean recompute;
 
 	/**
 	 * Hidden from the contract on purpose: every node has had this field for as long as the base class
@@ -64,6 +72,16 @@ public abstract class AbstractNodeOptions<T extends AbstractNodeOptions<T>> impl
 
 	public T setRetryFailed(boolean retryFailed) {
 		this.retryFailed = retryFailed;
+		return self();
+	}
+
+	@Override
+	public boolean isRecompute() {
+		return recompute;
+	}
+
+	public T setRecompute(boolean recompute) {
+		this.recompute = recompute;
 		return self();
 	}
 

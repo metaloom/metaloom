@@ -2122,7 +2122,9 @@ public class PipelineRunEngine {
 		log.debug("Reusing the previous result of node '{}' for {}", node.getId(), state.getMedia().getPath());
 		// Deliberately not routed through recordCircuitOutcome: nothing executed, and
 		// counting a reuse as a success would mask a kind that is failing everywhere.
-		state.record(NodeTaskResult.completed(null, node.getId(), 0, reused.getOutputs()));
+		// REMOTE, so the run records the step as reused - the same mark a worker sets when it replays an
+		// output Loom stored for it.
+		state.record(NodeTaskResult.completed(null, node.getId(), 0, reused.getOutputs()).withOrigin("REMOTE"));
 		// Held exactly as a fresh execution would be. A breakpoint that fired on the first run and
 		// then silently did not on the second — because the result happened to be reusable — would
 		// be the kind of surprise that makes a debugger untrustworthy.

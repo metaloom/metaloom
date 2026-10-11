@@ -404,7 +404,7 @@ sequenceDiagram
 | Retry | `RetryScheduler` + exponential backoff from `DEFAULT_RETRY_BASE_DELAY_MS = 1000` capped at `MAX_RETRY_DELAY_MS = 60000` |
 | Circuit breaking | `NodeKindCircuitBreaker`, **shared across runs** — a kind broken by a missing model file is broken for everyone |
 | Loss / return | `onNodeTaskLost(...)` (lease reclaim) and `onNodeTaskReturned(...)` (worker refused/shed) both unwind the in-flight marker and re-queue |
-| Result reuse | `reuseResults` adopts a previous result as **`COMPLETED` carrying its outputs**, never as a skip — a skip carries nothing and downstream would lose the value |
+| Result reuse | `reuseResults` adopts a previous result as **`COMPLETED` carrying its outputs**, never as a skip — a skip carries nothing and downstream would lose the value. Since V2.117 the adopted row is recorded with origin `REMOTE`, so the run view marks it reused. The worker-side, cross-pipeline mechanism is separate: [../nodes/NODE_OUTPUT_REUSE.md](../nodes/NODE_OUTPUT_REUSE.md) |
 | Source port | `SOURCE_MEDIA_PORT` is the literal `"media"`. A source output port named anything else validates at save time and delivers nothing |
 
 ### 6.3 `syncToLoom`
@@ -746,6 +746,7 @@ never read by anything**.
 | `V2.76__mcp_pipeline_permissions.sql` | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` — authoring through an agent, granted separately from authoring in the editor |
 | `V2.77__normalize_pipeline_run_item_state.sql` | Rewrites `pipeline_run_item.state = 'FAILURE'` to `'FAILED'` and documents the vocabulary on the column. Data only — no schema change |
 | `V2.82__execute_mcp_node_permission.sql` | `EXECUTE_MCP_NODE` — running a node without a stored pipeline, granted separately from authoring one |
+| `V2.117__pipeline_node_task_origin.sql` | `origin VARCHAR` (CHECK ∈ COMPUTED/LOCAL/REMOTE, NULL reads as COMPUTED) — whether the task computed its result or reused one; written by `DaoRunStateStore` from `NodeTaskResult.origin` via `originOf` (unknown values become NULL instead of failing the batch). Plus `idx_pipeline_node_task_run_node (run_uuid, node_id)` for the per-node aggregation |
 | `V2.83__adhoc_pipeline_run.sql` | **`pipeline_run.pipeline_uuid` becomes nullable** and `kind VARCHAR NOT NULL DEFAULT 'PIPELINE'` is added, with a CHECK pairing the two. A `kind = 'ADHOC'` run carries its definition in `meta.definition` and belongs to no pipeline — see [AGENTIC_NODE_EXECUTION.md](../../chat/AGENTIC_NODE_EXECUTION.md) |
 
 **`V2.68` is the re-execution migration** ([§6.4b](#64b-re-executing-a-held-node-with-different-settings)).
@@ -906,6 +907,7 @@ post-refactor, but the parameter is dead weight on the interface.
 | POST | `/:uuid/run` | `PipelineRunResponse` (202 / 400 / 503) | `READ_PIPELINE` |
 | GET | `/:uuid/runs` | `PipelineRunListResponse` | `READ_PIPELINE` |
 | GET | `/runs/stats` | `PipelineRunStatsResponse` | `READ_PIPELINE_RUN` |
+| GET | `/:uuid/node-stats?limit=&runUuid=` | `PipelineNodeStatsResponse` — per-node execution time, reuse, p50/p95/max, power-of-two duration histogram and per-run totals, over the latest `limit` runs (default 20, max 200) or one run (404 when it is not this pipeline's). Backs the editor's Performance tab and the time on each node card | `READ_PIPELINE_RUN` |
 | GET | `/:uuid/runs/:runUuid` | `PipelineRunRecord` | `READ_PIPELINE_RUN` |
 | GET | `/:uuid/runs/:runUuid/items` | `PipelineRunItemListResponse` | `READ_PIPELINE_RUN` |
 | GET | `/:uuid/runs/:runUuid/items/:itemUuid/tasks` | `PipelineNodeTaskListResponse` | `READ_PIPELINE_RUN` |
@@ -1349,5 +1351,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [../nodes/NODE_DATA_TYPES.md §17](../nodes/NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (validation extracted to PIPELINE_VALIDATION.md; 5.1 is now a pointer). Earlier: (Task 8: `POST /pipelines/validate`, and structural validation collapsed from three copies into `PipelineValidationService`)_
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (V2.117 `pipeline_node_task.origin`; `GET /:uuid/node-stats`; `reuseResults` adoption recorded as REMOTE). Earlier: 2026-08-09 (validation extracted to PIPELINE_VALIDATION.md; 5.1 is now a pointer). Earlier: (Task 8: `POST /pipelines/validate`, and structural validation collapsed from three copies into `PipelineValidationService`)_

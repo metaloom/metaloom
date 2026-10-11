@@ -70,6 +70,10 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunStatsResponse(), "The pipeline run stats response", HttpResponseStatus.OK);
 	}
 
+	default Example pipelineNodeStatsResponseExample() {
+		return new ExampleImpl(pipelineNodeStatsResponse(), "Where the pipeline's execution time goes, per node", HttpResponseStatus.OK);
+	}
+
 	default Example pipelineRunItemListResponseExample() {
 		return new ExampleImpl(pipelineRunItemListResponse(), "The pipeline run item list response", HttpResponseStatus.OK);
 	}
@@ -277,6 +281,40 @@ public interface PipelineExamples extends ExampleValues {
 		return model;
 	}
 
+	default PipelineNodeStatsResponse pipelineNodeStatsResponse() {
+		String run = uuidA().toString();
+		PipelineNodeTimeStats whisper = new PipelineNodeTimeStats()
+			.setNodeId("transcribe").setNodeKind("whisper")
+			.setTasks(12).setComputed(9).setReused(3).setFailed(0).setSkipped(0)
+			.setTotalDurationMs(181_230L).setComputedDurationMs(181_200L)
+			.setAvgDurationMs(20_133L).setP50DurationMs(18_400L).setP95DurationMs(41_000L).setMaxDurationMs(43_120L)
+			.setEstimatedSavedMs(60_400L).setShare(0.94);
+		whisper.getHistogram().add(new PipelineNodeDurationBucket().setFromMs(16_384L).setToMs(32_768L).setCount(7));
+		whisper.getHistogram().add(new PipelineNodeDurationBucket().setFromMs(32_768L).setToMs(65_536L).setCount(2));
+		whisper.getRuns().add(new PipelineNodeRunTotal().setRunUuid(run).setTasks(12).setReused(3).setTotalDurationMs(181_230L));
+		PipelineNodeTimeStats hash = new PipelineNodeTimeStats()
+			.setNodeId("hash").setNodeKind("sha512")
+			.setTasks(12).setComputed(12).setReused(0)
+			.setTotalDurationMs(11_520L).setComputedDurationMs(11_520L)
+			.setAvgDurationMs(960L).setP50DurationMs(910L).setP95DurationMs(1_700L).setMaxDurationMs(1_840L)
+			.setShare(0.06);
+		hash.getHistogram().add(new PipelineNodeDurationBucket().setFromMs(512L).setToMs(1_024L).setCount(8));
+		hash.getHistogram().add(new PipelineNodeDurationBucket().setFromMs(1_024L).setToMs(2_048L).setCount(4));
+		hash.getRuns().add(new PipelineNodeRunTotal().setRunUuid(run).setTasks(12).setReused(0).setTotalDurationMs(11_520L));
+		PipelineNodeStatsResponse model = new PipelineNodeStatsResponse()
+			.setPipelineUuid(uuidB().toString())
+			.setRunCount(1)
+			.setTasks(24)
+			.setReused(3)
+			.setTotalDurationMs(192_750L)
+			.setEstimatedSavedMs(60_400L);
+		model.getRuns().add(new PipelineNodeStatsRun().setUuid(run).setStatus("COMPLETED").setStarted(1_760_172_600_000L).setDurationMs(95_000L)
+			.setPipelineVersion(3));
+		model.getNodes().add(whisper);
+		model.getNodes().add(hash);
+		return model;
+	}
+
 	default PipelineRunStatsResponse pipelineRunStatsResponse() {
 		PipelineRunStatsResponse model = new PipelineRunStatsResponse();
 		model.add(new PipelineRunDayStatsRecord()
@@ -337,6 +375,7 @@ public interface PipelineExamples extends ExampleValues {
 		model.setAttempt(1);
 		model.setMaxAttempts(3);
 		model.setDurationMs(42L);
+		model.setOrigin("COMPUTED");
 		// Outputs are keyed by output port id, and each value carries its declared content
 		// type and cardinality alongside the elements - that is what lets a client render a
 		// result it has never seen before.

@@ -39,7 +39,13 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: against ``LoomHttpClientImpl``, which implements exactly these.
 #: Counted by distinct method *name*, so a set of overloads contributes one - which is
 #: why ``tools/generate_models.py`` reports a different number and this one wins.
-#: Last raised from 340 by ``TagMethods.updateTagPlacement`` (+1): ``PUT
+#: Last raised from 360 by ``PipelineMethods.loadPipelineNodeStats`` (+1): ``GET
+#: /pipelines/{uuid}/node-stats``, per-node execution time behind the editor's Performance tab.
+#: Before that, raised from 356 by ``NodeOutputMethods`` (+4): ``lookupNodeOutput`` on
+#: ``/assets/{uuid|sha512}/node-outputs/{kind}/{key}`` and create/list/delete on
+#: ``/assets/{uuid}/node-outputs`` - the store a node replays its output from instead of
+#: recomputing it.
+#: Before that, raised from 340 by ``TagMethods.updateTagPlacement`` (+1): ``PUT
 #: /assets/{uuid}/tag-placements/{placementUuid}``, which moves a region tag rather than
 #: withdrawing it and re-attaching it - dragging a region on the video timeline must not mint a
 #: new placement uuid or rewrite who attached it.
@@ -55,7 +61,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: ``listAssetRemixes`` on ``/assets/{uuid}/remixes``. Before that, 301 -> 324 by
 #: ``ShareMethods`` (+23): eight owner-side calls on ``/share-links`` and fifteen
 #: customer-side ones on ``/shares/{slug}``.
-EXPECTED_JAVA_METHOD_COUNT = 356
+EXPECTED_JAVA_METHOD_COUNT = 361
 
 #: Paths this client builds that the generated API description does not list.
 #:

@@ -14,6 +14,7 @@ from ..models.pipeline import (
     PipelineListResponse,
     PipelineNodeReExecuteRequest,
     PipelineNodeReExecuteResponse,
+    PipelineNodeStatsResponse,
     PipelineNodeTaskListResponse,
     PipelineResponse,
     PipelineRunItemListResponse,
@@ -145,6 +146,21 @@ class PipelineMethods:
     def load_pipeline_run_stats(self) -> LoomRequest[PipelineRunStatsResponse]:
         """Load aggregate run statistics across all pipelines."""
         return self._get("pipelines/runs/stats", PipelineRunStatsResponse)
+
+    def load_pipeline_node_stats(
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str | None = None,
+        limit: int | None = None,
+    ) -> LoomRequest[PipelineNodeStatsResponse]:
+        """Where a pipeline's execution time goes, per node: over one run, or accumulated over the
+        latest ``limit`` runs (server default 20)."""
+        request = self._get(f"pipelines/{self._uuid(pipeline_uuid)}/node-stats", PipelineNodeStatsResponse)
+        if run_uuid is not None:
+            request.param("runUuid", str(run_uuid))
+        if limit is not None:
+            request.param("limit", int(limit))
+        return request
 
     def pause_pipeline_run(
         self, pipeline_uuid: _uuid_mod.UUID | str, run_uuid: _uuid_mod.UUID | str

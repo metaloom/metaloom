@@ -24,6 +24,8 @@ import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputLookupResponse;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
 import io.metaloom.utils.hash.SHA512;
@@ -65,6 +67,15 @@ public class LoomClientMock {
 		LoomClientRequest<NodeResultResponse> nodeResultReq = mock(LoomClientRequest.class);
 		when(nodeResultReq.sync()).thenReturn(new LoomClientResponseImpl<>(nodeResultResponse, 201, "Created", Map.of()));
 		when(mock.createAssetNodeResult(any(), any())).thenReturn(nodeResultReq);
+
+		// Node output reuse: every lookup is a miss that carries the asset - the first run of a node on an asset - and every store succeeds. A test
+		// that wants a hit stubs lookupNodeOutput itself.
+		LoomClientRequest<NodeOutputLookupResponse> lookupReq = mock(LoomClientRequest.class);
+		when(lookupReq.sync()).thenReturn(new LoomClientResponseImpl<>(new NodeOutputLookupResponse().setAsset(response), 200, "OK", Map.of()));
+		when(mock.lookupNodeOutput(any(SHA512.class), any(), any())).thenReturn(lookupReq);
+		LoomClientRequest<NodeOutputResponse> outputReq = mock(LoomClientRequest.class);
+		when(outputReq.sync()).thenReturn(new LoomClientResponseImpl<>(new NodeOutputResponse(), 201, "Created", Map.of()));
+		when(mock.createAssetNodeOutput(any(UUID.class), any())).thenReturn(outputReq);
 
 		stubBulkWrites(mock);
 

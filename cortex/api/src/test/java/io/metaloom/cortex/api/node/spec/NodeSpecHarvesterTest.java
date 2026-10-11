@@ -74,9 +74,9 @@ public class NodeSpecHarvesterTest {
 	public void shouldPutInheritedCommonParametersFirst() {
 		List<NodeParameter> parameters = NodeSpecHarvester.harvest(FixtureNode.class).getParameters();
 
-		// enabled / processIncomplete / retryFailed are declared once on AbstractNodeOptions and lead
-		// every node's form; timeoutMs is @ParamDoc(hidden) and must not appear at all.
-		assertEquals(List.of("enabled", "processIncomplete", "retryFailed", "host", "port", "ratio", "mode", "secret"),
+		// enabled / processIncomplete / retryFailed / recompute are declared once on AbstractNodeOptions
+		// and lead every node's form; timeoutMs is @ParamDoc(hidden) and must not appear at all.
+		assertEquals(List.of("enabled", "processIncomplete", "retryFailed", "recompute", "host", "port", "ratio", "mode", "secret"),
 			parameters.stream().map(NodeParameter::getKey).toList());
 	}
 

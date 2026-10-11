@@ -52,6 +52,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
+		secure(basePath() + "/:uuid/node-stats");
 		secure(basePath() + "/:uuid/runs/:runUuid");
 		// Not under basePath(): a run is addressable by its own uuid alone, see the route below.
 		secure(API_V1_PATH + "/pipeline-runs/:runUuid");
@@ -186,6 +187,15 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		// node actually emitted. Deliberately not an addListRoute: the response is the whole
 		// set (see PipelineModelBuilder#toPipelineNodeTaskList), so documenting limit/from
 		// would advertise paging the handler does not honour.
+		// Where the time goes: per-node execution time accumulated over the latest runs (?limit=, default 20) or one run (?runUuid=).
+		addRoute(basePath() + "/:uuid/node-stats", GET,
+			"Load per-node execution time, reuse and duration distribution, accumulated over the latest runs or for one run",
+			null,
+			examples.pipelineNodeStatsResponseExample(),
+			lrc -> {
+				service.loadNodeStats(lrc, lrc.pathParamUUID("uuid"));
+			});
+
 		addRoute(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks", GET,
 			"Load the node executions of a single pipeline run item, including their outputs",
 			null,

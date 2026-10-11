@@ -52,7 +52,9 @@ import io.reactivex.rxjava3.core.Flowable;
 	// No source descriptor has ever advertised these two; they are media-processing knobs.
 	parameters = {
 		@ParamOverride(key = "processIncomplete", hidden = true),
-		@ParamOverride(key = "retryFailed", hidden = true)
+		@ParamOverride(key = "retryFailed", hidden = true),
+		// A source enumerates; output reuse applies to the nodes it feeds, not to it.
+		@ParamOverride(key = "recompute", hidden = true)
 	})
 public class S3SourceNode extends AbstractPipelineNode implements MediaSourceNode {
 

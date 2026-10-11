@@ -14,7 +14,7 @@ migrations in `loom/db/flyway/src/main/resources/db/migration/` (current through
 Every core entity carries a `uuid` primary key and an audit trail (`created`,
 `creator_uuid`, `edited`, `editor_uuid`); most carry a free-form `meta` JSONB blob. These
 common columns are omitted below. On machine-written tables (`asset_*_comp`,
-`asset_node_result`, `detection`, `embedding`, `attachment`, `cortex_instance`,
+`asset_node_result`, `asset_node_output`, `detection`, `embedding`, `attachment`, `cortex_instance`,
 `dedup_group`) `creator_uuid`/`editor_uuid` are **nullable** — a Cortex worker is not a user
 (V2.33, V2.38–V2.47).
 
@@ -27,6 +27,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 - [x] Detection ↔ embedding pairing with a single geometry convention — V2.43
 - [x] Face embeddings produced, persisted and indexed; `model` in the embedding identity — V2.75
 - [x] Per-asset processing ledger (`asset_node_result`) — V2.45
+- [x] Node output reuse store (`asset_node_output`) — V2.116
 - [x] Asset identity settled on `asset.uuid` as PK — V2.46
 - [x] Pipeline versioning, runs, run items, node tasks, per-element fan-out — V2.19, V2.29–V2.32, V2.60
 - [x] Agent: chat, chat session, skills + versions, memory bank, memory denylist — V2.28, V2.36–V2.37, V2.52–V2.54
@@ -142,6 +143,7 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table | Purpose | Key relations | Since |
 |--------|-------|---------|---------------|-------|
+| **Asset Node Output** | `asset_node_output` | Reuse store: the port values a node emitted for an asset, keyed by `reuse_key` (SHA-256 the node computes over kind, reuse version, options and inputs). A later run with the same key replays them instead of computing. `state` CHECK ∈ SUCCESS/SKIPPED, `outputs` jsonb, informational `node_id`. UNIQUE `(asset_uuid, node_kind, reuse_key)`. No creator/editor columns. A replay copy, not the domain record. See [../features/nodes/NODE_OUTPUT_REUSE.md](../features/nodes/NODE_OUTPUT_REUSE.md) | → Asset (CASCADE), → Run (SET NULL) | V2.116 |
 | **Asset Node Result** | `asset_node_result` | Per-**asset** processing ledger: has node X at version V processed asset A, and what happened — regardless of which table the payload landed in. `state` CHECK ∈ SUCCESS/SKIPPED/FAILED, `origin` CHECK ∈ COMPUTED/LOCAL/REMOTE, plus `reason`, `started`/`finished`/`duration_ms` and an advisory `result_ref` jsonb. UNIQUE `(asset_uuid, node_kind, node_id)`. | → Asset (CASCADE), → Run/Task (SET NULL) | V2.45 |
 
 > **`asset_node_result` ≠ `pipeline_node_task`.** The task is per **run item**, is execution state,
@@ -271,6 +273,7 @@ erDiagram
     asset     ||--o{ asset_segment_comp    : "component"
     asset     ||--o{ asset_fingerprint_comp: "component"
     asset     ||--o{ asset_node_result     : "processing ledger"
+    asset     ||--o{ asset_node_output     : "reuse store"
     asset     ||--o{ detection             : "CASCADE"
     detection ||--o{ embedding             : "detection_uuid, CASCADE"
     asset     ||--o{ embedding             : "CASCADE"
@@ -528,6 +531,7 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | Component read/write helper | `AssetComponentDao` |
 | "The" binary of an asset | `AssetBinaryDao.loadPrimaryByAssetUuid` |
 | Processing ledger | `AssetNodeResultDao`, table `asset_node_result` (V2.45) |
+| Node output reuse store | `AssetNodeOutputDao`, table `asset_node_output` (V2.116) |
 | Search index maintenance | V2.58/V2.59 SQL functions + `PostgresSearchProvider` |
 | Permission enum values | `V2.1__add_acl.sql` + every `ALTER TYPE loom_permission` since |
 | REST paths & permissions per entity | [RESTAPI.md](RESTAPI.md) |
@@ -537,8 +541,8 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (Person: voice samples, hero voice, `person_print`; Cluster: speaker clusters and the suggestion columns). Earlier: 2026-08-16 (V2.105 renames `asset_fingerprint_comp.sector_index` to `window_index`
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (`asset_node_output` (V2.116) - the node output reuse store). Earlier: 2026-10-11 (Person: voice samples, hero voice, `person_print`; Cluster: speaker clusters and the suggestion columns). Earlier: 2026-08-16 (V2.105 renames `asset_fingerprint_comp.sector_index` to `window_index`
 and the naming question is recorded as closed. Earlier: the three pipeline status/state columns are
 typed by an enum parsed at the jOOQ converter boundary; V2.77 normalises the `FAILURE` rows
 `pipeline_run_item.state` used to collect)_

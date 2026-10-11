@@ -23,6 +23,7 @@ import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
@@ -42,6 +43,7 @@ import io.metaloom.utils.hash.SHA512;
 	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
 	// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true)
 	})
@@ -81,6 +83,14 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 	public HashDedupNode(@Nullable LoomClient client, CortexOptions cortexOptions, DedupNodeOptions options, LoomMediaLoader loader) {
 		super(client, cortexOptions, options);
 		this.loader = loader;
+	}
+
+	/**
+	 * Moving duplicates is the work itself.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

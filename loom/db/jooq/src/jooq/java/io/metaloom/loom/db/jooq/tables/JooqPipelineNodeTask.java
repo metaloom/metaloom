@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Index;
@@ -28,6 +29,7 @@ import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
@@ -190,6 +192,13 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      */
     public final TableField<JooqPipelineNodeTaskRecord, Integer> GENERATION = createField(DSL.name("generation"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up per operator-requested re-execution of a node held at a breakpoint");
 
+    /**
+     * The column <code>public.pipeline_node_task.origin</code>. COMPUTED, LOCAL
+     * or REMOTE - mirrors ResultOrigin in the Cortex node API. LOCAL and REMOTE
+     * mean the result was reused rather than computed. NULL reads as COMPUTED.
+     */
+    public final TableField<JooqPipelineNodeTaskRecord, String> ORIGIN = createField(DSL.name("origin"), SQLDataType.VARCHAR, this, "COMPUTED, LOCAL or REMOTE - mirrors ResultOrigin in the Cortex node API. LOCAL and REMOTE mean the result was reused rather than computed. NULL reads as COMPUTED.");
+
     private JooqPipelineNodeTask(Name alias, Table<JooqPipelineNodeTaskRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -230,7 +239,7 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE, Indexes.IDX_PIPELINE_NODE_TASK_ITEM_UUID, Indexes.IDX_PIPELINE_NODE_TASK_RUN_STATE);
+        return Arrays.asList(Indexes.IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE, Indexes.IDX_PIPELINE_NODE_TASK_ITEM_UUID, Indexes.IDX_PIPELINE_NODE_TASK_RUN_NODE, Indexes.IDX_PIPELINE_NODE_TASK_RUN_STATE);
     }
 
     @Override
@@ -294,6 +303,13 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
             _pipelineNodeTaskEditorUuidFkey = new JooqUser(this, Keys.PIPELINE_NODE_TASK__PIPELINE_NODE_TASK_EDITOR_UUID_FKEY);
 
         return _pipelineNodeTaskEditorUuidFkey;
+    }
+
+    @Override
+    public List<Check<JooqPipelineNodeTaskRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("pipeline_node_task_origin_check"), "(((origin IS NULL) OR ((origin)::text = ANY ((ARRAY['COMPUTED'::character varying, 'LOCAL'::character varying, 'REMOTE'::character varying])::text[]))))", true)
+        );
     }
 
     @Override

@@ -134,6 +134,9 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		UUID segment;
 		UUID json;
 		UUID nodeResult;
+		/** asset_node_output has no uuid lookup - it is addressed by (asset, kind, reuse key). */
+		UUID nodeOutputAsset;
+		String nodeOutputKey;
 		UUID embedding;
 		UUID detection;
 		UUID attachment;
@@ -221,6 +224,12 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assetNodeResultDao().upsert(nodeResult);
 		d.nodeResult = nodeResult.getUuid();
 
+		// asset_node_output (V2.116)
+		d.nodeOutputAsset = assetUuid;
+		d.nodeOutputKey = "reuse-" + seed;
+		assetNodeOutputDao().upsert(assetUuid, "whisper", d.nodeOutputKey, "whisper-1", "large-v3", AssetNodeResult.STATE_SUCCESS, null,
+			new JsonObject(), null);
+
 		// embedding (V2.43)
 		Embedding embedding = embeddingDao().createEmbedding(userUuid, assetUuid, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1.name());
 		embedding.setNodeKind("facedetect");
@@ -298,6 +307,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNull(comp().loadSegmentComp(d.segment), "asset_segment_comp must cascade with the asset");
 		assertNull(comp().loadJsonComp(d.json), "asset_json_comp must cascade with the asset");
 		assertNull(assetNodeResultDao().load(d.nodeResult), "asset_node_result must cascade with the asset");
+		assertNull(assetNodeOutputDao().loadByKey(d.nodeOutputAsset, "whisper", d.nodeOutputKey), "asset_node_output must cascade with the asset");
 		assertNull(embeddingDao().load(d.embedding), "embedding must cascade with the asset");
 		assertNull(detectionDao().load(d.detection), "detection must cascade with the asset (V2.43 restored this)");
 		assertNull(attachmentDao().load(d.attachment), "attachment must cascade with the asset (V2.44 restored this)");
@@ -324,6 +334,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNotNull(comp().loadSegmentComp(d.segment), "asset_segment_comp of the other asset must survive");
 		assertNotNull(comp().loadJsonComp(d.json), "asset_json_comp of the other asset must survive");
 		assertNotNull(assetNodeResultDao().load(d.nodeResult), "asset_node_result of the other asset must survive");
+		assertNotNull(assetNodeOutputDao().loadByKey(d.nodeOutputAsset, "whisper", d.nodeOutputKey), "asset_node_output of the other asset must survive");
 		assertNotNull(embeddingDao().load(d.embedding), "embedding of the other asset must survive");
 		assertNotNull(detectionDao().load(d.detection), "detection of the other asset must survive");
 		assertNotNull(attachmentDao().load(d.attachment), "attachment of the other asset must survive");

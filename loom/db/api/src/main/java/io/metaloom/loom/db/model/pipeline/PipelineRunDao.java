@@ -20,6 +20,13 @@ public interface PipelineRunDao extends CRUDDao<PipelineRun> {
 	List<PipelineRun> loadByPipeline(UUID pipelineUuid);
 
 	/**
+	 * The most recent runs of a pipeline, newest first by start time (runs that never started last).
+	 *
+	 * @param limit at most this many
+	 */
+	List<PipelineRun> loadLatestByPipeline(UUID pipelineUuid, int limit);
+
+	/**
 	 * Load a paged list of pipeline runs for a specific pipeline.
 	 */
 	Page<PipelineRun> loadPageByPipeline(UUID pipelineUuid, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection);

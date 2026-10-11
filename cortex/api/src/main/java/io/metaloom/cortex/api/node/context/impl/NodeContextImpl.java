@@ -87,6 +87,11 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	}
 
 	@Override
+	public Map<String, PortPayload> inputPorts() {
+		return inputs.ports() == null ? Map.of() : java.util.Collections.unmodifiableMap(inputs.ports());
+	}
+
+	@Override
 	public ArtifactCache artifacts() {
 		// Never null - NodeInputs substitutes the no-op scope for a caller that has none.
 		return inputs.artifacts();

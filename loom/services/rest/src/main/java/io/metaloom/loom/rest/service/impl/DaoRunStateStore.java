@@ -227,6 +227,7 @@ public class DaoRunStateStore implements RunStateStore {
 		// reaper consider finished work reclaimable.
 		row.setLeaseExpiresAt(null);
 		row.setDurationMs(result.getDurationMs());
+		row.setOrigin(originOf(result));
 		row.setErrorMessage(result.getMessage());
 		row.setFinished(Instant.now());
 		if (!result.getOutputs().isEmpty()) {
@@ -345,6 +346,21 @@ public class DaoRunStateStore implements RunStateStore {
 	/**
 	 * Apply a settle to a task row that has already been written.
 	 */
+	/**
+	 * The origin a worker reported, or null when it reported none or something the column does not accept. The wire field is a free string and the
+	 * column has a CHECK; a worker from another build must not be able to fail the whole batch flush with a value Loom does not know.
+	 */
+	static String originOf(NodeTaskResult result) {
+		String origin = result.getOrigin();
+		if (origin == null) {
+			return null;
+		}
+		return switch (origin) {
+			case "COMPUTED", "LOCAL", "REMOTE" -> origin;
+			default -> null;
+		};
+	}
+
 	private boolean updateSettledTask(UUID itemUuid, NodeTaskResult result) {
 		try {
 			PipelineNodeTask stored = taskDao.loadByItemAndNode(itemUuid, result.getNodeId(), result.getElementSeq());
@@ -354,6 +370,7 @@ public class DaoRunStateStore implements RunStateStore {
 			stored.setState(stateOf(result.getState()));
 			stored.setLeaseExpiresAt(null);
 			stored.setDurationMs(result.getDurationMs());
+			stored.setOrigin(originOf(result));
 			stored.setErrorMessage(result.getMessage());
 			stored.setFinished(Instant.now());
 			if (!result.getOutputs().isEmpty()) {

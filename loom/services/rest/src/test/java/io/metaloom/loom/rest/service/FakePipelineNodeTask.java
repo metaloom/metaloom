@@ -28,6 +28,7 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	private Instant started;
 	private Instant finished;
 	private Long durationMs;
+	private String origin;
 	private String errorMessage;
 	private JsonObject outputs;
 	private JsonObject previews;
@@ -189,6 +190,17 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	@Override
 	public PipelineNodeTask setDurationMs(Long durationMs) {
 		this.durationMs = durationMs;
+		return this;
+	}
+
+	@Override
+	public String getOrigin() {
+		return origin;
+	}
+
+	@Override
+	public PipelineNodeTask setOrigin(String origin) {
+		this.origin = origin;
 		return this;
 	}
 

@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -138,6 +139,15 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 	public VoiceprintNode(@Nullable LoomClient client, CortexOptions cortexOptions, VoiceprintNodeOptions options, VoiceprintClient voiceprintClient) {
 		super(client, cortexOptions, options);
 		this.voiceprintClient = voiceprintClient;
+	}
+
+	/**
+	 * Who the speakers are is a reviewer's decision, and it may have changed since the speakers were found - so a replayed output reads the
+	 * {@code persons} port from Loom again instead of handing on the stored one.
+	 */
+	@Override
+	protected Map<String, Object> refreshOnReuse(AssetResponse asset) {
+		return Map.of(OUT_PERSONS.id(), PersonSuggestions.personsPayload(currentSpeakerClusters(asset)).encode());
 	}
 
 	@Override

@@ -70,6 +70,18 @@ copy it; flat modules exist only for `filesystem-source`, `s3-source` and `cloud
   the cached outputs and return `ctx.origin(LOCAL).next()` — skip both recompute *and* re-persist.
   A cache hit is SUCCESS with `ResultOrigin.LOCAL`, **not** SKIPPED. If the cached value is a file
   path, `Files.exists` it first.
+- **Decide the reuse policy.** `AbstractMediaNode` replays an output Loom already stored for the same
+  kind, options and inputs before your `compute()` runs - across runs and pipelines - and stores what
+  you emit after it. That is on by default (`ReusePolicy.SHARED`) and needs no code. Override
+  `reusePolicy()` with `NEVER` when the node's work is a side effect (moving, uploading, assigning,
+  tagging) or its answer depends on Loom state that is not among its inputs (ratings, reviewer
+  decisions, an index), and hide the parameter with `@ParamOverride(key = "recompute", hidden = true)`.
+  Use `PER_NODE_ID` when your persisted results are namespaced by node id. Override
+  `refreshOnReuse(asset)` for a port that mirrors Loom state (`facedetect`'s `persons`). Bump
+  `reuseVersion()` whenever the node starts emitting something different for the same input.
+  The `LocalResultCache` above lives for **one task only** (a node instance is built per task); it is
+  not what makes a repeated run fast. See
+  [../features/nodes/NODE_OUTPUT_REUSE.md](../features/nodes/NODE_OUTPUT_REUSE.md).
 - **Return values:**
 
   | Outcome | Return | Resulting `ResultState` |
@@ -339,8 +351,9 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
 | Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) · `cortex/nodes/guard` (one kind over three incompatible model families) · `cortex/nodes/sam2` (three modes behind one kind, N artifacts per item, and a new content type) |
 
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (§1.1's return contract — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard)_
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (the reuse-policy step: `reusePolicy()`, `refreshOnReuse()`, `reuseVersion()`, and the one-task lifetime of `LocalResultCache`)_
+_Previously: 2026-08-18 (§1.1's return contract — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard)_
 
 _Previously: 2026-08-06 (kind count 43 after the `sam2` node — the first to write **N artifacts per
 item** and the first to add a content type since `depthmap`. Two things it learned: `NodePreviews`

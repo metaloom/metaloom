@@ -120,7 +120,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-148 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+149 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -313,6 +313,10 @@ spec/
 │   │   │                              #   providers are GONE — contracts are harvested from
 │   │   │                              #   @NodeSpec/@PortDoc (see pipeline/NODE_SCHEMA.md).
 │   │   │                              #   Open work: tasks/NODE_DATA_TYPES_TASKS.md
+│   │   ├── NODE_OUTPUT_REUSE.md       # 🟢 NEW 2026-10-11 — a node skips work it already did: the
+│   │   │                              #   reuse key (kind, version, options, inputs), asset_node_output
+│   │   │                              #   (V2.116), /node-outputs routes, ReusePolicy per node and the
+│   │   │                              #   `recompute` switch on every node. Lives in AbstractMediaNode
 │   │   ├── captioning/
 │   │   │   └── NODE_VIDEO_CAPTIONING.md  # 🟢 BUILT: the `captioning` node — images via SmolVLM,
 │   │   │                              #   video via an OpenAI-compatible VLM. Not a kind of its own:
@@ -577,6 +581,7 @@ spec/
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | "Why was my pipeline rejected?" — validation rules, error codes, `POST /pipelines/validate` | [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
+| **Skipping work a node already did** — reuse across runs and pipelines, `recompute`, which nodes never reuse | [features/nodes/NODE_OUTPUT_REUSE.md](features/nodes/NODE_OUTPUT_REUSE.md) — 🟢 built. The ledger (`asset_node_result`) is *not* the reuse store; `asset_node_output` is. A new node must decide its `reusePolicy()` |
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/nodes/NODE_DATA_TYPES.md](features/nodes/NODE_DATA_TYPES.md) (built model, **moved from features/pipeline/ on 2026-08-16**); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences; open work in [tasks/NODE_DATA_TYPES_TASKS.md](tasks/NODE_DATA_TYPES_TASKS.md) |
 | Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA.md](features/pipeline/NODE_SCHEMA.md) — how a contract is authored, harvested, served and exported; open work in [tasks/NODE_SCHEMA_TASKS.md](tasks/NODE_SCHEMA_TASKS.md) |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
@@ -928,6 +933,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
 | **`ctx.failure(...).next()`** | ✅ Fixed 2026-08-18. It returned **SUCCESS** with the cause discarded, across 15 call sites in 13 node classes; all now `.abort()`, and `NodeContextImpl.next()` honours a recorded `failureCause` as a fail-closed backstop. Write `ctx.failure(msg).abort()` — `FailurePathGuardTest` (`cortex/api`) scans every Cortex main source and fails the build on the chained shape, naming file and line |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation |
+| **Node output reuse** | `AbstractMediaNode.process()` looks up `GET /assets/sha512/:hash/node-outputs/:kind/:key` *instead of* loading the asset, replays a hit (origin `REMOTE`) and stores the outputs of a real computation. Default `ReusePolicy.SHARED`; side-effect and Loom-state nodes return `NEVER`. Bump `reuseVersion()` when a node's output changes for the same input. ⚠️ `LocalResultCache` lives for **one task** — a node instance is built per task — not for the worker process. [features/nodes/NODE_OUTPUT_REUSE.md](features/nodes/NODE_OUTPUT_REUSE.md) |
 | **Two `NodeState` vocabularies** | They *are* reconciled: `NodeResultMapper.toWireState()` maps SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. The wire enum's extra `PENDING`/`RUNNING` are never produced by a terminal result |
 | **Cortex `cortex.yml`** | ✅ **Is** read (corrected 2026-08-08): `CortexClientModule.options(...)` calls `CortexOptionsLoader.load()` whenever no explicit `CortexOptions` is injected — the `CortexMain` path — and the environment is then applied on top. 🔴 But the loader probes **only** `${user.home}/.config/metaloom/cortex.yml`, while the container/Helm config path is `/config`, so in a container the YAML layer is still dead in practice. Anything only settable in YAML (e.g. `CortexOptions.dryrun`, which has no `CortexEnvOptions` mapping) is therefore unreachable there |
 | **Cortex shutdown** | ✅ `CortexImpl.registerShutdownHook()` → `syncCollector.flush()` → `drain()`, bounded by `CORTEX_DRAIN_TIMEOUT_MS` (default 30 s). SIGTERM does **not** abandon buffered results |
@@ -1045,8 +1051,9 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `3da90863`_
-_Last updated: 2026-10-10 (registered features/nodes/voiceprint/NODE_VOICEPRINT.md and sidecars/VOICEPRINT_SIDECAR.md — the `voiceprint` node and its :9150 sidecar; routing rows for speaker embeddings and speaker-model licences; file count 145 → 147)_
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (registered features/nodes/NODE_OUTPUT_REUSE.md — node output reuse across runs and pipelines; tree entry, routing row and the "node output reuse" gotcha; file count 148 → 149)_
+_Previously: 2026-10-10 (registered features/nodes/voiceprint/NODE_VOICEPRINT.md and sidecars/VOICEPRINT_SIDECAR.md — the `voiceprint` node and its :9150 sidecar; routing rows for speaker embeddings and speaker-model licences; file count 145 → 147)_
 _Previously: 2026-08-18 (the `ctx.failure(...).next()` cheat-sheet row — fixed tree-wide, with a `FailurePathGuardTest` build guard)_
 
 _Previously: 2026-08-16 (registered concept/CORTEX_LOOM_1-TO-N.md — whether one Cortex worker can

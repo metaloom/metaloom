@@ -27,6 +27,7 @@ import io.metaloom.loom.rest.model.segmentcomp.SegmentCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityExamples;
 import io.metaloom.loom.rest.model.metrics.MetricsExamples;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputExamples;
 import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
 import io.metaloom.loom.rest.model.noderun.NodeRunExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
@@ -86,6 +87,7 @@ public interface Examples extends
 	PipelineExamples,
 	ProcessorExamples,
 	NodeResultExamples,
+	NodeOutputExamples,
 	JsonCompExamples,
 	FingerprintCompExamples,
 	SegmentCompExamples,

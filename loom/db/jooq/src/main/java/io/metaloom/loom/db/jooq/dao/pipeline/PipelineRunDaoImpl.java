@@ -113,6 +113,15 @@ public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements 
 	}
 
 	@Override
+	public List<PipelineRun> loadLatestByPipeline(UUID pipelineUuid, int limit) {
+		return ctx().selectFrom(PIPELINE_RUN)
+			.where(PIPELINE_RUN.PIPELINE_UUID.eq(pipelineUuid))
+			.orderBy(PIPELINE_RUN.STARTED.desc().nullsLast(), PIPELINE_RUN.CREATED.desc())
+			.limit(Math.max(0, limit))
+			.fetchInto(getPojoClass());
+	}
+
+	@Override
 	public Page<PipelineRun> loadPageByPipeline(UUID pipelineUuid, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection) {
 		SelectConditionStep<?> query = ctx().selectFrom(PIPELINE_RUN)
 			.where(PIPELINE_RUN.PIPELINE_UUID.eq(pipelineUuid));

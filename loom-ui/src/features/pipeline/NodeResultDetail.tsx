@@ -10,6 +10,7 @@ import { detectionRegions, payloadToMarkdownTable, previewKind, stringifyValue }
 import MarkdownContent from "../chat/MarkdownContent";
 import { previewSrc } from "../../api/pipelines";
 import type { NodePreviewMeta, PipelineNodeTaskRecord, PortPayload } from "../../api/pipelines";
+import { ReusedBadge } from "./ReusedBadge";
 
 /**
  * The enlarged view of one output port.
@@ -204,6 +205,7 @@ export default function NodeResultDetail({
           </Typography>
         </Box>
         <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 1 }}>
+          <ReusedBadge task={task} testId="node-result-detail-reused" />
           <Chip
             label={task.state}
             size="small"

@@ -106,4 +106,51 @@ public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 	 */
 	PipelineNodeTask createNodeTask(UUID userUuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind);
 
+
+	// --- Performance aggregation -------------------------------------------------------------------------------------------------------------------
+
+	/**
+	 * Where the time of a set of runs went, one row per graph node. Reused executions ({@code origin} LOCAL or REMOTE) are counted apart from
+	 * computed ones, and the percentiles are taken over the computed, completed executions only - a reuse costs milliseconds and would make a slow
+	 * node look fast.
+	 *
+	 * @param runUuids the runs to aggregate; empty yields nothing
+	 */
+	List<NodeTimeStats> aggregateByNode(List<UUID> runUuids);
+
+	/**
+	 * How long the computed, completed executions of each node took, in power-of-two buckets: bucket {@code b} holds durations in
+	 * {@code [2^b, 2^(b+1))} ms, with everything under 2 ms in bucket 0.
+	 */
+	List<DurationBucket> durationHistogram(List<UUID> runUuids);
+
+	/**
+	 * The time each node spent in each run - the per-run view behind a node's trend.
+	 */
+	List<RunNodeTotal> totalsByRunAndNode(List<UUID> runUuids);
+
+	/**
+	 * One node's aggregate over a set of runs.
+	 *
+	 * @param nodeKind     the kind the node ran as; null when only synthesised rows exist for it
+	 * @param tasks        every settled execution
+	 * @param computed     completed and not reused
+	 * @param reused       completed with origin LOCAL or REMOTE
+	 * @param totalMs      summed duration of every execution, reused ones included
+	 * @param computedMs   summed duration of the computed executions
+	 * @param p50Ms        median of the computed executions; null without any
+	 * @param p95Ms        95th percentile of the computed executions; null without any
+	 * @param maxMs        slowest computed execution; null without any
+	 */
+	record NodeTimeStats(String nodeId, String nodeKind, long tasks, long computed, long reused, long failed, long skipped, long totalMs,
+		long computedMs, Long p50Ms, Long p95Ms, Long maxMs) {
+	}
+
+	/** {@code count} computed executions of {@code nodeId} took between {@code 2^bucket} and {@code 2^(bucket+1)} ms. */
+	record DurationBucket(String nodeId, int bucket, long count) {
+	}
+
+	/** What one node cost in one run. */
+	record RunNodeTotal(UUID runUuid, String nodeId, long tasks, long reused, long totalMs) {
+	}
 }

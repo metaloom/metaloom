@@ -170,6 +170,7 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 		record.setStarted(task.getStarted());
 		record.setFinished(task.getFinished());
 		record.setDurationMs(task.getDurationMs());
+		record.setOrigin(task.getOrigin());
 		record.setErrorMessage(task.getErrorMessage());
 		// Passed through verbatim. The column already holds the {portId: PortPayload} shape the
 		// client wants, so decoding it into typed models here and re-encoding it would only
@@ -258,6 +259,76 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 	 * first page of its own nodes.
 	 * </p>
 	 */
+	/**
+	 * Assemble the per-node performance view. Runs and per-run totals are kept in the order the runs were given (newest first); nodes arrive most
+	 * expensive first from the DAO.
+	 */
+	default io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse toPipelineNodeStats(UUID pipelineUuid, List<PipelineRun> runs,
+		List<io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao.NodeTimeStats> nodes,
+		List<io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao.DurationBucket> buckets,
+		List<io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao.RunNodeTotal> perRun) {
+		io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse response = new io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse()
+			.setPipelineUuid(pipelineUuid.toString())
+			.setRunCount(runs.size());
+		for (PipelineRun run : runs) {
+			response.getRuns().add(new io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsRun()
+				.setUuid(run.getUuid().toString())
+				.setStatus(run.getStatus() == null ? null : run.getStatus().name())
+				.setStarted(run.getStarted() == null ? null : run.getStarted().toEpochMilli())
+				.setDurationMs(run.getDurationMs())
+				.setPipelineVersion(run.getPipelineVersion()));
+		}
+		long total = nodes.stream().mapToLong(n -> n.totalMs()).sum();
+		java.util.Map<String, List<io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao.DurationBucket>> bucketsByNode = buckets.stream()
+			.collect(java.util.stream.Collectors.groupingBy(b -> b.nodeId()));
+		java.util.Map<String, java.util.Map<UUID, io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao.RunNodeTotal>> perRunByNode = new java.util.HashMap<>();
+		for (var t : perRun) {
+			perRunByNode.computeIfAbsent(t.nodeId(), k -> new java.util.HashMap<>()).put(t.runUuid(), t);
+		}
+		long tasks = 0;
+		long reused = 0;
+		long saved = 0;
+		for (var n : nodes) {
+			Long avg = n.computed() > 0 ? n.computedMs() / n.computed() : null;
+			long nodeSaved = avg == null ? 0 : avg * n.reused();
+			var stats = new io.metaloom.loom.rest.model.pipeline.PipelineNodeTimeStats()
+				.setNodeId(n.nodeId())
+				.setNodeKind(n.nodeKind())
+				.setTasks(n.tasks())
+				.setComputed(n.computed())
+				.setReused(n.reused())
+				.setFailed(n.failed())
+				.setSkipped(n.skipped())
+				.setTotalDurationMs(n.totalMs())
+				.setComputedDurationMs(n.computedMs())
+				.setAvgDurationMs(avg)
+				.setP50DurationMs(n.p50Ms())
+				.setP95DurationMs(n.p95Ms())
+				.setMaxDurationMs(n.maxMs())
+				.setEstimatedSavedMs(nodeSaved)
+				.setShare(total == 0 ? 0d : (double) n.totalMs() / total);
+			for (var b : bucketsByNode.getOrDefault(n.nodeId(), List.of())) {
+				// Bucket 0 also holds sub-millisecond work, so it starts at 0 rather than at 2^0.
+				long from = b.bucket() == 0 ? 0L : 1L << b.bucket();
+				stats.getHistogram().add(new io.metaloom.loom.rest.model.pipeline.PipelineNodeDurationBucket()
+					.setFromMs(from).setToMs(1L << (b.bucket() + 1)).setCount(b.count()));
+			}
+			var byRun = perRunByNode.getOrDefault(n.nodeId(), java.util.Map.of());
+			for (PipelineRun run : runs) {
+				var t = byRun.get(run.getUuid());
+				if (t != null) {
+					stats.getRuns().add(new io.metaloom.loom.rest.model.pipeline.PipelineNodeRunTotal()
+						.setRunUuid(run.getUuid().toString()).setTasks(t.tasks()).setReused(t.reused()).setTotalDurationMs(t.totalMs()));
+				}
+			}
+			response.getNodes().add(stats);
+			tasks += n.tasks();
+			reused += n.reused();
+			saved += nodeSaved;
+		}
+		return response.setTasks(tasks).setReused(reused).setTotalDurationMs(total).setEstimatedSavedMs(saved);
+	}
+
 	default PipelineNodeTaskListResponse toPipelineNodeTaskList(UUID pipelineUuid, List<PipelineNodeTask> tasks) {
 		PipelineNodeTaskListResponse response = new PipelineNodeTaskListResponse();
 		tasks.stream().map(task -> toPipelineNodeTaskRecord(pipelineUuid, task)).forEach(response::add);

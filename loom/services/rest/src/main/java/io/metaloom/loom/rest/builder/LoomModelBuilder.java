@@ -37,6 +37,7 @@ public interface LoomModelBuilder extends
 	SpaceModelBuilder,
 	ReactionModelBuilder,
 	NodeResultModelBuilder,
+	NodeOutputModelBuilder,
 	JsonCompModelBuilder,
 	FingerprintCompModelBuilder,
 	SegmentCompModelBuilder {

@@ -6,6 +6,7 @@ import javax.inject.Singleton;
 import dagger.Lazy;
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
+import io.metaloom.loom.db.model.asset.AssetNodeOutputDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
@@ -58,6 +59,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetDao> assetDao;
 	private final Lazy<AssetComponentDao> assetComponentDao;
 	private final Lazy<AssetNodeResultDao> assetNodeResultDao;
+	private final Lazy<AssetNodeOutputDao> assetNodeOutputDao;
 	private final Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao;
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
@@ -102,7 +104,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
-		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
+		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao, Lazy<AssetNodeOutputDao> assetNodeOutputDao,
 		Lazy<CollectionDao> collectionDao, Lazy<RemixDao> remixDao, Lazy<LibraryDao> libraryDao,
 		Lazy<FailureReportDao> failureReportDao, Lazy<ShareDao> shareDao, Lazy<ShareFeedbackDao> shareFeedbackDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
@@ -123,6 +125,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.assetDao = assetDao;
 		this.assetComponentDao = assetComponentDao;
 		this.assetNodeResultDao = assetNodeResultDao;
+		this.assetNodeOutputDao = assetNodeOutputDao;
 		this.dedupGroupDao = dedupGroupDao;
 		this.permissionDao = permissionDao;
 		this.assetBinaryDao = assetBinaryDao;
@@ -187,6 +190,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetNodeResultDao assetNodeResultDao() {
 		return assetNodeResultDao.get();
+	}
+
+	@Override
+	public AssetNodeOutputDao assetNodeOutputDao() {
+		return assetNodeOutputDao.get();
 	}
 
 	@Override

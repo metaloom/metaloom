@@ -11,6 +11,7 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
+import io.metaloom.loom.db.jooq.tables.JooqAssetNodeOutput;
 import io.metaloom.loom.db.jooq.tables.JooqAssetNodeResult;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetSegmentComp;
@@ -104,6 +105,8 @@ public class Indexes {
     public static final Index IDX_ASSET_JSON_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_json_comp_asset_uuid"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.ASSET_UUID }, false);
     public static final Index IDX_ASSET_JSON_COMP_DATA = Internal.createIndex(DSL.name("idx_asset_json_comp_data"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.DATA }, false);
     public static final Index IDX_ASSET_JSON_COMP_SCHEMA_TYPE = Internal.createIndex(DSL.name("idx_asset_json_comp_schema_type"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.SCHEMA_TYPE }, false);
+    public static final Index IDX_ASSET_NODE_OUTPUT_NODE_KIND = Internal.createIndex(DSL.name("idx_asset_node_output_node_kind"), JooqAssetNodeOutput.ASSET_NODE_OUTPUT, new OrderField[] { JooqAssetNodeOutput.ASSET_NODE_OUTPUT.NODE_KIND }, false);
+    public static final Index IDX_ASSET_NODE_OUTPUT_RUN_UUID = Internal.createIndex(DSL.name("idx_asset_node_output_run_uuid"), JooqAssetNodeOutput.ASSET_NODE_OUTPUT, new OrderField[] { JooqAssetNodeOutput.ASSET_NODE_OUTPUT.RUN_UUID }, false);
     public static final Index IDX_ASSET_NODE_RESULT_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_node_result_asset_uuid"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.ASSET_UUID }, false);
     public static final Index IDX_ASSET_NODE_RESULT_PRODUCER = Internal.createIndex(DSL.name("idx_asset_node_result_producer"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.NODE_KIND, JooqAssetNodeResult.ASSET_NODE_RESULT.PRODUCER_VERSION }, false);
     public static final Index IDX_ASSET_NODE_RESULT_RUN_UUID = Internal.createIndex(DSL.name("idx_asset_node_result_run_uuid"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.RUN_UUID }, false);
@@ -162,6 +165,7 @@ public class Indexes {
     public static final Index IDX_PERSON_PRINT_TYPE_MODEL = Internal.createIndex(DSL.name("idx_person_print_type_model"), JooqPersonPrint.PERSON_PRINT, new OrderField[] { JooqPersonPrint.PERSON_PRINT.TYPE, JooqPersonPrint.PERSON_PRINT.MODEL }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
+    public static final Index IDX_PIPELINE_NODE_TASK_RUN_NODE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_node"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.NODE_ID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);
     public static final Index IDX_PIPELINE_RUN_ADHOC_CREATOR = Internal.createIndex(DSL.name("idx_pipeline_run_adhoc_creator"), JooqPipelineRun.PIPELINE_RUN, new OrderField[] { JooqPipelineRun.PIPELINE_RUN.CREATOR_UUID, JooqPipelineRun.PIPELINE_RUN.STARTED.desc() }, false);
     public static final Index IDX_PIPELINE_RUN_ITEM_MEDIA_PATH = Internal.createIndex(DSL.name("idx_pipeline_run_item_media_path"), JooqPipelineRunItem.PIPELINE_RUN_ITEM, new OrderField[] { JooqPipelineRunItem.PIPELINE_RUN_ITEM.MEDIA_PATH }, false);

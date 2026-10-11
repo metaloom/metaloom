@@ -17,6 +17,7 @@ import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.cortex.api.node.context.impl.NodeContextImpl;
 import io.metaloom.loom.pipeline.model.NodePreview;
 import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 
 /**
  * Context for a single node invocation. Wraps the typed input {@code I} and accumulates metadata about the processing (origin, skip reason, timing,
@@ -141,6 +142,18 @@ public interface NodeContext<I> {
 	 * </p>
 	 */
 	boolean isWired(InputPort<?> port);
+
+	/**
+	 * Every input port's payload as it arrived, keyed by port id. Read-only.
+	 *
+	 * <p>
+	 * For the node machinery, not for node logic: a node reads its inputs through {@link #input(InputPort)} and its siblings, which coerce and type
+	 * them. This raw view exists so that node output reuse can hash exactly what the node was given.
+	 * </p>
+	 */
+	default Map<String, PortPayload> inputPorts() {
+		return Map.of();
+	}
 
 	/**
 	 * The artifact scope shared by every node of this segment execution.

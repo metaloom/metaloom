@@ -24,6 +24,7 @@ import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.sink.s3.UploadedArtifact.State;
 import io.metaloom.cortex.s3.S3ContentTypes;
@@ -81,6 +82,7 @@ import io.vertx.core.json.JsonObject;
 	// A sink runs at the end of a branch and has never advertised the two retry knobs - the descriptor
 	// listed only `enabled`. The base class leaves them visible, so they are dropped here.
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true) })
 public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements PipelineConfigurable {
@@ -149,6 +151,14 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 	@Override
 	public S3SinkNodeOptions options() {
 		return effectiveOptions;
+	}
+
+	/**
+	 * Uploading is the work itself; the sink already skips objects the bucket holds, through its overwrite policy.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

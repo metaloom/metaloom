@@ -34,6 +34,7 @@ public interface LoomModelValidator extends
 	SpaceModelValidator,
 	ReactionModelValidator,
 	NodeResultModelValidator,
+	NodeOutputModelValidator,
 	JsonCompModelValidator,
 	FingerprintCompModelValidator,
 	SegmentCompModelValidator,

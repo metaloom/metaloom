@@ -37,6 +37,8 @@ import io.metaloom.loom.nodes.spec.NodeMode;
 	parameters = {
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true),
+		// A source enumerates; output reuse applies to the nodes it feeds, not to it.
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "exportNativeDocs", hidden = true),
 		@ParamOverride(key = "driveId", label = "Drive ID",
 			description = "The OneDrive or SharePoint library to read from. Required unless a default "

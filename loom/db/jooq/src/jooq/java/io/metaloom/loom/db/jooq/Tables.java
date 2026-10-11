@@ -16,6 +16,7 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
+import io.metaloom.loom.db.jooq.tables.JooqAssetNodeOutput;
 import io.metaloom.loom.db.jooq.tables.JooqAssetNodeResult;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetSegmentComp;
@@ -206,6 +207,14 @@ public class Tables {
      * this table to one row per asset.
      */
     public static final JooqAssetLocation ASSET_LOCATION = JooqAssetLocation.ASSET_LOCATION;
+
+    /**
+     * Reuse store: the port values a node emitted for an asset, keyed by a hash
+     * of its options and inputs, so a later run of the same node with the same
+     * settings can skip its work. A replay copy - the typed component tables
+     * remain the domain record.
+     */
+    public static final JooqAssetNodeOutput ASSET_NODE_OUTPUT = JooqAssetNodeOutput.ASSET_NODE_OUTPUT;
 
     /**
      * Per-asset processing ledger: has node X at version V processed asset A,

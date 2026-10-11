@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -286,6 +287,15 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	@Override
 	public void initialize() {
 		Video4j.init();
+	}
+
+	/**
+	 * Who the faces are is a reviewer's decision, and it may have changed since the faces were found - so a replayed output reads the
+	 * {@code persons} port from Loom again instead of handing on the stored one.
+	 */
+	@Override
+	protected Map<String, Object> refreshOnReuse(AssetResponse asset) {
+		return Map.of(OUT_PERSONS.id(), PersonSuggestions.personsPayload(currentFaceClusters(asset)).encode());
 	}
 
 	@Override

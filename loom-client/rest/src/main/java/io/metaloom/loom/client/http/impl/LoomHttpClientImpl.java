@@ -170,6 +170,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckListResponse;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityReportResponse;
 import io.metaloom.loom.rest.model.metrics.MetricsResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineValidateRequest;
@@ -221,6 +222,10 @@ import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompResponse;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompListResponse;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompResponse;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputCreateRequest;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputListResponse;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputLookupResponse;
+import io.metaloom.loom.rest.model.nodeoutput.NodeOutputResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.noderesult.NodeResultListResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
@@ -921,6 +926,19 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<PipelineNodeStatsResponse> loadPipelineNodeStats(UUID pipelineUuid, UUID runUuid, Integer limit) {
+		LoomClientHttpRequest<PipelineNodeStatsResponse> request = getRequest("pipelines/" + pipelineUuid + "/node-stats",
+			PipelineNodeStatsResponse.class);
+		if (runUuid != null) {
+			request.addQueryParameter("runUuid", runUuid.toString());
+		}
+		if (limit != null) {
+			request.addQueryParameter("limit", String.valueOf(limit));
+		}
+		return request;
+	}
+
+	@Override
 	public LoomClientHttpRequest<MetricsResponse> loadMetrics() {
 		return getRequest("metrics", MetricsResponse.class);
 	}
@@ -1590,6 +1608,36 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetNodeResult(UUID assetUuid, UUID nodeResultUuid) {
 		return deleteRequest("assets/" + assetUuid + "/node-results/" + nodeResultUuid);
+	}
+
+	// ASSET NODE OUTPUT (reuse store)
+
+	@Override
+	public LoomClientHttpRequest<NodeOutputLookupResponse> lookupNodeOutput(AssetId assetId, String nodeKind, String reuseKey) {
+		return getRequest(assetPath(assetId) + "/node-outputs/" + nodeKind + "/" + reuseKey, NodeOutputLookupResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeOutputResponse> createAssetNodeOutput(UUID assetUuid, NodeOutputCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/node-outputs", request, NodeOutputResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeOutputListResponse> listAssetNodeOutputs(UUID assetUuid, String nodeKind) {
+		LoomClientHttpRequest<NodeOutputListResponse> request = getRequest("assets/" + assetUuid + "/node-outputs", NodeOutputListResponse.class);
+		if (nodeKind != null) {
+			request.addQueryParameter("nodeKind", nodeKind);
+		}
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetNodeOutputs(UUID assetUuid, String nodeKind) {
+		LoomClientHttpRequest<NoResponse> request = deleteRequest("assets/" + assetUuid + "/node-outputs");
+		if (nodeKind != null) {
+			request.addQueryParameter("nodeKind", nodeKind);
+		}
+		return request;
 	}
 
 	// AD-HOC NODE EXECUTION

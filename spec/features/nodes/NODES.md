@@ -117,6 +117,12 @@ Every persisting node does two things inside `compute()`, guarded by `asset != n
    → `POST /api/v1/assets/:uuid/node-results` → `asset_node_result`, **UNIQUE (asset_uuid, node_kind, node_id)**.
    Best-effort: a ledger failure never fails the node.
 
+A third write happens **outside** `compute()`, in `AbstractMediaNode.process()`, for every node whose
+`reusePolicy()` is not `NEVER`: after a successful computation the emitted port values go to
+`POST /api/v1/assets/:uuid/node-outputs` (`asset_node_output`, V2.116), and before the next
+computation they are looked up and replayed. A node needs no code for this. See
+[NODE_OUTPUT_REUSE.md](NODE_OUTPUT_REUSE.md).
+
 ⚠️ **`node_id` is a namespace, not a label.** Because the key is `(asset, node_kind, node_id)` and the
 write is an upsert, anything reusing a pipeline's graph-local node id silently overwrites that
 pipeline's catalog state. Ad-hoc node runs therefore write under `node_id = "adhoc:<runUuid[0..8]>"`
@@ -166,8 +172,9 @@ shadows the base method — do not copy it.
 >   taken from the media timestamp of its first frame, and the node adds it to every segment.
 >
 > A re-run rewrites in place: `createAssetTranscript` upserts on `(asset, streamIndex, lang)`, so
-> fixing this needed no deletion pass. The in-heap `LocalResultCache` is per worker lifetime and a
-> restarted worker re-transcribes; there is no whisper xattr, so nothing else skips.
+> fixing this needed no deletion pass. Since 2026-10-11 a re-run with unchanged options *replays* the
+> stored output instead of re-transcribing ([NODE_OUTPUT_REUSE.md](NODE_OUTPUT_REUSE.md)), so a
+> transcript stored before a whisper fix needs `recompute` - or `reuseVersion()` bumped in the fix.
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
 `quality`, `tika`, `metadata`, `sentiment`, `voiceprint`, `translation`, `scene-layout`, `dominant-color`, `script`,
@@ -464,15 +471,19 @@ rating, colour or creation audit. See [NODE_TAG.md](tag/NODE_TAG.md) §6.
 
 ## 4. Caching
 
-Two independent layers — confusing them is a classic mistake.
+Three independent layers — confusing them is a classic mistake.
 
 | Layer | Where | Lifetime | Purpose |
 |---|---|---|---|
-| `LocalResultCache<V>` | `cortex/common/.../cache/`, one per node instance | Worker process | Skip recompute **and** re-persist; a hit re-emits and returns `LOCAL` |
+| **Node output reuse** | `asset_node_output` in Loom (V2.116), driven by `AbstractMediaNode.process()` | Durable, per asset | Skip the work across runs, pipelines and workers: a node whose reuse key (kind, version, options, inputs) has a stored output replays it and returns `REMOTE`. **The layer that actually makes a repeated run fast.** Owned by [NODE_OUTPUT_REUSE.md](NODE_OUTPUT_REUSE.md) |
+| `LocalResultCache<V>` | `cortex/common/.../cache/`, one per node instance | **One task** — `NodeTaskRunner` builds a node instance per task, so the field dies with it | Skip recompute **and** re-persist within one execution; a hit re-emits and returns `LOCAL`. ⚠️ Until 2026-10-11 this row said "worker process"; it never was |
 | `ArtifactCache` | `cortex/api/.../node/artifact/`, one per segment execution | One `run()` over one item | Share an expensive **intermediate** (decoded frames, extracted audio) between nodes of one segment. Never persisted. `MediaArtifacts.DECODED_IMAGE` is shared by `quality` and `dominant-color`. See [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) §7.4 |
 
 `LocalResultCache` is a bounded, thread-safe, access-order LRU (100k for hash/fingerprint, 50k and
-10k elsewhere). It is **non-durable by design** — the durable copy is what Loom got on the first pass.
+10k elsewhere). It is **non-durable by design** — the durable copy is what Loom got on the first pass,
+and since V2.116 that copy includes the port values themselves, which is what lets a later run skip
+the work. The cache-key hygiene below therefore matters less than it did: the reuse key covers every
+option and every input value regardless of what a node puts in its local key.
 
 🔴 **Cache-key hygiene is uneven.** Only the nodes below include anything beyond the media path, and
 a key that omits *one* result-affecting option is the same bug as a path-only key, just rarer:
@@ -783,6 +794,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 |---|---|
 | **Failure is always `.abort()`** | The cause and the terminator belong together, where a reader of the catch block sees both. `FailurePathGuardTest` (cortex/api) fails the build on `ctx.failure(...).next()`, naming file and line; `next()` is fail-closed as a backstop but is not a supported spelling |
 | **A cache hit is SUCCESS + `ResultOrigin.LOCAL`, and must re-emit** | SKIPPED means "produced nothing", which starves every downstream node bound to that port |
+| **Decide `reusePolicy()` for every node** | The default `SHARED` replays a stored output whenever kind, options and inputs match. A node with side effects or one that reads Loom state outside its inputs must return `NEVER` and hide `recompute`; see [NODE_OUTPUT_REUSE.md](NODE_OUTPUT_REUSE.md) §4 |
+| **Changing what a node emits for the same input needs `reuseVersion()` bumped** | Otherwise every stored output of the old code is replayed |
 | **Put the options hash in the cache key** | Path-only keys serve stale results when an option or an upstream payload changes. `dominant-color` is the model — and *every* result-affecting option belongs in it, since a `PipelineConfigurable` instance is reconfigured per task while its cache survives |
 | **A sample budget must hold for every aspect ratio** | `dominant-color` derives one stride from a region's **area**, then rounds each axis up independently: on a 100000x1 banner that visits ten times the requested budget. `PixelSampler.stride` searches for the smallest stride whose real grid fits |
 | **Select by size, emit in payload order** | `dominant-color`'s `maxRegions` cap keeps the largest detection boxes, but sorting the list itself would reorder the emitted regions on exactly the runs that hit the cap — the two orders are separate decisions |
@@ -843,9 +856,13 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       `TikaNode`'s bare `"failed processing"` and `FingerprintDedupNode`'s bare
       `"failed to report dedup group"` now carry the exception message, and `QualityNode`'s
       undecodable-image path says which of the two it was.
-- [ ] 🔴 **Path-only cache keys** — every node except `dominant-color`, `watermark`, `script`,
+- [ ] **Path-only cache keys** — every node except `dominant-color`, `watermark`, `script`,
       `translate`, `guard` and `metadata` keys its `LocalResultCache` on `media.absolutePath()` alone, so a
-      changed option or a different wired upstream payload serves a stale result (§4).
+      changed option or a different wired upstream payload serves a stale result (§4). Downgraded
+      2026-10-11: the cache lives for one task only, so the window is one execution, and cross-run
+      reuse goes through the reuse key, which covers every option and input.
+- [x] **Results are reused across runs and pipelines** (2026-10-11) — `asset_node_output` + the
+      generic layer in `AbstractMediaNode`, `recompute` on every node. [NODE_OUTPUT_REUSE.md](NODE_OUTPUT_REUSE.md)
 - [ ] 🔴 **A sink must share a worker with its producer, and nothing enforces it** — `s3-sink` reads
       files its upstream wrote to local disk, exactly as `scene-layout` reads the depth PNG. There is
       no affinity column in any migration and the editor's affinity channel is consumed by nothing.
@@ -972,7 +989,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (§3.3 and §4 - `filterBy=PERSON`, routing on the persons confirmed or suggested in an item; never cached; new `persons` input. `voiceprint` and `facedetect` gained a `persons` output and person suggestions - [WORKFLOW_PERSON_RECOGNITION.md](../../workflows/WORKFLOW_PERSON_RECOGNITION.md))_
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (§2, §4, §9, §10 - node output reuse: the third persistence write, the corrected `LocalResultCache` lifetime (one task, not the worker process), `reusePolicy()`/`reuseVersion()` rules; see NODE_OUTPUT_REUSE.md)_
+_Previously: 2026-10-11 (§3.3 and §4 - `filterBy=PERSON`, routing on the persons confirmed or suggested in an item; never cached; new `persons` input. `voiceprint` and `facedetect` gained a `persons` output and person suggestions - [WORKFLOW_PERSON_RECOGNITION.md](../../workflows/WORKFLOW_PERSON_RECOGNITION.md))_
 _Previously: 2026-10-10 (the `voiceprint` node: speaker embeddings and who-spoke-when through the `sidecars/voiceprint` sidecar on :9150 — rows in §2, §3.1, §4, §5.1, §5.2, §6.2, §6.3 and §8; 41 kind bindings, 46 advertised kinds. It is the first node to write `embedding.time_from`/`time_to`, which V2.43 added and no layer could read until now. The §5.2 reconciliation row was recounted.)_
 _Previously: 2026-09-26 (§3.3, §4 and §9 — review of the three decision nodes. The `filter` and `tag`

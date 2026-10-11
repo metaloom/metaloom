@@ -21,6 +21,7 @@ import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
@@ -44,6 +45,7 @@ import io.vertx.core.json.JsonObject;
 @NodeSpec(nodeId = AssignNode.KIND, name = "Assign", icon = "playlist_add", category = NodeCategory.OUTPUT,
 	description = "Add the asset to a collection or a library. Writes the membership only - it never moves, copies or deletes a file.",
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true)
 	})
@@ -80,6 +82,14 @@ public class AssignNode extends AbstractMediaNode<AssignNodeOptions> implements 
 	@Override
 	public AssignNodeOptions options() {
 		return effectiveOptions == null ? super.options() : effectiveOptions;
+	}
+
+	/**
+	 * Adding the asset to a collection or library is the work itself, and a person may have removed it since.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import ReactFlow, {
@@ -17,7 +17,7 @@ import {
   Snackbar, Alert, Popover, CircularProgress, Drawer,
 } from "@mui/material";
 import {
-  PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
+  PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline, TimerOutlined, InsightsOutlined,
   ErrorOutline, CloudUploadOutlined, FilterAltOutlined,
   SettingsOutlined, CloudDownloadOutlined, MemoryOutlined,
   CircleOutlined, AccessTimeOutlined, BarChartOutlined, StopCircleOutlined,
@@ -54,7 +54,11 @@ import {
   loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
   stepPipelineRun, type HeldExecution, reExecutePipelineRunNode,
   validatePipelineDefinition,
+  loadPipelineNodeStats, type PipelineNodeStatsResponse,
 } from "../../api/pipelines";
+import { PipelinePerformancePanel, type PerformanceScope } from "./PipelinePerformancePanel";
+import { ReusedBadge } from "./ReusedBadge";
+import { formatDuration, formatShare, isReusedTask, reusedFraction, timingsByNode, type NodeTiming } from "./nodeTiming";
 import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
@@ -264,6 +268,7 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const isActive = data.isActive as boolean | undefined;
   const lastResult = data.lastResult as "completed" | "failed" | undefined;
   const stats = data.nodeStats as NodeStats | undefined;
+  const timing = data.timing as NodeTiming | undefined;
   const debug = data.debug as boolean | undefined;
   const nodeTasks = (data.nodeTasks as PipelineNodeTaskRecord[] | undefined) ?? [];
   const onSelectPort = data.onSelectPort as
@@ -512,6 +517,29 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
               {(data.kind as string) ?? ""}{data.kind && id ? " · " : ""}{id}
             </Typography>
           </Tooltip>
+          {/* Accumulated execution time over the latest runs - the figure the performance tab ranks by.
+              Shown outside debug mode too: "which step is expensive" is a question about the pipeline,
+              not about one debugging session. */}
+          {timing && timing.tasks > 0 && (
+            <Tooltip title={t("pipeline.performance.cardTooltip", {
+              time: formatDuration(timing.totalDurationMs),
+              share: formatShare(timing.share),
+              count: timing.tasks,
+              reused: timing.reused,
+            })}>
+              <Typography data-testid={`pipeline-node-time-${id}`}
+                data-total-ms={String(timing.totalDurationMs)}
+                sx={{ fontSize: "0.62rem", color: tokens.text.secondary, lineHeight: 1.3, display: "flex", alignItems: "center", gap: 0.4, mt: 0.25 }}>
+                <TimerOutlined sx={{ fontSize: 11, color: tokens.text.tertiary }} />
+                {formatDuration(timing.totalDurationMs)}
+                {timing.reused > 0 && (
+                  <Box component="span" data-testid={`pipeline-node-reused-${id}`} sx={{ color: tokens.text.tertiary }}>
+                    {` · ${t("pipeline.performance.cardReused", { share: formatShare(reusedFraction(timing)) })}`}
+                  </Box>
+                )}
+              </Typography>
+            </Tooltip>
+          )}
         </Box>
       </Box>
 
@@ -1105,6 +1133,7 @@ function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedI
                       <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
                         {task.nodeKind}
                       </Typography>
+                      <ReusedBadge task={task} testId={`run-task-reused-${task.nodeId}`} />
                       {typeof task.durationMs === "number" && (
                         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
                           {task.durationMs} ms
@@ -2009,6 +2038,7 @@ function NodeDetailSidebar({
                                 sx={{ height: 16, fontSize: "0.55rem", bgcolor: `${tokens.accent.red}22`, color: tokens.accent.red, fontWeight: 700 }}
                               />
                             )}
+                            <ReusedBadge task={task} />
                             {task.durationMs != null && (
                               <Typography sx={{ fontSize: "0.6rem", color: tokens.text.tertiary, ml: "auto", fontFamily: "monospace" }}>
                                 {task.durationMs}ms
@@ -2085,7 +2115,7 @@ function NodeDetailSidebar({
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
   pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, nodeParameters, descriptors, contentTypes,
-  onDeleteNode, activeNodeIds, nodeResults, nodeStats, debug, tasksByNode, onSelectPort, debugState,
+  onDeleteNode, activeNodeIds, nodeResults, nodeStats, nodeTimings, debug, tasksByNode, onSelectPort, debugState,
   onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
@@ -2103,6 +2133,8 @@ function PipelineCanvas({
   nodeResults?: Record<string, "completed" | "failed">;
   /** Per-node counters from the `NODE_STATS` frames; rendered only in debug mode. */
   nodeStats?: Record<string, NodeStats>;
+  /** Accumulated execution time per node over the latest runs - the same figures as the performance tab. */
+  nodeTimings?: Record<string, NodeTiming>;
   /** Debug mode. Gates every diagnostic affordance the canvas draws. */
   debug?: boolean;
   /** Node executions of the inspected run item, grouped by graph node id. */
@@ -2230,6 +2262,15 @@ function PipelineCanvas({
       },
     })));
   }, [handleNodeDelete, activeNodeIds, nodeResults, nodeStats, debug, tasksByNode, onSelectPort, debugState, contentTypes, setNodes]);
+
+  // Execution time per node. Its own effect, declared after the graph reset, so a pipeline switch (which
+  // rebuilds every node) still ends with the timings applied; and it only touches nodes whose figure changed.
+  useEffect(() => {
+    setNodes(nds => nds.map(n => {
+      const timing = nodeTimings?.[n.id];
+      return n.data.timing === timing ? n : { ...n, data: { ...n.data, timing } };
+    }));
+  }, [nodeTimings, pipeline, setNodes]);
 
   // Push the set of already-wired port ids into each node, so a wired XOR member can grey out its
   // siblings (and an EXCLUSIVE output member its own). Recomputed from the live edges rather than
@@ -3255,6 +3296,43 @@ export default function PipelineEditor() {
   }, [token, selected?.id]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  // ── Execution time per node (performance tab + canvas cards) ──────────
+  // One fetch serves both, so the figure on a node card is always the figure in the chart.
+  const [bottomTab, setBottomTab] = useState<"log" | "performance">("log");
+  const [perfScope, setPerfScope] = useState<PerformanceScope>(20);
+  const [perfStats, setPerfStats] = useState<PipelineNodeStatsResponse | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfError, setPerfError] = useState<string | null>(null);
+  const perfRequestRef = useRef(0);
+  // Refetch when a run is added or changes status - that is when the figures move. Not on every
+  // progress frame: the totals are per settled task and a mid-run refresh would only flicker.
+  const runsSignature = pipelineRuns.map(r => `${r.uuid}:${r.status}`).join(",");
+  useEffect(() => {
+    const request = ++perfRequestRef.current;
+    if (!token || !selected) { setPerfStats(null); setPerfError(null); return; }
+    setPerfLoading(true);
+    setPerfError(null);
+    loadPipelineNodeStats(token, selected.id, { limit: perfScope })
+      .then(stats => { if (request === perfRequestRef.current) setPerfStats(stats); })
+      .catch(err => {
+        if (request === perfRequestRef.current) {
+          setPerfStats(null);
+          setPerfError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => { if (request === perfRequestRef.current) setPerfLoading(false); });
+  }, [token, selected?.id, perfScope, runsSignature]);
+  const nodeTimings = useMemo(() => timingsByNode(perfStats), [perfStats]);
+  const perfDisplayNames = useMemo(() => {
+    const names: Record<string, string | undefined> = {};
+    for (const n of selected?.definition.nodes ?? []) {
+      const named = n as { displayName?: string; label?: string };
+      const dn = nodeDisplayNames[n.id] || named.displayName || named.label;
+      names[n.id] = dn && dn !== n.id ? `${dn} (${n.id})` : n.id;
+    }
+    return names;
+  }, [selected, nodeDisplayNames]);
 
   /** Inspect one run item: load every node execution recorded for it. */
   /**
@@ -4507,6 +4585,7 @@ export default function PipelineEditor() {
                   activeNodeIds={activeNodeIds}
                   nodeResults={nodeResults}
                   nodeStats={nodeStats}
+                  nodeTimings={nodeTimings}
                   debug={debug}
                   tasksByNode={shownTasksByNode}
                   onSelectPort={handleSelectPort}
@@ -4790,7 +4869,8 @@ export default function PipelineEditor() {
               data-testid="pipeline-log-panel"
               data-open={logOpen ? "true" : "false"}
               sx={{
-                height: logOpen ? logHeight : "auto",
+                // The performance tab draws charts; below ~360px they would be squeezed to nothing.
+                height: logOpen ? (bottomTab === "performance" ? Math.max(logHeight, 360) : logHeight) : "auto",
                 minHeight: logOpen ? 80 : 0,
                 overflow: "hidden",
                 display: "flex",
@@ -4801,9 +4881,24 @@ export default function PipelineEditor() {
               }}
             >
               <Box sx={{ px: 2, py: 0.75, display: "flex", alignItems: "center", gap: 1, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, flexShrink: 0 }}>
-                <TerminalOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-                <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", flex: 1 }}>{t("pipeline.editor.systemLog")}</Typography>
-                {selected && (
+                {/* Two tabs over one panel: the run log, and where the pipeline's time goes. Picking a tab
+                    also opens a collapsed panel - choosing what to look at and then having to find the
+                    expand control is one step too many. */}
+                <Tabs
+                  value={bottomTab}
+                  onChange={(_, v) => { setBottomTab(v); setLogOpen(true); }}
+                  sx={{ minHeight: 24, flex: 1, "& .MuiTabs-indicator": { height: 2 } }}
+                >
+                  <Tab value="log" data-testid="pipeline-bottom-tab-log"
+                    icon={<TerminalOutlined sx={{ fontSize: 14 }} />} iconPosition="start"
+                    label={t("pipeline.editor.systemLog")}
+                    sx={{ fontSize: "0.72rem", fontWeight: 600, minHeight: 24, py: 0, px: 1, minWidth: 0, textTransform: "none" }} />
+                  <Tab value="performance" data-testid="pipeline-bottom-tab-performance"
+                    icon={<InsightsOutlined sx={{ fontSize: 14 }} />} iconPosition="start"
+                    label={t("pipeline.performance.tab")}
+                    sx={{ fontSize: "0.72rem", fontWeight: 600, minHeight: 24, py: 0, px: 1, minWidth: 0, textTransform: "none" }} />
+                </Tabs>
+                {selected && bottomTab === "log" && (
                   <Typography data-testid="pipeline-log-status" variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
                     {selected.name} · {pipelineRuns[0]?.status ?? t("pipeline.editor.noRuns")}
                   </Typography>
@@ -4816,7 +4911,25 @@ export default function PipelineEditor() {
                   {logOpen ? <ExpandMoreOutlined sx={{ fontSize: 14 }} /> : <ExpandLessOutlined sx={{ fontSize: 14 }} />}
                 </IconButton>
               </Box>
-              <Box sx={{ flex: 1, overflow: "auto", p: 1.5, display: logOpen ? "block" : "none" }}>
+              {bottomTab === "performance" && (
+                <Box sx={{ flex: 1, minHeight: 0, display: logOpen ? "block" : "none" }}>
+                  {selected ? (
+                    <PipelinePerformancePanel
+                      stats={perfStats}
+                      loading={perfLoading}
+                      error={perfError}
+                      scope={perfScope}
+                      onScopeChange={setPerfScope}
+                      displayNames={perfDisplayNames}
+                    />
+                  ) : (
+                    <Typography sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.tertiary, p: 1.5 }}>
+                      {t("pipeline.editor.selectPipelineLogs")}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+              <Box sx={{ flex: 1, overflow: "auto", p: 1.5, display: logOpen && bottomTab === "log" ? "block" : "none" }}>
                 {selected ? (
                   pipelineRuns.length > 0 ? (
                     pipelineRuns.map(r => {

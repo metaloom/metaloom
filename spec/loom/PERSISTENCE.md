@@ -245,6 +245,8 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.105__rename_fingerprint_window_index` | `asset_fingerprint_comp.sector_index` → `window_index`, plus corrected column comments. The old name and its V2.41 comment claimed the column numbered the *internal* sectors of the multi-sector fingerprint algorithm; it numbers timeline windows. `RENAME COLUMN` carries the unique key over by itself, and no row had ever held anything but the default 0. See [DOMAIN.md](DOMAIN.md) §4 |
 | `V2.114__attachment_type_person_voice` | `attachment_type` value `PERSON_VOICE` (enum-only migration) |
 | `V2.115__person_voice_and_recognition` | `person.hero_voice_attachment_uuid`, `cluster.suggested_person_uuid`/`suggested_score`, `person_print`, reference index |
+| `V2.116__add_asset_node_output` | `asset_node_output` - node output reuse store, UNIQUE `(asset_uuid, node_kind, reuse_key)` ([../features/nodes/NODE_OUTPUT_REUSE.md](../features/nodes/NODE_OUTPUT_REUSE.md)) |
+| `V2.117__pipeline_node_task_origin` | `pipeline_node_task.origin` (COMPUTED/LOCAL/REMOTE) + `(run_uuid, node_id)` index; aggregations `PipelineNodeTaskDao.aggregateByNode` / `durationHistogram` / `totalsByRunAndNode`, tested by `PipelineNodeTimeStatsDaoTest` (5) |
 
 ### Migration patterns
 
@@ -366,6 +368,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | AssetBinary | `AssetBinaryDao` | `asset_location` (`getTypeName()` = "Asset Locations") | `AssetBinaryDaoTest` CRUD +7 | `AssetCascadeTest` |
 | AssetComponent | `AssetComponentDao` | 9 `asset_*_comp` tables | `AssetComponentKeyTest` (8), `AssetTranscriptCompDaoTest` (5), `AssetFingerprintSegmentCompDaoTest` (8), `AssetJsonCompDaoTest` (13) | `AssetCascadeTest` |
 | AssetNodeResult | `AssetNodeResultDao` | `asset_node_result` | `AssetNodeResultDaoTest` (8) | `AssetCascadeTest` |
+| AssetNodeOutput | `AssetNodeOutputDao` (record, not CRUD) | `asset_node_output` | `AssetNodeOutputDaoTest` (6) | `AssetCascadeTest`, `testDeleteByAssetIsScoped` |
 | AssetPool | `AssetPoolDao` | `asset_pool` | `AssetPoolDaoTest` CRUD +2 (fs/S3 shapes, `library.pool_uuid` RESTRICT) | own |
 | Attachment | `AttachmentDao` | `attachment`, `attachment_binary` | `AttachmentDaoTest` CRUD | `AssetCascadeTest` |
 | Library | `LibraryDao` | `library`(+joins, `pool_uuid`) | `LibraryDaoTest` CRUD | — |
@@ -568,6 +571,7 @@ Schema current through **`V2.84`**. Work items live in
 - [x] Asset-component rework (V2.38–V2.42) with provenance + idempotent `upsert()` and full tests
 - [x] Detection/embedding/attachment provenance rework (V2.43–V2.44) — schema side
 - [x] `asset_node_result` processing ledger + test
+- [x] `asset_node_output` reuse store + DAO and cascade tests (V2.116)
 - [x] Pipeline execution state (run / run item / node task incl. `element_seq` fan-out) + tests
 - [x] Agent persistence: skill, skill version, chat session, memory entry, memory deny rule + tests
 - [x] Dedup review model (V2.61) + `DedupGroupDaoTest`
@@ -596,8 +600,8 @@ Schema current through **`V2.84`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (V2.114/V2.115 - person voice samples, suggestions, `person_print`; `JooqTestContext.afterEach` now closes the per-test c3p0 pool, which a DAO class of 20+ methods exhausted). Earlier: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (V2.116 `asset_node_output` - node output reuse store, `AssetNodeOutputDao` + tests). Earlier: 2026-10-11 (V2.114/V2.115 - person voice samples, suggestions, `person_print`; `JooqTestContext.afterEach` now closes the per-test c3p0 pool, which a DAO class of 20+ methods exhausted). Earlier: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
 Earlier: `V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
 subsystem lands beside this layer: 29 named checks over the invariants the schema relies on but does
 not enforce, wired into `CRUDDaoTestcases` and both cascade suites. Owned by

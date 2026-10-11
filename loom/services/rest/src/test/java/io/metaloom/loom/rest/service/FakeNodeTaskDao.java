@@ -136,4 +136,19 @@ public class FakeNodeTaskDao implements PipelineNodeTaskDao {
 		updated.clear();
 	}
 
+
+	@Override
+	public List<NodeTimeStats> aggregateByNode(List<UUID> runUuids) {
+		return List.of();
+	}
+
+	@Override
+	public List<DurationBucket> durationHistogram(List<UUID> runUuids) {
+		return List.of();
+	}
+
+	@Override
+	public List<RunNodeTotal> totalsByRunAndNode(List<UUID> runUuids) {
+		return List.of();
+	}
 }

@@ -38,6 +38,12 @@ that `PipelineGraphParser` on the Java side must be able to read verbatim.
 - [x] Edges serialise `sourcePort` / `targetPort`; branch serialises as `branch`
 - [x] Per-instance parameters serialise under `options` (`config` accepted as a legacy alias on load)
 - [x] Sidebar parameter/affinity edits mirrored onto the canvas before `getGraphJson()`
+- [x] Execution time per node: the **Performance** tab of the bottom panel and the time line on each
+      node card, from one `GET /pipelines/:uuid/node-stats` fetch (§5.2)
+- [x] Reused executions marked with a "Reused" badge in the run drawer, the node sidebar and the
+      result detail (`ReusedBadge`, `origin` LOCAL/REMOTE)
+- [ ] Performance: a per-run scope picked from the run list (today: the latest 1/10/20/50 runs)
+- [ ] Performance: click a bar to also select the node on the canvas
 - [ ] **`displayName` is never persisted** — it is in `RESERVED` (1823) and is not lifted top-level,
       so the sidebar edit reaches the canvas, renders, and is then dropped by `getGraphJson()`
 - [ ] **`nodeParameters` / `nodeDisplayNames` leak across pipelines** — `applySelect` (2681) clears
@@ -268,6 +274,38 @@ is the wrong shape for a 180px card, and it does not answer the question the car
 — two `whisper` nodes in one graph are two identical cards without their ids. The description
 moves to the header's tooltip. `data-testid="pipeline-node-label-<id>"` /
 `pipeline-node-kind-<id>`.
+
+## 5.2 Where the time goes — the Performance tab
+
+The bottom panel has two tabs, **System log** (`pipeline-bottom-tab-log`, the default) and
+**Performance** (`pipeline-bottom-tab-performance`). Picking a tab also opens a collapsed panel. The
+performance tab raises the panel to at least 360px - its charts need the room - without changing the
+height the log remembers.
+
+Placement was a decision: the bottom panel spans the canvas and is resizable, the right inspector is a
+fixed 240px. A ranking plus a drill-down does not fit in 240px.
+
+**One fetch, two views.** The editor (not the panel) loads `loadPipelineNodeStats(token, uuid,
+{ limit: perfScope })` when the pipeline, the scope or any run's status changes (`runsSignature`). The
+same response feeds `PipelinePerformancePanel` and, through `timingsByNode`, the `timing` field of every
+canvas node. The figure on a card and the bar in the chart therefore cannot disagree. Progress frames do
+not refetch: totals are per settled task and a mid-run refresh would only flicker.
+
+| Part | What it shows | Test id |
+|---|---|---|
+| Scope | Latest 1 / 10 / 20 (default) / 50 runs | `pipeline-performance-scope` (MUI keeps it on the hidden input; tests use the combobox role "Runs covered") |
+| Headline | Execution time, reused `n / tasks (%)`, estimated time saved, runs covered | `pipeline-performance-total` / `-reused` / `-saved` |
+| Ranking | One horizontal bar per node, most expensive first, value at the bar end. Single series, one colour; the node in focus solid, the rest at 40 % | `pipeline-performance-ranking` |
+| Drill-down | Node picker (keyboard path - bars take no focus), the figures as a definition list (the table view), a power-of-two duration histogram of computed executions, and time per run oldest-to-newest | `pipeline-performance-detail` (`data-node-id`), `-figures`, `-histogram`, `-trend` |
+| Card line | `⏱ <total> · <share> reused`, outside debug mode too; tooltip with share and counts | `pipeline-node-time-<id>` (`data-total-ms`), `pipeline-node-reused-<id>` |
+
+"Execution time" is what nodes report for their own work summed over every item, **not** wall-clock
+time - the ranking's caption says so. Percentiles and the histogram cover computed executions only;
+reused ones are counted apart. Labels come from `perfDisplayNames`: the edited display name, the
+definition's `displayName` or `label`, then the id, as `Name (id)`.
+
+The pure parts - formatting, ordering, the trend's oldest-first order with zero-filled gaps - live in
+`nodeTiming.ts` and are tested in node env (`nodeTiming.test.ts`).
 
 ## 6. Ports on the canvas
 
@@ -572,6 +610,8 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `src/features/pipeline/portResolvers.test.ts` | `script`/`llm`/`vlm` port resolution, pinned against `NodePortResolverTest` |
 | `src/features/pipeline/resultRenderers.test.ts` | One case per content-type family; hash/path truncation; MANY summarisation; empty selective port; markdown-table key union, pipe/newline escaping and origin-seq numbering |
 | `src/features/pipeline/nodeResultDetail.test.ts` | `viewersFor()`: Raw always offered, a node's description outranking its own image, no one-row table for a lone scalar, a player only for a playable `media/*` value, a capped preview adding no image tab |
+| `src/features/pipeline/nodeTiming.test.ts` | Duration/share formatting, reuse detection (LOCAL/REMOTE only when COMPLETED), ranking order and labels, histogram order, per-run trend with gaps |
+| `e2e/pipeline-performance-mocked.spec.ts` | Card times outside debug mode; ranking + drill-down on the most expensive node; picking another node; scope refetch (`limit=1`); empty state; Reused badge in the run drawer; log tab still default |
 | `e2e/pipeline-ports-mocked.spec.ts` | Valid port-to-port connect; typed rejection toast; XOR sibling disabling; **save → reload → save round trip preserving ports and `branch`** |
 | `e2e/pipeline-crud-mocked.spec.ts` | Create / clone / delete / unsaved-changes guard — both switching pipelines and leaving the editor via `sidebar-item-/assets`, where Cancel has to keep the edited parameter. Its `sha512` descriptor declares the fixture's only parameter, on that node because the minimap swallows clicks on the lower-right `thumbnail` |
 | `e2e/pipeline-run-mocked.spec.ts`, `pipeline-run-cancel-mocked.spec.ts`, `pipeline-run-items-mocked.spec.ts` | Run dispatch, cancel, item drill-down |
@@ -631,6 +671,8 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 | Change descriptor/port TypeScript types | `loom-ui/src/types/nodeDescriptors.ts` |
 | Change the `Pipeline`/`PipelineEdge` shape or option fallback | `loom-ui/src/types/index.ts` (`pipelineNodeOptions`) |
 | Change a REST call | `loom-ui/src/api/pipelines.ts`, `loom-ui/src/api/nodeDescriptors.ts` |
+| Change the Performance tab | `loom-ui/src/features/pipeline/PipelinePerformancePanel.tsx`; data shaping in `nodeTiming.ts`; fetch in `PipelineEditor.tsx` (`perfStats`) |
+| Change the "Reused" badge | `loom-ui/src/features/pipeline/ReusedBadge.tsx` (`isReusedTask` in `nodeTiming.ts`) |
 | Change event handling | `loom-ui/src/api/pipelineEvents.ts` |
 | Change the version diff | `loom-ui/src/features/pipeline/pipelineDiff.ts`, `PipelineVersionDiff.tsx` |
 | See how the server parses what we emit | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java` |
@@ -639,5 +681,5 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 
 ---
 
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (7.2 rewritten: the editor's own graph validators are deleted; saving asks `POST /pipelines/validate`, specified in PIPELINE_VALIDATION.md). Earlier: (E2E coverage for the debug preview renderers)_
+_Git HEAD revision: `c7e56c89`_
+_Last updated: 2026-10-11 (§5.2 the Performance tab and per-node time on cards; Reused badge). Earlier: 2026-08-09 (7.2 rewritten: the editor's own graph validators are deleted; saving asks `POST /pipelines/validate`, specified in PIPELINE_VALIDATION.md). Earlier: (E2E coverage for the debug preview renderers)_

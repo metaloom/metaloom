@@ -62,6 +62,9 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 	@JsonPropertyDescription("Execution duration in milliseconds, null while unsettled.")
 	private Long durationMs;
 
+	@JsonPropertyDescription("Where the result came from: COMPUTED, or LOCAL/REMOTE when the node reused a result instead of computing it. Null reads as COMPUTED.")
+	private String origin;
+
 	@JsonPropertyDescription("Error message if the execution failed.")
 	private String errorMessage;
 
@@ -220,6 +223,15 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 
 	public PipelineNodeTaskRecord setDurationMs(Long durationMs) {
 		this.durationMs = durationMs;
+		return this;
+	}
+
+	public String getOrigin() {
+		return origin;
+	}
+
+	public PipelineNodeTaskRecord setOrigin(String origin) {
+		this.origin = origin;
 		return this;
 	}
 

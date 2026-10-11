@@ -134,6 +134,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 1,
   "defaultMode" : "PARALLEL",
@@ -183,6 +189,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -239,6 +251,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -302,6 +320,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "depthHost",
     "type" : "STRING",
@@ -432,6 +456,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "clusterCount",
     "type" : "INTEGER",
@@ -626,6 +656,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "maxFaceAngle",
     "type" : "NUMBER",
     "defaultValue" : 30.0,
@@ -730,6 +766,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "videoChopRate",
     "type" : "INTEGER",
@@ -1027,6 +1069,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 2,
   "defaultMode" : "PARALLEL",
@@ -1310,6 +1358,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "family",
     "type" : "ENUM",
     "defaultValue" : "LLAMA_GUARD_3",
@@ -1496,6 +1550,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "operations",
     "type" : "STRING",
@@ -1725,6 +1785,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "mode",
     "type" : "ENUM",
     "defaultValue" : "GENERATE",
@@ -1894,6 +1960,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "openaiUrl",
     "type" : "STRING",
     "defaultValue" : "http://127.0.0.1:8080/v1",
@@ -1948,6 +2020,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -2011,6 +2089,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "includeRaw",
     "type" : "BOOLEAN",
@@ -2299,6 +2383,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "modelPath",
     "type" : "STRING",
     "defaultValue" : "models/yolo/YOLOv11n_voc.onnx",
@@ -2401,6 +2491,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 2,
   "defaultMode" : "PARALLEL",
@@ -2573,6 +2669,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "checkBlurriness",
     "type" : "BOOLEAN",
@@ -2863,6 +2965,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "sam2Host",
     "type" : "STRING",
     "defaultValue" : "localhost",
@@ -3027,6 +3135,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 2,
   "defaultMode" : "PARALLEL",
@@ -3241,6 +3355,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "engine",
     "type" : "STRING",
     "defaultValue" : "js",
@@ -3378,6 +3498,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "sentimentHost",
     "type" : "STRING",
     "defaultValue" : "localhost",
@@ -3462,6 +3588,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -3511,6 +3643,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -3725,6 +3863,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "cols",
     "type" : "INTEGER",
     "defaultValue" : 6,
@@ -3801,6 +3945,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   } ],
   "defaultConcurrency" : 4,
   "defaultMode" : "PARALLEL",
@@ -3864,6 +4014,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "targetLanguage",
     "type" : "STRING",
@@ -3971,6 +4127,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "ttsHost",
     "type" : "STRING",
     "defaultValue" : "localhost",
@@ -4065,6 +4227,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "mode",
     "type" : "ENUM",
@@ -4207,6 +4375,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "endpointUrl",
     "type" : "STRING",
     "defaultValue" : "http://127.0.0.1:8000",
@@ -4322,6 +4496,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "voiceprintHost",
     "type" : "STRING",
@@ -4482,6 +4662,12 @@
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
   }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
+  }, {
     "key" : "watermarkBase64",
     "type" : "CODE",
     "defaultValue" : "",
@@ -4626,6 +4812,12 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "recompute",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Recompute",
+    "description" : "Compute again even when this node already produced a result for the asset with the same settings, and replace the stored result"
   }, {
     "key" : "modelPath",
     "type" : "STRING",

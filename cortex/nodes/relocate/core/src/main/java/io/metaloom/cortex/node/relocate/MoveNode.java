@@ -28,6 +28,7 @@ import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.fs.ConflictPolicy;
 import io.metaloom.cortex.fs.CrossDevicePolicy;
@@ -66,6 +67,7 @@ import io.vertx.core.json.JsonObject;
 	description = "Relocate an asset's file to a folder, a storage pool, a library or an S3 bucket. Never overwrites, and only removes the original once the destination is verified.",
 	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true)
 	})
@@ -133,6 +135,14 @@ public class MoveNode extends AbstractMediaNode<MoveNodeOptions> implements Pipe
 	@Override
 	public MoveNodeOptions options() {
 		return effectiveOptions == null ? super.options() : effectiveOptions;
+	}
+
+	/**
+	 * Moving the file is the work itself: replaying would report a move that never happened.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

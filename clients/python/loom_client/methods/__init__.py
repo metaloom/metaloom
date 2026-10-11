@@ -40,6 +40,7 @@ from .library import LibraryMethods
 from .db_integrity import DbIntegrityMethods
 from .storage import StorageMethods
 from .metrics import MetricsMethods
+from .node_output import NodeOutputMethods
 from .node_result import NodeResultMethods
 from .node_run import NodeRunMethods
 from .person import PersonMethods
@@ -91,6 +92,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     MetricsMethods,
     DbIntegrityMethods,
     StorageMethods,
+    NodeOutputMethods,
     NodeResultMethods,
     NodeRunMethods,
     PersonMethods,
@@ -142,6 +144,7 @@ __all__ = [
     "MetricsMethods",
     "DbIntegrityMethods",
     "StorageMethods",
+    "NodeOutputMethods",
     "NodeResultMethods",
     "NodeRunMethods",
     "PersonMethods",

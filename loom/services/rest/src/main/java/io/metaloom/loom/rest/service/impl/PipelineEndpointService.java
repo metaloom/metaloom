@@ -934,6 +934,62 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	/**
 	 * Load a run, rejecting an unknown run or one belonging to a different pipeline.
 	 */
+	/** Default and upper bound for the runs the node stats aggregate when no run is named. */
+	private static final int NODE_STATS_DEFAULT_RUNS = 20;
+	private static final int NODE_STATS_MAX_RUNS = 200;
+
+	/**
+	 * Where the pipeline's execution time goes, per node: accumulated over its {@code ?limit=} most recent runs, or for one {@code ?runUuid=}.
+	 *
+	 * <p>
+	 * Execution time is what the nodes report for their own work, summed over every item. The percentiles and the histogram cover computed
+	 * executions only; a reuse costs milliseconds and would make a slow node look fast. The time reuse saved is estimated from the node's own mean
+	 * computed duration.
+	 * </p>
+	 */
+	public void loadNodeStats(LoomRoutingContext lrc, UUID pipelineUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			if (dao().load(pipelineUuid) == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline not found.");
+			}
+			List<PipelineRun> runs;
+			String runParam = firstParam(lrc, "runUuid");
+			if (runParam != null) {
+				UUID runUuid;
+				try {
+					runUuid = UUID.fromString(runParam);
+				} catch (IllegalArgumentException e) {
+					throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "runUuid is not a valid uuid: " + runParam);
+				}
+				runs = List.of(loadRunOr404(pipelineUuid, runUuid));
+			} else {
+				int limit = NODE_STATS_DEFAULT_RUNS;
+				String limitParam = firstParam(lrc, "limit");
+				if (limitParam != null) {
+					try {
+						limit = Integer.parseInt(limitParam);
+					} catch (NumberFormatException e) {
+						throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "limit is not a number: " + limitParam);
+					}
+				}
+				runs = pipelineRunDao.loadLatestByPipeline(pipelineUuid, Math.max(1, Math.min(NODE_STATS_MAX_RUNS, limit)));
+			}
+			List<UUID> runUuids = runs.stream().map(PipelineRun::getUuid).toList();
+			lrc.send(modelBuilder.toPipelineNodeStats(pipelineUuid, runs,
+				pipelineNodeTaskDao.aggregateByNode(runUuids),
+				pipelineNodeTaskDao.durationHistogram(runUuids),
+				pipelineNodeTaskDao.totalsByRunAndNode(runUuids)));
+		});
+	}
+
+	private static String firstParam(LoomRoutingContext lrc, String key) {
+		List<String> values = lrc.queryParam(key);
+		if (values == null || values.isEmpty() || values.get(0) == null || values.get(0).isBlank()) {
+			return null;
+		}
+		return values.get(0);
+	}
+
 	private PipelineRun loadRunOr404(UUID pipelineUuid, UUID runUuid) {
 		PipelineRun run = pipelineRunDao.load(runUuid);
 		if (run == null || !pipelineUuid.equals(run.getPipelineUuid())) {

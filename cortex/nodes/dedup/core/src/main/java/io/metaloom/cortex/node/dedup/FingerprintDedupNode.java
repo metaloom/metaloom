@@ -25,6 +25,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.dedup.DedupGroupCreateRequest;
@@ -48,6 +49,7 @@ import io.metaloom.loom.rest.model.similarity.SimilarAssetResponse;
 	defaultMode = NodeMode.SEQUENTIAL,
 	// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true) })
 public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDiscoverOptions> {
@@ -70,6 +72,14 @@ public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDisc
 	@Inject
 	public FingerprintDedupNode(@Nullable LoomClient client, CortexOptions cortexOptions, FingerprintDedupDiscoverOptions options) {
 		super(client, cortexOptions, options);
+	}
+
+	/**
+	 * The answer depends on the fingerprint index, which grows with every asset indexed after this one.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

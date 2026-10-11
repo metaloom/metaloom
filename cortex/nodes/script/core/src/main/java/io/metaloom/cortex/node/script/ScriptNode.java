@@ -34,6 +34,7 @@ import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.script.engine.CompiledScript;
 import io.metaloom.cortex.node.script.engine.ScriptBindings;
@@ -176,6 +177,14 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 		super(client, cortexOptions, options);
 		this.cortexOptions = cortexOptions;
 		this.engines = engines;
+	}
+
+	/**
+	 * A script's results are stored under its node id, so a script in another pipeline must store its own even when the code is identical.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.PER_NODE_ID;
 	}
 
 	@Override

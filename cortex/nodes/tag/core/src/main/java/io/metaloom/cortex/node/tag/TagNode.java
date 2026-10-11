@@ -29,10 +29,12 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.tag.TagNodeOptions.Normalize;
 import io.metaloom.cortex.node.tag.TagStrategy.DesiredTag;
@@ -78,7 +80,8 @@ import io.vertx.core.json.JsonObject;
  */
 @NodeSpec(nodeId = "tag", name = "Tag",
 	description = "Attach tags to an asset from declarative rules over wired inputs. Tags are searchable the moment they are written.",
-	icon = "sell", category = NodeCategory.OUTPUT, defaultConcurrency = 4)
+	icon = "sell", category = NodeCategory.OUTPUT, defaultConcurrency = 4,
+	parameters = @ParamOverride(key = "recompute", hidden = true))
 public class TagNode extends AbstractMediaNode<TagNodeOptions> implements PipelineConfigurable {
 
 	private static final Logger log = LoggerFactory.getLogger(TagNode.class);
@@ -156,6 +159,14 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 		Map<TagBy, Provider<TagStrategy>> strategies) {
 		super(client, cortexOptions, options);
 		this.strategies = strategies;
+	}
+
+	/**
+	 * Applying and withdrawing tags writes the catalog, and a person may have changed the tags since the last run.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

@@ -30,6 +30,7 @@ import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.filter.FilterStrategy.Classification;
 import io.metaloom.loom.client.common.LoomClient;
@@ -70,6 +71,7 @@ import io.vertx.core.json.JsonObject;
 	icon = "call_split", category = NodeCategory.FILTER, dynamicPorts = true, defaultConcurrency = 4,
 	// The filter contract has only ever carried 'enabled' of the three common knobs.
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true) })
 public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements PipelineConfigurable {
@@ -153,6 +155,14 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 		Map<FilterBy, Provider<FilterStrategy>> strategies) {
 		super(client, cortexOption, options);
 		this.strategies = strategies;
+	}
+
+	/**
+	 * Routing by rating, tag or person reads reviewer state that is not among the node's inputs, so a stored route goes stale.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

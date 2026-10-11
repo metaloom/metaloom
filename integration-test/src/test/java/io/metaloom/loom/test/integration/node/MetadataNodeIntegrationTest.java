@@ -79,10 +79,13 @@ public class MetadataNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			UniqueAsset asset = createUniqueAsset(client, "image/jpeg", geotaggedJpeg(), ".jpg");
 
 			// Two node instances rather than one, so the second run really goes through the write
-			// path instead of being served from the first node's in-heap cache.
+			// path instead of being served from the first node's in-heap cache - and the second one
+			// recomputes, or it would replay the output Loom stored for the first instead of writing.
 			new MetadataNode(client, cortexOptions(), new MetadataNodeOptions())
 				.process(NodeContext.create(asset.media()));
-			NodeResult second = new MetadataNode(client, cortexOptions(), new MetadataNodeOptions())
+			MetadataNodeOptions recompute = new MetadataNodeOptions();
+			recompute.setRecompute(true);
+			NodeResult second = new MetadataNode(client, cortexOptions(), recompute)
 				.process(NodeContext.create(asset.media()));
 
 			assertThat(second.getState()).isEqualTo(ResultState.SUCCESS);

@@ -26,6 +26,7 @@ import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.impl.LoomMediaImpl;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeCategory;
@@ -57,6 +58,7 @@ import io.metaloom.utils.hash.SHA512;
 	description = "Report confirmed near-duplicates on the confirmed_dup port, after re-verifying the keeper against the live filesystem. Acts only on dedup groups a reviewer has confirmed in Loom; wire the port into a move node to relocate them.",
 	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
 	parameters = {
+		@ParamOverride(key = "recompute", hidden = true),
 		// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true),
@@ -104,6 +106,14 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 	@Inject
 	public FingerprintDedupApplyNode(@Nullable LoomClient client, CortexOptions cortexOptions, DedupNodeOptions options) {
 		super(client, cortexOptions, options);
+	}
+
+	/**
+	 * Moving duplicates is the work itself, and it acts on the dedup groups as reviewers left them.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

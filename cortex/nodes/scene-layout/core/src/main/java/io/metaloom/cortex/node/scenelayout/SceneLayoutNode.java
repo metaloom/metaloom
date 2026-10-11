@@ -23,10 +23,12 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.reuse.ReusePolicy;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeCategory;
@@ -81,7 +83,8 @@ import io.vertx.core.json.JsonObject;
 	description = "Relate detected objects to one another using a depth map: foreground/background bands plus pairwise relations such as "
 		+ "in front of, behind, occludes and next to. Requires an upstream depthmap node on the same worker.",
 	// No model and no device to contend for - only CPU, so this can run wider than the model-backed nodes.
-	defaultConcurrency = 4)
+	defaultConcurrency = 4,
+	parameters = @ParamOverride(key = "recompute", hidden = true))
 public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SceneLayoutNode.class);
@@ -114,6 +117,14 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	@Inject
 	public SceneLayoutNode(@Nullable LoomClient client, CortexOptions cortexOptions, SceneLayoutNodeOptions options) {
 		super(client, cortexOptions, options);
+	}
+
+	/**
+	 * Without wired detections it reads the asset's detections from Loom, which change when a detector re-runs or a reviewer acts.
+	 */
+	@Override
+	protected ReusePolicy reusePolicy() {
+		return ReusePolicy.NEVER;
 	}
 
 	@Override

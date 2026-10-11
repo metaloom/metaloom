@@ -367,6 +367,96 @@ export async function loadPipelineRunStats(token: string): Promise<PipelineRunSt
   return handleResponse<PipelineRunStatsResponse>(res);
 }
 
+// ── Node execution time (performance view) ───────────────────────────
+
+/** Computed executions of a node that took between `fromMs` (inclusive) and `toMs` (exclusive). */
+export interface PipelineNodeDurationBucket {
+  fromMs: number;
+  toMs: number;
+  count: number;
+}
+
+/** What one node cost in one run. */
+export interface PipelineNodeRunTotal {
+  runUuid: string;
+  tasks: number;
+  reused: number;
+  totalDurationMs: number;
+}
+
+/** Where one node's time went across the runs a {@link PipelineNodeStatsResponse} covers. */
+export interface PipelineNodeTimeStats {
+  nodeId: string;
+  nodeKind?: string;
+  tasks: number;
+  computed: number;
+  reused: number;
+  failed: number;
+  skipped: number;
+  /** Summed execution time of every settled execution, reused ones included. */
+  totalDurationMs: number;
+  computedDurationMs: number;
+  /** Over computed executions only; absent when the node never computed. */
+  avgDurationMs?: number | null;
+  p50DurationMs?: number | null;
+  p95DurationMs?: number | null;
+  maxDurationMs?: number | null;
+  /** Reused executions times the mean computed duration. An estimate. */
+  estimatedSavedMs: number;
+  /** Fraction of the total execution time of all nodes, 0..1. */
+  share: number;
+  histogram: PipelineNodeDurationBucket[];
+  /** Newest run first. */
+  runs: PipelineNodeRunTotal[];
+}
+
+export interface PipelineNodeStatsRun {
+  uuid: string;
+  status?: string;
+  started?: number | null;
+  durationMs?: number | null;
+  pipelineVersion: number;
+}
+
+/**
+ * Where a pipeline's execution time goes, per node, accumulated over its latest runs or for one run.
+ * Execution time is what the nodes report for their own work summed over every item - not wall-clock time.
+ */
+export interface PipelineNodeStatsResponse {
+  pipelineUuid: string;
+  runCount: number;
+  tasks: number;
+  reused: number;
+  totalDurationMs: number;
+  estimatedSavedMs: number;
+  /** Newest first. */
+  runs: PipelineNodeStatsRun[];
+  /** Most expensive node first. */
+  nodes: PipelineNodeTimeStats[];
+}
+
+/**
+ * Load per-node execution time for a pipeline.
+ * Endpoint: `GET /api/v1/pipelines/:uuid/node-stats?runUuid=&limit=`.
+ *
+ * @param scope `runUuid` for one run, otherwise the latest `limit` runs (server default 20)
+ */
+export async function loadPipelineNodeStats(
+  token: string,
+  pipelineUuid: string,
+  scope: { runUuid?: string; limit?: number } = {},
+): Promise<PipelineNodeStatsResponse> {
+  const params = new URLSearchParams();
+  if (scope.runUuid) params.set("runUuid", scope.runUuid);
+  if (scope.limit != null) params.set("limit", String(scope.limit));
+  const query = params.toString();
+  const res = await fetch(
+    `${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/node-stats${query ? `?${query}` : ""}`,
+    { method: "GET", headers: authHeaders(token) },
+  );
+  return handleResponse<PipelineNodeStatsResponse>(res);
+}
+
 // ── Pipeline Run Items ────────────────────────────────────────────────
 
 /** The server's `pipeline_run_item.state` vocabulary. */
@@ -467,6 +557,12 @@ export interface PipelineNodeTaskRecord {
   started?: number;
   finished?: number;
   durationMs?: number;
+  /**
+   * Where the result came from: `COMPUTED`, or `LOCAL`/`REMOTE` when the node reused a result it already
+   * had instead of doing the work (see `isReusedTask`). Absent on records written before the server
+   * recorded it, which read as computed.
+   */
+  origin?: "COMPUTED" | "LOCAL" | "REMOTE" | string;
   errorMessage?: string;
   /** Keyed by **output port id**. Retained on SKIPPED and FAILED results too. */
   outputs?: Record<string, PortPayload>;

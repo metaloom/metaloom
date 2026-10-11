@@ -12,6 +12,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
@@ -49,6 +50,14 @@ public interface PipelineMethods {
 	LoomClientRequest<PipelineRunListResponse> listPipelineRuns(UUID pipelineUuid);
 
 	LoomClientRequest<PipelineRunStatsResponse> loadPipelineRunStats();
+
+	/**
+	 * Where a pipeline's execution time goes, per node.
+	 *
+	 * @param runUuid one run to report on, or null for the latest runs
+	 * @param limit   how many of the latest runs to accumulate when no run is named; null for the server default (20)
+	 */
+	LoomClientRequest<PipelineNodeStatsResponse> loadPipelineNodeStats(UUID pipelineUuid, UUID runUuid, Integer limit);
 
 	LoomClientRequest<PipelineRunRecord> loadPipelineRun(UUID pipelineUuid, UUID runUuid);
 

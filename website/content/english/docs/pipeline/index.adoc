@@ -295,6 +295,90 @@ When `dryRun = true`, nodes execute but do not persist results — useful for va
 against real media without side effects. It is a property of the pipeline definition (or the run
 request).
 
+== Reusing Results From Earlier Runs
+
+A node does not do the same work twice. Before it starts on a file, it asks Loom whether it has
+already produced a result for that file with the same settings and the same input. If it has, the
+node hands the stored result to the rest of the pipeline and moves on. Transcribing an hour of video,
+detecting faces or captioning a picture then takes as long as looking the answer up.
+
+This works across pipelines. If one pipeline has already transcribed a video and a second pipeline
+also contains a transcription step with the same settings, the second pipeline uses the existing
+transcript instead of transcribing again. Re-running a pipeline after adding a new step at the end
+only does the new work.
+
+A node computes again when anything that can change its answer is different:
+
+* one of its settings, for example the model, the language or a threshold;
+* a value it receives from an earlier node, for example a different text to translate;
+* the node itself, after an update that changes what it produces.
+
+Steps that _do_ something rather than work something out always run: moving or assigning files,
+uploading to a bucket, tagging, filtering by ratings, tags or people, and deduplication. Their effect
+depends on the current state of your library, so a stored answer would be wrong.
+
+In the run view such a step is marked *Reused*, and the link:#where-the-time-goes[Performance tab]
+counts how often reuse happened and how much time it saved. The processing history of a file -
+`GET /api/v1/assets/{uuid}/node-results` - records it with the origin `REMOTE`.
+
+=== Forcing a step to run again
+
+Every reusing node has a *Recompute* switch among its parameters. Turn it on and the node does the
+work again for every file, and replaces the stored result with the new one. Turn it off again
+afterwards, so later runs reuse the fresh result.
+
+Recompute when something changed that the node cannot see from its settings - for example after
+you corrected a transcript by hand and want the pipeline to start from a fresh one, or when you want
+new person suggestions for files that were processed before you added voice or face samples to a
+person.
+
+=== Forgetting stored results
+
+Stored results belong to the file. Deleting a file deletes them. To make the next run compute again
+without changing the pipeline, forget the stored results of a file through the REST API - for all
+steps, or for one kind of step:
+
+[source,bash]
+----
+# forget everything stored for this asset
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "$LOOM/api/v1/assets/$ASSET/node-outputs"
+
+# forget only the transcription results
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "$LOOM/api/v1/assets/$ASSET/node-outputs?nodeKind=whisper"
+----
+
+The results you see on the asset - its transcript, detected faces, captions - are not touched by
+this. Only the copy a pipeline replays is removed.
+
+NOTE: A file processed before this feature existed has no stored results yet. The first run after
+the upgrade computes as before and stores what it produced; from then on the file is reused.
+
+== Where the Time Goes
+
+The *Performance* tab at the bottom of the pipeline editor, next to the system log, shows which
+steps of a pipeline cost the most time.
+
+* **The ranking** lists every step with the time it spent over the latest runs, the most expensive
+  first. You choose how many runs it covers: the last run, or the last 10, 20 or 50.
+* **The figures above it** add everything up: the total execution time, how many steps reused an
+  earlier result instead of computing it, and roughly how much time that saved.
+* **The detail view** opens on the most expensive step. Pick another step from its list, or click its
+  bar. It shows how many times the step ran, how many of those were reused or failed, the mean,
+  median, 95th percentile and slowest time, how its durations are spread, and what it cost in each
+  run.
+
+The same total appears under the name of each step on the canvas, with the share of its executions
+that were reused.
+
+The times are what each step spent on its own work, added up over every file. They are not
+wall-clock time: a pipeline that processes several files at once finishes sooner than the sum of
+its steps.
+
+When you inspect a run, a step that reused a stored result instead of computing it is marked
+*Reused*.
+
 == Live Progress (WebSocket)
 
 While a run executes, the engine emits structured tracking events which the UI consumes live:

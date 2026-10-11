@@ -247,7 +247,7 @@ public class LoomOpenAPI {
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(
-			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
 				deps, examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));

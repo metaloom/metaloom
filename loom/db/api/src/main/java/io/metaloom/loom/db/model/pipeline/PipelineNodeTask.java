@@ -102,6 +102,14 @@ public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
 
 	PipelineNodeTask setDurationMs(Long durationMs);
 
+	/**
+	 * Where the result came from: {@code COMPUTED}, or {@code LOCAL}/{@code REMOTE} when it was reused instead of computed (V2.117). Null for rows
+	 * written before the column existed and for rows that carry no execution; read it as {@code COMPUTED}.
+	 */
+	String getOrigin();
+
+	PipelineNodeTask setOrigin(String origin);
+
 	String getErrorMessage();
 
 	PipelineNodeTask setErrorMessage(String errorMessage);

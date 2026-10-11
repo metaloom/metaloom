@@ -69,6 +69,18 @@ class PipelineListResponse(ListResponse):
 
 
 @dataclass
+class PipelineNodeDurationBucket(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeDurationBucket``."""
+
+    #: Lower bound in milliseconds, inclusive.
+    from_ms: int = 0
+    #: Upper bound in milliseconds, exclusive.
+    to_ms: int = 0
+    #: Computed executions in this range.
+    count: int = 0
+
+
+@dataclass
 class PipelineNodeReExecuteRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest``."""
 
@@ -92,6 +104,58 @@ class PipelineNodeReExecuteResponse(Model):
     node_id: str | None = None
     #: The settings the node is now running with, the pipeline's own merged with the run-scoped override.
     options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PipelineNodeRunTotal(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeRunTotal``."""
+
+    #: The run.
+    run_uuid: str | None = None
+    #: Settled executions of the node in this run.
+    tasks: int = 0
+    #: Executions that reused a result instead of computing it.
+    reused: int = 0
+    #: Summed execution time of the node in this run, in milliseconds.
+    total_duration_ms: int = 0
+
+
+@dataclass
+class PipelineNodeStatsResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsResponse``."""
+
+    #: The pipeline.
+    pipeline_uuid: str | None = None
+    #: How many runs the figures cover.
+    run_count: int = 0
+    #: Settled node executions across all nodes.
+    tasks: int = 0
+    #: Executions that reused a stored result.
+    reused: int = 0
+    #: Summed execution time of all nodes, in milliseconds.
+    total_duration_ms: int = 0
+    #: Estimated time reuse saved across all nodes, in milliseconds.
+    estimated_saved_ms: int = 0
+    #: The runs covered, newest first.
+    runs: list[PipelineNodeStatsRun] = field(default_factory=list)
+    #: Per-node figures, most expensive first.
+    nodes: list[PipelineNodeTimeStats] = field(default_factory=list)
+
+
+@dataclass
+class PipelineNodeStatsRun(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeStatsRun``."""
+
+    #: The run.
+    uuid: str | None = None
+    #: The run status.
+    status: str | None = None
+    #: When the run started, epoch milliseconds.
+    started: int | None = None
+    #: Wall-clock duration of the run, in milliseconds.
+    duration_ms: int | None = None
+    #: The pipeline version the run executed.
+    pipeline_version: int = 0
 
 
 @dataclass
@@ -137,6 +201,9 @@ class PipelineNodeTaskRecord(Model):
     finished: float | None = None
     #: Execution duration in milliseconds, null while unsettled.
     duration_ms: int | None = None
+    #: Where the result came from: COMPUTED, or LOCAL/REMOTE when the node reused a result instead of
+    #: computing it. Null reads as COMPUTED.
+    origin: str | None = None
     #: Error message if the execution failed.
     error_message: str | None = None
     #: Outputs keyed by output port id; each value is a PortPayload {contentType, cardinality, elements}.
@@ -144,6 +211,46 @@ class PipelineNodeTaskRecord(Model):
     #: Preview metadata keyed by output port id: {mimeType, width, height, url} or {skippedReason}. Bytes are
     #: fetched from the url.
     previews: dict[str, Any] | None = None
+
+
+@dataclass
+class PipelineNodeTimeStats(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeTimeStats``."""
+
+    #: The graph-local node id.
+    node_id: str | None = None
+    #: The node kind.
+    node_kind: str | None = None
+    #: Settled executions.
+    tasks: int = 0
+    #: Completed executions that did the work.
+    computed: int = 0
+    #: Completed executions that reused a stored result instead of computing.
+    reused: int = 0
+    #: Failed executions.
+    failed: int = 0
+    #: Skipped executions.
+    skipped: int = 0
+    #: Summed execution time of every settled execution, in milliseconds.
+    total_duration_ms: int = 0
+    #: Summed execution time of the computed executions, in milliseconds.
+    computed_duration_ms: int = 0
+    #: Mean duration of a computed execution; null without any.
+    avg_duration_ms: int | None = None
+    #: Median duration of a computed execution; null without any.
+    p50_duration_ms: int | None = None
+    #: 95th percentile duration of a computed execution; null without any.
+    p95_duration_ms: int | None = None
+    #: Slowest computed execution; null without any.
+    max_duration_ms: int | None = None
+    #: Time reuse saved: reused executions times the mean computed duration. An estimate.
+    estimated_saved_ms: int = 0
+    #: This node's fraction of the total execution time of all nodes, 0 to 1.
+    share: float = 0.0
+    #: Distribution of computed durations in power-of-two buckets.
+    histogram: list[PipelineNodeDurationBucket] = field(default_factory=list)
+    #: The node's time per run, newest run first.
+    runs: list[PipelineNodeRunTotal] = field(default_factory=list)
 
 
 @dataclass

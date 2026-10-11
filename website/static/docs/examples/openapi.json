@@ -7378,6 +7378,523 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/node-outputs" : {
+      "description" : "Store (upsert) what a node emitted for an asset, for reuse by later runs",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List the stored node outputs of an asset, optionally for one ?nodeKind=",
+        "description" : "List the stored node outputs of an asset, optionally for one ?nodeKind=",
+        "operationId" : "getAssetsByUuidNodeoutputs",
+        "responses" : {
+          "200" : {
+            "description" : "The stored node outputs of an asset",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "nodeKind" : "whisper",
+                    "reuseKey" : "9f2c1e7a4b3d58c0e6a1f4d2b7c9e0a3158d6f2b4c7e9a0d3f5b8c1e2a4d6f70",
+                    "nodeId" : "transcribe",
+                    "producerVersion" : "ggml-base",
+                    "state" : "SUCCESS",
+                    "outputs" : {
+                      "transcript" : {
+                        "contentType" : "text/transcript",
+                        "cardinality" : "ONE",
+                        "values" : [ "{\"segments\":[{\"from\":0,\"to\":2400,\"text\":\"Hello and welcome.\"}]}" ]
+                      }
+                    },
+                    "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "created" : "2026-10-11T09:30:00Z",
+                    "edited" : "2026-10-11T09:30:00Z"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Store (upsert) what a node emitted for an asset, for reuse by later runs",
+        "description" : "Store (upsert) what a node emitted for an asset, for reuse by later runs",
+        "operationId" : "postAssetsByUuidNodeoutputs",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "nodeKind" : "whisper",
+                "reuseKey" : "9f2c1e7a4b3d58c0e6a1f4d2b7c9e0a3158d6f2b4c7e9a0d3f5b8c1e2a4d6f70",
+                "nodeId" : "transcribe",
+                "producerVersion" : "ggml-base",
+                "state" : "SUCCESS",
+                "outputs" : {
+                  "transcript" : {
+                    "contentType" : "text/transcript",
+                    "cardinality" : "ONE",
+                    "values" : [ "{\"segments\":[{\"from\":0,\"to\":2400,\"text\":\"Hello and welcome.\"}]}" ]
+                  }
+                },
+                "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The stored node output",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "nodeKind" : "whisper",
+                  "reuseKey" : "9f2c1e7a4b3d58c0e6a1f4d2b7c9e0a3158d6f2b4c7e9a0d3f5b8c1e2a4d6f70",
+                  "nodeId" : "transcribe",
+                  "producerVersion" : "ggml-base",
+                  "state" : "SUCCESS",
+                  "outputs" : {
+                    "transcript" : {
+                      "contentType" : "text/transcript",
+                      "cardinality" : "ONE",
+                      "values" : [ "{\"segments\":[{\"from\":0,\"to\":2400,\"text\":\"Hello and welcome.\"}]}" ]
+                    }
+                  },
+                  "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "created" : "2026-10-11T09:30:00Z",
+                  "edited" : "2026-10-11T09:30:00Z"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "assets" ],
+        "summary" : "Forget the stored node outputs of an asset, optionally for one ?nodeKind=, so those nodes compute again",
+        "description" : "Forget the stored node outputs of an asset, optionally for one ?nodeKind=, so those nodes compute again",
+        "operationId" : "deleteAssetsByUuidNodeoutputs",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/node-outputs/{nodeKind}/{reuseKey}" : {
+      "description" : "Look up a stored node output by node kind and reuse key, together with the asset",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Look up a stored node output by node kind and reuse key, together with the asset",
+        "description" : "Look up a stored node output by node kind and reuse key, together with the asset",
+        "operationId" : "getAssetsByUuidNodeoutputsByNodeKindByReuseKey",
+        "responses" : {
+          "200" : {
+            "description" : "The asset and, on a hit, the stored output",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "asset" : {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  },
+                  "output" : {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "nodeKind" : "whisper",
+                    "reuseKey" : "9f2c1e7a4b3d58c0e6a1f4d2b7c9e0a3158d6f2b4c7e9a0d3f5b8c1e2a4d6f70",
+                    "nodeId" : "transcribe",
+                    "producerVersion" : "ggml-base",
+                    "state" : "SUCCESS",
+                    "outputs" : {
+                      "transcript" : {
+                        "contentType" : "text/transcript",
+                        "cardinality" : "ONE",
+                        "values" : [ "{\"segments\":[{\"from\":0,\"to\":2400,\"text\":\"Hello and welcome.\"}]}" ]
+                      }
+                    },
+                    "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "created" : "2026-10-11T09:30:00Z",
+                    "edited" : "2026-10-11T09:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "nodeKind",
+        "in" : "path",
+        "description" : "UUID of the referenced nodeKind",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "reuseKey",
+        "in" : "path",
+        "description" : "UUID of the referenced reuseKey",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/node-results" : {
       "description" : "Record (upsert) a node processing result for an asset",
       "get" : {
@@ -11778,6 +12295,254 @@
         "required" : true,
         "schema" : {
           "pattern" : "^[a-fA-F0-9]{128}$",
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/assets/sha512/{sha512}/node-outputs/{nodeKind}/{reuseKey}" : {
+      "description" : "Look up a stored node output by SHA-512 hash, node kind and reuse key, together with the asset",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Look up a stored node output by SHA-512 hash, node kind and reuse key, together with the asset",
+        "description" : "Look up a stored node output by SHA-512 hash, node kind and reuse key, together with the asset",
+        "operationId" : "getAssetsSha512BySha512NodeoutputsByNodeKindByReuseKey",
+        "responses" : {
+          "200" : {
+            "description" : "The asset and, on a hit, the stored output",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "asset" : {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  },
+                  "output" : {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "nodeKind" : "whisper",
+                    "reuseKey" : "9f2c1e7a4b3d58c0e6a1f4d2b7c9e0a3158d6f2b4c7e9a0d3f5b8c1e2a4d6f70",
+                    "nodeId" : "transcribe",
+                    "producerVersion" : "ggml-base",
+                    "state" : "SUCCESS",
+                    "outputs" : {
+                      "transcript" : {
+                        "contentType" : "text/transcript",
+                        "cardinality" : "ONE",
+                        "values" : [ "{\"segments\":[{\"from\":0,\"to\":2400,\"text\":\"Hello and welcome.\"}]}" ]
+                      }
+                    },
+                    "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "created" : "2026-10-11T09:30:00Z",
+                    "edited" : "2026-10-11T09:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "sha512",
+        "in" : "path",
+        "description" : "SHA-512 hash of the asset binary",
+        "required" : true,
+        "schema" : {
+          "pattern" : "^[a-fA-F0-9]{128}$",
+          "type" : "string"
+        }
+      }, {
+        "name" : "nodeKind",
+        "in" : "path",
+        "description" : "UUID of the referenced nodeKind",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "reuseKey",
+        "in" : "path",
+        "description" : "UUID of the referenced reuseKey",
+        "required" : true,
+        "schema" : {
           "type" : "string"
         }
       } ]
@@ -27306,6 +28071,162 @@
         }
       } ]
     },
+    "/api/v1/pipelines/{uuid}/node-stats" : {
+      "description" : "Load per-node execution time, reuse and duration distribution, accumulated over the latest runs or for one run",
+      "get" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Load per-node execution time, reuse and duration distribution, accumulated over the latest runs or for one run",
+        "description" : "Load per-node execution time, reuse and duration distribution, accumulated over the latest runs or for one run",
+        "operationId" : "getPipelinesByUuidNodestats",
+        "responses" : {
+          "200" : {
+            "description" : "Where the pipeline's execution time goes, per node",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "pipelineUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "runCount" : 1,
+                  "tasks" : 24,
+                  "reused" : 3,
+                  "totalDurationMs" : 192750,
+                  "estimatedSavedMs" : 60400,
+                  "runs" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : "COMPLETED",
+                    "started" : 1760172600000,
+                    "durationMs" : 95000,
+                    "pipelineVersion" : 3
+                  } ],
+                  "nodes" : [ {
+                    "nodeId" : "transcribe",
+                    "nodeKind" : "whisper",
+                    "tasks" : 12,
+                    "computed" : 9,
+                    "reused" : 3,
+                    "failed" : 0,
+                    "skipped" : 0,
+                    "totalDurationMs" : 181230,
+                    "computedDurationMs" : 181200,
+                    "avgDurationMs" : 20133,
+                    "p50DurationMs" : 18400,
+                    "p95DurationMs" : 41000,
+                    "maxDurationMs" : 43120,
+                    "estimatedSavedMs" : 60400,
+                    "share" : 0.94,
+                    "histogram" : [ {
+                      "fromMs" : 16384,
+                      "toMs" : 32768,
+                      "count" : 7
+                    }, {
+                      "fromMs" : 32768,
+                      "toMs" : 65536,
+                      "count" : 2
+                    } ],
+                    "runs" : [ {
+                      "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "tasks" : 12,
+                      "reused" : 3,
+                      "totalDurationMs" : 181230
+                    } ]
+                  }, {
+                    "nodeId" : "hash",
+                    "nodeKind" : "sha512",
+                    "tasks" : 12,
+                    "computed" : 12,
+                    "reused" : 0,
+                    "failed" : 0,
+                    "skipped" : 0,
+                    "totalDurationMs" : 11520,
+                    "computedDurationMs" : 11520,
+                    "avgDurationMs" : 960,
+                    "p50DurationMs" : 910,
+                    "p95DurationMs" : 1700,
+                    "maxDurationMs" : 1840,
+                    "estimatedSavedMs" : 0,
+                    "share" : 0.06,
+                    "histogram" : [ {
+                      "fromMs" : 512,
+                      "toMs" : 1024,
+                      "count" : 8
+                    }, {
+                      "fromMs" : 1024,
+                      "toMs" : 2048,
+                      "count" : 4
+                    } ],
+                    "runs" : [ {
+                      "runUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "tasks" : 12,
+                      "reused" : 0,
+                      "totalDurationMs" : 11520
+                    } ]
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/pipelines/{uuid}/run" : {
       "description" : "Trigger execution of a pipeline",
       "post" : {
@@ -28181,6 +29102,7 @@
                     "attempt" : 1,
                     "maxAttempts" : 3,
                     "durationMs" : 42,
+                    "origin" : "COMPUTED",
                     "outputs" : {
                       "sha512" : {
                         "contentType" : "hash/sha512",

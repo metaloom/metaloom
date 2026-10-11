@@ -1,5 +1,31 @@
 # 1.0.0-SNAPSHOT
 
+* **New:** the pipeline editor shows where a pipeline's time goes. A *Performance* tab beside the
+  system log ranks the steps by execution time over the last 1, 10, 20 or 50 runs, adds up the total,
+  the reused executions and the estimated time saved, and drills into one step: mean, median, 95th
+  percentile, slowest, the spread of its durations and its cost per run. Each node card shows its
+  accumulated time and reused share, in debug mode or not. Backed by
+  `GET /api/v1/pipelines/:uuid/node-stats` (`READ_PIPELINE_RUN`).
+* **New:** a step that reused a result instead of computing it is marked *Reused* in the run view.
+  `pipeline_node_task` records where each result came from (`origin`, `V2.117`), and the task records
+  of `GET .../items/:itemUuid/tasks` carry it. The pipeline-level `reuseResults` adoption is recorded
+  as reused too.
+* **Behaviour change:** nodes no longer redo work they already did. Before a node processes a file
+  it asks Loom whether it produced a result for that file with the same settings and the same input
+  values, in any earlier run of any pipeline; if so it hands the stored result downstream and skips
+  the work. A pipeline that has seen its files before now runs in the time the lookups take.
+  * Every node that reuses has a new **Recompute** parameter. On, the node does the work again and
+    replaces the stored result. It can also be set as `recompute: true` on a pipeline node
+    definition.
+  * Nodes whose work is a side effect or depends on reviewer decisions always run: `move`, `assign`,
+    `s3-sink`, `filter`, `tag`, `scene-layout` and the dedup nodes.
+  * The lookup replaces the asset load a node already made, so a miss costs nothing extra. A reused
+    step records `REMOTE` as its origin in the asset's node results.
+  * Files processed before the upgrade have no stored result; their first run computes as before.
+* **New:** `asset_node_output` (`V2.116`) and `GET|POST|DELETE /api/v1/assets/:uuid/node-outputs`,
+  plus the lookup `GET /api/v1/assets/{uuid|sha512/:hash}/node-outputs/:nodeKind/:reuseKey`. Reads
+  need `READ_ASSET`, writes and deletes `UPDATE_ASSET`. `DELETE ...?nodeKind=whisper` forgets the
+  stored results of one kind of node for an asset without touching its transcript.
 * **New:** a storage report at `GET /api/v1/storage`, and the *Admin → Storage* screen over it. It
   answers "what is filling my disk, and how close am I to full": how many elements of each kind exist
   and what they occupy, how much of that is duplicate content the content-addressed store folded into

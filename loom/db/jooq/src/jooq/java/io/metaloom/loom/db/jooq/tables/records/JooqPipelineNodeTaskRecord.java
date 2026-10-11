@@ -389,6 +389,24 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         return (Integer) get(22);
     }
 
+    /**
+     * Setter for <code>public.pipeline_node_task.origin</code>. COMPUTED, LOCAL
+     * or REMOTE - mirrors ResultOrigin in the Cortex node API. LOCAL and REMOTE
+     * mean the result was reused rather than computed. NULL reads as COMPUTED.
+     */
+    public void setOrigin(String value) {
+        set(23, value);
+    }
+
+    /**
+     * Getter for <code>public.pipeline_node_task.origin</code>. COMPUTED, LOCAL
+     * or REMOTE - mirrors ResultOrigin in the Cortex node API. LOCAL and REMOTE
+     * mean the result was reused rather than computed. NULL reads as COMPUTED.
+     */
+    public String getOrigin() {
+        return (String) get(23);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -412,7 +430,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     /**
      * Create a detached, initialised JooqPipelineNodeTaskRecord
      */
-    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, NodeTaskState state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews, Integer generation) {
+    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, NodeTaskState state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews, Integer generation, String origin) {
         super(JooqPipelineNodeTask.PIPELINE_NODE_TASK);
 
         setUuid(uuid);
@@ -438,5 +456,6 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         setElementSeq(elementSeq);
         setPreviews(previews);
         setGeneration(generation);
+        setOrigin(origin);
     }
 }

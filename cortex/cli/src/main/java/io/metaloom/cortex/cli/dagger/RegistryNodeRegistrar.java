@@ -20,6 +20,7 @@ import io.metaloom.cortex.cloud.CloudProviderId;
 import io.metaloom.cortex.cloud.CloudSupport;
 import io.metaloom.cortex.cloud.CloudSupportRegistry;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.source.cloud.CloudDifferentialScanner;
 import io.metaloom.cortex.node.source.cloud.CloudFileIndexStore;
@@ -387,6 +388,12 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		// Validate timeout
 		if (timeoutMs < 0) {
 			throw new IllegalStateException("Node '" + id + "': timeoutMs must be non-negative, got " + timeoutMs);
+		}
+
+		// Every media node sees the definition for output reuse: the recompute flag lives there for nodes
+		// configured from the worker's YAML, and a configurable node's reuse key covers its definition.
+		if (wrapped instanceof AbstractMediaNode<?> mediaNode) {
+			mediaNode.useDefinition(nodeDef);
 		}
 
 		// Per-instance configuration. Opt-in: only nodes that declare PipelineConfigurable see the

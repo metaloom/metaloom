@@ -32,7 +32,9 @@ import io.metaloom.loom.nodes.spec.NodeMode;
 	// No source descriptor has ever advertised these two; they are media-processing knobs.
 	parameters = {
 		@ParamOverride(key = "processIncomplete", hidden = true),
-		@ParamOverride(key = "retryFailed", hidden = true) })
+		@ParamOverride(key = "retryFailed", hidden = true),
+		// A source enumerates; output reuse applies to the nodes it feeds, not to it.
+		@ParamOverride(key = "recompute", hidden = true) })
 public class GDriveSourceNode extends CloudSourceNode {
 
 	GDriveSourceNode(String id, CloudDifferentialScanner scanner, CloudMediaMaterializer materializer,

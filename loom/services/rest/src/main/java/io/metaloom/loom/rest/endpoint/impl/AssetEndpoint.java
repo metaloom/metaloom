@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.EmbeddingEndpointService;
 import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
+import io.metaloom.loom.rest.service.impl.NodeOutputEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
 import io.metaloom.loom.rest.service.impl.ClusterEndpointService;
 import io.metaloom.loom.rest.service.impl.CollectionEndpointService;
@@ -55,6 +56,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final EmbeddingEndpointService embeddingService;
 	private final TranscriptEndpointService transcriptService;
 	private final NodeResultEndpointService nodeResultService;
+	private final NodeOutputEndpointService nodeOutputService;
 	private final JsonCompEndpointService jsonCompService;
 	private final FingerprintCompEndpointService fingerprintService;
 	private final SegmentCompEndpointService segmentService;
@@ -79,6 +81,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		EmbeddingEndpointService embeddingService,
 		TranscriptEndpointService transcriptService,
 		NodeResultEndpointService nodeResultService,
+		NodeOutputEndpointService nodeOutputService,
 		JsonCompEndpointService jsonCompService,
 		FingerprintCompEndpointService fingerprintService,
 		SegmentCompEndpointService segmentService,
@@ -103,6 +106,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.embeddingService = embeddingService;
 		this.transcriptService = transcriptService;
 		this.nodeResultService = nodeResultService;
+		this.nodeOutputService = nodeOutputService;
 		this.jsonCompService = jsonCompService;
 		this.fingerprintService = fingerprintService;
 		this.segmentService = segmentService;
@@ -183,6 +187,16 @@ public class AssetEndpoint extends AbstractEndpoint {
 			});
 
 		// --- SHA-512 routes (literal prefix — registered before :uuid wildcard) ---
+
+		// A worker knows the hash of the file it holds, not the asset uuid - this is the form every reusing node calls.
+		addRoute(basePath() + "/sha512/:sha512/node-outputs/:nodeKind/:reuseKey", GET,
+			"Look up a stored node output by SHA-512 hash, node kind and reuse key, together with the asset",
+			null,
+			examples.nodeOutputLookupResponseExample(),
+			lrc -> {
+				SHA512 hash = SHA512.fromString(lrc.pathParam("sha512"));
+				nodeOutputService.lookup(lrc, AssetId.assetId(hash), lrc.pathParam("nodeKind"), lrc.pathParam("reuseKey"));
+			});
 
 		addRoute(basePath() + "/sha512/:sha512", GET,
 			"Load an asset by SHA-512 hash",
@@ -594,6 +608,40 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				nodeResultService.deleteAssetNodeResult(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("nodeResultUuid"));
+			});
+
+		// --- NODE OUTPUT REUSE (asset_node_output, UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/node-outputs", POST,
+			"Store (upsert) what a node emitted for an asset, for reuse by later runs",
+			examples.nodeOutputCreateRequestExample(),
+			examples.nodeOutputResponseExample(),
+			lrc -> {
+				nodeOutputService.createAssetNodeOutput(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-outputs", GET,
+			"List the stored node outputs of an asset, optionally for one ?nodeKind=",
+			null,
+			examples.nodeOutputListResponseExample(),
+			lrc -> {
+				nodeOutputService.listAssetNodeOutputs(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-outputs", DELETE,
+			"Forget the stored node outputs of an asset, optionally for one ?nodeKind=, so those nodes compute again",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				nodeOutputService.deleteAssetNodeOutputs(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-outputs/:nodeKind/:reuseKey", GET,
+			"Look up a stored node output by node kind and reuse key, together with the asset",
+			null,
+			examples.nodeOutputLookupResponseExample(),
+			lrc -> {
+				nodeOutputService.lookup(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParam("nodeKind"), lrc.pathParam("reuseKey"));
 			});
 
 		// --- GENERIC JSON COMPONENT (asset_json_comp, UUID-based sub-resource) ---
