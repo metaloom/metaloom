@@ -29,7 +29,8 @@ public interface TokenExamples extends ExampleValues, UserExamples {
 		TokenResponse response = new TokenResponse();
 		response.setMeta(meta());
 		response.setName("Primary Token");
-		response.setToken(StringUtils.randomHumanString(8));
+		// Fixed, not StringUtils.randomHumanString(8): examples are rendered into the committed OpenAPI files and must not change per build.
+		response.setToken("k7m2qx9d");
 		response.setUuid(uuidC());
 		setCreatorEditor(response);
 		return response;

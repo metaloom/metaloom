@@ -14,6 +14,26 @@ import io.vertx.core.json.JsonObject;
 
 public interface PipelineExamples extends ExampleValues {
 
+	// Fixed identities and times - never random or "now": the examples are rendered into the committed openapi.json/yaml, and a value that
+	// changes on every generation turns each regeneration into a diff of every pipeline example. They also agree with each other - the run
+	// record's uuid is the runUuid its item and task point at, and it belongs to the example pipeline (uuidC).
+
+	/** Version 1 of the example pipeline. */
+	UUID PIPELINE_VERSION_1_UUID = UUID.fromString("0a3f7c12-5b8e-4d21-9f64-2c7e1b9d4a01");
+
+	/** Version 2, the one a version listing or a restore answers with. */
+	UUID PIPELINE_VERSION_2_UUID = UUID.fromString("0a3f7c12-5b8e-4d21-9f64-2c7e1b9d4a02");
+
+	UUID PIPELINE_RUN_UUID = UUID.fromString("6c1d2e3f-4a5b-4c6d-8e7f-90a1b2c3d4e5");
+
+	UUID PIPELINE_RUN_ITEM_UUID = UUID.fromString("7d2e3f4a-5b6c-4d7e-9f80-a1b2c3d4e5f6");
+
+	UUID PIPELINE_NODE_TASK_UUID = UUID.fromString("8e3f4a5b-6c7d-4e8f-a091-b2c3d4e5f607");
+
+	String PIPELINE_RUN_STARTED = "2026-01-15T10:00:00Z";
+
+	String PIPELINE_RUN_FINISHED = "2026-01-15T10:03:12Z";
+
 	default Example pipelineUpdateRequestExample() {
 		return new ExampleImpl(pipelineUpdateRequest(), "The pipeline update request", HttpResponseStatus.OK);
 	}
@@ -171,7 +191,7 @@ public interface PipelineExamples extends ExampleValues {
 	default PipelineResponse pipelineResponse() {
 		PipelineResponse model = new PipelineResponse();
 		model.setUuid(uuidC());
-		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionUuid(PIPELINE_VERSION_1_UUID);
 		model.setVersionNumber(1);
 		model.setName("my-pipeline");
 		model.setDescription("A sample pipeline");
@@ -223,7 +243,7 @@ public interface PipelineExamples extends ExampleValues {
 
 	default PipelineRunResponse pipelineRunResponse() {
 		PipelineRunResponse model = new PipelineRunResponse();
-		model.setRunUuid(UUID.randomUUID());
+		model.setRunUuid(PIPELINE_RUN_UUID);
 		model.setProcessorNodeId("cortex-01");
 		model.setDispatched(true);
 		model.setMessage("Pipeline run dispatched");
@@ -242,11 +262,11 @@ public interface PipelineExamples extends ExampleValues {
 
 	default PipelineRunRecord pipelineRunRecord() {
 		PipelineRunRecord model = new PipelineRunRecord();
-		model.setUuid(UUID.randomUUID());
-		model.setPipelineUuid(UUID.randomUUID());
+		model.setUuid(PIPELINE_RUN_UUID);
+		model.setPipelineUuid(uuidC());
 		model.setPipelineVersion(1);
-		model.setStarted(java.time.Instant.now().toString());
-		model.setFinished(java.time.Instant.now().toString());
+		model.setStarted(PIPELINE_RUN_STARTED);
+		model.setFinished(PIPELINE_RUN_FINISHED);
 		model.setStatus(PipelineRunStatus.SUCCESS);
 		model.setMediaCount(100);
 		model.setSuccessCount(95);
@@ -286,8 +306,8 @@ public interface PipelineExamples extends ExampleValues {
 
 	default PipelineRunItemRecord pipelineRunItemRecord() {
 		PipelineRunItemRecord model = new PipelineRunItemRecord();
-		model.setUuid(UUID.randomUUID());
-		model.setRunUuid(UUID.randomUUID());
+		model.setUuid(PIPELINE_RUN_ITEM_UUID);
+		model.setRunUuid(PIPELINE_RUN_UUID);
 		model.setItemSeq(1);
 		model.setMediaPath("/media/example.mp4");
 		model.setSha512("0f8ef1c9...");
@@ -307,9 +327,9 @@ public interface PipelineExamples extends ExampleValues {
 
 	default PipelineNodeTaskRecord pipelineNodeTaskRecord() {
 		PipelineNodeTaskRecord model = new PipelineNodeTaskRecord();
-		model.setUuid(UUID.randomUUID());
-		model.setItemUuid(UUID.randomUUID());
-		model.setRunUuid(UUID.randomUUID());
+		model.setUuid(PIPELINE_NODE_TASK_UUID);
+		model.setItemUuid(PIPELINE_RUN_ITEM_UUID);
+		model.setRunUuid(PIPELINE_RUN_UUID);
 		model.setNodeId("pn2");
 		model.setNodeKind("sha512");
 		model.setElementSeq(0);
@@ -337,7 +357,7 @@ public interface PipelineExamples extends ExampleValues {
 	 */
 	default PipelineResponse pipelineVersionResponse() {
 		PipelineResponse model = pipelineResponse();
-		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionUuid(PIPELINE_VERSION_2_UUID);
 		model.setVersionNumber(2);
 		return model;
 	}
@@ -364,7 +384,7 @@ public interface PipelineExamples extends ExampleValues {
 		PipelineResponse model = pipelineResponse();
 		model.setName("restored-pipeline");
 		model.setDescription("Restored from version 1");
-		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionUuid(PIPELINE_VERSION_2_UUID);
 		model.setVersionNumber(2);
 		return model;
 	}

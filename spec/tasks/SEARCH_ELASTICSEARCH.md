@@ -218,8 +218,9 @@ land without reindexing the corpus.
 4. Add the LOOM_SEARCH_ES_* options to SearchOptions with validation, and regenerate
    loom/doc/src/main/generated/loom-config.yaml by running
    `mvn -o exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator` FROM INSIDE loom/doc. That
-   run also rewrites the OpenAPI files, which churn on random example UUIDs — revert that noise rather
-   than committing it.
+   run also rewrites the OpenAPI files; since 2026-10-11 the examples are fixed values
+   (`ModelExamplesDeterminismTest` guards it), so any diff there is a real API change and belongs in
+   the commit.
 ```
 
 **References:** [SEARCH.md](../features/search/SEARCH.md) §3, §4, §5, §7 · Task 11 (the client decision)
