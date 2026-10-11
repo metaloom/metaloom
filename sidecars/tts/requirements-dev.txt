@@ -1,0 +1,7 @@
+# Test-only dependencies. The suite in tests/ mocks every engine, so it needs NONE of torch,
+# transformers, snac, chatterbox or kokoro-onnx — only the HTTP and audio layers. That is
+# deliberate: the request contract, the chunking, the containers and the whole audio chain stay
+# checkable on a laptop with no GPU.
+#
+#   .venv/bin/python -m pytest tests -q
+pytest>=8.0

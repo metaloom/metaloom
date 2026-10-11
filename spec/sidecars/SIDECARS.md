@@ -14,7 +14,7 @@ facts that are only visible when you look at all of them at once.
 
 | Sidecar | Port | Spec | Calling node (kind) | Purpose |
 |---|---|---|---|---|
-| `sidecars/tts` | 9100 | [TTS_SIDECAR.md](TTS_SIDECAR.md) | `TtsNode` (`tts`) | Orpheus (DE) / Kokoro (EN) speech synthesis |
+| `sidecars/tts` | 9100 | [TTS_SIDECAR.md](TTS_SIDECAR.md) | `TtsNode` (`tts`) | Speech synthesis with an engine registry: Orpheus/Kartoffel or Kartoffelbox (DE, switchable per process), Kokoro (EN). WAV or MP3, streaming, chunking and an audio/post-production chain. 166 Python tests |
 | `sidecars/sentiment` | 9110 | [SENTIMENT_SIDECAR.md](SENTIMENT_SIDECAR.md) | `SentimentNode` (`sentiment`) | DE/EN/multilingual 3-class sentiment |
 | `sidecars/depth` | 9120 | [DEPTH_SIDECAR.md](DEPTH_SIDECAR.md) | `DepthmapNode` (`depthmap`) | Monocular depth → 16-bit NEARNESS map |
 | `sidecars/sam2` | 9130 | *(none — see [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md))* | `Sam2Node` (`sam2`) | SAM 2 segmentation, prompted cut-outs, video tracking |
@@ -82,7 +82,7 @@ unreachable. The sidecars hold no Loom state and never call back.
 | **Container image** | 🟡 `ideogram-sidecar`, `mage-flow-sidecar`, `ltx2-sidecar`, `qwen-image-sidecar`, `asr`, `voiceprint` ship a `Dockerfile` (`asr` and `voiceprint` also a `container.sh` for docker or podman); `llamacpp` uses **upstream's official image**. `depth`, `sentiment`, `tts` have **no** container build at all |
 | **Container runtime** | 🟡 Only `llamacpp` runs under both **docker and podman**; the three with a Dockerfile assume docker |
 | **Start path** | Manual `setup.sh` then `run.sh` (except `ideogram-sidecar`, which has neither — see its spec). Only `llamacpp`'s `run.sh` **blocks until healthy**; the rest return immediately |
-| **Python tests** | 🟡 `qwen-image-sidecar`: 32 (mask arithmetic + routes, model stubbed). `asr`: 36 unit/contract tests plus 20 live tests against the running container with the real models. Every other sidecar has none |
+| **Python tests** | 🟡 `tts`: 166 (request contract, chunking, containers, the audio and post-production chain, the engine registry — every engine mocked). `qwen-image-sidecar`: 32 (mask arithmetic + routes, model stubbed). `asr`: 36 unit/contract tests plus 20 live tests against the running container with the real models. Every other sidecar has none |
 | **Java-side tests** | All stub the client. No test in the repo exercises a live sidecar over the wire |
 | **Live bring-up observed** | 🟡 `llamacpp` (chat completion + tool call) and `asr` (all three backends, HTTP and realtime, via its live tests) on this checkout. The others have never been started here |
 | **Auth** | 🔴 None. Every sidecar binds `0.0.0.0` with no token, no TLS, no allow-list |
@@ -97,14 +97,16 @@ Each sidecar's own spec has the authoritative table. Two cross-cutting hazards:
 
 | Variable | Read by | Hazard |
 |---|---|---|
-| `DEVICE` | `depth`, `sentiment`, `tts` | 🔴 **Unprefixed and shared.** One export changes three sidecars. The three also differ subtly on empty-string handling (`or`-default vs. argument default) |
-| `<NAME>_PORT` | `depth`, `sentiment`, `tts`, `ltx2`, `mage-flow` | Read by `run.sh` **only** — the Python never reads it. Launching `server.py` directly ignores it and binds the hardcoded default |
+| `DEVICE` | `depth`, `sentiment` | 🔴 **Unprefixed and shared.** One export changes both sidecars, and they differ subtly on empty-string handling (`or`-default vs. argument default). `tts` was namespaced to `TTS_DEVICE` on 2026-10-11 and still honours `DEVICE` as a fallback — copy that shape |
+| `<NAME>_PORT` | `depth`, `sentiment`, `ltx2`, `mage-flow` | Read by `run.sh` **only** — the Python never reads it. Launching `server.py` directly ignores it and binds the hardcoded default. `tts` and `asr` read it in Python, so their `run.sh` and `server.py` cannot disagree |
 
 `ideogram-sidecar` has no host/port variable at all; its port exists only in the uvicorn command
 line.
 
 `llamacpp` avoids both hazards: every variable is `LLAMACPP_`-prefixed, and there is no `server.py`
-to disagree with `run.sh` about the port. Copy that pattern when namespacing the other six.
+to disagree with `run.sh` about the port. `tts` closed both for itself the other way round — Python
+reads `TTS_HOST`/`TTS_PORT`, and `TTS_DEVICE` is namespaced with `DEVICE` kept as a fallback so an
+existing deployment keeps working. Copy either pattern for the rest.
 
 ## Conventions and Gotchas
 
@@ -188,13 +190,16 @@ needs no such test (the schema is upstream's), but nothing starts it either.
 - [x] `llm`/`translate` have an in-repo backend (`sidecars/llamacpp`), runnable under docker or
       podman and verified live
 - [ ] 🔴 No sidecar is deployable: no Helm chart, no compose file, and three have no `Dockerfile`
-- [ ] 🔴 No Python tests anywhere; no test starts any sidecar, including `llamacpp`
+- [ ] 🔴 No test starts any sidecar, including `llamacpp`; `tts`, `asr` and `qwen-image-sidecar` do
+      have Python suites of their own, the rest have none
 - [ ] 🔴 No authentication on any sidecar despite binding `0.0.0.0` — worst on `llamacpp`, which
       exposes a general-purpose LLM with tool calling and whose Java client cannot send a token
 - [ ] 🔴 `FacedescriptionNode.URL` hardcodes `llamacpp`'s port but needs a vision model — make it an
       option
-- [ ] 🟡 `DEVICE` is unprefixed and shared across three sidecars — namespace it, as `llamacpp` does
-- [ ] 🟡 `<NAME>_PORT` is honoured by `run.sh` but ignored by `server.py` — read it in Python
+- [ ] 🟡 `DEVICE` is unprefixed and shared across `depth` and `sentiment` — namespace it, as
+      `llamacpp` and now `tts` do
+- [ ] 🟡 `<NAME>_PORT` is honoured by `run.sh` but ignored by `server.py` in four sidecars — read it
+      in Python, as `tts` and `asr` do
 - [ ] 🟡 `ideogram-sidecar` has no `setup.sh`/`run.sh` and no host/port variable
 - [ ] 🟡 `sidecars/README.md` contradicts the verified per-sidecar findings — reconcile it
 - [ ] 🟡 The six older per-sidecar specs still link to the renamed `../features/pipeline-nodes/`
@@ -205,5 +210,8 @@ needs no such test (the schema is upstream's), but nothing starts it either.
 
 ---
 
-_Git HEAD revision: `3da90863`_
-_Last updated: 2026-10-10 (added `sidecars/voiceprint` on :9150 — speaker embeddings, three backends, container, live-tested; the first sidecar since `sentiment` with a calling node from day one. Earlier: 2026-09-24 (added `sidecars/asr` on :9140 — Whisper/Parakeet/Voxtral with time codes, container, live-tested. Earlier: 2026-08-04 added `sidecars/llamacpp`)_
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (`sidecars/tts` rebuilt as a package with an engine registry: a second
+German engine (Kartoffelbox), the audio and post-production chain, streaming, MP3, 166 Python tests,
+and `TTS_PORT`/`TTS_DEVICE` read by Python — two of the cross-cutting hazards above closed for it.
+Earlier: 2026-10-10 (added `sidecars/voiceprint` on :9150 — speaker embeddings, three backends, container, live-tested; the first sidecar since `sentiment` with a calling node from day one. Earlier: 2026-09-24 (added `sidecars/asr` on :9140 — Whisper/Parakeet/Voxtral with time codes, container, live-tested. Earlier: 2026-08-04 added `sidecars/llamacpp`))_

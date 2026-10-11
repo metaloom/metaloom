@@ -1,0 +1,49 @@
+# Kartoffelbox (German engine B) — install ONLY when TTS_ENGINE_DE=kartoffelbox is wanted.
+#
+#   pip install --no-deps chatterbox-tts==0.1.7
+#   pip install -r requirements-kartoffelbox.txt
+#
+# Why --no-deps. chatterbox-tts declares `torch==2.6.0`, `torchaudio==2.6.0` and
+# `transformers==5.2.0` as EXACT pins and pulls `gradio==6.8.0`. Installing those pins would
+# downgrade the torch `requirements.txt` installed, underneath the Orpheus engine, and drag a
+# web-UI stack into a server that has no UI. So the package goes
+# in without its dependency graph and the parts it actually imports are listed here.
+#
+# This list is tied to chatterbox-tts==0.1.7 — bump one and re-derive the other. It was
+# derived from the module-level imports reachable from `chatterbox/__init__.py`, which
+# imports tts, vc AND mtl_tts, so it is wider than `ChatterboxTTS` alone would need.
+#
+# Deliberately ABSENT, and each for a reason:
+#   torch / torchaudio / transformers — supplied by requirements.txt / setup.sh.
+#     torchaudio must match the installed torch, so it is NOT pinned to 2.6 here.
+#   gradio        — the upstream demo app only; not imported anywhere under chatterbox/.
+#   pykakasi, spacy-pkuseg — Japanese/Chinese text normalisation, imported lazily inside
+#     functions behind try/except ImportError, and unreachable on a German-only path.
+#   pyloudnorm    — used only by tts_turbo, which __init__ does not import.
+
+# --- pinned, because the API moved ---
+# `s3gen/matcha/transformer.py` imports `diffusers.models.lora.LoRACompatibleLinear` and
+# activation classes from `diffusers.models.attention`. Both were removed/relocated after
+# 0.29, so this is a hard pin, not caution. It uses a handful of layer classes; no pipeline.
+diffusers==0.29.0
+conformer==0.3.2
+librosa==0.11.0
+
+# --- the rest ---
+s3tokenizer
+resemble-perth
+safetensors
+omegaconf
+einops
+
+# Transitive, and NOT declared by chatterbox-tts itself — they normally arrive via librosa
+# and transformers. With --no-deps they have to be named, or the import fails at runtime.
+scipy
+tqdm
+huggingface_hub
+tokenizers
+# s3tokenizer imports `onnx` at module level (for onnx2torch).
+onnx
+# resemble-perth does `from pkg_resources import resource_filename` at import time, which
+# is setuptools. Recent Python images no longer ship it by default.
+setuptools

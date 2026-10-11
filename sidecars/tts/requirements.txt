@@ -5,10 +5,24 @@ pydantic>=2.7
 httpx>=0.27
 numpy>=1.26
 soundfile>=0.13
+# scipy carries the look-ahead limiter (ndimage) and the phase-dispersion all-pass (signal).
+# Both are part of the audio chain, not optional extras, so it is named here rather than left to
+# arrive transitively through librosa.
+scipy>=1.11
+# The post-production chain (TTS_POSTFX, off by default): JUCE biquads and BS.1770 loudness.
+# Both are small wheels and are imported only when a mode other than `off` is set.
+pedalboard>=0.9
+pyloudnorm>=0.1.1
+# Not ours directly: huggingface_hub >= 2 downloads through httpx2, which advertises
+# `Accept-Encoding: br` whenever ANY brotli is importable and then calls
+# `Decompressor.process(..., output_buffer_limit=...)` — a keyword brotli only has since 1.2.0.
+# A conda-provided brotli 1.1.0 made every model download that a CDN edge answered
+# brotli-compressed die with "process() takes no keyword arguments".
+brotli>=1.2.0
 
-# German — Orpheus/Kartoffel + SNAC decode (transformers backend). With
-# ORPHEUS_BACKEND=vllm the LM runs on a separate vLLM/llama.cpp server and only
-# snac + torch are needed here for the decode step.
+# German engine A — Orpheus/Kartoffel + SNAC decode (transformers backend). With
+# ORPHEUS_BACKEND=vllm the LM runs on a separate vLLM/llama.cpp server and only snac + torch are
+# needed here for the decode step.
 transformers>=4.50
 torch>=2.6
 snac>=1.2.1
@@ -16,3 +30,8 @@ accelerate>=1.0
 
 # English — Kokoro
 kokoro-onnx==0.5.0
+
+# German engine B (Kartoffelbox / Chatterbox) is NOT here. It needs `--no-deps` plus a
+# hand-curated dependency set, which a requirements file cannot express per line — see
+# requirements-kartoffelbox.txt. A process running the default TTS_ENGINE_DE=orpheus imports none
+# of it, so the default install is unchanged.

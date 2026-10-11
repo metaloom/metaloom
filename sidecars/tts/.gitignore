@@ -1,0 +1,6 @@
+.venv
+__pycache__
+.pytest_cache
+# Downloaded weights and a deployment's own reference clips. The five synthetic clips that ship
+# with the sidecar live in voices/kartoffelbox/ and ARE tracked.
+models
