@@ -19,6 +19,8 @@ import {
   confirmCluster as apiConfirmCluster,
   detachClusterPerson as apiDetachClusterPerson,
   ClusterResponse,
+  CLUSTER_TYPE_FACE,
+  CLUSTER_TYPE_SPEAKER,
 } from "../../api/clusters";
 import ClustersPanel, {
   CLUSTER_SIZE_DEFAULT, CLUSTER_SIZE_MAX, CLUSTER_SIZE_MIN, CLUSTER_SIZE_STEPS, clampClusterSize,
@@ -105,6 +107,10 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     reviewerUuid: r.reviewerUuid,
     score: r.score,
     personId: r.personUuid,
+    personName: r.personName ?? undefined,
+    suggestedPersonId: r.suggestedPersonUuid ?? undefined,
+    suggestedPersonName: r.suggestedPersonName ?? undefined,
+    suggestedScore: r.suggestedScore ?? undefined,
   });
 
   useEffect(() => {
@@ -114,7 +120,10 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         setLoadError(null);
         try {
           const [clustersResp, personsResp] = await Promise.all([
-            apiListClusters(token, { limit: PAGE_SIZE }),
+            // Faces only. Speaker clusters share the table and the route, and unfiltered they
+            // turned up here as cards with no crops - a voice has no face to show. They have
+            // their own tab.
+            apiListClusters(token, { limit: PAGE_SIZE }, { type: CLUSTER_TYPE_FACE }),
             listPersons(token, { limit: PAGE_SIZE }),
           ]);
           setClusters((clustersResp.data ?? []).map(toUiCluster));
@@ -126,7 +135,9 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           const clusterIdsByPerson = await Promise.all(
             persons.map(p =>
               listPersonClusters(token, p.uuid)
-                .then(resp => (resp.data ?? []).map(c => c.uuid))
+                // The person's speaker clusters are theirs too, but this screen is about faces:
+                // counted here they made "3 clusters" on a card that can only ever show two.
+                .then(resp => (resp.data ?? []).filter(c => c.type !== CLUSTER_TYPE_SPEAKER).map(c => c.uuid))
                 .catch(() => [] as string[]),
             ),
           );
@@ -209,7 +220,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const handleCreateCluster = async () => {
     if (!newClusterName.trim() || !token) return;
     try {
-      const resp = await apiCreateCluster(token, { name: newClusterName });
+      // Typed, or the face-only listing above would lose it on the next reload.
+      const resp = await apiCreateCluster(token, { name: newClusterName, type: CLUSTER_TYPE_FACE });
       setClusters(prev => [...prev, toUiCluster(resp)]);
       setNewClusterName("");
       setCreateClusterOpen(false);
@@ -289,6 +301,29 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       reportFailure("detachClusterPerson", e);
     }
   }, [token, reportFailure]);
+
+  /**
+   * Accept the node's suggestion for a cluster: the same confirm, with the person the node named.
+   *
+   * One click because the reviewer has already done the work - they looked at the faces and agreed.
+   * Never automatic: the suggestion is a similarity score, and attributing a face to a named person
+   * stays a human decision.
+   */
+  const handleConfirmSuggestion = useCallback(async (clusterId: string) => {
+    const cluster = clusters.find(c => c.id === clusterId);
+    const personId = cluster?.suggestedPersonId;
+    if (!token || !cluster || !personId) return;
+    try {
+      await mergeInto(personId, [clusterId]);
+      // The suggested person may be beyond the first page of people this screen loaded. Without an
+      // entry the new group would be headed by a raw uuid.
+      setPersons(prev => (prev.some(p => p.id === personId)
+        ? prev
+        : [...prev, { id: personId, name: cluster.suggestedPersonName || personId, description: "", avatarUrl: "", clusterIds: [clusterId], createdAt: new Date().toISOString() }]));
+    } catch (e) {
+      reportFailure("confirmCluster", e);
+    }
+  }, [token, clusters, mergeInto, reportFailure]);
 
   /** A card dropped on a person's group: the same confirm, with the person already known. */
   const handleAssignToPerson = useCallback(async (clusterId: string, personId: string) => {
@@ -523,6 +558,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onMergeClusters={handleMergeClusters}
             onDetachPerson={handleDetachPerson}
             onAssignToPerson={handleAssignToPerson}
+            onConfirmSuggestion={handleConfirmSuggestion}
             size={cardSize}
           />
         )}

@@ -72,6 +72,11 @@ public final class ContentTypeRegistry {
 	/** Spatial per-object segmentation masks. Deliberately not {@link #STRUCT_SEGMENTS}, which is time-coded. */
 	public static final String STRUCT_MASKS = "struct/masks";
 	public static final String STRUCT_COLOR = "struct/color";
+	/**
+	 * The known persons a producer found in an item - confirmed by a reviewer or suggested by person matching. A JSON array, one entry per face or
+	 * speaker cluster that names somebody.
+	 */
+	public static final String STRUCT_PERSONS = "struct/persons";
 	public static final String STRUCT_JSON = "struct/json";
 
 	// ── control ── engine routing signals ────────────────────────────────
@@ -131,6 +136,7 @@ public final class ContentTypeRegistry {
 			new ContentType(STRUCT_MASKS, "Segmentation Masks",
 				"Per-object segmentation masks: area, score, box and the worker-local mask file for each"),
 			new ContentType(STRUCT_COLOR, "Dominant Colour", "Dominant-colour palette and names"),
+			new ContentType(STRUCT_PERSONS, "Persons", "The known persons found in an item, confirmed or suggested, with the face or voice behind each"),
 			new ContentType(STRUCT_JSON, "JSON", "A structured payload with no more specific type"),
 
 			new ContentType(CONTROL_ANY, "Any Control", "Any engine routing signal"),

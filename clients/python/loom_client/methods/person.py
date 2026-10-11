@@ -9,12 +9,20 @@ from ..models.cluster import ClusterListResponse
 from ..models.person import (
     PersonAvatarRequest,
     PersonCreateRequest,
+    PersonHeroVoiceRequest,
     PersonImageImportRequest,
     PersonImageListResponse,
     PersonImageResponse,
     PersonListResponse,
+    PersonMatchRequest,
+    PersonMatchResponse,
+    PersonPrintCreateRequest,
+    PersonPrintResponse,
     PersonResponse,
     PersonUpdateRequest,
+    PersonVoiceSampleImportRequest,
+    PersonVoiceSampleListResponse,
+    PersonVoiceSampleResponse,
 )
 
 if TYPE_CHECKING:
@@ -52,7 +60,7 @@ class PersonMethods:
     def list_person_clusters(
         self, person_uuid: _uuid_mod.UUID | str
     ) -> LoomRequest[ClusterListResponse]:
-        """List the face clusters confirmed to be this person.
+        """List the face and speaker clusters confirmed to be this person.
 
         The inverse of :meth:`confirm_cluster`: given a person, which groups of faces
         were attributed to them, across which assets.
@@ -148,3 +156,120 @@ class PersonMethods:
         return self._post(
             f"persons/{self._uuid(person_uuid)}/avatar", request, PersonResponse
         )
+
+    def store_person_image_print(
+        self,
+        person_uuid: _uuid_mod.UUID | str,
+        image_uuid: _uuid_mod.UUID | str,
+        request: PersonPrintCreateRequest,
+    ) -> LoomRequest[PersonPrintResponse]:
+        """Store what a face model made of one of the person's images.
+
+        A reference vector, or the reason there is none (``error``, e.g. no face found).
+        Written by the node that owns the model; a later write for the same image and
+        model replaces it.
+        """
+        return self._post(
+            f"persons/{self._uuid(person_uuid)}/images/{self._uuid(image_uuid)}/prints",
+            request,
+            PersonPrintResponse,
+        )
+
+    # --- Voice -------------------------------------------------------------------------
+
+    def list_person_voice_samples(
+        self, person_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[PersonVoiceSampleListResponse]:
+        """List the person's voice samples, newest first.
+
+        Each sample lists the voice models that have embedded it (``prints``): a sample
+        only helps recognise the person in a model it has a usable print in.
+        """
+        return self._get(
+            f"persons/{self._uuid(person_uuid)}/voice-samples", PersonVoiceSampleListResponse
+        )
+
+    def upload_person_voice_sample(
+        self,
+        person_uuid: _uuid_mod.UUID | str,
+        file: str | bytes,
+        mime_type: str | None = None,
+        pool_uuid: _uuid_mod.UUID | str | None = None,
+        *,
+        filename: str | None = None,
+    ) -> LoomRequest[PersonVoiceSampleResponse]:
+        """Upload a recording of this person's voice - audio, or a video with a soundtrack.
+
+        The voiceprint node embeds the sample on its next run. Anything that is not audio
+        or video answers 415.
+        """
+        return self._upload_multipart(
+            f"persons/{self._uuid(person_uuid)}/voice-samples",
+            file,
+            PersonVoiceSampleResponse,
+            filename=filename,
+            mime_type=mime_type,
+            fields=(("poolUuid", str(pool_uuid) if pool_uuid else None),),
+        )
+
+    def import_person_voice_sample(
+        self, person_uuid: _uuid_mod.UUID | str, request: PersonVoiceSampleImportRequest
+    ) -> LoomRequest[PersonVoiceSampleResponse]:
+        """Cut a speaker's voice out of the asset it was heard in into the person's samples.
+
+        Without ``time_from``/``time_to`` the speaker's longest turn is taken, up to 30
+        seconds. Needs READ_CLUSTER and READ_ASSET_BINARY besides UPDATE_PERSON.
+        """
+        return self._post(
+            f"persons/{self._uuid(person_uuid)}/voice-samples/from-cluster",
+            request,
+            PersonVoiceSampleResponse,
+        )
+
+    def download_person_voice_sample(
+        self, person_uuid: _uuid_mod.UUID | str, sample_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[BinaryResponse]:
+        """Download one of the person's voice samples. The body streams, so close it."""
+        return self._download(
+            f"persons/{self._uuid(person_uuid)}/voice-samples/{self._uuid(sample_uuid)}/data"
+        )
+
+    def delete_person_voice_sample(
+        self, person_uuid: _uuid_mod.UUID | str, sample_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Delete one of the person's voice samples and every print computed from it."""
+        return self._delete(
+            f"persons/{self._uuid(person_uuid)}/voice-samples/{self._uuid(sample_uuid)}"
+        )
+
+    def store_person_voice_print(
+        self,
+        person_uuid: _uuid_mod.UUID | str,
+        sample_uuid: _uuid_mod.UUID | str,
+        request: PersonPrintCreateRequest,
+    ) -> LoomRequest[PersonPrintResponse]:
+        """Store what a voice model made of one of the person's samples."""
+        return self._post(
+            f"persons/{self._uuid(person_uuid)}/voice-samples/{self._uuid(sample_uuid)}/prints",
+            request,
+            PersonPrintResponse,
+        )
+
+    def set_person_hero_voice(
+        self, person_uuid: _uuid_mod.UUID | str, request: PersonHeroVoiceRequest
+    ) -> LoomRequest[PersonResponse]:
+        """Designate one of the person's voice samples as their hero sample.
+
+        A blank or absent ``sample_uuid`` clears it.
+        """
+        return self._post(
+            f"persons/{self._uuid(person_uuid)}/hero-voice", request, PersonResponse
+        )
+
+    def match_persons(self, request: PersonMatchRequest) -> LoomRequest[PersonMatchResponse]:
+        """Which known persons a set of face or voice vectors resembles.
+
+        Returns candidates to suggest - it attributes nothing - plus the person samples
+        that still need a print in the requested model.
+        """
+        return self._post("person-match", request, PersonMatchResponse)

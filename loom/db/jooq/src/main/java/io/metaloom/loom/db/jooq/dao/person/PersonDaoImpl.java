@@ -2,6 +2,9 @@ package io.metaloom.loom.db.jooq.dao.person;
 
 import static io.metaloom.loom.db.jooq.tables.JooqPerson.PERSON;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -49,6 +52,24 @@ public class PersonDaoImpl extends AbstractJooqDao<Person> implements PersonDao 
 		person.setAlias(alias);
 		setCreatorEditor(person, userUuid);
 		return person;
+	}
+
+	@Override
+	public Map<UUID, String> loadDisplayNames(Collection<UUID> personUuids) {
+		Map<UUID, String> names = new LinkedHashMap<>();
+		if (personUuids == null || personUuids.isEmpty()) {
+			return names;
+		}
+		ctx().select(PERSON.UUID, PERSON.ALIAS, PERSON.FIRSTNAME, PERSON.LASTNAME)
+			.from(PERSON)
+			.where(PERSON.UUID.in(personUuids))
+			.forEach(r -> {
+				String name = PersonDao.displayName(r.get(PERSON.ALIAS), r.get(PERSON.FIRSTNAME), r.get(PERSON.LASTNAME));
+				if (name != null) {
+					names.put(r.get(PERSON.UUID), name);
+				}
+			});
+		return names;
 	}
 
 	@Override

@@ -39,6 +39,7 @@ import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
+import io.metaloom.loom.db.jooq.tables.JooqPersonPrint;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
@@ -125,6 +126,8 @@ public class Indexes {
     public static final Index IDX_CLUSTER_ASSET_UUID = Internal.createIndex(DSL.name("idx_cluster_asset_uuid"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.ASSET_UUID }, false);
     public static final Index IDX_CLUSTER_PERSON_UUID = Internal.createIndex(DSL.name("idx_cluster_person_uuid"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.PERSON_UUID }, false);
     public static final Index IDX_CLUSTER_STATUS = Internal.createIndex(DSL.name("idx_cluster_status"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.STATUS }, false);
+    public static final Index IDX_CLUSTER_SUGGESTED_PERSON_UUID = Internal.createIndex(DSL.name("idx_cluster_suggested_person_uuid"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.SUGGESTED_PERSON_UUID }, false);
+    public static final Index IDX_CLUSTER_TYPE_MODEL_PERSON = Internal.createIndex(DSL.name("idx_cluster_type_model_person"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.TYPE, JooqCluster.CLUSTER.MODEL }, false);
     public static final Index IDX_CLUSTER_TYPE_STATUS = Internal.createIndex(DSL.name("idx_cluster_type_status"), JooqCluster.CLUSTER, new OrderField[] { JooqCluster.CLUSTER.TYPE, JooqCluster.CLUSTER.STATUS }, false);
     public static final Index IDX_CORTEX_INSTANCE_NODE_KIND_KIND = Internal.createIndex(DSL.name("idx_cortex_instance_node_kind_kind"), JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND, new OrderField[] { JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND.NODE_KIND }, false);
     public static final Index IDX_DEDUP_GROUP_MEMBER_ASSET = Internal.createIndex(DSL.name("idx_dedup_group_member_asset"), JooqDedupGroupMember.DEDUP_GROUP_MEMBER, new OrderField[] { JooqDedupGroupMember.DEDUP_GROUP_MEMBER.ASSET_UUID }, false);
@@ -154,6 +157,9 @@ public class Indexes {
     public static final Index IDX_NOTIFICATION_RUN = Internal.createIndex(DSL.name("idx_notification_run"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.PIPELINE_RUN_UUID }, false);
     public static final Index IDX_NOTIFICATION_TASK = Internal.createIndex(DSL.name("idx_notification_task"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.TASK_UUID }, false);
     public static final Index IDX_PERSON_AVATAR_ATTACHMENT_UUID = Internal.createIndex(DSL.name("idx_person_avatar_attachment_uuid"), JooqPerson.PERSON, new OrderField[] { JooqPerson.PERSON.AVATAR_ATTACHMENT_UUID }, false);
+    public static final Index IDX_PERSON_HERO_VOICE_ATTACHMENT_UUID = Internal.createIndex(DSL.name("idx_person_hero_voice_attachment_uuid"), JooqPerson.PERSON, new OrderField[] { JooqPerson.PERSON.HERO_VOICE_ATTACHMENT_UUID }, false);
+    public static final Index IDX_PERSON_PRINT_PERSON_UUID = Internal.createIndex(DSL.name("idx_person_print_person_uuid"), JooqPersonPrint.PERSON_PRINT, new OrderField[] { JooqPersonPrint.PERSON_PRINT.PERSON_UUID }, false);
+    public static final Index IDX_PERSON_PRINT_TYPE_MODEL = Internal.createIndex(DSL.name("idx_person_print_type_model"), JooqPersonPrint.PERSON_PRINT, new OrderField[] { JooqPersonPrint.PERSON_PRINT.TYPE, JooqPersonPrint.PERSON_PRINT.MODEL }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);

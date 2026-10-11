@@ -40,7 +40,7 @@ import io.metaloom.loom.rest.model.user.UserResponse;
 public class StorageEndpointTest extends AbstractEndpointTest {
 
 	private static final String[] EXPECTED_CATEGORIES = {
-		"ASSET_BINARY", "ASSET_THUMBNAIL", "EMBEDDING_ATTACHMENT", "FACE_CROP", "PERSON_IMAGE", "PERSON_AVATAR", "USER_AVATAR"
+		"ASSET_BINARY", "ASSET_THUMBNAIL", "EMBEDDING_ATTACHMENT", "FACE_CROP", "PERSON_IMAGE", "PERSON_AVATAR", "PERSON_VOICE", "USER_AVATAR"
 	};
 
 	@Test

@@ -33,6 +33,9 @@ public enum StorageCategory {
 
 	PERSON_AVATAR,
 
+	/** A person's voice samples (V2.114). Small - a 30-second 16 kHz mono sample is about a megabyte - but biometric, so worth seeing. */
+	PERSON_VOICE,
+
 	USER_AVATAR;
 
 }

@@ -162,7 +162,7 @@ one exception.
 | `/tasks` | `TasksView` | `features/tasks/TasksView.tsx` |
 | `/detection` | `DetectionManagement` | `features/detection/DetectionManagement.tsx` |
 | `/faces` | `<Navigate to="/detection" replace />` | `layout/AppShell.tsx` |
-| `/persons/:id` | `PersonDetail` | `features/persons/PersonDetail.tsx` — a person's own pictures, upload and avatar |
+| `/persons/:id` | `PersonDetail` | `features/persons/PersonDetail.tsx` — a person's own pictures, upload and avatar; voice samples, hero voice and import from a confirmed speaker (`PersonVoiceSection.tsx`) |
 | `/tags` | `TagsView` | `features/tags/TagsView.tsx` |
 | `/workflow` | `WorkflowView` | `features/workflow/WorkflowView.tsx` — six review modes; specs in [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) |
 | `/asset-pools` | `AssetPoolsView` | `features/assetPools/AssetPoolsView.tsx` |
@@ -186,7 +186,14 @@ route of their own** — they are mounted as panels from `DetectionManagement` /
 exception is `PersonDetail` at `/persons/:id`, reached from the name on a person card: a person's
 pictures belong to the person rather than being a view onto the material they were found in, so they
 need an address that outlives a panel, and one that can be linked to.
-`DetectionManagement` is a three-tab shell (Faces / Objects / LLM, `role="tab"`); the Faces tab is
+`DetectionManagement` is a four-tab shell (Faces / Speakers / Objects / LLM, `role="tab"`, keyed by name -
+pick a tab in a spec by its name, never by position); the Speakers tab is
+`features/speakers/SpeakerReview.tsx` (speaker clusters, playback via `AuthedAudioPlayer` and the
+`audio-clip` route, suggestion confirm, save as voice sample - [../../workflows/WORKFLOW_PERSON_RECOGNITION.md](../../workflows/WORKFLOW_PERSON_RECOGNITION.md)).
+`FaceDetectionManagement` lists `type=face` clusters only - before 2026-10-11 it listed every type, so
+speaker clusters showed up as crop-less face cards - and both review screens show a person suggestion
+with a one-click confirm. Media elements cannot send an `Authorization` header, so every audio player
+fetches a blob through `api/media.ts` and plays an object URL, revoked on unmount. The Faces tab is
 `FaceDetectionManagement`, which switches between `ClustersPanel` and `PersonsPanel` with the two
 chips in `facedetection-switcher`. An E2E spec therefore reaches either panel via `/detection` plus
 that switcher, never via a URL — see `e2e/face-panels-mocked.spec.ts`.
@@ -764,7 +771,7 @@ unreachable from a spec — the field existed, and nothing could prove it filter
 | Kind | Where |
 |------|-------|
 | Server-backed | `AssetBrowser` (a term goes to `searchAssets()` debounced 250 ms; the type filter travels as `?mime=`), `LibraryView` (the same call scoped by `?library=<uuid>`, with the term in the URL — see below) and the `/search` screen itself |
-| Local over the loaded rows | `CollectionsView`, `TagsView`, `AssetPoolsView`, `TasksView`, `SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, `CortexView`, all three detection screens, and every admin table — spaces, users, groups, roles, blacklist, API keys, memory denylist, **db integrity, search indices, storage** |
+| Local over the loaded rows | `CollectionsView`, `TagsView`, `AssetPoolsView`, `TasksView`, `SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, `CortexView`, all four detection screens, and every admin table — spaces, users, groups, roles, blacklist, API keys, memory denylist, **db integrity, search indices, storage** |
 | Queue filter | `UploadView` — a folder drop queues hundreds of rows and the one you want is the one that failed |
 | Rail filter | `ChatWorkspace` — the session rail on `/`, which grows without bound and was scroll-only |
 | Node pickers | `PipelineEditor` — the add-node bar and the `N` command palette, both filtering the descriptor registry |
@@ -1502,8 +1509,8 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `10f5df46`_
-_Last updated: 2026-08-16 (`src/Login/` and the legacy entry point `src/index.js` deleted —
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (Speakers tab, person voice section, face list scoped to `type=face`, suggestion confirm). Earlier: 2026-08-16 (`src/Login/` and the legacy entry point `src/index.js` deleted —
 `Login.tsx` logged the submitted password to the console; §3's dead-code callout and §11.2 updated,
 and §8.1 gained `src/sourceHygiene.test.ts`, the guard that keeps a credential out of a `console.*`
 call. Earlier: 2026-08-13 (documentation coachmarks — §7.10: `src/help/topics.ts`, `HelpHint`, and

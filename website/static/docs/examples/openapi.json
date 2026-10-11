@@ -94,6 +94,8 @@
     "name" : "notifications",
     "description" : "The caller's notification inbox: list, mark read, dismiss and clear"
   }, {
+    "name" : "person-match"
+  }, {
     "name" : "persons",
     "description" : "Persons known to the face recognition model"
   }, {
@@ -3745,6 +3747,77 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/audio-clip" : {
+      "description" : "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand: 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers 422 for an asset without audio and 503 when no ffmpeg is configured.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand: 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers 422 for an asset without audio and 503 when no ffmpeg is configured.",
+        "description" : "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand: 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers 422 for an asset without audio and 503 when no ffmpeg is configured.",
+        "operationId" : "getAssetsByUuidAudioclip",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/binaries" : {
       "description" : "List every binary of the asset - one per library the asset was imported into.",
       "get" : {
@@ -6151,15 +6224,16 @@
                   "frameNumber" : 0,
                   "subjectIndex" : 0
                 }, {
-                  "meta" : {
-                    "abc" : "cdef"
-                  },
-                  "type" : "face",
+                  "type" : "voiceprint",
                   "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
-                  "nodeKind" : "facedetect",
-                  "model" : "inspireface-r18",
+                  "nodeKind" : "voiceprint",
+                  "model" : "redimnet2-b6-vox2-lm",
                   "frameNumber" : 0,
-                  "subjectIndex" : 0
+                  "subjectIndex" : 3,
+                  "producerVersion" : "voiceprint/1:redimnet2-b6-vox2-lm",
+                  "normalized" : true,
+                  "timeFrom" : 12000,
+                  "timeTo" : 15000
                 } ]
               }
             }
@@ -6176,13 +6250,33 @@
                     "status" : { },
                     "meta" : {
                       "abc" : "cdef"
-                    }
+                    },
+                    "source" : "voiceprint",
+                    "type" : "voiceprint",
+                    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                    "model" : "redimnet2-b6-vox2-lm",
+                    "dimensions" : 4,
+                    "frameNumber" : 0,
+                    "subjectIndex" : 3,
+                    "normalized" : true,
+                    "timeFrom" : 12000,
+                    "timeTo" : 15000
                   }, {
                     "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
                     "status" : { },
                     "meta" : {
                       "abc" : "cdef"
-                    }
+                    },
+                    "source" : "voiceprint",
+                    "type" : "voiceprint",
+                    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                    "model" : "redimnet2-b6-vox2-lm",
+                    "dimensions" : 4,
+                    "frameNumber" : 0,
+                    "subjectIndex" : 3,
+                    "normalized" : true,
+                    "timeFrom" : 12000,
+                    "timeTo" : 15000
                   } ],
                   "total" : 2,
                   "created" : 2,
@@ -14607,6 +14701,638 @@
         }
       } ]
     },
+    "/api/v1/chats/{uuid}/attachments" : {
+      "description" : "Attach a file to a chat. Expects a multipart request with one file part named 'file'. Optional form field: 'poolUuid'. The file belongs to the conversation, not to the media library - it is deleted with the chat, and is not indexed, thumbnailed or processed by pipelines. Use the /asset route to keep one.",
+      "get" : {
+        "tags" : [ "chats" ],
+        "summary" : "List the files attached to a chat, newest first.",
+        "description" : "List the files attached to a chat, newest first.",
+        "operationId" : "getChatsByUuidAttachments",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The attachment list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "filename" : "flower.jpg",
+                    "size" : 0
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "filename" : "flower.jpg",
+                    "size" : 0
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "chats" ],
+        "summary" : "Attach a file to a chat. Expects a multipart request with one file part named 'file'. Optional form field: 'poolUuid'. The file belongs to the conversation, not to the media library - it is deleted with the chat, and is not indexed, thumbnailed or processed by pipelines. Use the /asset route to keep one.",
+        "description" : "Attach a file to a chat. Expects a multipart request with one file part named 'file'. Optional form field: 'poolUuid'. The file belongs to the conversation, not to the media library - it is deleted with the chat, and is not indexed, thumbnailed or processed by pipelines. Use the /asset route to keep one.",
+        "operationId" : "postChatsByUuidAttachments",
+        "responses" : {
+          "200" : {
+            "description" : "The attachment response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "filename" : "flower.jpg",
+                  "size" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/chats/{uuid}/attachments/{attachmentUuid}" : {
+      "description" : "Detach a file from a chat.",
+      "delete" : {
+        "tags" : [ "chats" ],
+        "summary" : "Detach a file from a chat.",
+        "description" : "Detach a file from a chat.",
+        "operationId" : "deleteChatsByUuidAttachmentsByAttachmentUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "attachmentUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced attachment",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/chats/{uuid}/attachments/{attachmentUuid}/asset" : {
+      "description" : "Save a chat attachment into the media library as a real asset. Optional query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY. The attachment itself stays on the chat.",
+      "post" : {
+        "tags" : [ "chats" ],
+        "summary" : "Save a chat attachment into the media library as a real asset. Optional query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY. The attachment itself stays on the chat.",
+        "description" : "Save a chat attachment into the media library as a real asset. Optional query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY. The attachment itself stays on the chat.",
+        "operationId" : "postChatsByUuidAttachmentsByAttachmentUuidAsset",
+        "responses" : {
+          "200" : {
+            "description" : "The asset response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "geo" : {
+                    "lon" : 32.56,
+                    "lat" : 52.156
+                  },
+                  "tags" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "name" : "red"
+                  } ],
+                  "annotations" : [ {
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "title" : "Intro Feedback",
+                    "area" : {
+                      "from" : 0,
+                      "to" : 10
+                    },
+                    "description" : "The very nice intro",
+                    "tasks" : [ {
+                      "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                      "status" : { },
+                      "title" : "Fix text offset here",
+                      "description" : "The text is not aligned with the title",
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "assignees" : [ ]
+                    } ],
+                    "comments" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "status" : { },
+                      "title" : "Great work!",
+                      "text" : "What a great choice of colors!",
+                      "social" : {
+                        "rating" : {
+                          "stars" : 10,
+                          "upVotes" : 42,
+                          "downVotes" : 0
+                        },
+                        "reactions" : {
+                          "SATISFIED" : 10
+                        }
+                      }
+                    } ],
+                    "thumbnail" : "???",
+                    "tags" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "name" : "blue"
+                    } ]
+                  } ],
+                  "collections" : [ ],
+                  "embeddings" : [ ],
+                  "file" : {
+                    "mimeType" : "video/mp4",
+                    "filename" : "bigbuckbunny-4k.mp4",
+                    "size" : 42000000,
+                    "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                    "firstSeen" : "2018-10-12T14:15:06Z"
+                  },
+                  "hashes" : {
+                    "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                    "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                    "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                  },
+                  "geoComponents" : [ ],
+                  "imageComponents" : [ {
+                    "dominantColor" : "#FFFF00"
+                  } ],
+                  "videoComponents" : [ {
+                    "width" : 4000,
+                    "height" : 2250,
+                    "duration" : 20000
+                  } ],
+                  "audioComponents" : [ {
+                    "channels" : 2,
+                    "encoding" : "mp3",
+                    "samplingRate" : 48000,
+                    "bpm" : 120
+                  } ],
+                  "documentComponents" : [ ],
+                  "locations" : [ {
+                    "status" : { },
+                    "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "mimeType" : "video/mp4",
+                    "state" : "PRESENT",
+                    "license" : "CC-BY-4.0",
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "attachmentUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced attachment",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/chats/{uuid}/attachments/{attachmentUuid}/data" : {
+      "description" : "Download the raw bytes of a chat attachment.",
+      "get" : {
+        "tags" : [ "chats" ],
+        "summary" : "Download the raw bytes of a chat attachment.",
+        "description" : "Download the raw bytes of a chat attachment.",
+        "operationId" : "getChatsByUuidAttachmentsByAttachmentUuidData",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "attachmentUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced attachment",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/chats/{uuid}/stream" : {
       "description" : "Send a chat message to the agent and stream the run events back as Server-Sent Events",
       "post" : {
@@ -18489,13 +19215,33 @@
                     "status" : { },
                     "meta" : {
                       "abc" : "cdef"
-                    }
+                    },
+                    "source" : "voiceprint",
+                    "type" : "voiceprint",
+                    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                    "model" : "redimnet2-b6-vox2-lm",
+                    "dimensions" : 4,
+                    "frameNumber" : 0,
+                    "subjectIndex" : 3,
+                    "normalized" : true,
+                    "timeFrom" : 12000,
+                    "timeTo" : 15000
                   }, {
                     "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
                     "status" : { },
                     "meta" : {
                       "abc" : "cdef"
-                    }
+                    },
+                    "source" : "voiceprint",
+                    "type" : "voiceprint",
+                    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                    "model" : "redimnet2-b6-vox2-lm",
+                    "dimensions" : 4,
+                    "frameNumber" : 0,
+                    "subjectIndex" : 3,
+                    "normalized" : true,
+                    "timeFrom" : 12000,
+                    "timeTo" : 15000
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -18579,7 +19325,17 @@
                   "status" : { },
                   "meta" : {
                     "abc" : "cdef"
-                  }
+                  },
+                  "source" : "voiceprint",
+                  "type" : "voiceprint",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "model" : "redimnet2-b6-vox2-lm",
+                  "dimensions" : 4,
+                  "frameNumber" : 0,
+                  "subjectIndex" : 3,
+                  "normalized" : true,
+                  "timeFrom" : 12000,
+                  "timeTo" : 15000
                 }
               }
             }
@@ -18773,7 +19529,17 @@
                   "status" : { },
                   "meta" : {
                     "abc" : "cdef"
-                  }
+                  },
+                  "source" : "voiceprint",
+                  "type" : "voiceprint",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "model" : "redimnet2-b6-vox2-lm",
+                  "dimensions" : 4,
+                  "frameNumber" : 0,
+                  "subjectIndex" : 3,
+                  "normalized" : true,
+                  "timeFrom" : 12000,
+                  "timeTo" : 15000
                 }
               }
             }
@@ -18857,7 +19623,17 @@
                   "status" : { },
                   "meta" : {
                     "abc" : "cdef"
-                  }
+                  },
+                  "source" : "voiceprint",
+                  "type" : "voiceprint",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "model" : "redimnet2-b6-vox2-lm",
+                  "dimensions" : 4,
+                  "frameNumber" : 0,
+                  "subjectIndex" : 3,
+                  "normalized" : true,
+                  "timeFrom" : 12000,
+                  "timeTo" : 15000
                 }
               }
             }
@@ -23471,6 +24247,99 @@
         "security" : [ ]
       }
     },
+    "/api/v1/person-match" : {
+      "description" : "Find the known persons a set of face or voice vectors resembles, from the clusters reviewers confirmed and the persons' own samples. Returns candidates to suggest - it attributes nothing - and lists the samples that still need a print in the requested model.",
+      "post" : {
+        "tags" : [ "person-match" ],
+        "summary" : "Find the known persons a set of face or voice vectors resembles, from the clusters reviewers confirmed and the persons' own samples. Returns candidates to suggest - it attributes nothing - and lists the samples that still need a print in the requested model.",
+        "description" : "Find the known persons a set of face or voice vectors resembles, from the clusters reviewers confirmed and the persons' own samples. Returns candidates to suggest - it attributes nothing - and lists the samples that still need a print in the requested model.",
+        "operationId" : "postPersonmatch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "type" : "speaker",
+                "model" : "redimnet2-b6-vox2",
+                "vectors" : [ [ 0.12, -0.03, 0.41 ], [ -0.2, 0.33, 0.05 ] ],
+                "threshold" : 0.43,
+                "limit" : 3
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The person match response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "results" : [ {
+                    "index" : 0,
+                    "candidates" : [ {
+                      "personUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                      "name" : "jdoe",
+                      "score" : 0.71,
+                      "references" : 4
+                    } ]
+                  }, {
+                    "index" : 1,
+                    "candidates" : [ ]
+                  } ],
+                  "pendingSamples" : [ {
+                    "personUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "mimeType" : "audio/mpeg",
+                    "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
+                  } ],
+                  "personCount" : 42,
+                  "referenceCount" : 117
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/persons" : {
       "description" : "Create a new person",
       "get" : {
@@ -23545,7 +24414,8 @@
                     "alias" : "jdoe",
                     "firstname" : "John",
                     "lastname" : "Doe",
-                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                    "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                   }, {
                     "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
                     "status" : {
@@ -23566,7 +24436,8 @@
                     "alias" : "jdoe",
                     "firstname" : "John",
                     "lastname" : "Doe",
-                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                    "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -23662,7 +24533,8 @@
                   "alias" : "jdoe",
                   "firstname" : "John",
                   "lastname" : "Doe",
-                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                 }
               }
             }
@@ -23742,7 +24614,8 @@
                   "alias" : "jdoe",
                   "firstname" : "John",
                   "lastname" : "Doe",
-                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                 }
               }
             }
@@ -23843,7 +24716,8 @@
                   "alias" : "jdoe",
                   "firstname" : "John",
                   "lastname" : "Doe",
-                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                 }
               }
             }
@@ -24013,7 +24887,8 @@
                   "alias" : "jdoe",
                   "firstname" : "John",
                   "lastname" : "Doe",
-                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                 }
               }
             }
@@ -24082,11 +24957,11 @@
       } ]
     },
     "/api/v1/persons/{uuid}/clusters" : {
-      "description" : "List the face clusters confirmed to be this person, across every asset they appear in",
+      "description" : "List the face and speaker clusters confirmed to be this person, across every asset they appear in",
       "get" : {
         "tags" : [ "persons" ],
-        "summary" : "List the face clusters confirmed to be this person, across every asset they appear in",
-        "description" : "List the face clusters confirmed to be this person, across every asset they appear in",
+        "summary" : "List the face and speaker clusters confirmed to be this person, across every asset they appear in",
+        "description" : "List the face and speaker clusters confirmed to be this person, across every asset they appear in",
         "operationId" : "getPersonsByUuidClusters",
         "responses" : {
           "200" : {
@@ -24147,6 +25022,116 @@
                     "perPage" : 2,
                     "totalCount" : 28
                   }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/hero-voice" : {
+      "description" : "Set which of the person's voice samples represents them. Send a blank or absent sampleUuid to clear it.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Set which of the person's voice samples represents them. Send a blank or absent sampleUuid to clear it.",
+        "description" : "Set which of the person's voice samples represents them. Send a blank or absent sampleUuid to clear it.",
+        "operationId" : "postPersonsByUuidHerovoice",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The person response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "alias" : "jdoe",
+                  "firstname" : "John",
+                  "lastname" : "Doe",
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "heroVoiceUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data"
                 }
               }
             }
@@ -24607,6 +25592,113 @@
         }
       } ]
     },
+    "/api/v1/persons/{uuid}/images/{imageUuid}/prints" : {
+      "description" : "Store what a face model made of one of the person's images: a reference vector, or the reason there is none. Written by the node owning the model; a later write for the same image and model replaces it.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Store what a face model made of one of the person's images: a reference vector, or the reason there is none. Written by the node owning the model; a later write for the same image and model replaces it.",
+        "description" : "Store what a face model made of one of the person's images: a reference vector, or the reason there is none. Written by the node owning the model; a later write for the same image and model replaces it.",
+        "operationId" : "postPersonsByUuidImagesByImageUuidPrints",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "type" : "speaker",
+                "model" : "redimnet2-b6-vox2",
+                "vector" : [ 0.12, -0.03, 0.41 ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The stored print, without its vector",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "type" : "speaker",
+                  "model" : "redimnet2-b6-vox2",
+                  "dimensions" : 192,
+                  "usable" : true,
+                  "edited" : "2026-10-11T09:30:00Z"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "imageUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced image",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/persons/{uuid}/images/from-detection" : {
       "description" : "Copy a detection's face crop into this person's images. The copy shares the crop's bytes but belongs to the person, so it survives deletion of the asset the face was found in. Requires READ_DETECTION as well as UPDATE_PERSON: the result is readable face crop content, which is biometric.",
       "post" : {
@@ -24714,6 +25806,655 @@
         }
       } ]
     },
+    "/api/v1/persons/{uuid}/voice-samples" : {
+      "description" : "List the person's voice samples, newest first, each with the voice models that have embedded it",
+      "get" : {
+        "tags" : [ "persons" ],
+        "summary" : "List the person's voice samples, newest first, each with the voice models that have embedded it",
+        "description" : "List the person's voice samples, newest first, each with the voice models that have embedded it",
+        "operationId" : "getPersonsByUuidVoicesamples",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The person voice sample list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "filename" : "voice-press-conference.wav",
+                    "mimeType" : "audio/wav",
+                    "size" : 960044,
+                    "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data",
+                    "hero" : true,
+                    "durationMs" : 30000,
+                    "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "sourceClusterUuid" : "5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84",
+                    "sourceTimeFrom" : 61500,
+                    "sourceTimeTo" : 91500,
+                    "prints" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "type" : "speaker",
+                      "model" : "redimnet2-b6-vox2",
+                      "dimensions" : 192,
+                      "usable" : true,
+                      "edited" : "2026-10-11T09:30:00Z"
+                    } ]
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Upload a recording of this person's voice. Form fields: 'file' (required, audio or a video with a soundtrack) and 'poolUuid' (optional storage pool). The voiceprint node embeds the sample on its next run.",
+        "description" : "Upload a recording of this person's voice. Form fields: 'file' (required, audio or a video with a soundtrack) and 'poolUuid' (optional storage pool). The voiceprint node embeds the sample on its next run.",
+        "operationId" : "postPersonsByUuidVoicesamples",
+        "responses" : {
+          "201" : {
+            "description" : "The person voice sample response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "voice-press-conference.wav",
+                  "mimeType" : "audio/wav",
+                  "size" : 960044,
+                  "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data",
+                  "hero" : true,
+                  "durationMs" : 30000,
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "sourceClusterUuid" : "5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84",
+                  "sourceTimeFrom" : 61500,
+                  "sourceTimeTo" : 91500,
+                  "prints" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "type" : "speaker",
+                    "model" : "redimnet2-b6-vox2",
+                    "dimensions" : 192,
+                    "usable" : true,
+                    "edited" : "2026-10-11T09:30:00Z"
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/voice-samples/{sampleUuid}" : {
+      "description" : "Delete one of the person's voice samples, and every print computed from it. Deleting the hero sample leaves the person without one.",
+      "delete" : {
+        "tags" : [ "persons" ],
+        "summary" : "Delete one of the person's voice samples, and every print computed from it. Deleting the hero sample leaves the person without one.",
+        "description" : "Delete one of the person's voice samples, and every print computed from it. Deleting the hero sample leaves the person without one.",
+        "operationId" : "deletePersonsByUuidVoicesamplesBySampleUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "sampleUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced sample",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/voice-samples/{sampleUuid}/data" : {
+      "description" : "Load the bytes of one of the person's voice samples",
+      "get" : {
+        "tags" : [ "persons" ],
+        "summary" : "Load the bytes of one of the person's voice samples",
+        "description" : "Load the bytes of one of the person's voice samples",
+        "operationId" : "getPersonsByUuidVoicesamplesBySampleUuidData",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "sampleUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced sample",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/voice-samples/{sampleUuid}/prints" : {
+      "description" : "Store what a voice model made of one of the person's samples: a reference vector, or the reason there is none (e.g. no speech). Written by the voiceprint node; a later write for the same sample and model replaces it.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Store what a voice model made of one of the person's samples: a reference vector, or the reason there is none (e.g. no speech). Written by the voiceprint node; a later write for the same sample and model replaces it.",
+        "description" : "Store what a voice model made of one of the person's samples: a reference vector, or the reason there is none (e.g. no speech). Written by the voiceprint node; a later write for the same sample and model replaces it.",
+        "operationId" : "postPersonsByUuidVoicesamplesBySampleUuidPrints",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "type" : "speaker",
+                "model" : "redimnet2-b6-vox2",
+                "vector" : [ 0.12, -0.03, 0.41 ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The stored print, without its vector",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "type" : "speaker",
+                  "model" : "redimnet2-b6-vox2",
+                  "dimensions" : 192,
+                  "usable" : true,
+                  "edited" : "2026-10-11T09:30:00Z"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "sampleUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced sample",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/voice-samples/from-cluster" : {
+      "description" : "Cut a speaker's voice out of the asset it was heard in, into this person's voice samples - the longest turn, up to 30 seconds, unless a range is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON: the result is a piece of the asset's audio.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Cut a speaker's voice out of the asset it was heard in, into this person's voice samples - the longest turn, up to 30 seconds, unless a range is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON: the result is a piece of the asset's audio.",
+        "description" : "Cut a speaker's voice out of the asset it was heard in, into this person's voice samples - the longest turn, up to 30 seconds, unless a range is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON: the result is a piece of the asset's audio.",
+        "operationId" : "postPersonsByUuidVoicesamplesFromcluster",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "clusterUuid" : "5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The person voice sample response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "voice-press-conference.wav",
+                  "mimeType" : "audio/wav",
+                  "size" : 960044,
+                  "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data",
+                  "hero" : true,
+                  "durationMs" : 30000,
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "sourceClusterUuid" : "5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84",
+                  "sourceTimeFrom" : 61500,
+                  "sourceTimeTo" : 91500,
+                  "prints" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "sampleUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "type" : "speaker",
+                    "model" : "redimnet2-b6-vox2",
+                    "dimensions" : 192,
+                    "usable" : true,
+                    "edited" : "2026-10-11T09:30:00Z"
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/pipeline-runs/{runUuid}" : {
       "description" : "Load a single pipeline run by its uuid, without knowing its pipeline",
       "get" : {
@@ -24727,11 +26468,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "b4331c24-c38f-4d4d-8072-0a643701420b",
-                  "pipelineUuid" : "c8fbe153-6204-4518-b7ff-e9165d872b81",
+                  "uuid" : "59c96f7e-9c8e-4e8e-aa3f-90b623aa7434",
+                  "pipelineUuid" : "ff463b72-0a06-4b6d-9074-85452d87a6ae",
                   "pipelineVersion" : 1,
-                  "started" : "2026-09-21T09:29:09.060978031Z",
-                  "finished" : "2026-09-21T09:29:09.060986861Z",
+                  "started" : "2026-10-11T00:49:34.027999960Z",
+                  "finished" : "2026-10-11T00:49:34.028004420Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -25100,7 +26841,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "56d57a8e-f0c9-4a28-8aa8-bbddb016bcb5",
+                    "versionUuid" : "569db20f-986c-42fa-9533-ab86b3260ec1",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25127,7 +26868,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "85121606-3a71-4ca5-acdb-8f47fe70bb41",
+                    "versionUuid" : "9b77fd89-627f-4561-a588-e7de7c241373",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25234,7 +26975,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "08e6ab29-9967-402f-acfd-a1bb085de137",
+                  "versionUuid" : "11ee5d4c-0960-4242-9a07-98a60a8e7835",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25320,7 +27061,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "13499617-7f6c-4aa4-ac02-9dfd3df7769a",
+                  "versionUuid" : "e6a1d741-8f80-4d71-b275-3e47442f0fcf",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25427,7 +27168,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "803caf37-df7e-4974-ab5f-383c6f0b6832",
+                  "versionUuid" : "37ddb100-16a9-482c-9755-69d05e3e38cc",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25589,7 +27330,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "16a9cc3a-b379-429c-b481-986e3cc45479",
+                  "runUuid" : "3c645d57-8734-41b0-af2e-4605aab1cfb2",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -25715,11 +27456,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "36d41ffb-c1a2-40a4-a0ff-967d7f199ba6",
-                    "pipelineUuid" : "ea03241c-3d90-4ddc-9054-958ab4093dec",
+                    "uuid" : "3b428030-6899-48da-ad1c-9531b82f6de2",
+                    "pipelineUuid" : "a73ea24d-6939-4eba-aa2d-d8ca86c70a5f",
                     "pipelineVersion" : 1,
-                    "started" : "2026-09-21T09:29:09.059506811Z",
-                    "finished" : "2026-09-21T09:29:09.059604991Z",
+                    "started" : "2026-10-11T00:49:34.026807804Z",
+                    "finished" : "2026-10-11T00:49:34.026913294Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -25728,11 +27469,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "8e31e2b3-e08f-4506-9e0c-d503ec8f4cc8",
-                    "pipelineUuid" : "6d83d922-6641-4214-bc37-5003099ac64f",
+                    "uuid" : "5b8e4dd6-a273-4b5f-8b55-6c05aea4ddbb",
+                    "pipelineUuid" : "e26e8959-763d-4373-98cc-6e8e927c6c8e",
                     "pipelineVersion" : 1,
-                    "started" : "2026-09-21T09:29:09.059739391Z",
-                    "finished" : "2026-09-21T09:29:09.059744011Z",
+                    "started" : "2026-10-11T00:49:34.027056783Z",
+                    "finished" : "2026-10-11T00:49:34.027061393Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -25825,11 +27566,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "fe0506c1-805c-4e0e-b462-21e938392d5b",
-                  "pipelineUuid" : "9c44c9f8-a76d-412c-9fe6-31a7e6a3897f",
+                  "uuid" : "4b871bac-2df1-4dc5-ad3d-00cadf58ebee",
+                  "pipelineUuid" : "fb6ebf16-188e-4c75-bb0b-4aa9afa06fac",
                   "pipelineVersion" : 1,
-                  "started" : "2026-09-21T09:29:09.060738771Z",
-                  "finished" : "2026-09-21T09:29:09.060747741Z",
+                  "started" : "2026-10-11T00:49:34.027830461Z",
+                  "finished" : "2026-10-11T00:49:34.027837291Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -26319,16 +28060,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "30ba099a-9439-485c-a68b-c15965bafdf4",
-                    "runUuid" : "c14ecfc8-4a14-420f-8ca4-a4aa387df01d",
+                    "uuid" : "d07c3dc4-f64a-48c8-a317-e3f451983ced",
+                    "runUuid" : "4164c35d-17fc-4e70-aa09-7c21b606b6aa",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "75957067-46c6-466e-a368-2ed0645b8b1e",
-                    "runUuid" : "e9aeb02b-74fd-4900-aea1-8da48680cbdc",
+                    "uuid" : "2a91f9be-02bf-46c9-bb1b-74a6fa5f6634",
+                    "runUuid" : "096f9211-9063-412f-b8ac-f6f45888d0d9",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -26429,9 +28170,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "be380ea4-8c66-4481-8832-c24b34da8c88",
-                    "itemUuid" : "3e74438c-5d96-41f8-8476-a4f5c0eed4bd",
-                    "runUuid" : "ad0d2785-98cc-4132-9494-98fccf292b66",
+                    "uuid" : "f12d7d6f-f891-4221-84af-931686198493",
+                    "itemUuid" : "b010ce0a-bc43-46ba-b411-c3d625d17daa",
+                    "runUuid" : "e6380ae1-2f4e-4a1a-ba11-564100aa7ca9",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -27097,7 +28838,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "517c6fcc-79fd-4c82-941d-478f2a9c9e94",
+                    "versionUuid" : "f2ec3938-ae66-4c70-b7e3-2a759e9a09fc",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -27124,7 +28865,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "2c8ea27f-3163-4e4b-8dba-b3df42084ea6",
+                    "versionUuid" : "a40c90ad-6ad6-496c-b836-8797bbedac68",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -27235,7 +28976,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "6d256153-a40b-45ea-94a9-1c9fce6b27a1",
+                  "versionUuid" : "c7c0ae4f-8d29-440a-9fde-adc879a88286",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -27360,7 +29101,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "2a3167e0-c3dd-4e72-8cad-1a96186d1665",
+                  "versionUuid" : "ce2ce86a-acab-4eff-82cd-e8be90e9242c",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

@@ -45,6 +45,13 @@ public class JooqTestContext implements BeforeEachCallback, AfterEachCallback, D
 //		if (dbProvider != null) {
 //			dbProvider.afterEach(context);
 //		}
+		// Every method builds a fresh component, and with it a c3p0 pool holding minPoolSize connections. Discarding the component closes none of
+		// them, so a class of twenty-odd methods exhausted PostgreSQL's max_connections and its last few methods failed with "too many clients" -
+		// the same leak BootstrapInitializer.deinit() closes for the loom/core tests.
+		if (component != null && component.dataSource() instanceof AutoCloseable closeable) {
+			closeable.close();
+		}
+		component = null;
 	}
 
 	public DataSource dataSource() {

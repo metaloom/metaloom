@@ -27,7 +27,9 @@
     "detectionUuid" : "1c2c0f0e-8f27-4c2f-9b5a-6f1f7b0f7a11",
     "frameNumber" : 42,
     "subjectIndex" : 1,
-    "normalized" : true
+    "normalized" : true,
+    "timeFrom" : 0,
+    "timeTo" : 0
   }, {
     "uuid" : "daf9c614-524d-4215-a9da-6ca7451f342a",
     "status" : {
@@ -56,7 +58,9 @@
     "detectionUuid" : "1c2c0f0e-8f27-4c2f-9b5a-6f1f7b0f7a11",
     "frameNumber" : 42,
     "subjectIndex" : 1,
-    "normalized" : true
+    "normalized" : true,
+    "timeFrom" : 0,
+    "timeTo" : 0
   } ],
   "_metainfo" : {
     "lastUuid" : "daf9c614-524d-4215-a9da-6ca7451f342a",

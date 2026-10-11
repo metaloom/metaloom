@@ -10,6 +10,14 @@ export const CLUSTER_STATUS_REJECTED = "REJECTED";
 /** The cluster type the face workflow proposes and reviews. */
 export const CLUSTER_TYPE_FACE = "face";
 
+/**
+ * The cluster type the voiceprint node writes: one voice within one asset.
+ *
+ * Its members are speech windows rather than faces, so they carry `timeFrom`/`timeTo` and no
+ * detection - a speaker card is listened to, not looked at.
+ */
+export const CLUSTER_TYPE_SPEAKER = "speaker";
+
 export interface ClusterResponse {
   uuid: string;
   name: string;
@@ -24,6 +32,24 @@ export interface ClusterResponse {
   reviewStatus?: string;
   /** The person this cluster was confirmed to be, or absent while unreviewed or rejected. */
   personUuid?: string;
+  /**
+   * Display name of {@link personUuid}, resolved by the server.
+   *
+   * Lets a card name its person without the person being on the page of people the screen
+   * happened to load.
+   */
+  personName?: string | null;
+  /**
+   * The person the producing node thinks this is, from comparing the cluster with every person's
+   * reference prints. Only a suggestion: nothing is attributed until a reviewer confirms.
+   */
+  suggestedPersonUuid?: string | null;
+  /** Display name of {@link suggestedPersonUuid}. */
+  suggestedPersonName?: string | null;
+  /** Cosine similarity behind the suggestion, 0..1. */
+  suggestedScore?: number | null;
+  /** The embedding model the cluster was computed with. */
+  model?: string | null;
   /**
    * When a human decided, or absent while nobody has.
    *
@@ -70,6 +96,10 @@ export interface ClusterMemberModel {
   bboxHeight?: number;
   confidence?: number;
   origin?: string;
+  /** Start of a speech window in milliseconds. Absent for a face. */
+  timeFrom?: number | null;
+  /** End of a speech window in milliseconds. Absent for a face. */
+  timeTo?: number | null;
 }
 
 export interface ClusterMemberListResponse {
@@ -112,6 +142,17 @@ export interface ClusterFilter {
   type?: string;
 }
 
+/**
+ * What the voiceprint node stores in a speaker cluster's `meta`.
+ *
+ * `segments` are the speaker's turns - overlapping speech windows already merged - so a card can
+ * say how long somebody spoke, and play them, without a members request.
+ */
+export interface SpeakerClusterMeta {
+  totalMs?: number;
+  segments?: { startMs: number; endMs: number }[];
+}
+
 export async function listClusters(
   token: string,
   paging?: PagingParams,
@@ -130,7 +171,10 @@ export async function listClusters(
   return handleResponse<ClusterListResponse>(res);
 }
 
-/** The faces in a cluster, each carrying the detection uuid its crop is addressed by. */
+/**
+ * The members of a cluster: for a face cluster each face with the detection uuid its crop is
+ * addressed by, for a speaker cluster each speech window with its time range.
+ */
 export async function listClusterMembers(token: string, uuid: string): Promise<ClusterMemberListResponse> {
   const res = await fetch(`${API_BASE_URL}/clusters/${encodeURIComponent(uuid)}/members`, {
     method: "GET",

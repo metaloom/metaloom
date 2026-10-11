@@ -12,6 +12,21 @@ public class ClusterResponse extends AbstractCreatorEditorRestResponse<ClusterRe
 
 	private String personUuid;
 
+	/** The name the confirmed person is shown by: alias, else first and last name. Read-only. */
+	private String personName;
+
+	/** The person the producing node recognised this cluster as. A proposal only - personUuid stays the reviewer's verdict. */
+	private String suggestedPersonUuid;
+
+	/** The name the suggested person is shown by. Read-only. */
+	private String suggestedPersonName;
+
+	/** Cosine similarity of the cluster centroid to the suggested person's reference. */
+	private Float suggestedScore;
+
+	/** The model the cluster's centroid was computed with. */
+	private String model;
+
 	private String reviewedAt;
 
 	private String reviewerUuid;
@@ -169,4 +184,48 @@ public class ClusterResponse extends AbstractCreatorEditorRestResponse<ClusterRe
 		return this;
 	}
 
+	public String getPersonName() {
+		return personName;
+	}
+
+	public ClusterResponse setPersonName(String personName) {
+		this.personName = personName;
+		return this;
+	}
+
+	public String getSuggestedPersonUuid() {
+		return suggestedPersonUuid;
+	}
+
+	public ClusterResponse setSuggestedPersonUuid(String suggestedPersonUuid) {
+		this.suggestedPersonUuid = suggestedPersonUuid;
+		return this;
+	}
+
+	public String getSuggestedPersonName() {
+		return suggestedPersonName;
+	}
+
+	public ClusterResponse setSuggestedPersonName(String suggestedPersonName) {
+		this.suggestedPersonName = suggestedPersonName;
+		return this;
+	}
+
+	public Float getSuggestedScore() {
+		return suggestedScore;
+	}
+
+	public ClusterResponse setSuggestedScore(Float suggestedScore) {
+		this.suggestedScore = suggestedScore;
+		return this;
+	}
+
+	public String getModel() {
+		return model;
+	}
+
+	public ClusterResponse setModel(String model) {
+		this.model = model;
+		return this;
+	}
 }

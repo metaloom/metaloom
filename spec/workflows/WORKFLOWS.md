@@ -64,7 +64,7 @@ simple to very complex, each grounded in capabilities that already exist in the 
 | 1 | **Manual sorting** | [WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md) | 🟡 | Tab through assets, assign a rating and tags. Rating persists; 🔴 tagging does not |
 | 2 | **Deduplication** | [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) | 🟢 | Confirm or reject near-duplicate groups; apply moves the losers. **The reference implementation of the whole family — copy this one** |
 | 3 | **Auto trash** | [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) | 🔵 | A decision marks an asset for disposal; a `move` node relocates the bytes. Needs a new node |
-| 4 | **Face clusters** | [WORKFLOW_FACE.md](WORKFLOW_FACE.md) | 🟡 | Detect → embed → cluster → confirm a person. Detect and embed run; 🔴 clustering does not exist |
+| 4 | **Face clusters** | [WORKFLOW_FACE.md](WORKFLOW_FACE.md) | 🟢 | Detect → embed → cluster → confirm a person. All four stages run, per asset |
 | 5 | **Object detection review** | [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) | 🔴 | Confirm or reject YOLO boxes. 🔴 `detection` has no status column, so no decision can be stored |
 | 6 | **Upload** | [WORKFLOW_UPLOAD.md](WORKFLOW_UPLOAD.md) | 🟢 | What happens to a file after it lands: `asset.created` → mime match → auto pipeline run |
 | 7 | **AI output review** (simple) | [WORKFLOW_AI_REVIEW.md](WORKFLOW_AI_REVIEW.md) | 🔵 | Approve, edit or reject machine-written text: captions, transcripts, translations, descriptions |
@@ -73,6 +73,7 @@ simple to very complex, each grounded in capabilities that already exist in the 
 | 10 | **Safety triage** (medium) | [WORKFLOW_SAFETY_TRIAGE.md](WORKFLOW_SAFETY_TRIAGE.md) | 🔵 | The `guard` node flags content; a human upholds or overturns; upheld content is quarantined |
 | 11 | **Ingest migration** (complex) | [WORKFLOW_INGEST_MIGRATION.md](WORKFLOW_INGEST_MIGRATION.md) | 🔵 | Onboard a large existing corpus: scan, hash, dedup, verify, reconcile, tier |
 | 12 | **Rights and release** (very complex) | [WORKFLOW_RIGHTS_RELEASE.md](WORKFLOW_RIGHTS_RELEASE.md) | 🔵 | The gate before an asset leaves the system: consent, safety, licence, AI provenance, redaction |
+| 13 | **Person recognition** | [WORKFLOW_PERSON_RECOGNITION.md](WORKFLOW_PERSON_RECOGNITION.md) | 🟢 | Faces and voices of known persons suggested across assets; voice samples on a person; reviewer confirms; `filterBy=PERSON` routes |
 
 Actionable work items for all twelve: [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md).
 
@@ -353,7 +354,8 @@ Conventions that apply to every workflow test:
 - [x] 2 — Dedup: built end to end, and the reference for the family ([WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md))
 - [ ] 1 — Manual sort: tagging write path, rating storage decision ([WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md))
 - [ ] 3 — Trash: the `move` node does not exist ([WORKFLOW_TRASH.md](WORKFLOW_TRASH.md))
-- [ ] 4 — Face: clustering does not exist ([WORKFLOW_FACE.md](WORKFLOW_FACE.md))
+- [x] 4 — Face: clustering and confirmation built ([WORKFLOW_FACE.md](WORKFLOW_FACE.md))
+- [x] 13 — Person recognition: suggestions for faces and voices, `filterBy=PERSON` ([WORKFLOW_PERSON_RECOGNITION.md](WORKFLOW_PERSON_RECOGNITION.md))
 - [ ] 5 — Object detect: `detection` has no status column ([WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md))
 - [ ] 7-12 — Proposals; each spec carries its own build order
 
@@ -366,6 +368,6 @@ Conventions that apply to every workflow test:
 
 ---
 
-_Git HEAD revision: `d4e9134f`_
-_Last updated: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (workflow 13, person recognition; workflow 4 status corrected - clustering has run since V2.79). Earlier: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
 updated; dedup is now the reference implementation the other five modes should copy)_

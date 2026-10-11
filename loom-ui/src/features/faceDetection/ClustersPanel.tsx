@@ -4,7 +4,7 @@ import {
   DialogContent, DialogActions, Button, TextField,
 } from "@mui/material";
 import {
-  GroupWorkOutlined, LinkOutlined, EditOutlined, DeleteOutlined,
+  GroupWorkOutlined, LinkOutlined, EditOutlined, DeleteOutlined, CheckOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
@@ -15,7 +15,9 @@ import {
   deleteCluster as apiDeleteCluster,
   updateCluster as apiUpdateCluster,
   listClusterMembers,
+  CLUSTER_STATUS_PENDING,
 } from "../../api/clusters";
+import { scorePercent } from "../speakers/speakerTurns";
 import { FaceCrop } from "./FaceCrop";
 
 /**
@@ -104,11 +106,18 @@ interface ClustersPanelProps {
    * the card-to-card path has to infer it from the target.
    */
   onAssignToPerson?: (clusterId: string, personId: string) => void;
+  /**
+   * Accept the node's suggestion for an unreviewed cluster - "this is the person it looks like".
+   *
+   * Only ever on a click. The suggestion is a similarity score against the people already known;
+   * attributing a face to a named person stays the reviewer's decision.
+   */
+  onConfirmSuggestion?: (clusterId: string) => void;
   /** Thumbnail-size step; see {@link CLUSTER_SIZE_STEPS}. */
   size?: number;
 }
 
-export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated, onMergeClusters, onDetachPerson, onAssignToPerson, size = CLUSTER_SIZE_DEFAULT }: ClustersPanelProps) {
+export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated, onMergeClusters, onDetachPerson, onAssignToPerson, onConfirmSuggestion, size = CLUSTER_SIZE_DEFAULT }: ClustersPanelProps) {
   const step = clampClusterSize(size);
   const spec = CLUSTER_SIZE_STEPS[step];
   const column = clusterColumnPx(spec);
@@ -247,7 +256,9 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
       rows.push({
         key: `p-${personId}`,
         personId,
-        label: person?.name ?? personId,
+        // The server's name for the person before the raw uuid: somebody beyond the first page of
+        // people this screen loaded is still somebody with a name.
+        label: person?.name ?? group.find(c => c.personName)?.personName ?? personId,
         count: group.reduce((sum, c) => sum + c.faceCount, 0),
         cards: group,
       });
@@ -487,8 +498,16 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                 twelve is six rows of crops, and its neighbours became six rows of nothing. */}
             <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${column}px, 1fr))`, gap: dense ? 1 : 2, alignItems: "start" }}>
               {group.cards.map(cluster => {
-                const person = cluster.personId ? persons.find(p => p.id === cluster.personId) : undefined;
+                const person = cluster.personId
+                  ? (persons.find(p => p.id === cluster.personId)
+                    ?? (cluster.personName ? { id: cluster.personId, name: cluster.personName, avatarUrl: "" } : undefined))
+                  : undefined;
                 const cardDropTarget = dropTargetId === cluster.id;
+                // Only on a card nobody has decided yet: once confirmed or rejected the suggestion
+                // is history, and offering it again would invite overwriting a human verdict.
+                const suggestion = !cluster.personId && cluster.reviewStatus === CLUSTER_STATUS_PENDING && cluster.suggestedPersonId
+                  ? { id: cluster.suggestedPersonId, name: cluster.suggestedPersonName || cluster.suggestedPersonId, pct: scorePercent(cluster.suggestedScore) }
+                  : null;
                 return (
                   <Paper
                     key={cluster.id}
@@ -643,6 +662,31 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                         </Box>
                       )}
                     </Box>
+                    {/* The node's guess, under the faces it is a guess about. A line of its own
+                        rather than a header chip because the scanning steps draw no header, and
+                        the scanning steps are where most of the review happens. */}
+                    {suggestion && (
+                      <Box data-testid="cluster-suggestion" data-person-id={suggestion.id}
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5, px: spec.header ? 1.5 : 0.75, pb: spec.header ? 1 : 0.5, minWidth: 0 }}>
+                        <Tooltip disableInteractive title={t("faceDetection.suggestion.looksLike", { name: suggestion.name, score: suggestion.pct })}>
+                          <Typography variant="caption" noWrap data-testid="cluster-suggestion-label"
+                            sx={{ flex: 1, minWidth: 0, fontSize: "0.68rem", color: tokens.text.secondary }}>
+                            {t("faceDetection.suggestion.looksLike", { name: suggestion.name, score: suggestion.pct })}
+                          </Typography>
+                        </Tooltip>
+                        {onConfirmSuggestion && (
+                          <Tooltip disableInteractive title={t("faceDetection.suggestion.confirmAs", { name: suggestion.name })}>
+                            <IconButton size="small" data-testid="cluster-suggestion-confirm"
+                              aria-label={t("faceDetection.suggestion.confirm")}
+                              onClick={e => { e.stopPropagation(); onConfirmSuggestion(cluster.id); }}
+                              onDoubleClick={e => e.stopPropagation()}
+                              sx={{ p: 0.25, color: tokens.accent.green }}>
+                              <CheckOutlined sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    )}
                   </Paper>
                 );
               })}

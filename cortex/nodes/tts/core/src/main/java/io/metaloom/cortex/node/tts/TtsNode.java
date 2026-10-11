@@ -43,9 +43,12 @@ import io.metaloom.utils.hash.SHA512;
  * transcript) and attaches it to the asset.
  *
  * <p>
- * The synthesis runs in the FastAPI {@code /v1/tts} sidecar (see the module's
- * {@code server/} directory); this node is a pure HTTP client. German routes to
- * Orpheus/Kartoffel, English to Kokoro, selected by {@link TtsNodeOptions#getLanguage()}.
+ * The synthesis runs in the FastAPI {@code /v1/tts} sidecar ({@code sidecars/tts}
+ * in the repository root); this node is a pure HTTP client. {@link TtsNodeOptions#getLanguage()}
+ * selects the language, and the sidecar's own configuration selects which engine
+ * answers for it - Orpheus/Kartoffel or Kartoffelbox for German, Kokoro for English.
+ * Long text is split into several generations by the sidecar, so a request is no
+ * longer capped at one engine's ~50 s of audio.
  * </p>
  *
  * <p>

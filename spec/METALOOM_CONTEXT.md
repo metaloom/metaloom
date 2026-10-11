@@ -120,13 +120,15 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-147 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+148 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
 ├── METALOOM_CONTEXT.md                # ← THIS FILE — entry point and router
 ├── METALOOM.md                        # Big-picture module layout & framework map
 ├── GLOSSAR.md                         # Terminology
+├── ideas.md                          # Open decisions/follow-ups from the 2026-10-10 loom-ui
+│                                      #   e2e audit (share feedback ownership, dead UI dirs, CI)
 ├── tasks/                             # Actionable work items + scratch. Format: TASKS.template.md
 │   ├── TASKS.template.md              # Required format for every *_TASKS.md file
 │   ├── METALOOM_NOTES.md              # Scratch backlog: raw ideas without a spec file yet
@@ -509,7 +511,7 @@ spec/
 │   ├── LTX2_SIDECAR.md                # :9220 — LTX-2 video+audio generation (dual nf4, 24 GB)
 │   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
 │   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
-│   ├── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
+│   ├── TTS_SIDECAR.md                 # :9100 — text-to-speech: engine registry (Orpheus or Kartoffelbox for DE, Kokoro for EN), audio chain, streaming
 │   └── VOICEPRINT_SIDECAR.md          # :9150 — ReDimNet2 / WeSpeaker / SpeechBrain speaker
 │                                      #   embeddings, switchable; container, live-tested
 ├── test/                              # The test tiers above unit tests. One file per tier;
@@ -541,9 +543,11 @@ spec/
     ├── WORKFLOW_TRASH.md              # 🔵 Marker (tag) → filter → a NEW `move` node. 🔴 cross-device
     │                                  #   moves silently copy; asset_location.filekey_stdev already
     │                                  #   records the device id
-    ├── WORKFLOW_FACE.md               # 🟡 detect → embed → cluster → confirm a person. Stages 1–2
-    │                                  #   run (embeddings built 2026-08-06); 🔴 no clustering code
-    │                                  #   and `cluster.creator_uuid` NOT NULL blocks a worker
+    ├── WORKFLOW_FACE.md               # 🟢 detect → embed → cluster → confirm a person. All four
+    │                                  #   stages run (V2.79); per-asset clusters, reviewer confirms
+    ├── WORKFLOW_PERSON_RECOGNITION.md # 🟢 BUILT 2026-10-11: known persons suggested across assets
+    │                                  #   for faces AND voices (person_print, /person-match), voice
+    │                                  #   samples + hero voice on a person, filterBy=PERSON
     ├── WORKFLOW_OBJECT_DETECT.md      # 🟢 Built: `detection` carries a review verdict (V2.81).
     │                                  #   Also: objectdetect is NOT faces-only, and the UI's
     │                                  #   DetectionResponse omits `label`
@@ -594,7 +598,8 @@ spec/
 | **Speaker-recognition (voiceprint) models & their licences** | [features/nodes/voiceprint/NODE_VOICEPRINT.md](features/nodes/voiceprint/NODE_VOICEPRINT.md) §2 — ReDimNet2-B6 vox2 is the best commercially usable model measured; 🔴 VoxBlink2-trained variants are **non-commercial** whatever their HF tag says |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
 | **Anything a human reviews in bulk** — rating, tagging, confirming, rejecting | [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) — the family index. Read §3 (the 7-piece anatomy) before adding a workflow and §4 (defects X1–X10) before debugging one. 🔴 Of six shipped modes, exactly one writes to the server |
-| **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟡 **stages 1–2 of 4 run.** Detections and embeddings persist; there is no clustering code and `cluster.creator_uuid` is `NOT NULL`, so a worker cannot write one. ⚠️ moved here from `features/facedetection/` on 2026-08-07; ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
+| **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟢 **all four stages run**; clusters are per asset and a reviewer confirms them into a person. ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
+| **Recognising a known person in new material** (face or voice), a person's voice samples, filtering by person | [workflows/WORKFLOW_PERSON_RECOGNITION.md](workflows/WORKFLOW_PERSON_RECOGNITION.md) — 🟢 producers store a **suggestion** (`cluster.suggested_person_uuid`), never the verdict; matching is `POST /person-match` in Loom; nodes embed person samples lazily in their own model; `filterBy=PERSON` defaults to CONFIRMED and is never cached |
 | Reviewing dedup candidates (the human step) | [workflows/WORKFLOW_DEDUP.md](workflows/WORKFLOW_DEDUP.md) — the workflow half; the nodes and algorithm are in [features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md) |
 | Confirming or rejecting object detections | [workflows/WORKFLOW_OBJECT_DETECT.md](workflows/WORKFLOW_OBJECT_DETECT.md) — 🟢 `detection` carries `status`/`reviewer_uuid`/`corrected_label` (V2.81); `/confirm`, `/reject`, `/review-bulk` |
 | **What happens after a file is uploaded** — which pipeline runs and why | [workflows/WORKFLOW_UPLOAD.md](workflows/WORKFLOW_UPLOAD.md) — 🟢 built. The trigger is untyped JSON in `pipeline_version.meta.trigger`, matched on mime type only |
@@ -629,6 +634,7 @@ spec/
 | **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
 | **Tagging assets automatically** — the `tag` node, and the tag write path in general | [features/nodes/tag/NODE_TAG.md](features/nodes/tag/NODE_TAG.md) — 🟢 built. [features/nodes/NODES.md](features/nodes/NODES.md) §3.4 is the one-paragraph summary. 🔴 §6 is why `tagAsset` resolves rather than inserts |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](tasks/METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
+| Open decisions left by the loom-ui e2e audit | [ideas.md](ideas.md) — share feedback ownership, object-detection reject semantics, dead UI dirs, CI test gap |
 
 ### 2.2 The `metaloom-saas` sibling project
 

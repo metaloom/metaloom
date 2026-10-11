@@ -29,6 +29,18 @@ public enum AttachmentType {
 	PERSON_IMAGE,
 
 	/**
+	 * A recording of a person's voice, owned by that person.
+	 *
+	 * <p>
+	 * The voice counterpart of {@link #PERSON_IMAGE}, with the same lifetime: uploaded to the person, or cut from a speaker's turn in an asset into
+	 * the person's own keeping, so no asset deletion can reach it (V2.114). One of them may be designated the hero sample via
+	 * {@code person.hero_voice_attachment_uuid}. The node owning a voice model embeds each sample once per model into a {@code person_print}, which
+	 * is what lets person matching recognise the voice in new material.
+	 * </p>
+	 */
+	PERSON_VOICE,
+
+	/**
 	 * The picture of a user account, owned by that account.
 	 *
 	 * <p>

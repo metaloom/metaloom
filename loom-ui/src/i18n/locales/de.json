@@ -1210,6 +1210,7 @@
         "FACE_CROP": "Gesichtsausschnitte",
         "PERSON_IMAGE": "Personenbilder",
         "PERSON_AVATAR": "Personen-Avatare",
+        "PERSON_VOICE": "Personen-Stimmproben",
         "USER_AVATAR": "Kontobilder"
       },
       "search": "Pools durchsuchen"
@@ -1626,7 +1627,8 @@
     "tab": {
       "faces": "Gesichter",
       "objects": "Objekte",
-      "llm": "LLM"
+      "llm": "LLM",
+      "speakers": "Sprecher"
     }
   },
   "llmDetection": {
@@ -1766,6 +1768,11 @@
       "smaller": "Kleinere Vorschaubilder",
       "larger": "Größere Vorschaubilder",
       "thumbnails": "Vorschaubildgröße"
+    },
+    "suggestion": {
+      "looksLike": "Sieht aus wie {{name}} ({{score}} %)",
+      "confirmAs": "Als {{name}} bestätigen",
+      "confirm": "Bestätigen"
     }
   },
   "maintenance": {
@@ -2442,6 +2449,48 @@
       "imageDeleted": "Bild gelöscht",
       "deleteFailed": "Das Bild konnte nicht gelöscht werden",
       "loadFailed": "Diese Person konnte nicht geladen werden"
+    },
+    "voice": {
+      "title": "Stimmproben",
+      "label": {
+        "total": "{{time}} Referenzsprache",
+        "unknownLength": "Länge unbekannt",
+        "fromAsset": "aus {{asset}} bei {{at}}",
+        "uploaded": "hochgeladen",
+        "notEnrolled": "noch nicht eingelernt",
+        "noReason": "kein Grund angegeben",
+        "hero": "Hauptstimme",
+        "importTitle": "Von einem Sprecher übernehmen",
+        "importHint": "Dieser Person zugeordnete Sprecher. Beim Übernehmen wird ihr längster Redebeitrag (bis zu 30 Sekunden) kopiert; die Kopie bleibt bei der Person, auch wenn das Material gelöscht wird, aus dem sie stammt."
+      },
+      "button": {
+        "clearHero": "Hauptstimme entfernen",
+        "upload": "Aufnahme hochladen",
+        "import": "Übernehmen"
+      },
+      "warning": {
+        "short": "Die Erkennung funktioniert am besten mit mindestens 30 Sekunden Sprache aus mehr als einer Gelegenheit."
+      },
+      "empty": {
+        "title": "Noch keine Stimmproben",
+        "hint": "Lade eine Aufnahme hoch oder übernimm eine von einem dieser Person zugeordneten Sprecher."
+      },
+      "tooltip": {
+        "play": "{{name}} abspielen",
+        "playHero": "Hauptstimme abspielen",
+        "notEnrolled": "Noch kein Stimmmodell hat diese Probe eingebettet. Sie wird beim nächsten Lauf eines Voiceprint-Knotens berücksichtigt.",
+        "printUsable": "{{model}}: eingelernt ({{dimensions}} Dimensionen)",
+        "printUnusable": "{{model}}: nicht verwendbar - {{error}}",
+        "makeHero": "Als Hauptstimme festlegen",
+        "delete": "Diese Stimmprobe löschen"
+      },
+      "toast": {
+        "uploaded": "Stimmprobe hinzugefügt",
+        "imported": "Stimmprobe vom Sprecher übernommen",
+        "heroSet": "Hauptstimme aktualisiert",
+        "heroCleared": "Hauptstimme entfernt",
+        "deleted": "Stimmprobe gelöscht"
+      }
     }
   },
   "share": {
@@ -2600,5 +2649,65 @@
     "fullscreen": "Vollbild",
     "notStreamable": "Dieses Video kann hier nicht abgespielt werden: {{codec}} erfordert eine vollständige Transkodierung.",
     "volume": "Lautstärke"
+  },
+  "audio": {
+    "loadFailed": "Diese Aufnahme konnte nicht geladen werden - klicken, um es erneut zu versuchen",
+    "retry": "Erneut versuchen"
+  },
+  "speakers": {
+    "search": {
+      "placeholder": "Assets, Personen suchen…"
+    },
+    "status": {
+      "PENDING": "Offen",
+      "CONFIRMED": "Bestätigt",
+      "REJECTED": "Abgelehnt"
+    },
+    "filter": {
+      "anyStatus": "Jeder Status"
+    },
+    "count_one": "{{count}} Sprecher",
+    "count_other": "{{count}} Sprecher",
+    "empty": {
+      "title": "Keine Sprecher gefunden",
+      "hint": "Sprecher erscheinen hier, sobald eine Pipeline mit dem Voiceprint-Knoten über Audio oder Video gelaufen ist."
+    },
+    "label": {
+      "noAsset": "Unbekanntes Asset",
+      "stats_one": "{{time}} Sprechzeit · {{count}} Redebeitrag",
+      "stats_other": "{{time}} Sprechzeit · {{count}} Redebeiträge",
+      "noTurns": "Für diesen Sprecher sind keine Redebeiträge erfasst",
+      "turn": "{{from}} – {{to}} ({{length}})"
+    },
+    "suggestion": {
+      "looksLike": "Klingt wie {{name}} ({{score}} %)"
+    },
+    "dialog": {
+      "assign": "Sprecher einer Person zuordnen",
+      "selectPerson": "Person auswählen…",
+      "create": "Neue Person für diesen Sprecher",
+      "alias": "Alias"
+    },
+    "button": {
+      "cancel": "Abbrechen",
+      "assign": "Zuordnen",
+      "create": "Erstellen",
+      "confirm": "Bestätigen",
+      "saveSample": "Als Stimmprobe speichern"
+    },
+    "tooltip": {
+      "play": "Längsten Redebeitrag abspielen",
+      "playTurn": "Redebeitrag bei {{from}} abspielen",
+      "saveSample": "Den längsten Redebeitrag dieses Sprechers (bis zu 30 s) in die Stimmproben von {{name}} kopieren",
+      "saveTurn": "Diesen Redebeitrag als Stimmprobe speichern",
+      "assign": "Einer bestehenden Person zuordnen",
+      "create": "Neue Person anlegen",
+      "reject": "Ablehnen - kein Sprecher, den es zu behalten lohnt",
+      "expand": "Redebeiträge anzeigen",
+      "collapse": "Redebeiträge ausblenden"
+    },
+    "toast": {
+      "sampleSaved": "Stimmprobe bei {{name}} gespeichert"
+    }
   }
 }

@@ -45,7 +45,7 @@ Status legend: 🟢 built · 🟡 partly built · 🔵 plan/concept · 🔴 defe
 | **Can a Cortex worker create a cluster?** | Yes, since `V2.79` made the audit columns nullable — the relaxation `V2.47` applied to every other producer table. |
 | **Is `cluster` linked to `person`?** | Yes: `cluster.person_uuid`, `ON DELETE SET NULL`, set by `POST /clusters/:uuid/confirm`. |
 | **What does the UI show?** | A review queue with real member crops served from this deployment, and confirm/reject that persists. |
-| **What is still missing?** | *Automatic* cross-asset identity. The same person in two videos is still two unrelated clusters (§2.2) — a reviewer can now stack them onto one person by hand (§2.2.1), which is durable, but nothing proposes it. |
+| **What is still missing?** | Grouping *unknown* faces across assets. Known persons are now recognised: since 2026-10-11 every new face cluster is matched against the clusters confirmed to a person and the person's own pictures, and the closest person is stored as a **suggestion** for the reviewer - see [WORKFLOW_PERSON_RECOGNITION.md](WORKFLOW_PERSON_RECOGNITION.md). Two videos of somebody nobody has named yet are still two unrelated clusters (§2.2), stackable by hand (§2.2.1). |
 
 ---
 
@@ -743,10 +743,13 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
       avatar pointing at it both survive deleting the asset the face was found in
 
 **Not built — the honest gap**
-- [ ] **Cross-asset identity.** Clustering is per asset, so the same person in two videos is two
-      unrelated clusters. This is the phase-2 pass over the vector index (§2.2), and the schema is
-      shaped for it: `cluster.asset_uuid` is nullable precisely so a library-wide cluster fits the
-      same table.
+- [x] **Cross-asset recognition of known persons** (2026-10-11): `facedetect` matches each cluster
+      against confirmed clusters and person pictures and stores `cluster.suggested_person_uuid`; the
+      review UI offers one-click confirmation. [WORKFLOW_PERSON_RECOGNITION.md](WORKFLOW_PERSON_RECOGNITION.md)
+- [ ] **Cross-asset grouping of unknown faces.** Clustering is per asset, so the same not-yet-named
+      person in two videos is two unrelated clusters. This is the library-wide pass over the vector
+      index (§2.2), and the schema is shaped for it: `cluster.asset_uuid` is nullable precisely so a
+      library-wide cluster fits the same table.
 - [ ] **`faceClusterEPS` is still calibrated against nothing.** `0.6` is a guess (§2.3).
 
 **Defects — all twelve fixed**
@@ -808,6 +811,8 @@ Node options live under `FacedetectNodeOptions`, `KEY = "facedetection"` (**not*
 | `maxFaceAngle` | `30` | ✅ | now gates both paths (video4j change) |
 | `videoChopRate` | `15` | ✅ | frames sampled per scan window. **Default changed from 5**, which never matched the hard-coded 15 |
 | `videoScaleSize` | `0` | ✅ | longest edge before detection; **0 = native resolution**, which is what the scanner always did |
+| `suggestPersons` | `true` | ✅ | match each cluster against confirmed clusters and person pictures, store a suggestion (2026-10-11, [WORKFLOW_PERSON_RECOGNITION.md](WORKFLOW_PERSON_RECOGNITION.md)); needs `embeddingsEnabled`; hidden on `facedescription` |
+| `suggestThreshold` | `0` | ✅ | cosine a cluster must reach to be suggested as a person; 0 = `DEFAULT_SUGGEST_THRESHOLD` 0.45 |
 
 **No environment variables are specific to this feature.** Server-side env vars are in
 [CONFIGURATION.md](../loom/CONFIGURATION.md).
@@ -913,12 +918,8 @@ Written 2026-08-06 to close the "Rework the face workflow" item in
 enumerated by reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in
 an earlier draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
 
-_Git HEAD revision: `8e6f4915`_
-_2026-08-10 — the open work was distilled into
-[../tasks/WORKFLOW_FACE_TASKS.md](../tasks/WORKFLOW_FACE_TASKS.md), and the two §7 implementation
-checkboxes were re-checked against the checkout: the customer docs and the demo PENDING cluster had
-both already shipped._
-_Last updated: 2026-08-10 — **a person now has a face of their own.** `V2.89`-`V2.91` give a person
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (known persons are now suggested across assets - WORKFLOW_PERSON_RECOGNITION.md; earlier: 2026-08-10 — **a person now has a face of their own.** `V2.89`-`V2.91` give a person
 pictures they own: `PERSON_IMAGE` attachments keyed by `person_uuid`, one of them designated by
 `person.avatar_attachment_uuid`, reachable at `/persons/:uuid/images` and shown by a `/persons/:id`
 detail view. The two things V2.26 left behind are gone — the `person_image` gallery that never had a
@@ -926,4 +927,4 @@ writer, and `primary_image_uuid`, which pointed at an asset and so illustrated a
 a video with the video file. All twelve §6 defects are now fixed. Confirmation deliberately did not
 change: it records who attributed a face to whom, and choosing what somebody looks like is a separate
 act (§1.4). What is still missing is unchanged — cross-asset identity (§2.2) and a calibrated
-`faceClusterEPS`._
+`faceClusterEPS`.)_

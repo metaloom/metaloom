@@ -19,6 +19,7 @@ import io.metaloom.loom.db.model.cluster.ClusterMember;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.person.Person;
+import io.metaloom.loom.db.model.person.PersonReference;
 import io.metaloom.loom.db.model.user.User;
 
 public class ClusterDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<ClusterDao, Cluster> {
@@ -430,6 +431,147 @@ public class ClusterDaoTest extends AbstractJooqTest implements CRUDDaoTestcases
 			"The embedding_cluster links must have cascaded");
 		assertNotNull(embeddingDao().load(embedding1.getUuid()), "The first embedding must survive deletion of the cluster");
 		assertNotNull(embeddingDao().load(embedding2.getUuid()), "The second embedding must survive deletion of the cluster");
+	}
+
+	/**
+	 * A speaker's members are speech windows on frame 0; the member list must carry where each was heard and be ordered by it, or a reviewer could
+	 * not listen to a speaker in the order the words were said.
+	 */
+	@Test
+	public void testListMembersCarriesTheTimeWindow() {
+		User user = dummyUser();
+		Cluster cluster = getDao().createMachineCluster("speaker", "voiceprint", asset().getUuid(), 0);
+		getDao().upsertCluster(cluster);
+
+		Embedding late = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, "voiceprint");
+		late.setNodeKind("voiceprint");
+		late.setSubjectIndex(1);
+		late.setFrameNumber(0);
+		late.setTimeFrom(4500L);
+		late.setTimeTo(7500L);
+		embeddingDao().store(late);
+		Embedding early = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, "voiceprint");
+		early.setNodeKind("voiceprint");
+		early.setSubjectIndex(0);
+		early.setFrameNumber(0);
+		early.setTimeFrom(1500L);
+		early.setTimeTo(4500L);
+		embeddingDao().store(early);
+
+		getDao().link(cluster.getUuid(), late.getUuid(), 0.9f, ClusterMember.ORIGIN_AUTO);
+		getDao().link(cluster.getUuid(), early.getUuid(), 0.8f, ClusterMember.ORIGIN_AUTO);
+
+		List<ClusterMember> members = getDao().listMembers(cluster.getUuid());
+		assertEquals(2, members.size());
+		assertEquals(early.getUuid(), members.get(0).getEmbeddingUuid(), "Members are listed in the order they were heard");
+		assertEquals(1500L, members.get(0).getTimeFrom());
+		assertEquals(4500L, members.get(0).getTimeTo());
+		assertEquals(4500L, members.get(1).getTimeFrom());
+		assertNull(members.get(0).getDetectionUuid(), "A speech window has no detection behind it");
+	}
+
+	/**
+	 * A suggestion is the producer's to restate on every run, unlike the verdict: the upsert overwrites it while leaving the confirmed person alone.
+	 */
+	@Test
+	public void testUpsertRestatesTheSuggestionButKeepsTheVerdict() {
+		User user = dummyUser();
+		Person suggestedFirst = personDao().createPerson(user, "First Guess");
+		personDao().store(suggestedFirst);
+		Person suggestedSecond = personDao().createPerson(user, "Second Guess");
+		personDao().store(suggestedSecond);
+		Person confirmedAs = personDao().createPerson(user, "Reviewer Says");
+		personDao().store(confirmedAs);
+
+		Cluster proposed = getDao().createMachineCluster("speaker", "voiceprint", asset().getUuid(), 0);
+		proposed.setSuggestedPersonUuid(suggestedFirst.getUuid());
+		proposed.setSuggestedScore(0.61f);
+		getDao().upsertCluster(proposed);
+		getDao().confirm(proposed.getUuid(), confirmedAs.getUuid(), null, user.getUuid());
+
+		Cluster rerun = getDao().createMachineCluster("speaker", "voiceprint", asset().getUuid(), 0);
+		rerun.setSuggestedPersonUuid(suggestedSecond.getUuid());
+		rerun.setSuggestedScore(0.72f);
+		getDao().upsertCluster(rerun);
+
+		Cluster reloaded = getDao().load(proposed.getUuid());
+		assertEquals(suggestedSecond.getUuid(), reloaded.getSuggestedPersonUuid(), "The re-run's suggestion replaces the earlier one");
+		assertEquals(0.72f, reloaded.getSuggestedScore(), 0.0001f);
+		assertEquals(confirmedAs.getUuid(), reloaded.getPersonUuid(), "The reviewer's verdict survives the re-run");
+		assertEquals(Cluster.STATUS_CONFIRMED, reloaded.getStatus());
+	}
+
+	/**
+	 * Deleting the suggested person nulls the suggestion and nothing else (SET NULL, V2.115).
+	 */
+	@Test
+	public void testDeletingTheSuggestedPersonNullsOnlyTheSuggestion() {
+		User user = dummyUser();
+		Person suggested = personDao().createPerson(user, "Suggested Then Deleted");
+		personDao().store(suggested);
+		Cluster cluster = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0);
+		cluster.setSuggestedPersonUuid(suggested.getUuid());
+		cluster.setSuggestedScore(0.5f);
+		getDao().upsertCluster(cluster);
+		Cluster untouched = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 1);
+		untouched.setSuggestedScore(0.4f);
+		getDao().upsertCluster(untouched);
+
+		personDao().delete(suggested.getUuid());
+
+		Cluster reloaded = getDao().load(cluster.getUuid());
+		assertNotNull(reloaded, "The cluster survives");
+		assertNull(reloaded.getSuggestedPersonUuid(), "The suggestion pointer is nulled");
+		assertNotNull(getDao().load(untouched.getUuid()), "An unrelated cluster is untouched");
+	}
+
+	/**
+	 * Person matching reads only what a reviewer confirmed, only in the requested space: a pending suggestion, a rejected cluster or a centroid from
+	 * another model must never become a reference.
+	 */
+	@Test
+	public void testListConfirmedReferencesReadsOneSpaceOfConfirmedCentroids() {
+		User user = dummyUser();
+		Person person = personDao().createPerson(user, "Reference Person");
+		personDao().store(person);
+		Float[] centroid = { 0.6f, 0.8f };
+
+		Cluster confirmed = speakerCluster(0, "model-a", centroid);
+		getDao().confirm(confirmed.getUuid(), person.getUuid(), null, user.getUuid());
+
+		Cluster otherModel = speakerCluster(1, "model-b", centroid);
+		getDao().confirm(otherModel.getUuid(), person.getUuid(), null, user.getUuid());
+
+		Cluster pending = speakerCluster(2, "model-a", centroid);
+		pending.setSuggestedPersonUuid(person.getUuid());
+		getDao().upsertCluster(pending);
+
+		Cluster rejected = speakerCluster(3, "model-a", centroid);
+		getDao().updateStatus(rejected.getUuid(), Cluster.STATUS_REJECTED, person.getUuid(), user.getUuid());
+
+		Cluster face = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 4);
+		face.setModel("model-a");
+		face.setCentroid(centroid);
+		face.setDimensions(2);
+		getDao().upsertCluster(face);
+		getDao().confirm(face.getUuid(), person.getUuid(), null, user.getUuid());
+
+		List<PersonReference> references = getDao().listConfirmedReferences("speaker", "model-a");
+		assertEquals(1, references.size(), "Only the confirmed speaker cluster of model-a qualifies");
+		PersonReference reference = references.get(0);
+		assertEquals(person.getUuid(), reference.personUuid());
+		assertEquals(confirmed.getUuid(), reference.sourceUuid());
+		assertEquals(PersonReference.SOURCE_CLUSTER, reference.source());
+		assertEquals(0.6f, reference.vector()[0], 0.0001f);
+	}
+
+	private Cluster speakerCluster(int index, String model, Float[] centroid) {
+		Cluster cluster = getDao().createMachineCluster("speaker", "voiceprint", asset().getUuid(), index);
+		cluster.setModel(model);
+		cluster.setCentroid(centroid);
+		cluster.setDimensions(centroid.length);
+		getDao().upsertCluster(cluster);
+		return cluster;
 	}
 
 }

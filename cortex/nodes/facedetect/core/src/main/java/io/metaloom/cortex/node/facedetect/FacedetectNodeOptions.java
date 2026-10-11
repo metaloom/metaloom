@@ -129,6 +129,36 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 	private String embeddingModel = DEFAULT_EMBEDDING_MODEL;
 
 	/**
+	 * Whether each face cluster is matched against the persons whose faces are known, and the closest one suggested for review.
+	 *
+	 * <p>
+	 * The references are the face clusters reviewers confirmed and the pictures uploaded to or imported into a person; a picture this model has not
+	 * embedded yet is embedded first. The result is a suggestion on the cluster, never a confirmation. Needs {@link #embeddingsEnabled}: without a
+	 * vector there is nothing to compare.
+	 * </p>
+	 */
+	@ParamDoc(label = "Suggest Persons",
+		description = "Compare each face cluster with the persons whose faces are known - confirmed clusters and their own pictures - and suggest the "
+			+ "closest one for review. A suggestion is never a confirmation")
+	private boolean suggestPersons = true;
+
+	/**
+	 * Cosine similarity a cluster's centroid must reach to a person's reference to be suggested as them.
+	 *
+	 * <p>
+	 * 0 selects {@link #DEFAULT_SUGGEST_THRESHOLD}, deliberately stricter than the 0.24-0.27 that separates same from different people on LFW and the
+	 * 0.34-0.40 the face evaluation measured on its pose and occlusion set ({@code face-eval}, FACE-RESULTS.md): a suggestion puts a name in front of
+	 * a reviewer, and a wrong name costs more than a missing one.
+	 * </p>
+	 */
+	@ParamDoc(label = "Suggestion Threshold", description = "Cosine similarity a face cluster must reach to be suggested as a person; 0 uses 0.45",
+		min = "0", max = "1", step = "0.01")
+	private double suggestThreshold = 0.0;
+
+	/** The suggestion threshold when none is configured; see {@link #suggestThreshold}. */
+	public static final float DEFAULT_SUGGEST_THRESHOLD = 0.45f;
+
+	/**
 	 * Set of enabled face detection capabilities.
 	 */
 	@ParamDoc(label = "Backends", values = { "INSPIREFACE", "DLIB" })
@@ -136,6 +166,29 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	public boolean isEmbeddingsEnabled() {
 		return embeddingsEnabled;
+	}
+
+	public boolean isSuggestPersons() {
+		return suggestPersons;
+	}
+
+	public FacedetectNodeOptions setSuggestPersons(boolean suggestPersons) {
+		this.suggestPersons = suggestPersons;
+		return this;
+	}
+
+	public double getSuggestThreshold() {
+		return suggestThreshold;
+	}
+
+	public FacedetectNodeOptions setSuggestThreshold(double suggestThreshold) {
+		this.suggestThreshold = suggestThreshold;
+		return this;
+	}
+
+	/** The configured suggestion threshold, or {@link #DEFAULT_SUGGEST_THRESHOLD}. */
+	public float resolvedSuggestThreshold() {
+		return suggestThreshold > 0 ? (float) suggestThreshold : DEFAULT_SUGGEST_THRESHOLD;
 	}
 
 	public FacedetectNodeOptions setEmbeddingsEnabled(boolean embeddingsEnabled) {
@@ -304,6 +357,9 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 		// An unnamed model would make every embedding this node writes indistinguishable from those of
 		// the next model, which is exactly what the identifier exists to prevent.
+		if (suggestThreshold < 0 || suggestThreshold > 1) {
+			errors.add("suggestThreshold must be a cosine similarity in [0, 1], got " + suggestThreshold);
+		}
 		if (embeddingsEnabled && (embeddingModel == null || embeddingModel.isBlank())) {
 			errors.add("embeddingModel must not be empty when embeddingsEnabled is true");
 		}

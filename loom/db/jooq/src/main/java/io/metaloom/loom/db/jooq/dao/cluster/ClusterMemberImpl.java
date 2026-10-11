@@ -23,6 +23,10 @@ public class ClusterMemberImpl implements ClusterMember {
 
 	private Integer frameNumber;
 
+	private Long timeFrom;
+
+	private Long timeTo;
+
 	private Float bboxX;
 
 	private Float bboxY;
@@ -116,6 +120,28 @@ public class ClusterMemberImpl implements ClusterMember {
 	@Override
 	public ClusterMember setFrameNumber(Integer frameNumber) {
 		this.frameNumber = frameNumber;
+		return this;
+	}
+
+	@Override
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	@Override
+	public ClusterMember setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	@Override
+	public Long getTimeTo() {
+		return timeTo;
+	}
+
+	@Override
+	public ClusterMember setTimeTo(Long timeTo) {
+		this.timeTo = timeTo;
 		return this;
 	}
 

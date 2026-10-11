@@ -27,21 +27,30 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	@ParamDoc(label = "Filter By",
 		description = "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata; "
-			+ "RATING and TAG read the decisions people recorded in Loom")
+			+ "RATING and TAG read the decisions people recorded in Loom; PERSON reads who was recognised in the item")
 	private FilterBy filterBy = FilterBy.LANGUAGE;
 
 	/** The bucket rows, exactly as the editor's {@code PORT_LIST} widget writes them. */
 	@ParamDoc(label = "Buckets", type = ParameterType.PORT_LIST,
 		description = "One output port per bucket, tried in order with the first match winning. Each row's match column holds "
 			+ "hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB', "
-			+ "dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', or tag names like 'hero', "
-			+ "'person/*' and '!archive'. An 'other' port for everything else is always present")
+			+ "dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', tag names like 'hero', "
+			+ "'person/*' and '!archive', or person names like 'Anna Meyer', '*' and 'nobody'. An 'other' port for everything else is always present")
 	private JsonArray buckets = new JsonArray();
 
 	@ParamDoc(label = "Tag Source",
 		description = "Which tags count when filterBy=TAG: ANY, MANUAL for only the tags a person attached, or MACHINE for only "
 			+ "those a node attached")
 	private TagSource tagSource = TagSource.ANY;
+
+	@ParamDoc(label = "Person Source",
+		description = "Which recognitions count when filterBy=PERSON: ANY, FACE for only faces, or VOICE for only voices")
+	private PersonSource personSource = PersonSource.ANY;
+
+	@ParamDoc(label = "Person Evidence",
+		description = "How sure the filter must be that a person is in an item when filterBy=PERSON: CONFIRMED counts only what a reviewer "
+			+ "confirmed; SUGGESTED also counts what person matching suggested and nobody has rejected")
+	private PersonEvidence personEvidence = PersonEvidence.CONFIRMED;
 
 	@ParamDoc(label = "Model", description = "The model asked to classify each item. Used by filterBy=LANGUAGE only")
 	private String model = "meta-llama/Llama-3.2-3B-Instruct";
@@ -81,6 +90,24 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	public FilterNodeOptions setTagSource(TagSource tagSource) {
 		this.tagSource = tagSource;
+		return this;
+	}
+
+	public PersonSource getPersonSource() {
+		return personSource;
+	}
+
+	public FilterNodeOptions setPersonSource(PersonSource personSource) {
+		this.personSource = personSource;
+		return this;
+	}
+
+	public PersonEvidence getPersonEvidence() {
+		return personEvidence;
+	}
+
+	public FilterNodeOptions setPersonEvidence(PersonEvidence personEvidence) {
+		this.personEvidence = personEvidence;
 		return this;
 	}
 

@@ -68,12 +68,27 @@ backends never share an `(embedding.type, embedding.model)` space and coexist af
 | Write | Rows | Key fields |
 |---|---|---|
 | `POST /assets/:uuid/embeddings/bulk` | one per window (`persistWindows=true`) or one per speaker | `type=voiceprint`, `nodeKind=voiceprint`, `model`=sidecar id, `subjectIndex`=window/speaker index, `frameNumber=0`, `timeFrom`/`timeTo` (ms), `normalized=true`, no `detectionUuid` |
-| `POST /assets/:uuid/clusters/bulk` | one per speaker (only with windows) | `type=speaker`, `clusterIndex`, `score`=cohesion, `centroid`=speaker voiceprint, `meta.totalMs`, `meta.segments`; members = the speaker's window embeddings, `confidence`=cosine to the centroid, `origin=AUTO` |
+| `POST /assets/:uuid/clusters/bulk` | one per speaker (only with windows) | `type=speaker`, `clusterIndex`, `score`=cohesion, `centroid`=speaker voiceprint, `meta.totalMs`, `meta.segments`, `suggestedPersonUuid`/`suggestedScore` when a known voice matched (section 4.1); members = the speaker's window embeddings, `confidence`=cosine to the centroid, `origin=AUTO` |
+| `POST /person-match`, `POST /persons/:uuid/voice-samples/:sampleUuid/prints` | per item, before the clusters | matching and lazy enrolment of person voice samples (section 4.1) |
 | `POST /assets/:uuid/json-comps` | one | `schemaType=voiceprint`, `variant=""`, data = timeline without vectors |
 | ledger | one | SUCCESS → `result_ref` the component; FAILED on sidecar/Loom error; SKIPPED "no speech found" |
 
 `producerVersion` = `voiceprint/1:<model id>`.
 
+### 4.1 Person suggestions (2026-10-11)
+
+With `suggestPersons` on (the default) every speaker centroid is matched against the persons whose
+voices are known - speaker clusters a reviewer confirmed and the persons' own voice samples - via
+`PersonSuggestions` in `cortex/common`. Samples with no print in this model yet are downloaded,
+demuxed to WAV and embedded with **this node's sidecar and model** (the pooled vector); a sample with
+no speech or that cannot be decoded is stored as an unusable print and not retried. The closest person
+at or above the threshold is written as the cluster's *suggestion* - never as `person_uuid`. Matching
+failures leave the speakers unsuggested; they never fail the node. The whole cycle, including the
+filter that consumes it: [WORKFLOW_PERSON_RECOGNITION.md](../../../workflows/WORKFLOW_PERSON_RECOGNITION.md).
+
+Default thresholds are the cosine scores at a 1 % false-accept rate on German parliamentary speech
+(VP-DE calibration set, `voiceprint-eval/results/transfer.csv`): ReDimNet2-B6 0.43, WeSpeaker
+ResNet34 0.46, SpeechBrain ECAPA 0.48; an unmeasured model gets 0.5.
 **`embedding.time_from` / `time_to` were write-only-by-nobody.** V2.43 added the columns; the DAO
 model, `EmbeddingImpl`, the REST request/response, the builder and the service never carried them. This
 node threaded them through every layer (NEW_NODE §1.4) and `EmbeddingModelValidator` now rejects
@@ -90,6 +105,7 @@ item into a 500 that failed the whole bulk call.
 | `voiceprint` | `struct/embedding` | ONE | `{model, dim, vector}` pooled over all windows |
 | `timeline` | `struct/segments` | ONE | `{durationMs, segments[{start, end, speaker, label}]}` sorted by start |
 | `result` | `struct/json` | ONE | the persisted summary |
+| `persons` | `struct/persons` | ONE | known persons among the speakers, confirmed or suggested; always written (`[]` when none), so a `filterBy=PERSON` filter wired to it runs after this node. On a cache hit re-read from Loom |
 
 `ctx.preview(timeline, …)` writes a GFM table of the speakers (`speakersMarkdown`).
 
@@ -114,7 +130,9 @@ item into a 500 that failed the whole bulk call.
 | `windowSeconds` / `hopSeconds` / `minSpeechSeconds` | 3.0 / 1.5 / 1.0 | hop ≤ window |
 | `clusterThreshold` | 0 | 0 = not sent = backend default (0.40 / 0.40 / 0.35) |
 | `maxSpeakers` | 0 | 0 = not sent |
-| `persistWindows` | true | false: one embedding per speaker, no clusters |
+| `persistWindows` | true | false: one embedding per speaker, no clusters (and so no suggestions) |
+| `suggestPersons` | true | match speakers against known voices and store a suggestion |
+| `suggestThreshold` | 0 | 0 = per-model default (section 4.1) |
 | `ffmpegPath` | `ffmpeg` | video only |
 | `timeoutMs` | 0 | 0 = 10 min, for both demux and HTTP |
 
@@ -166,8 +184,10 @@ Run: `mvn -o -pl cortex/nodes/voiceprint/core test`; live IT needs `sidecars/voi
 - [x] `embedding.time_from`/`time_to` readable and writable through every layer
 - [x] Unit, persistence, pipeline, client, DAO, endpoint and integration tests (incl. live)
 - [x] Website page, index rows, model licence rows, generated screenshots
-- [ ] Cross-asset speaker search ("where else does this voice appear") — needs a query over
-      `embedding` by `(type=voiceprint, model)`; the vector index spaces already separate by model
+- [x] Recognise known persons across recordings: suggestions from confirmed speakers and person voice
+      samples, lazy enrolment, `persons` output, `filterBy=PERSON` (2026-10-11,
+      [WORKFLOW_PERSON_RECOGNITION.md](../../../workflows/WORKFLOW_PERSON_RECOGNITION.md))
+- [ ] "Where else does this *unknown* voice appear" - library-wide grouping of voices nobody has named
 - [ ] AS-norm with an in-domain cohort and per-source threshold calibration (eval recommendation)
 - [ ] Combine with `whisper` into speaker-attributed transcripts
 - [ ] Overlapping speech: a window holding two voices is attributed to one
@@ -175,5 +195,5 @@ Run: `mvn -o -pl cortex/nodes/voiceprint/core test`; live IT needs `sidecars/voi
 
 ---
 
-_Git HEAD revision: `3da90863`_
-_Last updated: 2026-10-10 (created with the node)_
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (person suggestions, `persons` port, two options)_

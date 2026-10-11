@@ -254,13 +254,13 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/users` | `UserEndpoint` | + `PATCH`, `PUT` on `/:uuid` |
 | `/roles` | `RoleEndpoint` | Create/update carry `permissions` — absent = leave unchanged, `[]` = revoke all, non-empty = replace. See [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) §4.4 |
 | `/groups` | `GroupEndpoint` | + `PATCH`, `PUT` on `/:uuid`; list uses `addRoute`, **not** `addListRoute` (no query-param docs) |
-| `/persons` | `PersonEndpoint` | — |
+| `/persons` | `PersonEndpoint` | + `/:uuid/clusters` (GET); + pictures `/:uuid/images` (GET, upload), `/images/from-detection`, `/images/:imageUuid/data`, `/images/:imageUuid` (DELETE), `/images/:imageUuid/prints` (POST, node-written), `/:uuid/avatar`; + voice `/:uuid/voice-samples` (GET, upload), `/voice-samples/from-cluster` (POST; also needs READ_CLUSTER + READ_ASSET_BINARY), `/voice-samples/:sampleUuid/data`, `/voice-samples/:sampleUuid` (DELETE), `/voice-samples/:sampleUuid/prints` (POST, node-written), `/:uuid/hero-voice`. See [../workflows/WORKFLOW_PERSON_RECOGNITION.md](../workflows/WORKFLOW_PERSON_RECOGNITION.md) |
 | `/spaces` | `SpaceEndpoint` | — |
 | `/libraries` | `LibraryEndpoint` | — |
 | `/collections` | `CollectionEndpoint` | + `/:uuid/assets` membership (POST, PUT, GET, DELETE); + `/:uuid/share-links` (GET) |
 | `/share-links` | `ShareLinkEndpoint` | Owner-side share links. + `/:uuid/feedback` (GET) - what the customer said. Separate base path from the unsecured `/shares` on purpose: `secure()` is applied by path wildcard, so one base path for both halves would either secure the customer routes or force this endpoint to enumerate its own. Also reachable as `/assets/:uuid/share-links` and `/collections/:uuid/share-links` |
 | `/blacklists` | `BlacklistEndpoint` | — |
-| `/clusters` | `ClusterEndpoint` | — |
+| `/clusters` | `ClusterEndpoint` | + `?status=&type=` on the list; + `/:uuid/members`, `/:uuid/confirm`, `/:uuid/reject`, `DELETE /:uuid/person`. Responses carry `personName`, `suggestedPersonUuid`/`Name`/`Score` and `model` |
 | `/chats` | `ChatEndpoint` | — |
 | `/pools` | `AssetPoolEndpoint` | Storage pools |
 | `/binaries` | `AssetBinaryEndpoint` | Standalone binary metadata CRUD |
@@ -273,6 +273,8 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/memory-deny-rules` | `agent/` `MemoryDenyRuleEndpoint` | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
 
 ### 4.3 Non-CRUD and partial endpoints
+
+- `POST /person-match` (`PersonMatchEndpoint`, READ_PERSON) - which known persons a set of face or voice vectors resembles; RPC, singular path because `POST /persons/match` would shadow-collide with `POST /persons/:uuid`. `GET /assets/:uuid/audio-clip?from=&to=` (READ_ASSET_BINARY) cuts a stretch of an asset's audio as WAV.
 
 | Path | Methods | Class | Notes |
 |------|---------|-------|-------|
@@ -845,5 +847,5 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 
 ---
 
-_Git HEAD revision: `52631fca`_
-_Last updated: 2026-09-24 (`/api/v1/chats/:uuid/attachments` — files dropped into a conversation: upload, list, download, detach and Save to library. Owned by the chat and deleted with it, and hidden from the generic `/attachments` routes for everyone but the chat's owner. Earlier: 2026-09-21 (`PUT /api/v1/assets/:uuid/tag-placements/:placementUuid` — move one placement of a tag to a different region, gated by `TAG_ASSET`; §see the asset table. Earlier: 2026-08-09 (`GET /api/v1/db-integrity` and `/db-integrity/checks` - the database integrity report and its catalogue, gated by `READ_DB_INTEGRITY`; singular base path because it is one report, and no POST because the sweep writes nothing. Earlier the same day: `GET /api/v1/metrics` — the JSON read of the `loom_*` meter catalog on the app port, gated by `READ_METRIC`; §4.3. Earlier: 2026-08-05 (tag placements: `V2.71` lets one tag sit on an asset several times, so `TagReference` now carries `placementUuid` and the provenance of the placement, and `DELETE /assets/:uuid/tag-placements/:placementUuid` removes one of them. Earlier the same day: `PUT /assets/:uuid/tags`, the bulk tagging route: one transaction, withdrawal by uuid, and the first route whose required permission set depends on the request. Earlier: pipeline node re-execution route, with the first per-option validation in the API. Earlier: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (person voice and recognition routes, `/person-match`, `/assets/:uuid/audio-clip`). Earlier: 2026-09-24 (`/api/v1/chats/:uuid/attachments` — files dropped into a conversation: upload, list, download, detach and Save to library. Owned by the chat and deleted with it, and hidden from the generic `/attachments` routes for everyone but the chat's owner. Earlier: 2026-09-21 (`PUT /api/v1/assets/:uuid/tag-placements/:placementUuid` — move one placement of a tag to a different region, gated by `TAG_ASSET`; §see the asset table. Earlier: 2026-08-09 (`GET /api/v1/db-integrity` and `/db-integrity/checks` - the database integrity report and its catalogue, gated by `READ_DB_INTEGRITY`; singular base path because it is one report, and no POST because the sweep writes nothing. Earlier the same day: `GET /api/v1/metrics` — the JSON read of the `loom_*` meter catalog on the app port, gated by `READ_METRIC`; §4.3. Earlier: 2026-08-05 (tag placements: `V2.71` lets one tag sit on an asset several times, so `TagReference` now carries `placementUuid` and the provenance of the placement, and `DELETE /assets/:uuid/tag-placements/:placementUuid` removes one of them. Earlier the same day: `PUT /assets/:uuid/tags`, the bulk tagging route: one transaction, withdrawal by uuid, and the first route whose required permission set depends on the request. Earlier: pipeline node re-execution route, with the first per-option validation in the API. Earlier: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_

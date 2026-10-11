@@ -16,6 +16,10 @@ public class ClusterImpl extends AbstractEditableElement<Cluster> implements Clu
 
 	private UUID personUuid;
 
+	private UUID suggestedPersonUuid;
+
+	private Float suggestedScore;
+
 	private Instant reviewedAt;
 
 	private UUID reviewerUuid;
@@ -83,6 +87,28 @@ public class ClusterImpl extends AbstractEditableElement<Cluster> implements Clu
 	@Override
 	public Cluster setPersonUuid(UUID personUuid) {
 		this.personUuid = personUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getSuggestedPersonUuid() {
+		return suggestedPersonUuid;
+	}
+
+	@Override
+	public Cluster setSuggestedPersonUuid(UUID suggestedPersonUuid) {
+		this.suggestedPersonUuid = suggestedPersonUuid;
+		return this;
+	}
+
+	@Override
+	public Float getSuggestedScore() {
+		return suggestedScore;
+	}
+
+	@Override
+	public Cluster setSuggestedScore(Float suggestedScore) {
+		this.suggestedScore = suggestedScore;
 		return this;
 	}
 

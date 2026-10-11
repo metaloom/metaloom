@@ -118,10 +118,14 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 	/** Above this the probe cache is cleared rather than grown. Entries are cheap to recompute; a leak is not. */
 	private static final int PROBE_CACHE_LIMIT = 10_000;
 
+	private final AudioClipService audioClips;
+
 	@Inject
 	public AssetMediaEndpointService(AssetDao assetDao, AssetComponentDao compDao, AssetBinaryDao binaryDao, BinaryStorageResolver storageResolver,
-		AuthenticationService authService, LoomOptions options, Vertx vertx, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+		AuthenticationService authService, LoomOptions options, Vertx vertx, LoomModelBuilder modelBuilder, LoomModelValidator validator,
+		AudioClipService audioClips) {
 		super(modelBuilder, validator);
+		this.audioClips = audioClips;
 		this.assetDao = assetDao;
 		this.compDao = compDao;
 		this.binaryDao = binaryDao;
@@ -691,6 +695,50 @@ public class AssetMediaEndpointService extends AbstractEndpointService {
 			}
 		}
 		return null;
+	}
+
+	// ── Audio clip ───────────────────────────────────────────────────────
+
+	/**
+	 * A stretch of the asset's audio as 16 kHz mono WAV - what a reviewer listens to before saying whose voice a speaker cluster is.
+	 *
+	 * <p>
+	 * Cut per request and not cached: a turn is a few hundred kilobytes and a few hundred milliseconds of ffmpeg, and caching every range anybody
+	 * ever listened to would grow without bound. Same permission as the bytes themselves.
+	 * </p>
+	 *
+	 * @param fromMs start of the clip in milliseconds
+	 * @param toMs   end of the clip in milliseconds, at most {@link AudioClipService#MAX_CLIP_MS} after the start
+	 */
+	public void audioClip(LoomRoutingContext lrc, UUID assetUuid, Long fromMs, Long toMs) {
+		checkPerm(lrc, READ_ASSET_BINARY, () -> {
+			if (fromMs == null || toMs == null) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "An audio clip needs 'from' and 'to' in milliseconds.");
+			}
+			HttpServerResponse response = lrc.routingContext().response();
+			vertx.executeBlocking(() -> audioClips.cut(assetUuid, fromMs, toMs), false)
+				.onSuccess(clip -> {
+					response.putHeader(HttpHeaders.CONTENT_TYPE, "audio/wav");
+					response.putHeader("Content-Disposition", "inline");
+					// A recognisable voice: never in a shared cache.
+					response.putHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=3600");
+					response.sendFile(clip.toString()).onComplete(done -> {
+						try {
+							Files.deleteIfExists(clip);
+						} catch (IOException e) {
+							log.debug("Could not delete the temporary clip {}", clip, e);
+						}
+					});
+				})
+				.onFailure(err -> {
+					if (response.ended()) {
+						return;
+					}
+					int status = err instanceof LoomRestException rest ? rest.httpCode() : 502;
+					response.setStatusCode(status).putHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+						.end(new JsonObject().put("message", err.getMessage()).encode());
+				});
+		});
 	}
 
 	// ── Shared ───────────────────────────────────────────────────────────

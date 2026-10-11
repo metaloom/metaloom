@@ -55,7 +55,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: ``listAssetRemixes`` on ``/assets/{uuid}/remixes``. Before that, 301 -> 324 by
 #: ``ShareMethods`` (+23): eight owner-side calls on ``/share-links`` and fifteen
 #: customer-side ones on ``/shares/{slug}``.
-EXPECTED_JAVA_METHOD_COUNT = 341
+EXPECTED_JAVA_METHOD_COUNT = 356
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -210,6 +210,8 @@ EXTRA_KWARGS = {
     "upload_asset_binary": {"filename": "x.bin"},
     "upload_attachment": {"filename": "x.bin"},
     "upload_person_image": {"filename": "x.bin"},
+    "upload_person_voice_sample": {"filename": "x.bin"},
+    "upload_chat_attachment": {"filename": "x.bin"},
     "upload_user_avatar": {"filename": "x.bin"},
     "upload_my_avatar": {"filename": "x.bin"},
 }

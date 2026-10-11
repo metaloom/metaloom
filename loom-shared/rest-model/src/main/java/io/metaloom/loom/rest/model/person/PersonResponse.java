@@ -23,6 +23,10 @@ public class PersonResponse extends AbstractCreatorEditorRestResponse<PersonResp
 	@JsonPropertyDescription("URL of the person's avatar image, or null when they have none. Read-only: set the avatar via POST /persons/:uuid/avatar.")
 	private String avatarUrl;
 
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("URL of the person's hero voice sample, or null when they have none. Read-only: set it via POST /persons/:uuid/hero-voice.")
+	private String heroVoiceUrl;
+
 	public PersonResponse() {
 	}
 
@@ -70,6 +74,15 @@ public class PersonResponse extends AbstractCreatorEditorRestResponse<PersonResp
 
 	@Override
 	public PersonResponse self() {
+		return this;
+	}
+
+	public String getHeroVoiceUrl() {
+		return heroVoiceUrl;
+	}
+
+	public PersonResponse setHeroVoiceUrl(String heroVoiceUrl) {
+		this.heroVoiceUrl = heroVoiceUrl;
 		return this;
 	}
 }

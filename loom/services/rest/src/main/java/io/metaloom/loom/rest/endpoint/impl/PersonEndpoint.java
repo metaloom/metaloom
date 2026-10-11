@@ -10,6 +10,7 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.attachment.AttachmentType;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
@@ -91,7 +92,7 @@ public class PersonEndpoint extends AbstractEndpoint {
 
 		// Clusters confirmed to be this person - the inverse of POST /clusters/:uuid/confirm
 		addRoute(basePath() + "/:uuid/clusters", GET,
-			"List the face clusters confirmed to be this person, across every asset they appear in",
+			"List the face and speaker clusters confirmed to be this person, across every asset they appear in",
 			null,
 			examples.clusterListResponseExample(),
 			lrc -> {
@@ -140,6 +141,75 @@ public class PersonEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				service.deleteImage(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("imageUuid"));
+			});
+
+		// Registered beside the image routes for the same reason they are scoped here: the person owns the print as it owns the picture.
+		addRoute(basePath() + "/:uuid/images/:imageUuid/prints", POST,
+			"Store what a face model made of one of the person's images: a reference vector, or the reason there is none. Written by the node owning "
+				+ "the model; a later write for the same image and model replaces it.",
+			examples.personPrintCreateRequestExample(),
+			examples.personPrintResponseExample(),
+			lrc -> {
+				service.storePrint(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("imageUuid"), AttachmentType.PERSON_IMAGE);
+			});
+
+		// --- The person's own voice samples ---------------------------------------------------------
+		// The voice counterpart of the images above, with the same lifetime: owned by the person, never by an asset.
+
+		addListRoute(basePath() + "/:uuid/voice-samples", GET,
+			"List the person's voice samples, newest first, each with the voice models that have embedded it",
+			examples.personVoiceSampleListResponseExample(),
+			lrc -> {
+				service.listVoiceSamples(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addUploadRoute(basePath() + "/:uuid/voice-samples",
+			"Upload a recording of this person's voice. Form fields: 'file' (required, audio or a video with a soundtrack) and 'poolUuid' (optional "
+				+ "storage pool). The voiceprint node embeds the sample on its next run.",
+			examples.personVoiceSampleResponseExample(),
+			lrc -> {
+				service.uploadVoiceSample(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Registered after the upload route so the more specific path wins over "/:uuid/voice-samples".
+		addRoute(basePath() + "/:uuid/voice-samples/from-cluster", POST,
+			"Cut a speaker's voice out of the asset it was heard in, into this person's voice samples - the longest turn, up to 30 seconds, unless a "
+				+ "range is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON: the result is a piece of the asset's audio.",
+			examples.personVoiceSampleImportRequestExample(),
+			examples.personVoiceSampleResponseExample(),
+			lrc -> {
+				service.importVoiceSampleFromCluster(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addDownloadRoute(basePath() + "/:uuid/voice-samples/:sampleUuid/data",
+			"Load the bytes of one of the person's voice samples",
+			lrc -> {
+				service.downloadVoiceSample(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("sampleUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/voice-samples/:sampleUuid", DELETE,
+			"Delete one of the person's voice samples, and every print computed from it. Deleting the hero sample leaves the person without one.",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.deleteVoiceSample(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("sampleUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/voice-samples/:sampleUuid/prints", POST,
+			"Store what a voice model made of one of the person's samples: a reference vector, or the reason there is none (e.g. no speech). Written "
+				+ "by the voiceprint node; a later write for the same sample and model replaces it.",
+			examples.personPrintCreateRequestExample(),
+			examples.personPrintResponseExample(),
+			lrc -> {
+				service.storePrint(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("sampleUuid"), AttachmentType.PERSON_VOICE);
+			});
+
+		addRoute(basePath() + "/:uuid/hero-voice", POST,
+			"Set which of the person's voice samples represents them. Send a blank or absent sampleUuid to clear it.",
+			examples.personHeroVoiceRequestExample(),
+			examples.personResponseExample(),
+			lrc -> {
+				service.setHeroVoice(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		addRoute(basePath() + "/:uuid/avatar", POST,

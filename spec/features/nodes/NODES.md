@@ -368,11 +368,17 @@ of its dynamic bucket ports — the port *is* the branch, see
 [NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md).
 
 `filterBy` picks a `FilterStrategy` from a `Map<FilterBy, Provider<FilterStrategy>>` multibinding.
-Six values, in three cost tiers: `LANGUAGE` classifies the wired `text` through the shared
+Seven values, in three cost tiers: `LANGUAGE` classifies the wired `text` through the shared
 `LLMProvider` (`cortex/llm-common`); `MIME`, `SIZE` and `DATE` read the item's own metadata and take
 **no `LLMProvider` at all**, so a filter-only graph runs with no model backend reachable; and `TAG`
 and `RATING` route on what a **person** recorded, so they need Loom but no model — `TAG` reads the
 asset the node already loaded, `RATING` costs one `listAssetReaction` call per item, memoised per run.
+`PERSON` (2026-10-11) routes on who is in the item - the persons the asset's face and speaker
+clusters were confirmed (or, with `personEvidence=SUGGESTED`, suggested) to be - at one
+`listAssetClusters` call per item, and is the one strategy that is **never cached**
+(`FilterStrategy.cacheable()`): who is in a file changes when a reviewer confirms a face, the file
+does not. Its optional MANY input `persons` (`struct/persons`) exists only to order the filter after
+`facedetect` / `voiceprint`; see [WORKFLOW_PERSON_RECOGNITION.md](../../workflows/WORKFLOW_PERSON_RECOGNITION.md).
 The hint grammars are tabulated in [NODE_DATA_TYPES.md §4.5](NODE_DATA_TYPES.md).
 
 `RATING` and `TAG` are why manual review is worth doing at all — see
@@ -478,7 +484,7 @@ a key that omits *one* result-affecting option is the same bug as a path-only ke
 | `image-manipulation` | `absolutePath \| sha256(every result-affecting option + the surviving subject boxes)` — the boxes belong in the key because they change the output pixels; re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
 | `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags, minConfidence, dryRun, removeWithdrawn)` — two tag nodes over one asset are the normal case and must not share a verdict. `dryRun` is in there for a sharper reason than staleness: the node is a `PipelineConfigurable`, so one instance is reconfigured per task while its cache survives, and a cached dry-run record re-emitted for a real task would **suppress the write and still report green** |
-| `filter` | `absolutePath \| configHash(filterBy, buckets, model, tagSource, openaiUrl, maxTextChars, minConfidence, strategy.version())` — same instance-reconfigured-per-task argument; `minConfidence` demotes a matched bucket to `other`, so leaving it out routes an item by a threshold that is no longer set |
+| `filter` | `absolutePath \| configHash(filterBy, buckets, model, tagSource, personSource, personEvidence, openaiUrl, maxTextChars, minConfidence, strategy.version())`; skipped entirely for `PERSON` (`cacheable()` false) — same instance-reconfigured-per-task argument; `minConfidence` demotes a matched bucket to `other`, so leaving it out routes an item by a threshold that is no longer set |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | `guard` | `absolutePath \| hash(input text, image path, family, model, effective categories, threshold, prompt template, maxImageDim)` — the text arrives from an edge, so a path-keyed cache would answer a different question than the one asked |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
@@ -966,6 +972,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `3da90863`_
-_Last updated: 2026-10-10 (the `voiceprint` node: speaker embeddings and who-spoke-when through the `sidecars/voiceprint` sidecar on :9150 — rows in §2, §3.1, §4, §5.1, §5.2, §6.2, §6.3 and §8; 41 kind bindings, 46 advertised kinds. It is the first node to write `embedding.time_from`/`time_to`, which V2.43 added and no layer could read until now. The §5.2 reconciliation row was recounted.)_
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (§3.3 and §4 - `filterBy=PERSON`, routing on the persons confirmed or suggested in an item; never cached; new `persons` input. `voiceprint` and `facedetect` gained a `persons` output and person suggestions - [WORKFLOW_PERSON_RECOGNITION.md](../../workflows/WORKFLOW_PERSON_RECOGNITION.md))_
+_Previously: 2026-10-10 (the `voiceprint` node: speaker embeddings and who-spoke-when through the `sidecars/voiceprint` sidecar on :9150 — rows in §2, §3.1, §4, §5.1, §5.2, §6.2, §6.3 and §8; 41 kind bindings, 46 advertised kinds. It is the first node to write `embedding.time_from`/`time_to`, which V2.43 added and no layer could read until now. The §5.2 reconciliation row was recounted.)_
 _Previously: 2026-09-26 (§3.3, §4 and §9 — review of the three decision nodes. The `filter` and `tag`

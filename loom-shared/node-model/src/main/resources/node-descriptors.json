@@ -696,6 +696,13 @@
     "cardinality" : "ONE",
     "required" : true,
     "description" : "Processing marker recording how this node finished for the item"
+  }, {
+    "id" : "persons",
+    "label" : "Persons",
+    "contentType" : "struct/persons",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The known persons recognised among the faces - confirmed by a reviewer or suggested - for a person filter to run after"
   } ],
   "inputGroups" : [ {
     "id" : "media_alt",
@@ -786,6 +793,21 @@
     "label" : "Embedding Model",
     "description" : "Model identifier recorded on each embedding; change it whenever the model pack changes"
   }, {
+    "key" : "suggestPersons",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Suggest Persons",
+    "description" : "Compare each face cluster with the persons whose faces are known - confirmed clusters and their own pictures - and suggest the closest one for review. A suggestion is never a confirmation"
+  }, {
+    "key" : "suggestThreshold",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Suggestion Threshold",
+    "description" : "Cosine similarity a face cluster must reach to be suggested as a person; 0 uses 0.45",
+    "min" : 0,
+    "max" : 1,
+    "step" : 0.01
+  }, {
     "key" : "capabilities",
     "type" : "ENUM_SET",
     "defaultValue" : [ "INSPIREFACE" ],
@@ -870,6 +892,13 @@
     "cardinality" : "ONE",
     "required" : false,
     "description" : "The text to classify - a transcript, extracted document text or a caption. Without it every item lands in 'other'"
+  }, {
+    "id" : "persons",
+    "label" : "Persons",
+    "contentType" : "struct/persons",
+    "cardinality" : "MANY",
+    "required" : false,
+    "description" : "The persons output of facedetect or voiceprint. Wire it so a PERSON filter runs after them; the persons themselves are read from Loom, which also holds earlier confirmations"
   } ],
   "outputPorts" : [ ],
   "inputGroups" : [ ],
@@ -886,14 +915,14 @@
     "type" : "ENUM",
     "defaultValue" : "LANGUAGE",
     "label" : "Filter By",
-    "description" : "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata; RATING and TAG read the decisions people recorded in Loom",
-    "values" : [ "LANGUAGE", "MIME", "SIZE", "DATE", "RATING", "TAG" ]
+    "description" : "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata; RATING and TAG read the decisions people recorded in Loom; PERSON reads who was recognised in the item",
+    "values" : [ "LANGUAGE", "MIME", "SIZE", "DATE", "RATING", "TAG", "PERSON" ]
   }, {
     "key" : "buckets",
     "type" : "PORT_LIST",
     "defaultValue" : [ ],
     "label" : "Buckets",
-    "description" : "One output port per bucket, tried in order with the first match winning. Each row's match column holds hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB', dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', or tag names like 'hero', 'person/*' and '!archive'. An 'other' port for everything else is always present"
+    "description" : "One output port per bucket, tried in order with the first match winning. Each row's match column holds hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB', dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', tag names like 'hero', 'person/*' and '!archive', or person names like 'Anna Meyer', '*' and 'nobody'. An 'other' port for everything else is always present"
   }, {
     "key" : "tagSource",
     "type" : "ENUM",
@@ -901,6 +930,20 @@
     "label" : "Tag Source",
     "description" : "Which tags count when filterBy=TAG: ANY, MANUAL for only the tags a person attached, or MACHINE for only those a node attached",
     "values" : [ "ANY", "MANUAL", "MACHINE" ]
+  }, {
+    "key" : "personSource",
+    "type" : "ENUM",
+    "defaultValue" : "ANY",
+    "label" : "Person Source",
+    "description" : "Which recognitions count when filterBy=PERSON: ANY, FACE for only faces, or VOICE for only voices",
+    "values" : [ "ANY", "FACE", "VOICE" ]
+  }, {
+    "key" : "personEvidence",
+    "type" : "ENUM",
+    "defaultValue" : "CONFIRMED",
+    "label" : "Person Evidence",
+    "description" : "How sure the filter must be that a person is in an item when filterBy=PERSON: CONFIRMED counts only what a reviewer confirmed; SUGGESTED also counts what person matching suggested and nobody has rejected",
+    "values" : [ "CONFIRMED", "SUGGESTED" ]
   }, {
     "key" : "model",
     "type" : "STRING",
@@ -4245,6 +4288,13 @@
     "cardinality" : "ONE",
     "required" : true,
     "description" : "The full analysis without the vectors: model, thresholds, speakers, windows"
+  }, {
+    "id" : "persons",
+    "label" : "Persons",
+    "contentType" : "struct/persons",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The known persons recognised among the speakers - confirmed by a reviewer or suggested - for a person filter to run after"
   } ],
   "inputGroups" : [ {
     "id" : "media_alt",
@@ -4340,6 +4390,21 @@
     "defaultValue" : true,
     "label" : "Persist Windows",
     "description" : "Store one embedding per speech window (true) or only one per speaker (false)"
+  }, {
+    "key" : "suggestPersons",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Suggest Persons",
+    "description" : "Compare each speaker with the persons whose voices are known - confirmed speakers and their own voice samples - and suggest the closest one for review. A suggestion is never a confirmation"
+  }, {
+    "key" : "suggestThreshold",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Suggestion Threshold",
+    "description" : "Cosine similarity a speaker must reach to a person's voice to be suggested as them; 0 uses the model's calibrated value",
+    "min" : 0,
+    "max" : 1,
+    "step" : 0.01
   }, {
     "key" : "ffmpegPath",
     "type" : "STRING",

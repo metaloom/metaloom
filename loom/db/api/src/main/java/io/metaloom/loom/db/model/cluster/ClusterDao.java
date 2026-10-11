@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.model.embedding.Embedding;
+import io.metaloom.loom.db.model.person.PersonReference;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.page.Page;
 
@@ -89,6 +90,19 @@ public interface ClusterDao extends CRUDDao<Cluster> {
 
 	/** Every cluster confirmed to be this person, newest first. */
 	List<Cluster> findByPerson(UUID personUuid);
+
+	/**
+	 * The centroid of every cluster a reviewer attributed to a person, in one comparable space.
+	 *
+	 * <p>
+	 * Only {@link Cluster#STATUS_CONFIRMED} clusters count. A suggestion must never become evidence for the next suggestion, or one wrong match would
+	 * reinforce itself across a library; and a rejected cluster is, by the reviewer's own statement, not a usable subject.
+	 * </p>
+	 *
+	 * @param type  the cluster type, e.g. {@code face} or {@code speaker}
+	 * @param model the model the centroids were computed with; a centroid from another model is not comparable
+	 */
+	List<PersonReference> listConfirmedReferences(String type, String model);
 
 	/** Every cluster computed within this asset, in {@code cluster_index} order. */
 	List<Cluster> listByAsset(UUID assetUuid);

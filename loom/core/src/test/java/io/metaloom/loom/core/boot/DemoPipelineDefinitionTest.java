@@ -48,6 +48,7 @@ public class DemoPipelineDefinitionTest {
 		definitions.put("script", DemoDatabaseInitializer.scriptDefinition());
 		definitions.put("transcription", DemoDatabaseInitializer.transcriptionDefinition());
 		definitions.put("review-triage", DemoDatabaseInitializer.reviewTriageDefinition());
+		definitions.put("speaker-routing", DemoDatabaseInitializer.speakerRoutingDefinition());
 		return definitions;
 	}
 

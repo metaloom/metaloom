@@ -33,6 +33,9 @@ import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.person.PersonSuggestions;
+import io.metaloom.cortex.common.person.PersonSuggestions.Suggestion;
+import io.metaloom.cortex.common.person.PersonSuggestions.UnusableSampleException;
 import io.metaloom.cortex.node.voiceprint.VoiceprintResult.Segment;
 import io.metaloom.cortex.node.voiceprint.VoiceprintResult.Speaker;
 import io.metaloom.cortex.node.voiceprint.VoiceprintResult.Window;
@@ -45,11 +48,13 @@ import io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterBulkResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterCreateItem;
 import io.metaloom.loom.rest.model.cluster.ClusterMemberCreateItem;
+import io.metaloom.loom.rest.model.cluster.ClusterResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
+import io.metaloom.loom.rest.model.person.PersonPendingSample;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -68,6 +73,14 @@ import io.vertx.core.json.JsonObject;
  * ({@code type=voiceprint}, with {@code timeFrom}/{@code timeTo} saying when the voice was heard), one {@code cluster} per speaker
  * ({@code type=speaker}, centroid = the speaker's voiceprint) holding those windows as members, and an {@code asset_json_comp}
  * ({@code schemaType=voiceprint}) carrying the timeline without the vectors. The ledger points at the component.
+ * </p>
+ *
+ * <p>
+ * <strong>Person suggestions.</strong> Before the speakers are written, each one's voiceprint is matched against the persons whose voices are known -
+ * speaker clusters a reviewer confirmed, and the voice samples uploaded to or imported into a person - and the closest person above the model's
+ * threshold is stored as the cluster's <em>suggestion</em>. Samples that have no print in this node's model yet are embedded first, with the same
+ * sidecar and model, so an uploaded sample takes effect on the next item. A suggestion is never a confirmation: the cluster stays PENDING until a
+ * reviewer decides.
  * </p>
  */
 @NodeSpec(nodeId = "voiceprint", name = "Voiceprint (Speaker Embeddings)", icon = "record_voice_over", category = NodeCategory.ANALYSIS,
@@ -102,6 +115,14 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 
 	@PortDoc(label = "Result", description = "The full analysis without the vectors: model, thresholds, speakers, windows")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
+
+	/**
+	 * Who the speakers are, as far as anybody knows: per speaker cluster, the person a reviewer confirmed or the person matching suggested. Always
+	 * written - an empty array when nobody was recognised - so a {@code filterBy=PERSON} filter wired to it waits for this node and then runs.
+	 */
+	@PortDoc(label = "Persons", description = "The known persons recognised among the speakers - confirmed by a reviewer or suggested - for a "
+		+ "person filter to run after")
+	public static final OutputPort<String> OUT_PERSONS = OutputPort.one("persons", ContentTypeRegistry.STRUCT_PERSONS, String.class);
 
 	/** Changes whenever the meaning of the persisted rows changes; the model id is appended per run. */
 	public static final String PRODUCER = "voiceprint/1";
@@ -144,6 +165,8 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 		if (cached != null) {
 			metrics.recordAiCacheHit("voiceprint");
 			emit(ctx, cached);
+			// The analysis is cached; who the speakers are is not - a reviewer may have confirmed one since. Loom has the current answer.
+			emitPersons(ctx, currentSpeakerClusters(asset));
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -175,13 +198,14 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 				if (asset != null && client() != null) {
 					recordNodeResult(asset, ctx, ResultState.SKIPPED, "no speech found", producerVersion, null);
 				}
+				emitPersons(ctx, List.of());
 				return ctx.skipped("no speech found").next();
 			}
 
 			emit(ctx, result);
 			resultCache.put(cacheKey, result);
 			ctx.print("DONE", result.speakers().size() + " speaker(s), " + result.windows().size() + " window(s)");
-			persist(ctx, asset, result, producerVersion);
+			emitPersons(ctx, persist(ctx, asset, result, producerVersion));
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to compute voiceprints for media {}", path, e);
@@ -258,14 +282,15 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 	 * The three writes, then the ledger. Each is best-effort in the facedetect sense: an embedding batch that fails leaves nothing broken, and a
 	 * re-run upserts every row rather than duplicating it. A failure anywhere is still reported on the ledger as FAILED.
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, VoiceprintResult result, String producerVersion) {
+	private List<ClusterResponse> persist(NodeContext<LoomMedia> ctx, AssetResponse asset, VoiceprintResult result, String producerVersion) {
 		if (asset == null || client() == null) {
-			return;
+			return List.of();
 		}
+		List<ClusterResponse> clusters = List.of();
 		try {
 			List<UUID> embeddingUuids = persistEmbeddings(asset, result, producerVersion);
 			if (options().isPersistWindows()) {
-				persistClusters(asset, result, embeddingUuids, producerVersion);
+				clusters = persistClusters(asset, result, embeddingUuids, producerVersion);
 			}
 			JsonCompCreateRequest request = new JsonCompCreateRequest();
 			request.setNodeKind(name());
@@ -279,6 +304,70 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 		} catch (Exception e) {
 			log.warn("Failed to persist voiceprints for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), producerVersion, null);
+		}
+		return clusters;
+	}
+
+	/** The {@code persons} port: who the speaker clusters name. Written on every path that ran, so a person filter wired to it is never starved. */
+	private void emitPersons(NodeContext<LoomMedia> ctx, List<ClusterResponse> clusters) {
+		ctx.output(OUT_PERSONS, PersonSuggestions.personsPayload(clusters).encode());
+	}
+
+	/** This node's speaker clusters for the asset as Loom holds them now, or none when Loom is out of reach. */
+	private List<ClusterResponse> currentSpeakerClusters(AssetResponse asset) {
+		if (asset == null || client() == null) {
+			return List.of();
+		}
+		try {
+			List<ClusterResponse> clusters = client().listAssetClusters(asset.getUuid()).sync().body().getData();
+			return clusters == null ? List.of()
+				: clusters.stream().filter(c -> VoiceprintNodeOptions.CLUSTER_TYPE.equals(c.getType()) && name().equals(c.getNodeKind())).toList();
+		} catch (Exception e) {
+			log.debug("Could not read the speaker clusters of asset {}: {}", asset.getUuid(), e.getMessage());
+			return List.of();
+		}
+	}
+
+	/**
+	 * Who each speaker most resembles among the persons whose voices are known, embedding any of their samples this model has not seen yet. Null
+	 * entries for speakers that resemble nobody closely enough; all null when suggestions are off.
+	 */
+	List<Suggestion> suggest(VoiceprintResult result) {
+		List<float[]> centroids = result.speakers().stream().map(Speaker::vector).toList();
+		if (!options().isSuggestPersons()) {
+			return new ArrayList<>(Collections.nCopies(centroids.size(), (Suggestion) null));
+		}
+		return PersonSuggestions.suggest(client(), VoiceprintNodeOptions.CLUSTER_TYPE, result.model(), centroids,
+			options().resolvedSuggestThreshold(result.model()), this::enrol);
+	}
+
+	/**
+	 * One of a person's voice samples as a voiceprint in this node's model: the pooled vector over all its speech.
+	 *
+	 * <p>
+	 * Always decoded to WAV first, whatever was uploaded - an MP3 from a phone, a video of somebody speaking - so the sidecar sees exactly the input it
+	 * sees for an item. A sample with no speech, or that ffmpeg cannot decode at all, is unusable and recorded as such; a sidecar or ffmpeg that is
+	 * merely unavailable is not, so the sample is tried again on a later item.
+	 * </p>
+	 */
+	float[] enrol(PersonPendingSample sample, Path file) throws Exception {
+		Path wav = Files.createTempFile("voiceprint-sample-", ".wav");
+		try {
+			try {
+				new AudioDemuxer(options().getFfmpegPath()).toWav(file, wav, options().getTimeoutMs());
+			} catch (IOException e) {
+				if (e.getMessage() != null && e.getMessage().startsWith("ffmpeg is not available")) {
+					throw e;
+				}
+				throw new UnusableSampleException("not decodable as audio");
+			}
+			VoiceprintResult enrolled = voiceprintClient.analyze(wav, params(), options().getTimeoutMs());
+			if (!enrolled.hasSpeech() || enrolled.pooled() == null) {
+				throw new UnusableSampleException("no speech found");
+			}
+			return enrolled.pooled();
+		} finally {
+			Files.deleteIfExists(wav);
 		}
 	}
 
@@ -343,12 +432,16 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 	 * One {@code cluster} per speaker, its members the windows attributed to it, each member's confidence the window's cosine to the speaker's
 	 * voiceprint. Same shape as a face cluster, so the review queue and person assignment apply unchanged.
 	 */
-	private void persistClusters(AssetResponse asset, VoiceprintResult result, List<UUID> embeddingUuids, String producerVersion) throws Exception {
+	private List<ClusterResponse> persistClusters(AssetResponse asset, VoiceprintResult result, List<UUID> embeddingUuids, String producerVersion)
+		throws Exception {
 		if (result.speakers().isEmpty()) {
-			return;
+			return List.of();
 		}
+		List<Suggestion> suggestions = suggest(result);
 		ClusterBulkCreateRequest request = new ClusterBulkCreateRequest();
-		for (Speaker speaker : result.speakers()) {
+		for (int s = 0; s < result.speakers().size(); s++) {
+			Speaker speaker = result.speakers().get(s);
+			Suggestion suggestion = s < suggestions.size() ? suggestions.get(s) : null;
 			JsonArray segments = new JsonArray();
 			for (Segment g : speaker.segments()) {
 				segments.add(new JsonObject().put("startMs", g.startMs()).put("endMs", g.endMs()));
@@ -363,6 +456,9 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 				.setModel(result.model())
 				.setDimensions(speaker.vector() == null ? null : speaker.vector().length)
 				.setMeta(new JsonObject().put("totalMs", speaker.totalMs()).put("segments", segments));
+			if (suggestion != null) {
+				item.setSuggestedPersonUuid(suggestion.personUuid().toString()).setSuggestedScore(suggestion.score());
+			}
 			for (int windowIndex : speaker.windows()) {
 				UUID embeddingUuid = windowIndex < embeddingUuids.size() ? embeddingUuids.get(windowIndex) : null;
 				if (embeddingUuid == null) {
@@ -377,10 +473,12 @@ public class VoiceprintNode extends AbstractMediaNode<VoiceprintNodeOptions> {
 			request.add(item);
 		}
 		ClusterBulkResponse stored = client().bulkCreateAssetClusters(asset.getUuid(), request).sync().body();
-		if (stored != null && stored.getClusters() != null) {
-			log.info("Stored {} speaker cluster(s) for asset {} ({} stale proposal(s) retired)", stored.getClusters().size(), asset.getUuid(),
-				stored.getPruned());
+		if (stored == null || stored.getClusters() == null) {
+			return List.of();
 		}
+		log.info("Stored {} speaker cluster(s) for asset {} ({} stale proposal(s) retired, {} suggested)", stored.getClusters().size(),
+			asset.getUuid(), stored.getPruned(), suggestions.stream().filter(Objects::nonNull).count());
+		return stored.getClusters();
 	}
 
 	static float cosine(float[] a, float[] b) {

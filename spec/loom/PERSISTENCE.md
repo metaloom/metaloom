@@ -243,6 +243,8 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.84__read_metric_permission` | `READ_METRIC` enum value only — gates `GET /api/v1/metrics` on the app port. The unauthenticated Prometheus scrape on the monitoring port is unaffected |
 | `V2.104__uuidv7_defaults` | Every generated uuid column default goes from `uuid_generate_v4()` to `uuidv7()`, so the keyset page order becomes insertion order. Driven off `pg_attrdef` rather than a list of 55 columns. 🔴 Raises **PostgreSQL 18** as the floor (`uuidv7()` is an 18 built-in) and guards it with an explicit version check. See [UUIDv7 keys](#uuidv7-keys) |
 | `V2.105__rename_fingerprint_window_index` | `asset_fingerprint_comp.sector_index` → `window_index`, plus corrected column comments. The old name and its V2.41 comment claimed the column numbered the *internal* sectors of the multi-sector fingerprint algorithm; it numbers timeline windows. `RENAME COLUMN` carries the unique key over by itself, and no row had ever held anything but the default 0. See [DOMAIN.md](DOMAIN.md) §4 |
+| `V2.114__attachment_type_person_voice` | `attachment_type` value `PERSON_VOICE` (enum-only migration) |
+| `V2.115__person_voice_and_recognition` | `person.hero_voice_attachment_uuid`, `cluster.suggested_person_uuid`/`suggested_score`, `person_print`, reference index |
 
 ### Migration patterns
 
@@ -371,9 +373,10 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | Space | `SpaceDao` | `project`(+joins) | ⚠️ `SpaceDaoTest` is an **empty class** | — |
 | Tag | `TagDao` | `tag`(+joins) | `TagDaoTest` CRUD +9 (natural-key resolve, placement upsert, `bulkTagAsset` incl. a rollback probe); `TagPlacementDaoTest` (8: multi-placement, provenance, first-author-wins); `TagUserRatingDaoTest` (3) | own |
 | Embedding | `EmbeddingDao` | `embedding`, `embedding_cluster` | `EmbeddingDaoTest` CRUD +4 (two models side by side, same-model upsert, dirty/markSynced, derived dimensions) | `ClusterDaoTest`, `AssetCascadeTest` |
-| Cluster | `ClusterDao` | `cluster`(+joins) | `ClusterDaoTest` CRUD +1 | own |
+| Cluster | `ClusterDao` | `cluster`(+joins) | `ClusterDaoTest` CRUD +more (suggestion restated / verdict kept, confirmed references of one space, speaker member time window) | own |
+| PersonPrint | `PersonPrintDao` (not CRUD) | `person_print` | `PersonPrintDaoTest` (upsert replaces per space, vector xor error, unenrolled queue, usable references, delete cascades with an untouched second person) | own |
 | Detection | `DetectionDao` | `detection` | `DetectionDaoTest` CRUD +11 (provenance/geometry round trip, `detection_unique_key` from both sides, run/task SET NULL, the V2.81 review columns); `DetectionUpsertReviewTest` (4: a re-run never clears a verdict) | `DetectionDaoTest`, `AssetCascadeTest` |
-| Person | `PersonDao` | `person`; pictures live in `attachment` (`type='PERSON_IMAGE'`, `person_uuid`) | `PersonDaoTest` CRUD +3 (person delete cascades their images; deleting the avatar image nulls the pointer; `listByPerson` is scoped to the person and the type) | own, `AssetCascadeTest` |
+| Person | `PersonDao` | `person`; pictures and voice samples live in `attachment` (`type='PERSON_IMAGE'` / `'PERSON_VOICE'`, `person_uuid`) | `PersonDaoTest` CRUD +7 (person delete cascades their images and voice samples only; deleting the avatar or hero voice nulls the pointer; `listByPerson` is scoped to the person and the type; `loadDisplayNames`) | own, `AssetCascadeTest` |
 | Blacklist | `BlacklistDao` | `blacklist` | `BlacklistDaoTest` CRUD | — |
 | Annotation | `AnnotationDao` | `annotation`(+joins) | ⚠️ `AnnotationDaoTest` (2) — no CRUD contract | own |
 | Comment | `CommentDao` | `comment` | `CommentDaoTest` CRUD +1 | `TaskDaoTest` |
@@ -593,8 +596,8 @@ Schema current through **`V2.84`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `67000540`_
-_Last updated: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (V2.114/V2.115 - person voice samples, suggestions, `person_print`; `JooqTestContext.afterEach` now closes the per-test c3p0 pool, which a DAO class of 20+ methods exhausted). Earlier: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
 Earlier: `V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
 subsystem lands beside this layer: 29 named checks over the invariants the schema relies on but does
 not enforce, wired into `CRUDDaoTestcases` and both cascade suites. Owned by

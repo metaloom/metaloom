@@ -82,6 +82,15 @@ public abstract class FilterNodeModule extends AbstractNodeModule {
 	@FilterByKey(FilterBy.TAG)
 	abstract FilterStrategy bindTagStrategy(TagFilterStrategy strategy);
 
+	/**
+	 * Who is in an item. Needs Loom like the two above, and is the one strategy whose verdicts are never cached: the answer changes when a reviewer
+	 * confirms a face or a voice, while the file does not.
+	 */
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.PERSON)
+	abstract FilterStrategy bindPersonStrategy(PersonFilterStrategy strategy);
+
 	@IntoSet
 	@Provides
 	public static CortexNodeOptionDeserializerInfo optionInfo() {

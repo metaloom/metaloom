@@ -31,7 +31,14 @@ public interface AttachmentDao extends CRUDDao<Attachment> {
 	 * two of them may legitimately be byte-identical and neither replaces the other.
 	 * </p>
 	 */
-	List<Attachment> listByPerson(UUID personUuid);
+	default List<Attachment> listByPerson(UUID personUuid) {
+		return listByPerson(personUuid, AttachmentType.PERSON_IMAGE);
+	}
+
+	/**
+	 * A person's own attachments of one type - {@link AttachmentType#PERSON_IMAGE} or {@link AttachmentType#PERSON_VOICE} - newest first.
+	 */
+	List<Attachment> listByPerson(UUID personUuid, AttachmentType type);
 
 	/**
 	 * The avatar picture of a user account, or {@code null}.

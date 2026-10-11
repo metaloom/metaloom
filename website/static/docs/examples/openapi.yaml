@@ -68,6 +68,7 @@ tags:
 - name: node-runs
 - name: notifications
   description: "The caller's notification inbox: list, mark read, dismiss and clear"
+- name: person-match
 - name: persons
   description: Persons known to the face recognition model
 - name: pipeline
@@ -2649,6 +2650,62 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/audio-clip:
+    description: "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand:\
+      \ 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how a\
+      \ reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers\
+      \ 422 for an asset without audio and 503 when no ffmpeg is configured."
+    get:
+      tags:
+      - assets
+      summary: "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand:\
+        \ 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how\
+        \ a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers\
+        \ 422 for an asset without audio and 503 when no ffmpeg is configured."
+      description: "A stretch of the asset's audio as 16 kHz mono WAV, cut on demand:\
+        \ 'from' and 'to' in milliseconds, at most 120 seconds apart. This is how\
+        \ a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers\
+        \ 422 for an asset without audio and 503 when no ffmpeg is configured."
+      operationId: getAssetsByUuidAudioclip
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/binaries:
     description: List every binary of the asset - one per library the asset was imported
       into.
@@ -4365,18 +4422,20 @@ paths:
                 model: inspireface-r18
                 frameNumber: 0
                 subjectIndex: 0
-              - meta:
-                  abc: cdef
-                type: face
+              - type: voiceprint
                 vector:
                 - 0.42
                 - 0.24
                 - 0.44
                 - 21.5
-                nodeKind: facedetect
-                model: inspireface-r18
+                nodeKind: voiceprint
+                model: redimnet2-b6-vox2-lm
                 frameNumber: 0
-                subjectIndex: 0
+                subjectIndex: 3
+                producerVersion: voiceprint/1:redimnet2-b6-vox2-lm
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
       responses:
         "200":
           description: The embedding bulk response
@@ -4388,10 +4447,38 @@ paths:
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 total: 2
                 created: 2
                 failed: 0
@@ -10278,6 +10365,467 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/chats/{uuid}/attachments:
+    description: "Attach a file to a chat. Expects a multipart request with one file\
+      \ part named 'file'. Optional form field: 'poolUuid'. The file belongs to the\
+      \ conversation, not to the media library - it is deleted with the chat, and\
+      \ is not indexed, thumbnailed or processed by pipelines. Use the /asset route\
+      \ to keep one."
+    get:
+      tags:
+      - chats
+      summary: "List the files attached to a chat, newest first."
+      description: "List the files attached to a chat, newest first."
+      operationId: getChatsByUuidAttachments
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The attachment list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  filename: flower.jpg
+                  size: 0
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  filename: flower.jpg
+                  size: 0
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - chats
+      summary: "Attach a file to a chat. Expects a multipart request with one file\
+        \ part named 'file'. Optional form field: 'poolUuid'. The file belongs to\
+        \ the conversation, not to the media library - it is deleted with the chat,\
+        \ and is not indexed, thumbnailed or processed by pipelines. Use the /asset\
+        \ route to keep one."
+      description: "Attach a file to a chat. Expects a multipart request with one\
+        \ file part named 'file'. Optional form field: 'poolUuid'. The file belongs\
+        \ to the conversation, not to the media library - it is deleted with the chat,\
+        \ and is not indexed, thumbnailed or processed by pipelines. Use the /asset\
+        \ route to keep one."
+      operationId: postChatsByUuidAttachments
+      responses:
+        "200":
+          description: The attachment response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                filename: flower.jpg
+                size: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/chats/{uuid}/attachments/{attachmentUuid}:
+    description: Detach a file from a chat.
+    delete:
+      tags:
+      - chats
+      summary: Detach a file from a chat.
+      description: Detach a file from a chat.
+      operationId: deleteChatsByUuidAttachmentsByAttachmentUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: attachmentUuid
+      in: path
+      description: UUID of the referenced attachment
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/chats/{uuid}/attachments/{attachmentUuid}/asset:
+    description: "Save a chat attachment into the media library as a real asset. Optional\
+      \ query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY.\
+      \ The attachment itself stays on the chat."
+    post:
+      tags:
+      - chats
+      summary: "Save a chat attachment into the media library as a real asset. Optional\
+        \ query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY.\
+        \ The attachment itself stays on the chat."
+      description: "Save a chat attachment into the media library as a real asset.\
+        \ Optional query parameter: 'libraryUuid', which falls back to LOOM_CHAT_ATTACHMENT_LIBRARY.\
+        \ The attachment itself stays on the chat."
+      operationId: postChatsByUuidAttachmentsByAttachmentUuidAsset
+      responses:
+        "200":
+          description: The asset response
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                geo:
+                  lon: 32.56
+                  lat: 52.156
+                tags:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  name: red
+                annotations:
+                - status: {}
+                  meta:
+                    abc: cdef
+                  title: Intro Feedback
+                  area:
+                    from: 0
+                    to: 10
+                  description: The very nice intro
+                  tasks:
+                  - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                    status: {}
+                    title: Fix text offset here
+                    description: The text is not aligned with the title
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                    assignees: []
+                  comments:
+                  - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    status: {}
+                    title: Great work!
+                    text: What a great choice of colors!
+                    social:
+                      rating:
+                        stars: 10
+                        upVotes: 42
+                        downVotes: 0
+                      reactions:
+                        SATISFIED: 10
+                  thumbnail: ???
+                  tags:
+                  - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    name: blue
+                collections: []
+                embeddings: []
+                file:
+                  mimeType: video/mp4
+                  filename: bigbuckbunny-4k.mp4
+                  size: 42000000
+                  origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                  firstSeen: 2018-10-12T14:15:06Z
+                hashes:
+                  sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                  sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                  md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                geoComponents: []
+                imageComponents:
+                - dominantColor: "#FFFF00"
+                videoComponents:
+                - width: 4000
+                  height: 2250
+                  duration: 20000
+                audioComponents:
+                - channels: 2
+                  encoding: mp3
+                  samplingRate: 48000
+                  bpm: 120
+                documentComponents: []
+                locations:
+                - status: {}
+                  poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  mimeType: video/mp4
+                  state: PRESENT
+                  license: CC-BY-4.0
+                  filesystem:
+                    path: /the-current-path/bigbuckbunny-4k.mp4
+                    filekey:
+                      inode: 42
+                      stDev: 12
+                      edate: 12
+                      edateNano: 3
+                    lastSeen: 2018-11-20T20:12:01Z
+                  s3:
+                    bucket: big_bucket
+                    objectPath: themovie
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: attachmentUuid
+      in: path
+      description: UUID of the referenced attachment
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/chats/{uuid}/attachments/{attachmentUuid}/data:
+    description: Download the raw bytes of a chat attachment.
+    get:
+      tags:
+      - chats
+      summary: Download the raw bytes of a chat attachment.
+      description: Download the raw bytes of a chat attachment.
+      operationId: getChatsByUuidAttachmentsByAttachmentUuidData
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: attachmentUuid
+      in: path
+      description: UUID of the referenced attachment
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/chats/{uuid}/stream:
     description: Send a chat message to the agent and stream the run events back as
       Server-Sent Events
@@ -13006,10 +13554,38 @@ paths:
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                   status: {}
                   meta:
                     abc: cdef
+                  source: voiceprint
+                  type: voiceprint
+                  vector:
+                  - 0.42
+                  - 0.24
+                  - 0.44
+                  - 21.5
+                  model: redimnet2-b6-vox2-lm
+                  dimensions: 4
+                  frameNumber: 0
+                  subjectIndex: 3
+                  normalized: true
+                  timeFrom: 12000
+                  timeTo: 15000
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -13069,6 +13645,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -13195,6 +13785,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -13248,6 +13852,20 @@ paths:
                 status: {}
                 meta:
                   abc: cdef
+                source: voiceprint
+                type: voiceprint
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                model: redimnet2-b6-vox2-lm
+                dimensions: 4
+                frameNumber: 0
+                subjectIndex: 3
+                normalized: true
+                timeFrom: 12000
+                timeTo: 15000
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16408,6 +17026,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
       security: []
+  /api/v1/person-match:
+    description: "Find the known persons a set of face or voice vectors resembles,\
+      \ from the clusters reviewers confirmed and the persons' own samples. Returns\
+      \ candidates to suggest - it attributes nothing - and lists the samples that\
+      \ still need a print in the requested model."
+    post:
+      tags:
+      - person-match
+      summary: "Find the known persons a set of face or voice vectors resembles, from\
+        \ the clusters reviewers confirmed and the persons' own samples. Returns candidates\
+        \ to suggest - it attributes nothing - and lists the samples that still need\
+        \ a print in the requested model."
+      description: "Find the known persons a set of face or voice vectors resembles,\
+        \ from the clusters reviewers confirmed and the persons' own samples. Returns\
+        \ candidates to suggest - it attributes nothing - and lists the samples that\
+        \ still need a print in the requested model."
+      operationId: postPersonmatch
+      requestBody:
+        content:
+          application/json:
+            example:
+              type: speaker
+              model: redimnet2-b6-vox2
+              vectors:
+              - - 0.12
+                - -0.03
+                - 0.41
+              - - -0.2
+                - 0.33
+                - 0.05
+              threshold: 0.43
+              limit: 3
+      responses:
+        "200":
+          description: The person match response
+          content:
+            application/json:
+              example:
+                results:
+                - index: 0
+                  candidates:
+                  - personUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                    name: jdoe
+                    score: 0.71
+                    references: 4
+                - index: 1
+                  candidates: []
+                pendingSamples:
+                - personUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  mimeType: audio/mpeg
+                  url: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
+                personCount: 42
+                referenceCount: 117
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/persons:
     description: Create a new person
     get:
@@ -16470,6 +17166,7 @@ paths:
                   firstname: John
                   lastname: Doe
                   avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                  heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
                 - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
                   status:
                     creator:
@@ -16486,6 +17183,7 @@ paths:
                   firstname: John
                   lastname: Doe
                   avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                  heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -16550,6 +17248,7 @@ paths:
                 firstname: John
                 lastname: Doe
                 avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16604,6 +17303,7 @@ paths:
                 firstname: John
                 lastname: Doe
                 avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16671,6 +17371,7 @@ paths:
                 firstname: John
                 lastname: Doe
                 avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16786,6 +17487,7 @@ paths:
                 firstname: John
                 lastname: Doe
                 avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16825,15 +17527,15 @@ paths:
         type: string
         format: uuid
   /api/v1/persons/{uuid}/clusters:
-    description: "List the face clusters confirmed to be this person, across every\
-      \ asset they appear in"
+    description: "List the face and speaker clusters confirmed to be this person,\
+      \ across every asset they appear in"
     get:
       tags:
       - persons
-      summary: "List the face clusters confirmed to be this person, across every asset\
-        \ they appear in"
-      description: "List the face clusters confirmed to be this person, across every\
-        \ asset they appear in"
+      summary: "List the face and speaker clusters confirmed to be this person, across\
+        \ every asset they appear in"
+      description: "List the face and speaker clusters confirmed to be this person,\
+        \ across every asset they appear in"
       operationId: getPersonsByUuidClusters
       responses:
         "200":
@@ -16883,6 +17585,83 @@ paths:
                 _metainfo:
                   perPage: 2
                   totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/persons/{uuid}/hero-voice:
+    description: Set which of the person's voice samples represents them. Send a blank
+      or absent sampleUuid to clear it.
+    post:
+      tags:
+      - persons
+      summary: Set which of the person's voice samples represents them. Send a blank
+        or absent sampleUuid to clear it.
+      description: Set which of the person's voice samples represents them. Send a
+        blank or absent sampleUuid to clear it.
+      operationId: postPersonsByUuidHerovoice
+      requestBody:
+        content:
+          application/json:
+            example:
+              sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+      responses:
+        "200":
+          description: The person response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                alias: jdoe
+                firstname: John
+                lastname: Doe
+                avatarUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data
+                heroVoiceUrl: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -17199,6 +17978,88 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/persons/{uuid}/images/{imageUuid}/prints:
+    description: "Store what a face model made of one of the person's images: a reference\
+      \ vector, or the reason there is none. Written by the node owning the model;\
+      \ a later write for the same image and model replaces it."
+    post:
+      tags:
+      - persons
+      summary: "Store what a face model made of one of the person's images: a reference\
+        \ vector, or the reason there is none. Written by the node owning the model;\
+        \ a later write for the same image and model replaces it."
+      description: "Store what a face model made of one of the person's images: a\
+        \ reference vector, or the reason there is none. Written by the node owning\
+        \ the model; a later write for the same image and model replaces it."
+      operationId: postPersonsByUuidImagesByImageUuidPrints
+      requestBody:
+        content:
+          application/json:
+            example:
+              type: speaker
+              model: redimnet2-b6-vox2
+              vector:
+              - 0.12
+              - -0.03
+              - 0.41
+      responses:
+        "201":
+          description: "The stored print, without its vector"
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                type: speaker
+                model: redimnet2-b6-vox2
+                dimensions: 192
+                usable: true
+                edited: 2026-10-11T09:30:00Z
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: imageUuid
+      in: path
+      description: UUID of the referenced image
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/persons/{uuid}/images/from-detection:
     description: "Copy a detection's face crop into this person's images. The copy\
       \ shares the crop's bytes but belongs to the person, so it survives deletion\
@@ -17280,6 +18141,489 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/persons/{uuid}/voice-samples:
+    description: "List the person's voice samples, newest first, each with the voice\
+      \ models that have embedded it"
+    get:
+      tags:
+      - persons
+      summary: "List the person's voice samples, newest first, each with the voice\
+        \ models that have embedded it"
+      description: "List the person's voice samples, newest first, each with the voice\
+        \ models that have embedded it"
+      operationId: getPersonsByUuidVoicesamples
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The person voice sample list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  filename: voice-press-conference.wav
+                  mimeType: audio/wav
+                  size: 960044
+                  url: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
+                  hero: true
+                  durationMs: 30000
+                  sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  sourceClusterUuid: 5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84
+                  sourceTimeFrom: 61500
+                  sourceTimeTo: 91500
+                  prints:
+                  - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    type: speaker
+                    model: redimnet2-b6-vox2
+                    dimensions: 192
+                    usable: true
+                    edited: 2026-10-11T09:30:00Z
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - persons
+      summary: "Upload a recording of this person's voice. Form fields: 'file' (required,\
+        \ audio or a video with a soundtrack) and 'poolUuid' (optional storage pool).\
+        \ The voiceprint node embeds the sample on its next run."
+      description: "Upload a recording of this person's voice. Form fields: 'file'\
+        \ (required, audio or a video with a soundtrack) and 'poolUuid' (optional\
+        \ storage pool). The voiceprint node embeds the sample on its next run."
+      operationId: postPersonsByUuidVoicesamples
+      responses:
+        "201":
+          description: The person voice sample response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: voice-press-conference.wav
+                mimeType: audio/wav
+                size: 960044
+                url: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
+                hero: true
+                durationMs: 30000
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                sourceClusterUuid: 5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84
+                sourceTimeFrom: 61500
+                sourceTimeTo: 91500
+                prints:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  type: speaker
+                  model: redimnet2-b6-vox2
+                  dimensions: 192
+                  usable: true
+                  edited: 2026-10-11T09:30:00Z
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/persons/{uuid}/voice-samples/{sampleUuid}:
+    description: "Delete one of the person's voice samples, and every print computed\
+      \ from it. Deleting the hero sample leaves the person without one."
+    delete:
+      tags:
+      - persons
+      summary: "Delete one of the person's voice samples, and every print computed\
+        \ from it. Deleting the hero sample leaves the person without one."
+      description: "Delete one of the person's voice samples, and every print computed\
+        \ from it. Deleting the hero sample leaves the person without one."
+      operationId: deletePersonsByUuidVoicesamplesBySampleUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: sampleUuid
+      in: path
+      description: UUID of the referenced sample
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/persons/{uuid}/voice-samples/{sampleUuid}/data:
+    description: Load the bytes of one of the person's voice samples
+    get:
+      tags:
+      - persons
+      summary: Load the bytes of one of the person's voice samples
+      description: Load the bytes of one of the person's voice samples
+      operationId: getPersonsByUuidVoicesamplesBySampleUuidData
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: sampleUuid
+      in: path
+      description: UUID of the referenced sample
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/persons/{uuid}/voice-samples/{sampleUuid}/prints:
+    description: "Store what a voice model made of one of the person's samples: a\
+      \ reference vector, or the reason there is none (e.g. no speech). Written by\
+      \ the voiceprint node; a later write for the same sample and model replaces\
+      \ it."
+    post:
+      tags:
+      - persons
+      summary: "Store what a voice model made of one of the person's samples: a reference\
+        \ vector, or the reason there is none (e.g. no speech). Written by the voiceprint\
+        \ node; a later write for the same sample and model replaces it."
+      description: "Store what a voice model made of one of the person's samples:\
+        \ a reference vector, or the reason there is none (e.g. no speech). Written\
+        \ by the voiceprint node; a later write for the same sample and model replaces\
+        \ it."
+      operationId: postPersonsByUuidVoicesamplesBySampleUuidPrints
+      requestBody:
+        content:
+          application/json:
+            example:
+              type: speaker
+              model: redimnet2-b6-vox2
+              vector:
+              - 0.12
+              - -0.03
+              - 0.41
+      responses:
+        "201":
+          description: "The stored print, without its vector"
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                type: speaker
+                model: redimnet2-b6-vox2
+                dimensions: 192
+                usable: true
+                edited: 2026-10-11T09:30:00Z
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: sampleUuid
+      in: path
+      description: UUID of the referenced sample
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/persons/{uuid}/voice-samples/from-cluster:
+    description: "Cut a speaker's voice out of the asset it was heard in, into this\
+      \ person's voice samples - the longest turn, up to 30 seconds, unless a range\
+      \ is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON:\
+      \ the result is a piece of the asset's audio."
+    post:
+      tags:
+      - persons
+      summary: "Cut a speaker's voice out of the asset it was heard in, into this\
+        \ person's voice samples - the longest turn, up to 30 seconds, unless a range\
+        \ is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON:\
+        \ the result is a piece of the asset's audio."
+      description: "Cut a speaker's voice out of the asset it was heard in, into this\
+        \ person's voice samples - the longest turn, up to 30 seconds, unless a range\
+        \ is given. Requires READ_CLUSTER and READ_ASSET_BINARY as well as UPDATE_PERSON:\
+        \ the result is a piece of the asset's audio."
+      operationId: postPersonsByUuidVoicesamplesFromcluster
+      requestBody:
+        content:
+          application/json:
+            example:
+              clusterUuid: 5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84
+      responses:
+        "201":
+          description: The person voice sample response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: voice-press-conference.wav
+                mimeType: audio/wav
+                size: 960044
+                url: /api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/voice-samples/86abc160-4da2-4951-a91f-da0c33fbc634/data
+                hero: true
+                durationMs: 30000
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                sourceClusterUuid: 5d1c0f2e-8a4b-4c7d-9e3f-2b6a1d0c9e84
+                sourceTimeFrom: 61500
+                sourceTimeTo: 91500
+                prints:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  sampleUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  type: speaker
+                  model: redimnet2-b6-vox2
+                  dimensions: 192
+                  usable: true
+                  edited: 2026-10-11T09:30:00Z
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/pipeline-runs/{runUuid}:
     description: "Load a single pipeline run by its uuid, without knowing its pipeline"
     get:
@@ -17294,11 +18638,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 62febd51-251f-4336-b8f8-9a1651991cfb
-                pipelineUuid: 6231a85c-db61-49ad-82b2-61e2c1e916b2
+                uuid: aef840a4-552a-4b72-aa11-fb818790df8d
+                pipelineUuid: 1f78fa15-5d53-4108-8e9d-785d826f0930
                 pipelineVersion: 1
-                started: 2026-09-21T09:29:09.206655699Z
-                finished: 2026-09-21T09:29:09.206657839Z
+                started: 2026-10-11T00:49:34.199414931Z
+                finished: 2026-10-11T00:49:34.199416881Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17547,7 +18891,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: dfe705fa-ed4a-4569-81c0-aa43c81c36cf
+                  versionUuid: d5a6766f-0218-4049-9f41-331b5622dec7
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17568,7 +18912,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: b7f0122b-0f70-4255-a3c6-0566d14db881
+                  versionUuid: 80e7621a-a41d-449a-a34d-810883e6fb0c
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -17641,7 +18985,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: becefc53-3c8d-43c7-a83d-1539b27ab92b
+                versionUuid: 569c2a7a-a2bb-4ebe-aa6d-59cd69394048
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17700,7 +19044,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 94d128ef-c10e-472e-a314-9e0088e2050e
+                versionUuid: 28cadcea-fefa-4bb2-9034-70292fdc9d62
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17772,7 +19116,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 2b5c6581-0457-4aef-904a-8b0e30ce961c
+                versionUuid: a3c02cfd-2deb-4882-b38a-76219717bc4f
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -17881,7 +19225,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: c92f5e83-7130-4bed-bebc-5ed12c75fc98
+                runUuid: b35633e1-befb-4572-acec-c1efee781a0d
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -17969,11 +19313,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: a3bb81e1-34d9-43a8-abbb-c3d51e0f72ac
-                  pipelineUuid: 4dc95db9-29a7-4afb-b393-d19401b5a8ef
+                - uuid: 57daa388-804a-4a82-aeef-51bb316350e1
+                  pipelineUuid: 2ff6af71-5e1b-4e68-95a2-c5403deacca2
                   pipelineVersion: 1
-                  started: 2026-09-21T09:29:09.206534669Z
-                  finished: 2026-09-21T09:29:09.206544649Z
+                  started: 2026-10-11T00:49:34.199304831Z
+                  finished: 2026-10-11T00:49:34.199319691Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -17981,11 +19325,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: e3793b30-c12e-45f6-919b-0139eabd6b44
-                  pipelineUuid: da9d0770-8aec-49d6-9309-ccf24779d723
+                - uuid: 7cd59211-36ad-4094-8f95-ab14dbe64056
+                  pipelineUuid: 92490451-9a48-41b8-b06e-0b768ec72698
                   pipelineVersion: 1
-                  started: 2026-09-21T09:29:09.206560589Z
-                  finished: 2026-09-21T09:29:09.206563049Z
+                  started: 2026-10-11T00:49:34.199335151Z
+                  finished: 2026-10-11T00:49:34.199337501Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -18048,11 +19392,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: d9a28d80-b275-4b97-92ff-5b218bb7bd26
-                pipelineUuid: 9ba704f8-53b8-4b6f-8ef1-e4a904649a63
+                uuid: 3eb3f075-2cf4-4fe4-abe9-5878082a4c61
+                pipelineUuid: d3493a30-2bf0-4d9d-814c-45ddf7a8db0f
                 pipelineVersion: 1
-                started: 2026-09-21T09:29:09.206621749Z
-                finished: 2026-09-21T09:29:09.206625189Z
+                started: 2026-10-11T00:49:34.199386171Z
+                finished: 2026-10-11T00:49:34.199388651Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -18394,15 +19738,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: b2d01228-21f1-498f-88e4-a283b4f3dd37
-                  runUuid: e447583f-bd6f-492c-8248-17c1eca30058
+                - uuid: 14562d77-7048-4d9e-85c4-5b3c18659d33
+                  runUuid: 94d6572a-7f84-4583-b628-c3d75146be95
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 9cd6b454-6014-419e-a742-7714278e2079
-                  runUuid: ad6a8a5a-24ad-4919-a8b9-3c291889ca42
+                - uuid: 7cf57f78-7917-4671-86b5-bf93fc6e76b3
+                  runUuid: 22d41302-de1f-40b6-b4ed-3ebf7760fb20
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -18474,9 +19818,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 20f66c03-ba50-48be-9f0e-0e1b8d3ea4c5
-                  itemUuid: 23329731-2c48-47e0-a69e-cad4799378aa
-                  runUuid: 0a0d1d9a-8cad-44ec-af8a-f5a229884abb
+                - uuid: 4b67a10c-00e9-4521-be0b-0869ccc9908c
+                  itemUuid: 5d3763f5-fee2-4fdc-b734-4562064c7ec1
+                  runUuid: b296fc4b-019e-487e-b8fb-73217d0b461b
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -18939,7 +20283,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 0db2e7f1-9b6b-4a55-8a0b-54d149ccf45f
+                  versionUuid: fb5675e3-f788-418e-ae47-7d1139aced05
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -18960,7 +20304,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 6f5417d0-cfb0-4e00-b6ff-5f66c1a7d8c9
+                  versionUuid: f5886722-7e34-4b78-8cf2-b10731c1da5e
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -19036,7 +20380,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: ea8618dd-8858-4ed7-b255-3779d863073e
+                versionUuid: 068b787e-ad86-4b3b-b019-b7d11f400269
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -19122,7 +20466,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 97e25047-0a36-41b1-afea-dc074a2c0a69
+                versionUuid: a762ebde-146a-40d7-bfe0-8af4b514561f
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

@@ -10,6 +10,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.person.PersonPrintDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.remix.RemixDao;
@@ -109,6 +110,8 @@ public interface DaoCollection {
 	EmbeddingDao embeddingDao();
 
 	ClusterDao clusterDao();
+
+	PersonPrintDao personPrintDao();
 
 	// Social
 

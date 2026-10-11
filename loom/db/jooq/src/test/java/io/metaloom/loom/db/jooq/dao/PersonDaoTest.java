@@ -146,4 +146,97 @@ public class PersonDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<
 		assertTrue(images.stream().allMatch(a -> a.getType() == AttachmentType.PERSON_IMAGE));
 	}
 
+	private Attachment addVoiceSample(User user, Person person, int i) {
+		Attachment sample = attachmentDao().createAttachment(user.getUuid(), uniqueSha(i), "voice_" + i + ".wav", 4242L, "audio/wav",
+			AttachmentType.PERSON_VOICE);
+		sample.setPersonUuid(person.getUuid());
+		attachmentDao().store(sample);
+		return sample;
+	}
+
+	/**
+	 * Voice samples and pictures share the person-owned attachment shape but are separate galleries: listing one type never returns the other.
+	 */
+	@Test
+	public void testVoiceSamplesAreAGalleryOfTheirOwn() {
+		User user = adminUser();
+		Person person = personDao().createPerson(user, "voice_person");
+		personDao().store(person);
+
+		Attachment picture = addPersonImage(user, person, 20);
+		Attachment voice = addVoiceSample(user, person, 21);
+
+		List<Attachment> voices = attachmentDao().listByPerson(person.getUuid(), AttachmentType.PERSON_VOICE);
+		assertEquals(1, voices.size());
+		assertEquals(voice.getUuid(), voices.get(0).getUuid());
+		List<Attachment> pictures = attachmentDao().listByPerson(person.getUuid());
+		assertEquals(1, pictures.size(), "The picture gallery stays pictures only");
+		assertEquals(picture.getUuid(), pictures.get(0).getUuid());
+	}
+
+	/**
+	 * The hero voice pointer behaves like the avatar: deleting the sample nulls it, and the person and their other samples survive (V2.115).
+	 */
+	@Test
+	public void testDeletingTheHeroVoiceSampleNullsThePointer() {
+		User user = adminUser();
+		Person person = personDao().createPerson(user, "hero_voice_person");
+		personDao().store(person);
+		Attachment hero = addVoiceSample(user, person, 22);
+		Attachment other = addVoiceSample(user, person, 23);
+		person.setHeroVoiceAttachmentUuid(hero.getUuid());
+		personDao().update(person);
+		assertEquals(hero.getUuid(), personDao().load(person.getUuid()).getHeroVoiceAttachmentUuid());
+
+		attachmentDao().delete(hero.getUuid());
+
+		Person reloaded = personDao().load(person.getUuid());
+		assertNotNull(reloaded, "The person survives deletion of their hero sample");
+		assertNull(reloaded.getHeroVoiceAttachmentUuid(), "hero_voice_attachment_uuid is SET NULL");
+		assertNotNull(attachmentDao().load(other.getUuid()), "The other sample is untouched");
+	}
+
+	/**
+	 * Deleting a person takes their voice samples, and only theirs.
+	 */
+	@Test
+	public void testDeletingPersonCascadesItsVoiceSamplesOnly() {
+		User user = adminUser();
+		Person person = personDao().createPerson(user, "deleted_voice_person");
+		personDao().store(person);
+		Person survivor = personDao().createPerson(user, "surviving_voice_person");
+		personDao().store(survivor);
+		Attachment doomed = addVoiceSample(user, person, 24);
+		Attachment kept = addVoiceSample(user, survivor, 25);
+
+		personDao().delete(person.getUuid());
+
+		assertNull(attachmentDao().load(doomed.getUuid()), "The deleted person's sample cascades");
+		assertNotNull(attachmentDao().load(kept.getUuid()), "Another person's sample survives");
+	}
+
+	/**
+	 * Names are resolved in one query: the alias when present, otherwise first and last name; a person with neither is absent.
+	 */
+	@Test
+	public void testLoadDisplayNames() {
+		User user = adminUser();
+		Person aliased = personDao().createPerson(user, "Ana");
+		aliased.setFirstname("Anna");
+		aliased.setLastname("Meyer");
+		personDao().store(aliased);
+		Person named = personDao().createPerson(user, null);
+		named.setFirstname("Bert");
+		named.setLastname("Huber");
+		personDao().store(named);
+		Person nameless = personDao().createPerson(user, " ");
+		personDao().store(nameless);
+
+		var names = personDao().loadDisplayNames(List.of(aliased.getUuid(), named.getUuid(), nameless.getUuid(), java.util.UUID.randomUUID()));
+		assertEquals("Ana", names.get(aliased.getUuid()));
+		assertEquals("Bert Huber", names.get(named.getUuid()));
+		assertTrue(!names.containsKey(nameless.getUuid()), "A person with no name has no entry");
+		assertEquals(2, names.size());
+	}
+
 }

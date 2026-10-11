@@ -43,13 +43,20 @@ import io.metaloom.loom.rest.model.tag.TagReference;
  *            outage as "unrated" would route unrated-branch work, typically trash, over a blip
  * @param text
  *            the text wired into the node's {@code text} port; may be {@code null} or blank
+ * @param persons
+ *            the known persons the asset's face and speaker clusters name, fetched only for a strategy that asked via
+ *            {@link FilterStrategy#needsPersons()}; empty otherwise
+ * @param personsAvailable
+ *            whether {@code persons} is an answer at all - {@code false} means the fetch failed, which is not "nobody is in it"
  */
 public record FilterItem(
 	NodeContext<LoomMedia> ctx,
 	@Nullable AssetResponse asset,
 	List<ReactionResponse> reactions,
 	boolean reactionsAvailable,
-	@Nullable String text) {
+	@Nullable String text,
+	List<PersonMention> persons,
+	boolean personsAvailable) {
 
 	public LoomMedia media() {
 		return ctx.media();
@@ -65,15 +72,24 @@ public record FilterItem(
 
 	/** An item with no reactions loaded — the state every strategy that does not ask for them sees. */
 	public static FilterItem of(NodeContext<LoomMedia> ctx, @Nullable AssetResponse asset, @Nullable String text) {
-		return new FilterItem(ctx, asset, List.of(), true, text);
+		return new FilterItem(ctx, asset, List.of(), true, text, List.of(), true);
 	}
 
 	public FilterItem withReactions(List<ReactionResponse> reactions) {
-		return new FilterItem(ctx, asset, reactions == null ? List.of() : reactions, true, text);
+		return new FilterItem(ctx, asset, reactions == null ? List.of() : reactions, true, text, persons, personsAvailable);
 	}
 
 	/** The reaction fetch failed. Kept apart from "none" so a strategy can refuse to guess. */
 	public FilterItem withoutReactions() {
-		return new FilterItem(ctx, asset, List.of(), false, text);
+		return new FilterItem(ctx, asset, List.of(), false, text, persons, personsAvailable);
+	}
+
+	public FilterItem withPersons(List<PersonMention> persons) {
+		return new FilterItem(ctx, asset, reactions, reactionsAvailable, text, persons == null ? List.of() : persons, true);
+	}
+
+	/** The cluster fetch failed. Kept apart from "nobody" for the reason {@link #withoutReactions()} is. */
+	public FilterItem withoutPersons() {
+		return new FilterItem(ctx, asset, reactions, reactionsAvailable, text, List.of(), false);
 	}
 }

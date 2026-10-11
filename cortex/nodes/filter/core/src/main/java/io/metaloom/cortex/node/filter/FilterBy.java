@@ -20,6 +20,8 @@ package io.metaloom.cortex.node.filter;
  * but costs no call of its own.</li>
  * <li>{@link #RATING} costs one extra Loom call per item — cached per run — because a rating lives
  * on the asset's reactions rather than on the asset.</li>
+ * <li>{@link #PERSON} costs one extra Loom call per item and is never cached, because who is in an item changes whenever a reviewer
+ * confirms a face or a voice.</li>
  * <li>{@link #LANGUAGE} is the only one that needs a model backend.</li>
  * </ul>
  */
@@ -70,5 +72,16 @@ public enum FilterBy {
 	 * The tags on the asset. Bucket hints are names and prefix globs, optionally negated —
 	 * {@code hero}, {@code person/*}, {@code !archive}, and {@code untagged}.
 	 */
-	TAG
+	TAG,
+
+	/**
+	 * The known persons in the item - the people its face and speaker clusters were confirmed (or, by option, suggested) to be. Bucket hints are
+	 * names and person uuids, optionally negated - {@code Anna Meyer}, {@code !anna}, {@code *} for anybody known, {@code nobody}.
+	 *
+	 * <p>
+	 * One filter for faces and voices alike: it reads what {@code facedetect} and {@code voiceprint} wrote, and the {@code personSource} option
+	 * narrows it to one of them.
+	 * </p>
+	 */
+	PERSON
 }

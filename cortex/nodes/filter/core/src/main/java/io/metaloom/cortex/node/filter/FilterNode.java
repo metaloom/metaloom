@@ -96,6 +96,21 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 
 	/**
+	 * Wire {@code facedetect}'s or {@code voiceprint}'s {@code persons} output here when a {@code filterBy=PERSON} filter runs in the same pipeline as
+	 * the node recognising the persons.
+	 *
+	 * <p>
+	 * The edge is what orders the two: without it the filter could read the asset's clusters before the producer has written them. The filter still
+	 * reads the persons from Loom rather than from this port, because Loom also holds what reviewers confirmed in earlier runs and what the other
+	 * producer found - a sequence so both producers may be wired at once.
+	 * </p>
+	 */
+	@PortDoc(label = "Persons", required = false,
+		description = "The persons output of facedetect or voiceprint. Wire it so a PERSON filter runs after them; the persons themselves are read "
+			+ "from Loom, which also holds earlier confirmations")
+	public static final InputPort<String> IN_PERSONS = InputPort.many("persons", ContentTypeRegistry.STRUCT_PERSONS, String.class);
+
+	/**
 	 * The catch-all branch, emitted when nothing else matched.
 	 *
 	 * <p>
@@ -181,6 +196,12 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 					+ "'; expected one of " + java.util.Arrays.toString(TagSource.values()));
 			}
 		}
+		if (nodeDef.containsKey("personSource")) {
+			options.setPersonSource(enumOption(nodeDef, "personSource", PersonSource.class));
+		}
+		if (nodeDef.containsKey("personEvidence")) {
+			options.setPersonEvidence(enumOption(nodeDef, "personEvidence", PersonEvidence.class));
+		}
 		if (nodeDef.containsKey("buckets")) {
 			options.setBuckets(nodeDef.getJsonArray("buckets", new JsonArray()));
 		}
@@ -220,7 +241,8 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 		// model is shown, and openaiUrl decides which backend answers - all three change the verdict
 		// for the same item, so all three belong in here too.
 		configHash = hash(options.getFilterBy() + " " + options.getBuckets().encode() + " " + options.getModel()
-			+ " " + options.getTagSource() + " " + options.openaiUrl() + " " + options.getMaxTextChars()
+			+ " " + options.getTagSource() + " " + options.getPersonSource() + " " + options.getPersonEvidence()
+			+ " " + options.openaiUrl() + " " + options.getMaxTextChars()
 			+ " " + options.getMinConfidence() + " " + strategy.version());
 		configured = true;
 	}
@@ -235,15 +257,15 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		String cacheKey = ctx.media().absolutePath() + "|" + configHash;
+		FilterStrategy strategy = strategy();
 
-		String cached = resultCache.get(cacheKey);
+		String cached = strategy.cacheable() ? resultCache.get(cacheKey) : null;
 		if (cached != null) {
 			emit(ctx, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
 		List<FilterBucket> buckets = options().buckets();
-		FilterStrategy strategy = strategy();
 		FilterItem item = item(ctx, asset, strategy);
 
 		Classification classification;
@@ -259,7 +281,9 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 		}
 
 		emit(ctx, classification.bucketId());
-		resultCache.put(cacheKey, classification.bucketId());
+		if (strategy.cacheable()) {
+			resultCache.put(cacheKey, classification.bucketId());
+		}
 		persist(ctx, asset, classification);
 		return ctx.origin(COMPUTED).next();
 	}
@@ -296,14 +320,41 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 	 */
 	private FilterItem item(NodeContext<LoomMedia> ctx, AssetResponse asset, FilterStrategy strategy) {
 		FilterItem item = FilterItem.of(ctx, asset, ctx.optionalInput(IN_TEXT).orElse(null));
-		if (!strategy.needsReactions() || asset == null || client() == null) {
+		if (asset == null || client() == null) {
 			return item;
 		}
+		if (strategy.needsReactions()) {
+			try {
+				item = item.withReactions(client().listAssetReaction(asset.getUuid()).sync().body().getData());
+			} catch (Exception e) {
+				log.debug("Filter node {} could not read the reactions of asset {}: {}", nodeId, asset.getUuid(), e.getMessage());
+				item = item.withoutReactions();
+			}
+		}
+		if (strategy.needsPersons()) {
+			try {
+				// Who the asset's face and speaker clusters name. The cluster responses carry the names, so this is the only call.
+				var clusters = client().listAssetClusters(asset.getUuid()).sync().body().getData();
+				List<PersonMention> persons = clusters == null ? List.of() : clusters.stream()
+					.map(PersonMention::of)
+					.filter(java.util.Objects::nonNull)
+					.toList();
+				item = item.withPersons(persons);
+			} catch (Exception e) {
+				log.debug("Filter node {} could not read the clusters of asset {}: {}", nodeId, asset.getUuid(), e.getMessage());
+				item = item.withoutPersons();
+			}
+		}
+		return item;
+	}
+
+	private <E extends Enum<E>> E enumOption(JsonObject nodeDef, String key, Class<E> type) {
+		String raw = nodeDef.getString(key);
 		try {
-			return item.withReactions(client().listAssetReaction(asset.getUuid()).sync().body().getData());
-		} catch (Exception e) {
-			log.debug("Filter node {} could not read the reactions of asset {}: {}", nodeId, asset.getUuid(), e.getMessage());
-			return item.withoutReactions();
+			return Enum.valueOf(type, raw.trim().toUpperCase(java.util.Locale.ROOT));
+		} catch (IllegalArgumentException | NullPointerException e) {
+			throw new IllegalStateException("Filter node '" + nodeId + "' has unknown " + key + " '" + raw
+				+ "'; expected one of " + java.util.Arrays.toString(type.getEnumConstants()));
 		}
 	}
 

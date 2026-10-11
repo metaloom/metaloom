@@ -56,6 +56,7 @@ import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
+import io.metaloom.loom.db.jooq.tables.JooqPersonPrint;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
@@ -453,6 +454,13 @@ public class JooqPublic extends SchemaImpl {
     public final JooqPerson PERSON = JooqPerson.PERSON;
 
     /**
+     * Reference vectors computed from a person's own samples, one per (sample,
+     * cluster type, model). Written by the node owning the model; read by
+     * person matching.
+     */
+    public final JooqPersonPrint PERSON_PRINT = JooqPersonPrint.PERSON_PRINT;
+
+    /**
      * The table <code>public.pipeline</code>.
      */
     public final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
@@ -769,6 +777,7 @@ public class JooqPublic extends SchemaImpl {
             JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE,
             JooqNotification.NOTIFICATION,
             JooqPerson.PERSON,
+            JooqPersonPrint.PERSON_PRINT,
             JooqPipeline.PIPELINE,
             JooqPipelineNodeTask.PIPELINE_NODE_TASK,
             JooqPipelineRun.PIPELINE_RUN,

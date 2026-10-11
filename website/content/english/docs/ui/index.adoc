@@ -534,8 +534,9 @@ task, tells nobody. Notifications are private — you only ever see your own.
 [#face-review]
 === Face Detection
 
-The Detection view aggregates face, object and LLM detections. The *Faces* tab is where you turn what
-the face-detection node found into people you have named.
+The Detection view aggregates faces, speakers, objects and LLM detections. The *Faces* tab is where
+you turn what the face-detection node found into people you have named; the *Speakers* tab does the
+same for voices.
 
 image::face-detection.png[Face detection and cluster management,role=img-fluid]
 
@@ -576,12 +577,23 @@ clicked through one card at a time.
   over it. To take a name back off, click the cross on the person chip — or, at the two smallest
   sizes where there is no chip, the green dot in the card's corner.
 
+==== When Metaloom recognises somebody
+
+A group can arrive with a line that reads *Looks like Anna Meyer (87%)*. Metaloom compared the group
+with the people it already knows — the groups you confirmed before and the pictures saved on each
+person — and found a close match. *Confirm* accepts it in one click; you can just as well attach the
+group to somebody else or reject it.
+
+A suggestion is only that. Until you confirm it the group stays pending, and nothing that publishes,
+tags or filters by name treats it as decided. Every group you confirm makes the next suggestions for
+that person better.
+
 ==== What the grouping does and does not mean
 
 Faces are grouped **within a single asset**. Confirming a group means "this person appears in *this*
-video", not "the software now recognises this person everywhere". The same person in a second video
-comes back as a separate group with no memory of the first, and you confirm it again. Recognising
-somebody across the whole library is a larger job and is not part of this yet.
+video". The same person in a second video comes back as a separate group — with a suggestion of who
+they are, if you have named them before. Somebody you have never named is not recognised anywhere;
+their groups in different videos stay separate until you name them.
 
 A person's page lists every group confirmed to them, which is how you see where somebody appears
 across your material.
@@ -591,6 +603,28 @@ across your material.
 The cropped faces on these cards were cut by the detection node and stored by your own installation.
 Face images and the vectors derived from them are biometric data; they are never fetched from, or
 sent to, any outside service.
+
+[#speakers]
+=== Speakers
+
+The *Speakers* tab is the review screen for voices. When link:../nodes/voiceprint/[Voiceprint] runs
+over a recording it groups the speech into the voices it heard, one card per voice, each left
+pending like a face group.
+
+image::speakers-review.png[The Speakers tab: one card per voice with its recording, speaking time and turns; a suggested person with a Confirm button; and a confirmed speaker with its turns listed,role=img-fluid]
+
+Each card names the recording, how long the voice speaks and in how many turns. The play button plays
+that voice's longest turn, so you can tell who it is before you decide anything; open the card to see
+and play every turn separately. Then, as with faces:
+
+* *Confirm a suggestion* — *Sounds like Alice Smith (82%)* means the voice matched somebody whose voice
+  Metaloom already knows. One click confirms it.
+* *Attach it to a person* already in your list, or create one on the spot.
+* *Reject* a voice that is not worth keeping — a jingle, a mis-split, background chatter.
+
+Once a speaker is confirmed, *Save as voice sample* copies their longest turn into that person's
+voice samples, so the voice is recognised in future recordings. The button beside each turn saves just
+that turn — useful when the longest one has music or somebody else talking over it.
 
 [#persons]
 === People and their pictures
@@ -625,6 +659,34 @@ they were. A face taken from a confirmed group is copied into their keeping at t
 precisely so that it survives.
 
 They are stored by your own installation like everything else here, and never sent anywhere.
+
+[#persons-and-voices]
+==== A person's voice
+
+Below the pictures, a person's page keeps their **voice samples**: recordings Metaloom uses to
+recognise their voice in new material. The one marked as the *hero voice* plays next to their name at
+the top of the page.
+
+image::person-voice.png[A person's page with two voice samples: one cut from a recording and marked as the hero voice, one uploaded; below them a confirmed speaker that can be imported,role=img-fluid]
+
+There are two ways to add one:
+
+* *Upload a recording* — any audio file, or a video in which the person is speaking.
+* *Import from a speaker* — the page lists every speaker confirmed to this person; *Import* copies
+  that speaker's longest turn, up to 30 seconds.
+
+Each sample shows its length, where it came from, and which voice models have already learned it. A
+model name in red means that model could not use the sample — usually because there is no speech in
+it. Samples are learned automatically the next time the voiceprint node runs; nothing has to be
+started by hand.
+
+Recognition works best with **at least 30 seconds of the person speaking, from more than one
+occasion** — the page says so while a person has less. One short clip still works, but it recognises
+far less reliably than several taken from different recordings.
+
+Like pictures, voice samples belong to the person and survive deleting the recording they were cut
+from. A voice used to recognise somebody is biometric data: decide on your legal basis before you
+build up a directory of voices, and treat every suggestion as a suggestion.
 
 [#rating-and-tagging]
 === Rating and Tagging at Keyboard Speed

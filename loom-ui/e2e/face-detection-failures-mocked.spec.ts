@@ -212,7 +212,9 @@ test.describe("Face detection – create dialog and failure paths (mocked e2e)",
     await page.getByTestId("facedetection-cluster-name").locator("input").fill("Holiday 2025");
     await create.click();
 
-    await expect.poll(() => rec.clusterCreates, { timeout: 10_000 }).toEqual([{ name: "Holiday 2025" }]);
+    // Typed as a face cluster: the screen lists `type=face` only, so an untyped cluster would be
+    // gone again on the next reload.
+    await expect.poll(() => rec.clusterCreates, { timeout: 10_000 }).toEqual([{ name: "Holiday 2025", type: "face" }]);
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByTestId("cluster-card")).toHaveCount(2);
     await expect(clusterCard(page, CLUSTER_NEW).getByTestId("cluster-name")).toHaveText("Holiday 2025");

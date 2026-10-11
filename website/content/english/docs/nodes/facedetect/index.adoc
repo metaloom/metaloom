@@ -21,15 +21,15 @@ video — it does not yet recognise the same person across two different files. 
 | Kind | `facedetect`
 | Applies to | Image, Video
 | Input ports | `image` or `video` — exactly one of the two is wired
-| Output ports | `detections` (**many** — one element per detected face, the boxes that feed link:../scene-layout/[Scene Layout], link:../dominant-color/[Dominant Colour] and link:../facedescription/[Face Description]), `face_count` (Integer — **distinct people**, not boxes), `flag` (String). Embedding vectors and face groups are **not** connectable ports: they are written straight to Loom, so face search and the review screen read them from there rather than through the graph
+| Output ports | `detections` (**many** — one element per detected face, the boxes that feed link:../scene-layout/[Scene Layout], link:../dominant-color/[Dominant Colour] and link:../facedescription/[Face Description]), `face_count` (Integer — **distinct people**, not boxes), `flag` (String), `persons` (the known people among the faces, confirmed or suggested — wire it into a link:../filter/[Filter] by person). Embedding vectors and face groups are **not** connectable ports: they are written straight to Loom, so face search and the review screen read them from there rather than through the graph
 | Requirements | **InspireFace native runtime** and its model pack. CPU works; a GPU-enabled pack accelerates video/large batches. Model files require local storage and memory.
-| Persists to | Detections, embeddings, face groups and one cropped face image per detection — all upserted, so re-running replaces rather than duplicates
+| Persists to | Detections, embeddings, face groups (with a suggested person when a known face matched) and one cropped face image per detection — all upserted, so re-running replaces rather than duplicates
 |===
 
 == Configuration
 
 .The node's settings in the pipeline editor
-image::config.png[The Face Detection settings panel: Video Chop Rate, Min Cluster Size, Cluster Radius and 5 more settings,role="ml-panel-shot"]
+image::config.png[The Face Detection settings panel: Video Chop Rate, Min Cluster Size, Cluster Radius, Suggest Persons and more settings,role="ml-panel-shot"]
 
 Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
@@ -46,6 +46,8 @@ Set these in the panel above, or in the node's `options` block in a pipeline def
 | `embeddingModel` | The name recorded against every vector. Change it whenever the model pack changes — see <<Changing the model pack>>
 | `faceClusterMinimum` | How many faces have to agree before they are treated as one person. The default of `2` counts the face itself, so it means "needs at least one lookalike". A face that matches nobody is still reported as its own person
 | `faceClusterEPS` | How similar two faces must be to count as the same person — a **distance**, so *smaller is stricter*. The default of `0.6` is a starting point, not a calibrated value; see <<Tuning the grouping>>
+| `suggestPersons` | Compare every face group with the people Metaloom already knows and suggest the closest one for review (default on). Needs `embeddingsEnabled`
+| `suggestThreshold` | How similar a group must be to a person to be suggested, from 0 to 1. `0` uses 0.45; see <<Recognising people you know>>
 |===
 
 == Detection over time
@@ -97,9 +99,9 @@ made a proposal, and nobody has agreed to it yet.
 Two properties of this are worth knowing before you rely on it.
 
 **It groups within one asset, not across your library.** Confirming a group means "this person
-appears in *this* video". The same person in a second video produces a second, separate group that
-knows nothing about the first. Recognising somebody across the whole library is a different and
-larger job, and this node does not do it yet.
+appears in *this* video". The same person in a second video produces a second, separate group — but
+if they are somebody you have already named, that group arrives with a **suggestion** of who they
+are; see <<Recognising people you know>>.
 
 **A face that matches nobody is still a person.** A portrait contains exactly one face, which by
 definition has no lookalike. Rather than discard it, the node reports it as a group of one and marks
@@ -126,6 +128,27 @@ survives every later run — six months on you can still answer "who said this i
 Naming a face is a decision about a real person, and it is not one that should be traceable only to
 "the pipeline". A group nobody has looked at carries no reviewer at all, so "unreviewed" and "reviewed
 by the software" can never be confused.
+
+=== Recognising people you know
+
+Every group the node forms is compared with the people Metaloom already knows:
+
+* groups a reviewer has **confirmed** as a person in earlier assets, and
+* the **pictures saved on a person** — uploaded, or taken from a face crop in the
+  link:../../ui/#persons-and-voices[persons area].
+
+The closest person is stored on the group as a **suggestion** when the match is strong enough, and the
+review screen offers it with a one-click confirm. Nothing is attributed on its own: the group stays
+pending until somebody confirms it.
+
+A person's pictures need no preparation. The first time the node runs with a model pack it finds the
+**largest face** in every picture it has not seen yet and keeps that face's vector; a picture without
+a face is marked as unusable and skipped from then on. Give each person a clear, frontal portrait —
+in a group photo the largest face is usually, but not always, the person the picture belongs to.
+
+The bar is `0.45` by default, deliberately stricter than the point at which this model tells two
+faces apart on standard benchmarks: a suggestion puts a name in front of a reviewer, and a wrong name
+costs more than a missing one.
 
 === Where the face pictures come from
 

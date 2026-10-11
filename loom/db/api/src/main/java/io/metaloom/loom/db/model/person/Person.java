@@ -31,4 +31,17 @@ public interface Person extends CUDElement<Person> {
 
 	Person setAvatarAttachmentUuid(UUID avatarAttachmentUuid);
 
+	/**
+	 * The voice sample that represents this person, or null.
+	 *
+	 * <p>
+	 * The voice counterpart of {@link #getAvatarAttachmentUuid()}: one of the person's own
+	 * {@link io.metaloom.loom.api.attachment.AttachmentType#PERSON_VOICE} attachments (V2.115). Deleting that sample nulls the pointer, never the
+	 * person.
+	 * </p>
+	 */
+	UUID getHeroVoiceAttachmentUuid();
+
+	Person setHeroVoiceAttachmentUuid(UUID heroVoiceAttachmentUuid);
+
 }

@@ -100,4 +100,12 @@ public interface AssetBinaryMethods {
 	 */
 	LoomClientRequest<LoomBinaryResponse> downloadAssetBinary(UUID assetUuid);
 
+	/**
+	 * A stretch of the asset's audio as 16 kHz mono WAV, cut on demand - what a reviewer listens to before naming a speaker.
+	 *
+	 * @param fromMs start in milliseconds
+	 * @param toMs   end in milliseconds, at most 120 seconds after the start
+	 */
+	LoomClientRequest<LoomBinaryResponse> downloadAssetAudioClip(UUID assetUuid, long fromMs, long toMs);
+
 }

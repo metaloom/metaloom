@@ -142,12 +142,20 @@ import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
 import io.metaloom.loom.rest.model.person.PersonAvatarRequest;
 import io.metaloom.loom.rest.model.person.PersonCreateRequest;
+import io.metaloom.loom.rest.model.person.PersonHeroVoiceRequest;
 import io.metaloom.loom.rest.model.person.PersonImageImportRequest;
 import io.metaloom.loom.rest.model.person.PersonImageListResponse;
 import io.metaloom.loom.rest.model.person.PersonImageResponse;
 import io.metaloom.loom.rest.model.person.PersonListResponse;
+import io.metaloom.loom.rest.model.person.PersonMatchRequest;
+import io.metaloom.loom.rest.model.person.PersonMatchResponse;
+import io.metaloom.loom.rest.model.person.PersonPrintCreateRequest;
+import io.metaloom.loom.rest.model.person.PersonPrintResponse;
 import io.metaloom.loom.rest.model.person.PersonResponse;
 import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
+import io.metaloom.loom.rest.model.person.PersonVoiceSampleImportRequest;
+import io.metaloom.loom.rest.model.person.PersonVoiceSampleListResponse;
+import io.metaloom.loom.rest.model.person.PersonVoiceSampleResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
@@ -705,6 +713,55 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PersonResponse> setPersonAvatar(UUID personUuid, PersonAvatarRequest request) {
 		return postRequest("persons/" + personUuid + "/avatar", request, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonPrintResponse> storePersonImagePrint(UUID personUuid, UUID imageUuid, PersonPrintCreateRequest request) {
+		return postRequest("persons/" + personUuid + "/images/" + imageUuid + "/prints", request, PersonPrintResponse.class);
+	}
+
+	// PERSON VOICE
+
+	@Override
+	public LoomClientHttpRequest<PersonVoiceSampleListResponse> listPersonVoiceSamples(UUID personUuid) {
+		return getRequest("persons/" + personUuid + "/voice-samples", PersonVoiceSampleListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonVoiceSampleResponse> uploadPersonVoiceSample(UUID personUuid, java.io.File file, String mimeType,
+		UUID poolUuid) {
+		return multipartRequest("persons/" + personUuid + "/voice-samples", PersonVoiceSampleResponse.class, file, mimeType,
+			"poolUuid", poolUuid == null ? null : poolUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonVoiceSampleResponse> importPersonVoiceSample(UUID personUuid, PersonVoiceSampleImportRequest request) {
+		return postRequest("persons/" + personUuid + "/voice-samples/from-cluster", request, PersonVoiceSampleResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadPersonVoiceSample(UUID personUuid, UUID sampleUuid) {
+		return getDownloadRequest("persons/" + personUuid + "/voice-samples/" + sampleUuid + "/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deletePersonVoiceSample(UUID personUuid, UUID sampleUuid) {
+		return deleteRequest("persons/" + personUuid + "/voice-samples/" + sampleUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonPrintResponse> storePersonVoicePrint(UUID personUuid, UUID sampleUuid, PersonPrintCreateRequest request) {
+		return postRequest("persons/" + personUuid + "/voice-samples/" + sampleUuid + "/prints", request, PersonPrintResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonResponse> setPersonHeroVoice(UUID personUuid, PersonHeroVoiceRequest request) {
+		return postRequest("persons/" + personUuid + "/hero-voice", request, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonMatchResponse> matchPersons(PersonMatchRequest request) {
+		return postRequest("person-match", request, PersonMatchResponse.class);
 	}
 
 	// USER AVATAR
@@ -2269,6 +2326,15 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<LoomBinaryResponse> downloadAssetBinary(UUID assetUuid) {
 		return getDownloadRequest("assets/" + assetUuid + "/binary/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadAssetAudioClip(UUID assetUuid, long fromMs, long toMs) {
+		// Query parameters attached, never inlined: the path is escaped as a whole, so "?from=" would reach the server as %3Ffrom= and 404.
+		LoomClientHttpRequest<LoomBinaryResponse> request = getDownloadRequest("assets/" + assetUuid + "/audio-clip");
+		request.addQueryParameter("from", String.valueOf(fromMs));
+		request.addQueryParameter("to", String.valueOf(toMs));
+		return request;
 	}
 
 	// GRAPHQL

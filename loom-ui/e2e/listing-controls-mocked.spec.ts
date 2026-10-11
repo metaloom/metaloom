@@ -301,8 +301,8 @@ test.describe("Listing controls – browser-sorted views", () => {
     await installMocks(page);
     await open(page, "/detection");
 
-    // Faces is the first tab; objects is the second. Neither has a route of its own.
-    await page.getByRole("tab").nth(1).click();
+    // Picked by name: neither has a route of its own, and Speakers now sits between Faces and Objects.
+    await page.getByRole("tab", { name: "Objects", exact: true }).click();
     await expect(page.getByTestId("objectdetection-search")).toBeVisible({ timeout: 10_000 });
     // The second filter the screen was missing: "what did the model only half-believe".
     await expect(page.getByTestId("objectdetection-filter-confidence")).toBeVisible();

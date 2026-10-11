@@ -52,6 +52,8 @@ class ClusterCreateItem(Model):
     centroid: list[float] = field(default_factory=list)
     model: str | None = None
     dimensions: int | None = None
+    suggested_person_uuid: str | None = None
+    suggested_score: float | None = None
     meta: dict[str, Any] | None = None
     members: list[ClusterMemberCreateItem] = field(default_factory=list)
 
@@ -98,6 +100,8 @@ class ClusterMemberModel(Model):
     detection_uuid: str | None = None
     asset_uuid: str | None = None
     frame_number: int | None = None
+    time_from: int | None = None
+    time_to: int | None = None
     bbox_x: float | None = None
     bbox_y: float | None = None
     bbox_width: float | None = None
@@ -114,6 +118,11 @@ class ClusterResponse(CreatorEditorResponse):
     type: str | None = None
     review_status: str | None = None
     person_uuid: str | None = None
+    person_name: str | None = None
+    suggested_person_uuid: str | None = None
+    suggested_person_name: str | None = None
+    suggested_score: float | None = None
+    model: str | None = None
     reviewed_at: str | None = None
     reviewer_uuid: str | None = None
     asset_uuid: str | None = None

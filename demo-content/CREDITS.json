@@ -318,5 +318,19 @@
     "photographer_url": null,
     "description": "Derived from video-02: a 720p lower-bitrate re-encode, the deduplication demo's duplicate.",
     "license": "Mixkit Free Stock Video License (https://mixkit.co/license/#videoFree)"
+  },
+  {
+    "file": "voices/alice-smith-voice.wav",
+    "source": "Synthetic speech",
+    "description": "Kokoro voice 'af_heart' reading: Good evening. Tonight we look at how the river shaped the old town, and why the bridge was moved twice. And the second one was built after the flood of the following decade, is that right? Which brings us to the stone bridge we still walk across today. Thank you for joining us this evening.",
+    "generator": "Kokoro-82M via the Metaloom TTS sidecar (sidecars/tts); cut from sidecars/voiceprint/tests/data/two_speakers.wav",
+    "license": "Kokoro-82M is Apache-2.0 (https://huggingface.co/hexgrad/Kokoro-82M); the generated audio is the project's own"
+  },
+  {
+    "file": "voices/john-doe-voice.wav",
+    "source": "Synthetic speech",
+    "description": "Kokoro voice 'am_michael' reading: Thank you. The first bridge stood further downstream, close to where the market square is today. That is right. The flood took the mill with it, and the council decided to rebuild on higher ground, where the road already crossed.",
+    "generator": "Kokoro-82M via the Metaloom TTS sidecar (sidecars/tts); cut from sidecars/voiceprint/tests/data/two_speakers.wav",
+    "license": "Kokoro-82M is Apache-2.0 (https://huggingface.co/hexgrad/Kokoro-82M); the generated audio is the project's own"
   }
 ]

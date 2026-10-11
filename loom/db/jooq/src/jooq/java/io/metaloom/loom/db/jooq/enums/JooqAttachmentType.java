@@ -37,7 +37,9 @@ public enum JooqAttachmentType implements EnumType {
 
     USER_AVATAR("USER_AVATAR"),
 
-    CHAT_FILE("CHAT_FILE");
+    CHAT_FILE("CHAT_FILE"),
+
+    PERSON_VOICE("PERSON_VOICE");
 
     private final String literal;
 

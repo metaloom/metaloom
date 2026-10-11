@@ -32,6 +32,14 @@ class PersonCreateRequest(Model):
 
 
 @dataclass
+class PersonHeroVoiceRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonHeroVoiceRequest``."""
+
+    #: The voice sample to represent the person with. Blank or absent clears it.
+    sample_uuid: str | None = None
+
+
+@dataclass
 class PersonImageImportRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.person.PersonImageImportRequest``."""
 
@@ -72,6 +80,114 @@ class PersonListResponse(ListResponse):
 
 
 @dataclass
+class PersonMatchCandidate(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonMatchCandidate``."""
+
+    #: The person.
+    person_uuid: str | None = None
+    #: The name the person is shown by: alias, else first and last name.
+    name: str | None = None
+    #: Cosine similarity of the probe to the person's reference (the normalised mean of their reference
+    #: vectors).
+    score: float = 0.0
+    #: How many reference vectors the person's reference was built from.
+    references: int = 0
+
+
+@dataclass
+class PersonMatchRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonMatchRequest``."""
+
+    #: The cluster type to match in: speaker or face.
+    type: str | None = None
+    #: The model the probe vectors were produced by. Only references from the same model are compared.
+    model: str | None = None
+    #: The probe vectors, e.g. one centroid per speaker found in an asset.
+    vectors: list[list[float]] = field(default_factory=list)
+    #: Minimum cosine similarity for a candidate to be returned. Defaults to 0.5.
+    threshold: float | None = None
+    #: Candidates per probe, best first. Defaults to 3.
+    limit: int | None = None
+    #: How many samples still waiting for a print in this model to list. Defaults to 20; 0 lists none.
+    pending_limit: int | None = None
+
+
+@dataclass
+class PersonMatchResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonMatchResponse``."""
+
+    #: One entry per probe vector, in request order.
+    results: list[PersonMatchResult] = field(default_factory=list)
+    #: Samples of persons that have no print in this model yet. A node holding the model embeds them and
+    #: stores the prints, so the next match can use them.
+    pending_samples: list[PersonPendingSample] = field(default_factory=list)
+    #: How many persons had at least one reference in this space.
+    person_count: int = 0
+    #: How many reference vectors were compared against.
+    reference_count: int = 0
+
+
+@dataclass
+class PersonMatchResult(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonMatchResult``."""
+
+    #: Position of the probe in the request's vectors.
+    index: int = 0
+    #: Candidates at or above the threshold, best first. Empty when nobody resembles the probe closely enough.
+    candidates: list[PersonMatchCandidate] = field(default_factory=list)
+
+
+@dataclass
+class PersonPendingSample(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonPendingSample``."""
+
+    #: The sample's owner.
+    person_uuid: str | None = None
+    #: The sample.
+    sample_uuid: str | None = None
+    #: What the bytes are.
+    mime_type: str | None = None
+    #: URL the sample bytes can be loaded from.
+    url: str | None = None
+
+
+@dataclass
+class PersonPrintCreateRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonPrintCreateRequest``."""
+
+    #: The cluster type the print is comparable with, e.g. speaker or face.
+    type: str | None = None
+    #: The model that produced the vector - the same id the node writes on its clusters.
+    model: str | None = None
+    #: The reference vector. Omit it and set error when the sample was unusable.
+    vector: list[float] = field(default_factory=list)
+    #: Why the sample produced no vector. Recorded so the sample is not tried again in this model.
+    error: str | None = None
+
+
+@dataclass
+class PersonPrintResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonPrintResponse``."""
+
+    #: Identity of the print.
+    uuid: str | None = None
+    #: The sample the print was computed from.
+    sample_uuid: str | None = None
+    #: The cluster type the print is comparable with, e.g. speaker.
+    type: str | None = None
+    #: The model that produced the print.
+    model: str | None = None
+    #: Length of the vector; null when the sample was unusable.
+    dimensions: int | None = None
+    #: Whether the sample produced a vector. An unusable sample is not retried in this model.
+    usable: bool = False
+    #: Why the sample produced no vector, e.g. no speech found.
+    error: str | None = None
+    #: When the print was last computed (ISO-8601).
+    edited: str | None = None
+
+
+@dataclass
 class PersonResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.person.PersonResponse``."""
 
@@ -84,6 +200,9 @@ class PersonResponse(CreatorEditorResponse):
     #: URL of the person's avatar image, or null when they have none. Read-only: set the avatar via POST
     #: /persons/:uuid/avatar.
     avatar_url: str | None = None
+    #: URL of the person's hero voice sample, or null when they have none. Read-only: set it via POST
+    #: /persons/:uuid/hero-voice.
+    hero_voice_url: str | None = None
 
 
 @dataclass
@@ -98,3 +217,54 @@ class PersonUpdateRequest(Model):
     lastname: str | None = None
     #: Additional custom meta properties for the element.
     meta: dict[str, Any] | None = None
+
+
+@dataclass
+class PersonVoiceSampleImportRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonVoiceSampleImportRequest``."""
+
+    #: The speaker cluster to take the voice from.
+    cluster_uuid: str | None = None
+    #: Start of the stretch to cut, in milliseconds. Omit both times to take the speaker's longest turn, at
+    #: most 30 seconds of it.
+    time_from: int | None = None
+    #: End of the stretch to cut, in milliseconds. At most 120 seconds after timeFrom.
+    time_to: int | None = None
+
+
+@dataclass
+class PersonVoiceSampleListResponse(ListResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonVoiceSampleListResponse``."""
+
+    #: Array which contains the found elements.
+    data: list[PersonVoiceSampleResponse] = field(default_factory=list)
+
+
+@dataclass
+class PersonVoiceSampleResponse(CreatorEditorResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonVoiceSampleResponse``."""
+
+    #: The original filename of the sample.
+    filename: str | None = None
+    #: The mime type of the sample.
+    mime_type: str | None = None
+    #: The size of the sample in bytes.
+    size: int = 0
+    #: URL the sample bytes can be loaded from.
+    url: str | None = None
+    #: Whether this sample is the person's hero voice sample.
+    hero: bool = False
+    #: Length of the recording in milliseconds, when it could be measured.
+    duration_ms: int | None = None
+    #: The asset the sample was cut from, or null for an upload. Kept as provenance only: the sample does not
+    #: depend on the asset.
+    source_asset_uuid: str | None = None
+    #: The speaker cluster the sample was cut from, or null for an upload.
+    source_cluster_uuid: str | None = None
+    #: Start of the cut in the source asset, in milliseconds.
+    source_time_from: int | None = None
+    #: End of the cut in the source asset, in milliseconds.
+    source_time_to: int | None = None
+    #: One entry per voice model the sample has been embedded with. Empty until a voiceprint node runs with a
+    #: model.
+    prints: list[PersonPrintResponse] = field(default_factory=list)

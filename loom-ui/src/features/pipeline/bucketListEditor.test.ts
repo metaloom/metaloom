@@ -52,7 +52,7 @@ describe("bucketIdError", () => {
    * and an edge would attach to whichever was rendered last.
    */
   it("flags an id that collides with one of the node's fixed ports", () => {
-    for (const reserved of ["other", "passed", "bucket", "media", "text"]) {
+    for (const reserved of ["other", "passed", "bucket", "media", "text", "persons"]) {
       expect(bucketIdError(reserved, 0, rows(reserved))).toBe("reserved");
     }
   });

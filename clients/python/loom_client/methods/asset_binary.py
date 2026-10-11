@@ -143,3 +143,16 @@ class AssetBinaryMethods:
                 binary.save("/tmp/out.jpg")
         """
         return self._download(f"assets/{self._uuid(asset_uuid)}/binary/data")
+
+    def download_asset_audio_clip(
+        self, asset_uuid: _uuid_mod.UUID | str, from_ms: int, to_ms: int
+    ) -> LoomRequest[BinaryResponse]:
+        """A stretch of the asset's audio as 16 kHz mono WAV, cut on demand.
+
+        ``from_ms`` and ``to_ms`` are milliseconds, at most 120 seconds apart. The body
+        streams, so close it.
+        """
+        request = self._download(f"assets/{self._uuid(asset_uuid)}/audio-clip")
+        request.param("from", str(from_ms))
+        request.param("to", str(to_ms))
+        return request

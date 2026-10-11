@@ -141,6 +141,7 @@ export const FILTER_RESERVED_BUCKET_IDS = new Set([
   FILTER_PORT_BUCKET,
   "media",
   "text",
+  "persons",
 ]);
 
 /**

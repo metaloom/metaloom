@@ -1,6 +1,11 @@
 package io.metaloom.loom.rest.builder;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterMember;
@@ -26,6 +31,9 @@ public interface ClusterModelBuilder extends UserModelBuilder {
 		response.setClusterIndex(cluster.getClusterIndex());
 		response.setScore(cluster.getScore());
 		response.setNodeKind(cluster.getNodeKind());
+		response.setModel(cluster.getModel());
+		response.setSuggestedPersonUuid(cluster.getSuggestedPersonUuid() == null ? null : cluster.getSuggestedPersonUuid().toString());
+		response.setSuggestedScore(cluster.getSuggestedScore());
 		// setStatus is the creator/editor audit block, not the review verdict - the two names collide on this
 		// response, which is why the verdict above is called reviewStatus.
 		setStatus(cluster, response);
@@ -35,6 +43,40 @@ public interface ClusterModelBuilder extends UserModelBuilder {
 	/** As {@link #toResponse(Cluster)}, with the member count the review queue renders on each card. */
 	default ClusterResponse toResponse(Cluster cluster, Long memberCount) {
 		return toResponse(cluster).setMemberCount(memberCount);
+	}
+
+	/**
+	 * Fill in the names of the confirmed and the suggested person on each response.
+	 *
+	 * <p>
+	 * Separate from {@link #toResponse(Cluster)} because a name is not on the cluster row: the caller loads every name a page needs with one query
+	 * ({@link #personUuidsOf(Collection)} says which) and hands the map in, rather than the builder asking once per card.
+	 * </p>
+	 */
+	default <C extends Collection<ClusterResponse>> C withPersonNames(C responses, Map<UUID, String> names) {
+		for (ClusterResponse response : responses) {
+			response.setPersonName(nameOf(response.getPersonUuid(), names));
+			response.setSuggestedPersonName(nameOf(response.getSuggestedPersonUuid(), names));
+		}
+		return responses;
+	}
+
+	/** Every person a set of responses refers to, confirmed or suggested. */
+	static Set<UUID> personUuidsOf(Collection<ClusterResponse> responses) {
+		Set<UUID> uuids = new LinkedHashSet<>();
+		for (ClusterResponse response : responses) {
+			if (response.getPersonUuid() != null) {
+				uuids.add(UUID.fromString(response.getPersonUuid()));
+			}
+			if (response.getSuggestedPersonUuid() != null) {
+				uuids.add(UUID.fromString(response.getSuggestedPersonUuid()));
+			}
+		}
+		return uuids;
+	}
+
+	private static String nameOf(String personUuid, Map<UUID, String> names) {
+		return personUuid == null || names == null ? null : names.get(UUID.fromString(personUuid));
 	}
 
 	default ClusterListResponse toClusterList(Page<Cluster> page) {
@@ -47,6 +89,8 @@ public interface ClusterModelBuilder extends UserModelBuilder {
 			.setDetectionUuid(member.getDetectionUuid() == null ? null : member.getDetectionUuid().toString())
 			.setAssetUuid(member.getAssetUuid() == null ? null : member.getAssetUuid().toString())
 			.setFrameNumber(member.getFrameNumber())
+			.setTimeFrom(member.getTimeFrom())
+			.setTimeTo(member.getTimeTo())
 			.setBboxX(member.getBboxX())
 			.setBboxY(member.getBboxY())
 			.setBboxWidth(member.getBboxWidth())

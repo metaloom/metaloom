@@ -17,6 +17,7 @@ import io.metaloom.loom.db.jooq.dao.notification.NotificationDaoImpl;
 import io.metaloom.loom.db.jooq.dao.skill.SkillDaoImpl;
 import io.metaloom.loom.db.jooq.dao.skill.SkillVersionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
+import io.metaloom.loom.db.jooq.dao.person.PersonPrintDaoImpl;
 import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.remix.RemixDaoImpl;
 import io.metaloom.loom.db.jooq.dao.failure.FailureReportDaoImpl;
@@ -54,6 +55,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.person.PersonPrintDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.remix.RemixDao;
 import io.metaloom.loom.db.model.failure.FailureReportDao;
@@ -167,6 +169,9 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract ClusterDao clusterDao(ClusterDaoImpl dao);
+
+	@Binds
+	abstract PersonPrintDao personPrintDao(PersonPrintDaoImpl dao);
 
 	@Binds
 	abstract PipelineDao pipelineDao(PipelineDaoImpl dao);

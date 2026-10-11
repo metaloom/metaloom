@@ -33,6 +33,9 @@ public interface Cluster extends CUDElement<Cluster> {
 	/** The {@code cluster.type} the face workflow proposes and reviews. */
 	String TYPE_FACE = "face";
 
+	/** A voice: proposed per asset by the voiceprint node, its members speech windows, confirmed into a {@code person} like a face. */
+	String TYPE_SPEAKER = "speaker";
+
 	/**
 	 * Human-supplied label, or {@code null} for a machine proposal nobody has named yet.
 	 *
@@ -63,6 +66,23 @@ public interface Cluster extends CUDElement<Cluster> {
 	UUID getPersonUuid();
 
 	Cluster setPersonUuid(UUID personUuid);
+
+	/**
+	 * The person the producing node recognised this cluster as, or {@code null} when it recognised nobody.
+	 *
+	 * <p>
+	 * A proposal, never a verdict (V2.115). {@link #getPersonUuid()} stays the reviewer's answer and is the only one a filter or an export treats as
+	 * "this is who it is". Unlike that column the upsert overwrites this one: a re-run states what the current references say.
+	 * </p>
+	 */
+	UUID getSuggestedPersonUuid();
+
+	Cluster setSuggestedPersonUuid(UUID suggestedPersonUuid);
+
+	/** Cosine similarity of {@link #getCentroid()} to the suggested person's reference, in the space of {@link #getModel()}. */
+	Float getSuggestedScore();
+
+	Cluster setSuggestedScore(Float suggestedScore);
 
 	/**
 	 * When a human recorded the verdict, or {@code null} while nobody has.

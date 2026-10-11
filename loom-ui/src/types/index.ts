@@ -439,6 +439,13 @@ export interface FaceCluster {
   /** Cohesion, or undefined for a single-member cluster. */
   score?: number;
   personId?: string;
+  /** The server's display name for `personId`, for a person not on the loaded page of people. */
+  personName?: string;
+  /** Who the producing node thinks this is. A suggestion only - never an attribution. */
+  suggestedPersonId?: string;
+  suggestedPersonName?: string;
+  /** Similarity behind the suggestion, 0..1. */
+  suggestedScore?: number;
 }
 
 export interface Person {

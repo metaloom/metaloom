@@ -56,6 +56,7 @@ import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
+import io.metaloom.loom.db.jooq.tables.JooqPersonPrint;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
@@ -439,6 +440,13 @@ public class Tables {
      * The table <code>public.person</code>.
      */
     public static final JooqPerson PERSON = JooqPerson.PERSON;
+
+    /**
+     * Reference vectors computed from a person's own samples, one per (sample,
+     * cluster type, model). Written by the node owning the model; read by
+     * person matching.
+     */
+    public static final JooqPersonPrint PERSON_PRINT = JooqPersonPrint.PERSON_PRINT;
 
     /**
      * The table <code>public.pipeline</code>.

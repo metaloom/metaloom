@@ -33,6 +33,7 @@ import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.cluster.ClusterMember;
 import io.metaloom.loom.db.model.embedding.Embedding;
+import io.metaloom.loom.db.model.person.PersonReference;
 import io.metaloom.loom.db.page.Page;
 
 @Singleton
@@ -158,13 +159,14 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 		// it simply has no crop to show.
 		return ctx().select(EMBEDDING_CLUSTER.CLUSTER_UUID, EMBEDDING_CLUSTER.EMBEDDING_UUID, EMBEDDING_CLUSTER.CONFIDENCE,
 			EMBEDDING_CLUSTER.ORIGIN, EMBEDDING_CLUSTER.CREATED,
-			EMBEDDING.DETECTION_UUID, EMBEDDING.ASSET_UUID, EMBEDDING.FRAME_NUMBER,
+			EMBEDDING.DETECTION_UUID, EMBEDDING.ASSET_UUID, EMBEDDING.FRAME_NUMBER, EMBEDDING.TIME_FROM, EMBEDDING.TIME_TO,
 			DETECTION.BBOX_X, DETECTION.BBOX_Y, DETECTION.BBOX_WIDTH, DETECTION.BBOX_HEIGHT)
 			.from(EMBEDDING_CLUSTER)
 			.join(EMBEDDING).on(EMBEDDING.UUID.eq(EMBEDDING_CLUSTER.EMBEDDING_UUID))
 			.leftJoin(DETECTION).on(DETECTION.UUID.eq(EMBEDDING.DETECTION_UUID))
 			.where(EMBEDDING_CLUSTER.CLUSTER_UUID.eq(clusterUuid))
-			.orderBy(EMBEDDING.FRAME_NUMBER.asc(), DETECTION.BBOX_X.asc(), EMBEDDING_CLUSTER.EMBEDDING_UUID.asc())
+			// time_from second: a speaker's windows all sit on frame 0, and a member list a reviewer listens through must be in the order it was said.
+			.orderBy(EMBEDDING.FRAME_NUMBER.asc(), EMBEDDING.TIME_FROM.asc().nullsFirst(), DETECTION.BBOX_X.asc(), EMBEDDING_CLUSTER.EMBEDDING_UUID.asc())
 			.fetch(this::mapMember);
 	}
 
@@ -196,6 +198,21 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 			.stream()
 			.map(c -> (Cluster) c)
 			.toList();
+	}
+
+	@Override
+	public List<PersonReference> listConfirmedReferences(String type, String model) {
+		if (type == null || model == null) {
+			return List.of();
+		}
+		return ctx().select(CLUSTER.PERSON_UUID, CLUSTER.UUID, CLUSTER.CENTROID)
+			.from(CLUSTER)
+			.where(CLUSTER.TYPE.eq(type)
+				.and(CLUSTER.MODEL.eq(model))
+				.and(CLUSTER.STATUS.eq(JooqReviewStatus.CONFIRMED))
+				.and(CLUSTER.PERSON_UUID.isNotNull())
+				.and(CLUSTER.CENTROID.isNotNull()))
+			.fetch(r -> new PersonReference(r.get(CLUSTER.PERSON_UUID), r.get(CLUSTER.UUID), PersonReference.SOURCE_CLUSTER, r.get(CLUSTER.CENTROID)));
 	}
 
 	@Override
@@ -332,6 +349,8 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 			.setDetectionUuid(r.get(EMBEDDING.DETECTION_UUID))
 			.setAssetUuid(r.get(EMBEDDING.ASSET_UUID))
 			.setFrameNumber(r.get(EMBEDDING.FRAME_NUMBER))
+			.setTimeFrom(r.get(EMBEDDING.TIME_FROM))
+			.setTimeTo(r.get(EMBEDDING.TIME_TO))
 			.setBboxX(r.get(DETECTION.BBOX_X))
 			.setBboxY(r.get(DETECTION.BBOX_Y))
 			.setBboxWidth(r.get(DETECTION.BBOX_WIDTH))

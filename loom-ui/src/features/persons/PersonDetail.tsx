@@ -15,7 +15,12 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import EmptyState from "../../components/EmptyState";
 import { FaceCrop } from "../faceDetection/FaceCrop";
-import { listClusterMembers, type ClusterMemberModel } from "../../api/clusters";
+import {
+  CLUSTER_TYPE_SPEAKER, listClusterMembers, type ClusterMemberModel, type ClusterResponse,
+} from "../../api/clusters";
+import { fetchAuthedBlob } from "../../api/media";
+import AuthedAudioPlayer from "../../components/AuthedAudioPlayer";
+import PersonVoiceSection from "./PersonVoiceSection";
 import {
   deletePersonImage, importPersonImage, listPersonClusters, listPersonImages, loadPerson,
   setPersonAvatar, uploadPersonImage,
@@ -51,6 +56,8 @@ export default function PersonDetail() {
   const [person, setPerson] = useState<PersonResponse | null>(null);
   const [images, setImages] = useState<PersonImageResponse[]>([]);
   const [candidates, setCandidates] = useState<CropCandidate[]>([]);
+  /** The speaker clusters confirmed to this person: what a voice sample can be cut from. */
+  const [speakerClusters, setSpeakerClusters] = useState<ClusterResponse[]>([]);
   const [loading, setLoading] = useState(true);
   // A failed load and a missing person are different statements: "they may have been deleted"
   // after a 500 sends somebody looking for a deletion that never happened. Only a 404 is "gone".
@@ -78,17 +85,20 @@ export default function PersonDetail() {
     setPerson(null);
     setImages([]);
     setCandidates([]);
+    setSpeakerClusters([]);
 
     Promise.all([loadPerson(token, id), listPersonImages(token, id), listPersonClusters(token, id)])
       .then(async ([fresh, list, clusters]) => {
         if (cancelled) return;
         setPerson(fresh);
         setImages(list.data ?? []);
+        const all = clusters.data ?? [];
+        setSpeakerClusters(all.filter(c => c.type === CLUSTER_TYPE_SPEAKER));
 
         // The crops on offer are the faces of the clusters already confirmed to this person, which is
-        // the only set that is certainly them.
+        // the only set that is certainly them. A speaker cluster has no faces to offer.
         const members = await Promise.all(
-          (clusters.data ?? []).map(c => listClusterMembers(token, c.uuid).catch(() => ({ members: [] as ClusterMemberModel[], total: 0 }))),
+          all.filter(c => c.type !== CLUSTER_TYPE_SPEAKER).map(c => listClusterMembers(token, c.uuid).catch(() => ({ members: [] as ClusterMemberModel[], total: 0 }))),
         );
         if (cancelled) return;
         const seen = new Set<string>();
@@ -235,6 +245,15 @@ export default function PersonDetail() {
           <Typography variant="body2" data-testid="person-detail-alias" sx={{ color: tokens.text.secondary }}>
             {person.alias}
           </Typography>
+          {/* The hero voice is to a voice what the avatar is to a face: the one recording that says
+              "this is them". Keyed on the URL, so choosing another one resets the player. */}
+          {person.heroVoiceUrl && (
+            <Box sx={{ mt: 0.5 }} data-testid="person-hero-voice">
+              <AuthedAudioPlayer sourceKey={person.heroVoiceUrl} testId="person-hero-voice" width={260}
+                label={t("person.voice.tooltip.playHero")}
+                load={() => fetchAuthedBlob(token!, person.heroVoiceUrl!)} />
+            </Box>
+          )}
         </Box>
         <Button
           component="label"
@@ -359,6 +378,10 @@ export default function PersonDetail() {
           </Box>
         </Box>
       )}
+
+      {/* After the faces: pictures and the crops they can be taken from belong together, and the
+          voice is a section of its own with its own two ways in. */}
+      <PersonVoiceSection personUuid={person.uuid} speakerClusters={speakerClusters} onPersonChanged={setPerson} />
     </Box>
   );
 }

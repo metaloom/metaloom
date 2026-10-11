@@ -1210,6 +1210,7 @@
         "FACE_CROP": "Face crops",
         "PERSON_IMAGE": "Person pictures",
         "PERSON_AVATAR": "Person avatars",
+        "PERSON_VOICE": "Person voice samples",
         "USER_AVATAR": "Account pictures"
       },
       "search": "Search pools"
@@ -1626,7 +1627,8 @@
     "tab": {
       "faces": "Faces",
       "objects": "Objects",
-      "llm": "LLM"
+      "llm": "LLM",
+      "speakers": "Speakers"
     }
   },
   "llmDetection": {
@@ -1766,6 +1768,11 @@
       "smaller": "Smaller thumbnails",
       "larger": "Larger thumbnails",
       "thumbnails": "Thumbnail size"
+    },
+    "suggestion": {
+      "looksLike": "Looks like {{name}} ({{score}}%)",
+      "confirmAs": "Confirm as {{name}}",
+      "confirm": "Confirm"
     }
   },
   "maintenance": {
@@ -2442,6 +2449,48 @@
       "imageDeleted": "Picture deleted",
       "deleteFailed": "The picture could not be deleted",
       "loadFailed": "This person could not be loaded"
+    },
+    "voice": {
+      "title": "Voice samples",
+      "label": {
+        "total": "{{time}} of reference speech",
+        "unknownLength": "length unknown",
+        "fromAsset": "from {{asset}} at {{at}}",
+        "uploaded": "uploaded",
+        "notEnrolled": "not enrolled yet",
+        "noReason": "no reason given",
+        "hero": "Hero voice",
+        "importTitle": "Import from a speaker",
+        "importHint": "Speakers confirmed to this person. Importing copies their longest turn (up to 30 seconds); the copy stays with the person even if the material it came from is deleted."
+      },
+      "button": {
+        "clearHero": "Clear hero voice",
+        "upload": "Upload recording",
+        "import": "Import"
+      },
+      "warning": {
+        "short": "Recognition works best with at least 30 seconds of speech from more than one occasion."
+      },
+      "empty": {
+        "title": "No voice samples yet",
+        "hint": "Upload a recording, or import one from a speaker confirmed to this person."
+      },
+      "tooltip": {
+        "play": "Play {{name}}",
+        "playHero": "Play the hero voice",
+        "notEnrolled": "No voice model has embedded this sample yet. It is picked up the next time a voiceprint node runs.",
+        "printUsable": "{{model}}: enrolled ({{dimensions}} dimensions)",
+        "printUnusable": "{{model}}: not usable - {{error}}",
+        "makeHero": "Set as hero voice",
+        "delete": "Delete this voice sample"
+      },
+      "toast": {
+        "uploaded": "Voice sample added",
+        "imported": "Voice sample imported from the speaker",
+        "heroSet": "Hero voice updated",
+        "heroCleared": "Hero voice cleared",
+        "deleted": "Voice sample deleted"
+      }
     }
   },
   "share": {
@@ -2600,5 +2649,65 @@
     "fullscreen": "Fullscreen",
     "notStreamable": "This video cannot be played here: {{codec}} needs a full transcode.",
     "volume": "Volume"
+  },
+  "audio": {
+    "loadFailed": "This recording could not be loaded - click to try again",
+    "retry": "Try again"
+  },
+  "speakers": {
+    "search": {
+      "placeholder": "Search assets, persons…"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "CONFIRMED": "Confirmed",
+      "REJECTED": "Rejected"
+    },
+    "filter": {
+      "anyStatus": "Any status"
+    },
+    "count_one": "{{count}} speaker",
+    "count_other": "{{count}} speakers",
+    "empty": {
+      "title": "No speakers found",
+      "hint": "Speakers appear here once a pipeline with the voiceprint node has run over audio or video."
+    },
+    "label": {
+      "noAsset": "Unknown asset",
+      "stats_one": "{{time}} speaking · {{count}} turn",
+      "stats_other": "{{time}} speaking · {{count}} turns",
+      "noTurns": "No turns recorded for this speaker",
+      "turn": "{{from}} – {{to}} ({{length}})"
+    },
+    "suggestion": {
+      "looksLike": "Sounds like {{name}} ({{score}}%)"
+    },
+    "dialog": {
+      "assign": "Assign speaker to a person",
+      "selectPerson": "Select a person…",
+      "create": "New person for this speaker",
+      "alias": "Alias"
+    },
+    "button": {
+      "cancel": "Cancel",
+      "assign": "Assign",
+      "create": "Create",
+      "confirm": "Confirm",
+      "saveSample": "Save as voice sample"
+    },
+    "tooltip": {
+      "play": "Play the longest turn",
+      "playTurn": "Play the turn at {{from}}",
+      "saveSample": "Copy this speaker's longest turn (up to 30 s) into {{name}}'s voice samples",
+      "saveTurn": "Save this turn as a voice sample",
+      "assign": "Assign to an existing person",
+      "create": "Create a new person",
+      "reject": "Reject - not a speaker worth keeping",
+      "expand": "Show turns",
+      "collapse": "Hide turns"
+    },
+    "toast": {
+      "sampleSaved": "Voice sample saved to {{name}}"
+    }
   }
 }

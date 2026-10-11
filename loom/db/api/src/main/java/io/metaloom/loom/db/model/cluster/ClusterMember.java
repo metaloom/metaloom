@@ -85,4 +85,21 @@ public interface ClusterMember {
 
 	ClusterMember setBboxHeight(Float bboxHeight);
 
+	/**
+	 * Start of the member's time window in milliseconds, or {@code null} for a member with no extent in time (a face on a frame).
+	 *
+	 * <p>
+	 * A speaker cluster's members are speech windows, and a window is where the voice was heard - the one thing a reviewer needs in order to listen
+	 * to it. Read from {@code embedding.time_from} (V2.43).
+	 * </p>
+	 */
+	Long getTimeFrom();
+
+	ClusterMember setTimeFrom(Long timeFrom);
+
+	/** End of the member's time window in milliseconds; see {@link #getTimeFrom()}. */
+	Long getTimeTo();
+
+	ClusterMember setTimeTo(Long timeTo);
+
 }

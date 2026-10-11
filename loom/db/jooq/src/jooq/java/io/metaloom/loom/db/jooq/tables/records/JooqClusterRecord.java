@@ -399,6 +399,44 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> {
         return (UUID) get(22);
     }
 
+    /**
+     * Setter for <code>public.cluster.suggested_person_uuid</code>. Person the
+     * producing node recognised this cluster as, from confirmed clusters and
+     * the person's own samples. A proposal only: person_uuid remains the
+     * reviewer's verdict.
+     */
+    public void setSuggestedPersonUuid(UUID value) {
+        set(23, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.suggested_person_uuid</code>. Person the
+     * producing node recognised this cluster as, from confirmed clusters and
+     * the person's own samples. A proposal only: person_uuid remains the
+     * reviewer's verdict.
+     */
+    public UUID getSuggestedPersonUuid() {
+        return (UUID) get(23);
+    }
+
+    /**
+     * Setter for <code>public.cluster.suggested_score</code>. Cosine similarity
+     * of the cluster centroid to the suggested person's reference, in the space
+     * of cluster.model.
+     */
+    public void setSuggestedScore(Float value) {
+        set(24, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.suggested_score</code>. Cosine similarity
+     * of the cluster centroid to the suggested person's reference, in the space
+     * of cluster.model.
+     */
+    public Float getSuggestedScore() {
+        return (Float) get(24);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -422,7 +460,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> {
     /**
      * Create a detached, initialised JooqClusterRecord
      */
-    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqReviewStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions, LocalDateTime reviewedAt, UUID reviewerUuid) {
+    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqReviewStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions, LocalDateTime reviewedAt, UUID reviewerUuid, UUID suggestedPersonUuid, Float suggestedScore) {
         super(JooqCluster.CLUSTER);
 
         setUuid(uuid);
@@ -448,5 +486,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> {
         setDimensions(dimensions);
         setReviewedAt(reviewedAt);
         setReviewerUuid(reviewerUuid);
+        setSuggestedPersonUuid(suggestedPersonUuid);
+        setSuggestedScore(suggestedScore);
     }
 }

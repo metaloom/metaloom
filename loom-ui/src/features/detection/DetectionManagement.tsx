@@ -3,7 +3,7 @@ import {
   Box, Tabs, Tab,
 } from "@mui/material";
 import {
-  FaceOutlined, CenterFocusStrongOutlined, AutoAwesomeOutlined,
+  FaceOutlined, CenterFocusStrongOutlined, AutoAwesomeOutlined, RecordVoiceOverOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import ViewHeader from "../../components/ViewHeader";
@@ -12,9 +12,29 @@ import HelpHint from "../../components/HelpHint";
 import FaceDetectionManagement from "../faceDetection/FaceDetectionManagement";
 import ObjectDetectionManagement from "./ObjectDetectionManagement";
 import LLMDetectionManagement from "./LLMDetectionManagement";
+import SpeakerReview from "../speakers/SpeakerReview";
+import type { HelpTopic } from "../../help/topics";
+
+/**
+ * The tabs, by name rather than by index: Speakers went in beside Faces, and every index-keyed
+ * branch below would otherwise have quietly shifted onto its neighbour.
+ */
+type DetectionTab = "faces" | "speakers" | "objects" | "llm";
+
+/**
+ * Faces have a section of their own — grouping a stranger's face is a different job from
+ * confirming a box a model drew. Speakers are the same job by ear, and the people documentation is
+ * where voices and voice samples are explained. The other two tabs share the general one.
+ */
+const HELP_TOPIC: Record<DetectionTab, HelpTopic> = {
+  faces: "detection.faces",
+  speakers: "persons",
+  objects: "detection.results",
+  llm: "detection.results",
+};
 
 export default function DetectionManagement() {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState<DetectionTab>("faces");
   const { t } = useTranslation();
 
   return (
@@ -23,14 +43,13 @@ export default function DetectionManagement() {
       <ViewHeader
         icon={<CenterFocusStrongOutlined />}
         title={t("detection.title")}
-        // Faces have a section of their own — grouping a stranger's face is a different job
-        // from confirming a box a model drew. The other two tabs share the general one.
-        meta={<HelpHint topic={tab === 0 ? "detection.faces" : "detection.results"} />}
+        meta={<HelpHint topic={HELP_TOPIC[tab]} />}
       >
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 32 }}>
-          <Tab icon={<FaceOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.faces")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
-          <Tab icon={<CenterFocusStrongOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.objects")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
-          <Tab icon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.llm")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
+        <Tabs value={tab} onChange={(_, v: DetectionTab) => setTab(v)} sx={{ minHeight: 32 }}>
+          <Tab value="faces" icon={<FaceOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.faces")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
+          <Tab value="speakers" icon={<RecordVoiceOverOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.speakers")} data-testid="detection-tab-speakers" sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
+          <Tab value="objects" icon={<CenterFocusStrongOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.objects")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
+          <Tab value="llm" icon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />} iconPosition="start" label={t("detection.tab.llm")} sx={{ minHeight: 32, fontSize: "0.78rem", textTransform: "none", px: 1.5 }} />
         </Tabs>
       </ViewHeader>
 
@@ -43,9 +62,10 @@ export default function DetectionManagement() {
           would otherwise refuse to shrink below its content. The stacking context puts whatever
           escapes above the header rather than behind it. */}
       <Box sx={{ flex: 1, minHeight: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
-        {tab === 0 && <FaceDetectionManagement embedded />}
-        {tab === 1 && <ObjectDetectionManagement />}
-        {tab === 2 && <LLMDetectionManagement />}
+        {tab === "faces" && <FaceDetectionManagement embedded />}
+        {tab === "speakers" && <SpeakerReview />}
+        {tab === "objects" && <ObjectDetectionManagement />}
+        {tab === "llm" && <LLMDetectionManagement />}
       </Box>
     </Box>
   );

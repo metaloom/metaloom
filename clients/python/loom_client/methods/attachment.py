@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid_mod
 from typing import TYPE_CHECKING
 
+from ..models.asset import AssetResponse
 from ..models.attachment import (
     AttachmentListResponse,
     AttachmentResponse,
@@ -118,3 +119,58 @@ class AttachmentMethods:
                 ("nodeKind", node_kind),
             ),
         )
+
+    # --- Chat attachments -------------------------------------------------------------
+    # Files a user dropped into a conversation. Owned by the chat rather than by an asset:
+    # reachable only through the chat, and hidden from the generic routes above.
+
+    def upload_chat_attachment(
+        self,
+        chat_uuid: _uuid_mod.UUID | str,
+        file: str | bytes,
+        mime_type: str | None = None,
+        *,
+        filename: str | None = None,
+    ) -> LoomRequest[AttachmentResponse]:
+        """Attach a file to a chat. A chat file is filed in no library."""
+        return self._upload_multipart(
+            f"chats/{self._uuid(chat_uuid)}/attachments",
+            file,
+            AttachmentResponse,
+            filename=filename,
+            mime_type=mime_type,
+        )
+
+    def list_chat_attachments(self, chat_uuid: _uuid_mod.UUID | str) -> LoomRequest[AttachmentListResponse]:
+        """The files attached to a chat, newest first."""
+        return self._get(f"chats/{self._uuid(chat_uuid)}/attachments", AttachmentListResponse)
+
+    def delete_chat_attachment(
+        self, chat_uuid: _uuid_mod.UUID | str, attachment_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Detach a file. The bytes stay in content-addressed storage; only the chat's reference goes."""
+        return self._delete(f"chats/{self._uuid(chat_uuid)}/attachments/{self._uuid(attachment_uuid)}")
+
+    def download_chat_attachment(
+        self, chat_uuid: _uuid_mod.UUID | str, attachment_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[BinaryResponse]:
+        """The raw bytes of a chat attachment. The body streams, so close it."""
+        return self._download(f"chats/{self._uuid(chat_uuid)}/attachments/{self._uuid(attachment_uuid)}/data")
+
+    def save_chat_attachment_to_library(
+        self,
+        chat_uuid: _uuid_mod.UUID | str,
+        attachment_uuid: _uuid_mod.UUID | str,
+        library_uuid: _uuid_mod.UUID | str | None = None,
+    ) -> LoomRequest[AssetResponse]:
+        """Save a chat attachment into the media library as a real asset.
+
+        The attachment stays on the chat. Without ``library_uuid`` the server files it in
+        ``LOOM_CHAT_ATTACHMENT_LIBRARY``.
+        """
+        request = self._post_empty(
+            f"chats/{self._uuid(chat_uuid)}/attachments/{self._uuid(attachment_uuid)}/asset", AssetResponse
+        )
+        if library_uuid is not None:
+            request.param("libraryUuid", str(library_uuid))
+        return request

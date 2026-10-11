@@ -22,9 +22,9 @@ attach them to a person, and that person's voiceprint is on file for the next re
 | Kind | `voiceprint`
 | Applies to | Video, Audio
 | Input ports | `audio` or `video` — exactly one of the two is wired
-| Output ports | `speaker_count` (Number), `speakers` (**one element per voice**), `voiceprint`, `timeline`, `result`
+| Output ports | `speaker_count` (Number), `speakers` (**one element per voice**), `voiceprint`, `timeline`, `result`, `persons` (the known people among the speakers)
 | Requirements | A running **voiceprint sidecar**. It runs on a CPU; a GPU makes it many times faster. For video, `ffmpeg` on the worker, which extracts the soundtrack so the pictures are never uploaded.
-| Persists to | One voiceprint per few seconds of speech, one speaker cluster per voice, a timeline component, and the processing ledger
+| Persists to | One voiceprint per few seconds of speech, one speaker cluster per voice (with a suggested person when a known voice matched), a timeline component, and the processing ledger
 |===
 
 == How it works
@@ -99,6 +99,36 @@ The voiceprints themselves are not in this document. They are stored as embeddin
 each carrying the time range it covers, so a search can answer "where else does this voice appear"
 down to the second.
 
+== Recognising people you know
+
+Every voice the node finds is compared with the people whose voices Metaloom already knows:
+
+* speakers a reviewer has **confirmed** as a person in earlier recordings, and
+* the **voice samples** saved on a person — uploaded, or cut from a speaker in the
+  link:../../ui/#persons-and-voices[persons area].
+
+The closest person is stored on the speaker as a **suggestion** when the match is strong enough. It
+appears in the speaker review with a one-click confirm. Nothing is attributed on its own: until a
+reviewer confirms it, the speaker stays unreviewed and a link:../filter/[Filter] set to its default
+counts it as nobody.
+
+Voice samples need no preparation. The first time the node runs with a model, it computes that
+model's voiceprint for every sample it has not seen yet, with the same sidecar, and keeps it. A
+sample without speech in it is marked as unusable and skipped from then on. Switching to another
+model simply computes the samples again for that model.
+
+The bar a match has to clear depends on the model, because each model scores differently. The
+defaults are the points at which one in a hundred comparisons of two *different* people still
+passes, measured on German parliamentary speech: 0.43 for `redimnet2`, 0.46 for `wespeaker` and
+0.48 for `speechbrain`. Set `suggestThreshold` to require more, or switch `suggestPersons` off.
+
+The `persons` output lists who was recognised — confirmed or suggested — for every speaker. Wire
+it into a link:../filter/[Filter] set to filter by person, so the filter routes each recording by who
+speaks in it once this node has finished.
+
+Reference samples work best when they are clean and long: about **30 seconds of one person
+speaking**, ideally from more than one occasion. A single short clip recognises far less reliably.
+
 == Configuration
 
 .The node's settings in the pipeline editor
@@ -115,7 +145,9 @@ Set these in the panel above, or in the node's `options` block in a pipeline def
 | `minSpeechSeconds` | The shortest stretch of speech that still gets a voiceprint (default 1 s)
 | `clusterThreshold` | How similar two windows must be to count as the same voice, from -1 to 1. `0` uses the chosen model's calibrated default
 | `maxSpeakers` | An upper bound on the number of voices, when you know it. `0` means no bound
-| `persistWindows` | Store a voiceprint for every window (default), or only one per speaker
+| `persistWindows` | Store a voiceprint for every window (default), or only one per speaker. With only one per speaker there are no speaker clusters, and so nothing to suggest a person for
+| `suggestPersons` | Compare every speaker with the voices Metaloom knows and suggest the closest person (default on)
+| `suggestThreshold` | How similar a speaker must be to a person's voice to be suggested, from 0 to 1. `0` uses the model's calibrated value
 | `ffmpegPath` | The `ffmpeg` used to extract a video's soundtrack
 | `timeoutMs` | Time budget per item. `0` allows ten minutes
 |===
@@ -137,8 +169,11 @@ was attributed to the voice that was really speaking in it.
 
 * **Who said what** — run it next to link:../whisper/[Speech-to-Text] and line the transcript up
   with the speaker turns.
-* **Find a person across the archive** — confirm a speaker once, and their voiceprint finds them in
-  every other interview, press conference and phone-in.
+* **Find a person across the archive** — confirm a speaker once, or save a voice sample on the
+  person, and every later run suggests them wherever they speak — interviews, press conferences,
+  phone-ins.
+* **Route by who speaks** — wire `persons` into a link:../filter/[Filter] by person and tag, move or
+  publish each recording by its confirmed speakers.
 * **Count and time the voices** — speaking time per person for panels, debates and interviews.
 * **Route by speaker count** — the `speaker_count` port feeds a link:../filter/[Filter], for example
   to send monologues and conversations down different branches.

@@ -164,6 +164,8 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_TRANSCRIPTION = "Media Transcription";
 	private static final String DEMO_PIPELINE_REVIEW = "Review Triage";
 
+	private static final String DEMO_PIPELINE_SPEAKERS = "Who Is Speaking";
+
 	/**
 	 * The demo script node's body. Small on purpose - it is there to be read and edited, not admired.
 	 *
@@ -705,6 +707,15 @@ public class DemoDatabaseInitializer {
 			true, 6, false,
 			reviewTriageDefinition());
 
+		// 9) Speaker routing: Source → Voiceprint → Filter(PERSON) → tag per person. The person filter's
+		// demo: the voiceprint node finds the speakers and suggests who they are from the persons' voice
+		// samples, a reviewer confirms, and this graph routes each recording by who was confirmed in it.
+		// Needs the voiceprint sidecar, so like every GPU node it is seeded as a definition, not run.
+		createPipeline(admin, DEMO_PIPELINE_SPEAKERS,
+			"Finds the speakers in recordings and tags each recording with the known persons a reviewer confirmed in it.",
+			true, 2, false,
+			speakerRoutingDefinition());
+
 		// --- Pipeline Runs ---
 		// History so the run views and the statistics chart have something to show on a
 		// fresh demo. One run per status: a clean success, a partial failure, a live run and
@@ -1205,6 +1216,13 @@ public class DemoDatabaseInitializer {
 			Person danaOkafor = createPerson(admin, "dokafor", "Dana", "Okafor");
 			createPersonImage(admin, danaOkafor, "dana-okafor-portrait.jpg", DemoFace.DANA, true, true);
 			personCount = 5;
+
+			// A voice for two of them, so the persons screen shows the voice gallery and a voiceprint pipeline over a recording of them has
+			// something to recognise. Synthetic speech (two Kokoro voices), cut from the voiceprint sidecar's test fixture; there is no voice to
+			// paint without demo content, so like Carol and Dana these exist only when it is present. No print is seeded: a print belongs to
+			// the model of whichever voiceprint node runs first, and that node embeds the samples itself.
+			createPersonVoice(admin, aliceSmith, "voices/alice-smith-voice.wav", true);
+			createPersonVoice(admin, johnDoe, "voices/john-doe-voice.wav", true);
 		}
 		log.info("Created {} demo persons", personCount);
 
@@ -1531,6 +1549,43 @@ public class DemoDatabaseInitializer {
 		}
 		log.info("Created demo person image: {} for {} ({} bytes)", filename, person.getAlias(), bytes.length);
 		return image;
+	}
+
+	/**
+	 * Give a demo person one of their voice samples (V2.114), optionally as the hero sample. Never fails the seed: a missing file costs the sample.
+	 */
+	private Attachment createPersonVoice(User admin, Person person, String relativePath, boolean hero) {
+		try {
+			Path source = media.file(relativePath);
+			if (source == null) {
+				return null;
+			}
+			byte[] bytes = Files.readAllBytes(source);
+			SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+			if (storeBinary(source, sha512) == null) {
+				return null;
+			}
+			String filename = source.getFileName().toString();
+			Attachment sample = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "audio/wav", AttachmentType.PERSON_VOICE);
+			sample.setUuid(LoomUUID.timeOrdered());
+			sample.setPersonUuid(person.getUuid());
+			// 16 kHz mono 16-bit PCM behind a 44-byte header: the length is arithmetic, no decoder needed.
+			sample.setMeta(new JsonObject().put("durationMs", Math.max(0, bytes.length - 44) / 32L));
+			sample.setCreator(admin);
+			sample.setEditor(admin);
+			sample.setCreated(Instant.now());
+			sample.setEdited(Instant.now());
+			attachmentDao.store(sample);
+			if (hero) {
+				person.setHeroVoiceAttachmentUuid(sample.getUuid());
+				personDao.update(person);
+			}
+			log.info("Created demo voice sample: {} for {} ({} bytes)", filename, person.getAlias(), bytes.length);
+			return sample;
+		} catch (Exception e) {
+			log.warn("Could not seed the demo voice sample {} for {}", relativePath, person.getAlias(), e);
+			return null;
+		}
 	}
 
 	/**
@@ -2551,6 +2606,53 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe3", "pn3", "thumbnail", "pn4", "artifacts"))
 					.add(edge("pe4", "pn2", "trash", "pn5", "media"))
 					.add(edge("pe5", "pn2", "unreviewed", "pn6", "media")));
+	}
+
+	/**
+	 * Routing on who speaks in a recording.
+	 *
+	 * <p>
+	 * The voiceprint node writes one speaker cluster per voice and suggests a known person for each from their voice samples. The filter then reads
+	 * who the asset's clusters name - here only what a reviewer confirmed, the default - and each person's branch tags the recording, so a search
+	 * for the tag finds every recording somebody was confirmed to speak in.
+	 * </p>
+	 *
+	 * <p>
+	 * The {@code persons} edge carries no data the filter reads: the filter reads the persons from Loom, which also holds confirmations from earlier
+	 * runs. The edge is what makes the filter wait until the voiceprint node has written its clusters.
+	 * </p>
+	 */
+	static JsonObject speakerRoutingDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "Recordings", "Watch the interviews folder", 60, 200))
+					.add(node("pn2", "voiceprint", "Voiceprints", "Find the speakers and suggest who they are", 280, 200))
+					.add(node("pn3", "filter", "Who Is Speaking", "Route each recording by the persons confirmed in it", 520, 200,
+						new JsonObject()
+							.put("filterBy", "PERSON")
+							.put("personSource", "VOICE")
+							.put("personEvidence", "CONFIRMED")
+							.put("buckets", new JsonArray()
+								.add(new JsonObject().put("id", "alice").put("label", "Alice Smith").put("match", "Alice Smith"))
+								.add(new JsonObject().put("id", "john").put("label", "John Doe").put("match", "John Doe")))))
+					.add(node("pn4", "tag", "Tag Alice", "Tag recordings Alice speaks in", 760, 100,
+						new JsonObject()
+							.put("tagBy", "RULES")
+							.put("collection", "speakers")
+							.put("rules", new JsonArray()
+								.add(new JsonObject().put("id", "alice").put("tag", "speaker/alice-smith")))))
+					.add(node("pn5", "tag", "Tag John", "Tag recordings John speaks in", 760, 300,
+						new JsonObject()
+							.put("tagBy", "RULES")
+							.put("collection", "speakers")
+							.put("rules", new JsonArray()
+								.add(new JsonObject().put("id", "john").put("tag", "speaker/john-doe"))))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "audio"))
+					.add(edge("pe2", "pn1", "media", "pn3", "media"))
+					.add(edge("pe3", "pn2", "persons", "pn3", "persons"))
+					.add(edge("pe4", "pn3", "alice", "pn4", "media"))
+					.add(edge("pe5", "pn3", "john", "pn5", "media")));
 	}
 
 	static JsonObject scriptDefinition() {

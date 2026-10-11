@@ -6,6 +6,7 @@ import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,9 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
+import io.metaloom.cortex.common.person.PersonSuggestions;
+import io.metaloom.cortex.common.person.PersonSuggestions.Suggestion;
+import io.metaloom.cortex.common.person.PersonSuggestions.UnusableSampleException;
 import io.metaloom.cortex.node.facedetect.cluster.FaceCluster;
 import io.metaloom.cortex.node.facedetect.cluster.FaceClusterResult;
 import io.metaloom.cortex.node.facedetect.cluster.FaceClusterer;
@@ -59,6 +63,7 @@ import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
+import io.metaloom.loom.rest.model.person.PersonPendingSample;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -132,6 +137,14 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	@PortDoc(label = "Face Detections",
 		description = "One element per detected face, so a downstream node can run once per face rather than once per file", order = 10)
 	public static final OutputPort<String> OUT_DETECTIONS = OutputPort.many("detections", ContentTypeRegistry.DETECTION_FACE, String.class);
+
+	/**
+	 * Who the faces are, as far as anybody knows: per face cluster, the person a reviewer confirmed or the person matching suggested. Always written -
+	 * an empty array when nobody was recognised - so a {@code filterBy=PERSON} filter wired to it waits for this node and then runs.
+	 */
+	@PortDoc(label = "Persons", description = "The known persons recognised among the faces - confirmed by a reviewer or suggested - for a person "
+		+ "filter to run after", order = 40)
+	public static final OutputPort<String> OUT_PERSONS = OutputPort.one("persons", ContentTypeRegistry.STRUCT_PERSONS, String.class);
 
 	/** In-heap skip cache of the face-detection outputs, keyed by media path, to avoid re-scanning within this worker's lifetime.
 	 * Non-durable - the durable detections live in Loom. */
@@ -308,6 +321,8 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 		CachedDetections cached = resultCache.get(path);
 		if (cached != null && !ctx.capturePreviews()) {
 			emit(ctx, cached.flag(), cached.elements(), cached.clusterCount());
+			// The boxes are cached; who the faces are is not - a reviewer may have confirmed one since. Loom has the current answer.
+			emitPersons(ctx, currentFaceClusters(asset));
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -806,6 +821,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 		Integer frameWidth, Integer frameHeight, List<BufferedImage> crops) {
 		if (asset == null || client() == null) {
 			// No Loom to write to - running standalone, which is a supported mode rather than a failure.
+			emitPersons(ctx, List.of());
 			return true;
 		}
 		try {
@@ -837,7 +853,9 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 				.body();
 			persistCrops(asset, stored, crops);
 			List<UUID> embeddingUuids = persistEmbeddings(asset, detections, stored, producerVersion);
-			List<UUID> clusterUuids = persistClusters(asset, clusters, embeddingUuids, producerVersion);
+			List<ClusterResponse> storedClusters = persistClusters(asset, clusters, embeddingUuids, producerVersion);
+			List<UUID> clusterUuids = storedClusters.stream().map(ClusterResponse::getUuid).filter(java.util.Objects::nonNull).toList();
+			emitPersons(ctx, storedClusters);
 
 			// The ledger points at the node's headline output. This used to be resultRef("detection") with no
 			// uuids at all, and resultRef answers null for an empty varargs - so result_ref was always empty
@@ -979,15 +997,22 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 	 * not yet grouped is a far better outcome than losing them, and a re-run regroups them.
 	 * </p>
 	 *
-	 * @return the uuids of the stored clusters, for the ledger
+	 * <p>
+	 * Each cluster carries the person it was recognised as, when it resembles one - as a suggestion, never a verdict.
+	 * </p>
+	 *
+	 * @return the stored clusters, for the ledger and the persons output
 	 */
-	private List<UUID> persistClusters(AssetResponse asset, FaceClusterResult clusters, List<UUID> embeddingUuids, String producerVersion) {
+	private List<ClusterResponse> persistClusters(AssetResponse asset, FaceClusterResult clusters, List<UUID> embeddingUuids, String producerVersion) {
 		if (clusters == null || clusters.count() == 0) {
 			return List.of();
 		}
 		try {
+			List<Suggestion> suggestions = suggest(clusters);
 			ClusterBulkCreateRequest request = new ClusterBulkCreateRequest();
-			for (FaceCluster cluster : clusters.clusters()) {
+			for (int c = 0; c < clusters.clusters().size(); c++) {
+				FaceCluster cluster = clusters.clusters().get(c);
+				Suggestion suggestion = c < suggestions.size() ? suggestions.get(c) : null;
 				ClusterCreateItem item = new ClusterCreateItem()
 					.setType(FACE_CLUSTER_TYPE)
 					.setNodeKind(name())
@@ -1002,6 +1027,9 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 					// exactly one face and would otherwise report nobody at all - but flagged, because "seen once"
 					// and "seen and corroborated" are different things to a reviewer.
 					item.setMeta(new JsonObject().put("noise", true));
+				}
+				if (suggestion != null) {
+					item.setSuggestedPersonUuid(suggestion.personUuid().toString()).setSuggestedScore(suggestion.score());
 				}
 				List<Integer> members = cluster.members();
 				for (int m = 0; m < members.size(); m++) {
@@ -1022,11 +1050,79 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> imp
 			if (stored == null || stored.getClusters() == null) {
 				return List.of();
 			}
-			log.info("Stored {} face cluster(s) for asset {} ({} stale proposal(s) retired)",
-				stored.getClusters().size(), asset.getUuid(), stored.getPruned());
-			return stored.getClusters().stream().map(ClusterResponse::getUuid).filter(java.util.Objects::nonNull).toList();
+			log.info("Stored {} face cluster(s) for asset {} ({} stale proposal(s) retired, {} suggested)",
+				stored.getClusters().size(), asset.getUuid(), stored.getPruned(), suggestions.stream().filter(java.util.Objects::nonNull).count());
+			return stored.getClusters();
 		} catch (Exception e) {
 			log.warn("Failed to persist clusters for asset {}: {}", asset.getUuid(), e.getMessage());
+			return List.of();
+		}
+	}
+
+	/**
+	 * Who each cluster most resembles among the persons whose faces are known, embedding any of their pictures this model has not seen yet. All null
+	 * when suggestions or embeddings are off.
+	 */
+	List<Suggestion> suggest(FaceClusterResult clusters) {
+		List<float[]> centroids = clusters.clusters().stream().map(FaceCluster::centroid).toList();
+		if (!options().isSuggestPersons() || !options().isEmbeddingsEnabled()) {
+			return new ArrayList<>(java.util.Collections.nCopies(centroids.size(), (Suggestion) null));
+		}
+		return PersonSuggestions.suggest(client(), FACE_CLUSTER_TYPE, options().resolvedEmbeddingModel(), centroids,
+			options().resolvedSuggestThreshold(), this::enrol);
+	}
+
+	/**
+	 * One of a person's pictures as a face vector in this node's model: the largest face in it.
+	 *
+	 * <p>
+	 * The largest, because a picture somebody chose as a person's is about that person - a group photo has them in the foreground far more often than
+	 * not, and a wrong pick here poisons every later suggestion for them. A picture with no face, or that cannot be decoded, is unusable and recorded
+	 * as such.
+	 * </p>
+	 */
+	float[] enrol(PersonPendingSample sample, Path file) throws Exception {
+		BufferedImage image = ImageIO.read(file.toFile());
+		if (image == null) {
+			throw new UnusableSampleException("not a decodable image");
+		}
+		List<? extends Face> faces;
+		synchronized (inspireface) {
+			faces = inspireface.detectFaces(image, true);
+		}
+		Face largest = null;
+		long largestArea = -1;
+		for (Face face : faces == null ? List.<Face> of() : faces) {
+			if (face.getEmbedding() == null || face.getEmbedding().length == 0) {
+				continue;
+			}
+			long area = (long) face.box().getWidth() * face.box().getHeight();
+			if (area > largestArea) {
+				largest = face;
+				largestArea = area;
+			}
+		}
+		if (largest == null) {
+			throw new UnusableSampleException("no face found");
+		}
+		return largest.getEmbedding();
+	}
+
+	/** The {@code persons} port: who the face clusters name. */
+	private void emitPersons(NodeContext<LoomMedia> ctx, List<ClusterResponse> clusters) {
+		ctx.output(OUT_PERSONS, PersonSuggestions.personsPayload(clusters).encode());
+	}
+
+	/** This node's face clusters for the asset as Loom holds them now, or none when Loom is out of reach. */
+	private List<ClusterResponse> currentFaceClusters(AssetResponse asset) {
+		if (asset == null || client() == null) {
+			return List.of();
+		}
+		try {
+			List<ClusterResponse> all = client().listAssetClusters(asset.getUuid()).sync().body().getData();
+			return all == null ? List.of() : all.stream().filter(c -> FACE_CLUSTER_TYPE.equals(c.getType()) && name().equals(c.getNodeKind())).toList();
+		} catch (Exception e) {
+			log.debug("Could not read the face clusters of asset {}: {}", asset.getUuid(), e.getMessage());
 			return List.of();
 		}
 	}

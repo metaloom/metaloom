@@ -64,7 +64,10 @@ import io.metaloom.video4j.utils.ImageUtils;
 		@ParamOverride(key = "videoScaleSize", hidden = true),
 		@ParamOverride(key = "minFaceHeightFactor", hidden = true),
 		@ParamOverride(key = "inspirefacePackPath", hidden = true),
-		@ParamOverride(key = "capabilities", hidden = true) })
+		@ParamOverride(key = "capabilities", hidden = true),
+		// Person suggestions belong to facedetect, which writes the clusters they are stored on; this node writes none.
+		@ParamOverride(key = "suggestPersons", hidden = true),
+		@ParamOverride(key = "suggestThreshold", hidden = true) })
 public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);

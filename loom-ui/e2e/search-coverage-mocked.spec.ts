@@ -256,7 +256,8 @@ test.describe("Search fields – screens with their own shape", () => {
   test("object detection: the label search narrows the grouped detections", async ({ page }) => {
     await installMocks(page);
     await open(page, "/detection");
-    await page.getByRole("tab").nth(1).click();
+    // By name: Speakers sits between Faces and Objects, so a position says nothing stable.
+    await page.getByRole("tab", { name: "Objects", exact: true }).click();
 
     await expect(page.getByTestId("objectdetection-search")).toBeVisible({ timeout: 10_000 });
     // No detections are mocked, so the assertion is that the field takes input and the view
@@ -268,7 +269,7 @@ test.describe("Search fields – screens with their own shape", () => {
   test("llm detection: the prompt search is addressable and filters", async ({ page }) => {
     await installMocks(page);
     await open(page, "/detection");
-    await page.getByRole("tab").nth(2).click();
+    await page.getByRole("tab", { name: "LLM", exact: true }).click();
 
     // Had no testid at all until now, so it could not be reached from a spec.
     await expect(page.getByTestId("llmdetection-search")).toBeVisible({ timeout: 10_000 });

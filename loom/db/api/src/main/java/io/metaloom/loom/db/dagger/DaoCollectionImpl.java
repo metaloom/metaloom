@@ -13,6 +13,7 @@ import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.person.PersonPrintDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.remix.RemixDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
@@ -74,6 +75,8 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<CommentDao> commentDao;
 	private final Lazy<EmbeddingDao> embeddingDao;
 	private final Lazy<ClusterDao> clusterDao;
+
+	private final Lazy<PersonPrintDao> personPrintDao;
 	private final Lazy<TokenDao> tokenDao;
 	private final Lazy<TagDao> tagDao;
 	private final Lazy<PipelineDao> pipelineDao;
@@ -108,7 +111,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
 		Lazy<PipelineRunDao> pipelineRunDao, Lazy<PipelineVersionDao> pipelineVersionDao,
 		Lazy<PipelineRunItemDao> pipelineRunItemDao, Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao,
-		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao,
+		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao, Lazy<PersonPrintDao> personPrintDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
 		Lazy<SkillDao> skillDao, Lazy<NotificationDao> notificationDao, Lazy<SkillVersionDao> skillVersionDao,
 		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
@@ -147,6 +150,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
 		this.assetPoolDao = assetPoolDao;
 		this.personDao = personDao;
+		this.personPrintDao = personPrintDao;
 		this.detectionDao = detectionDao;
 		this.chatDao = chatDao;
 		this.skillDao = skillDao;
@@ -273,6 +277,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public ClusterDao clusterDao() {
 		return clusterDao.get();
+	}
+
+	@Override
+	public PersonPrintDao personPrintDao() {
+		return personPrintDao.get();
 	}
 
 	@Override

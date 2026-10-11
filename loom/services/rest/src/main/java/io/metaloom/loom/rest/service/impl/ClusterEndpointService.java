@@ -24,6 +24,7 @@ import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.LoomRoutingContext;
+import io.metaloom.loom.rest.builder.ClusterModelBuilder;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterBulkResponse;
@@ -32,6 +33,7 @@ import io.metaloom.loom.rest.model.cluster.ClusterCreateItem;
 import io.metaloom.loom.rest.model.cluster.ClusterCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterListResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterMemberCreateItem;
+import io.metaloom.loom.rest.model.cluster.ClusterResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterUpdateRequest;
 import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
@@ -88,7 +90,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 	public void load(LoomRoutingContext lrc, UUID id) {
 		load(lrc, READ_CLUSTER, () -> {
 			return dao().load(id);
-		}, cluster -> modelBuilder.toResponse(cluster, dao().countMembers(cluster.getUuid())));
+		}, cluster -> named(modelBuilder.toResponse(cluster, dao().countMembers(cluster.getUuid()))));
 	}
 
 	@Override
@@ -169,7 +171,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 				confirmed.setName(request.getName());
 				dao().update(confirmed);
 			}
-			lrc.send(modelBuilder.toResponse(confirmed, dao().countMembers(clusterUuid)));
+			lrc.send(named(modelBuilder.toResponse(confirmed, dao().countMembers(clusterUuid))));
 		}, required);
 	}
 
@@ -201,7 +203,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 			// Back to PENDING rather than staying CONFIRMED with a null person: a confirmed cluster
 			// with no subject is a verdict about nobody, and the review queue would never show it again.
 			Cluster detached = dao().detachPerson(clusterUuid, lrc.userUuid());
-			lrc.send(modelBuilder.toResponse(detached, dao().countMembers(clusterUuid)));
+			lrc.send(named(modelBuilder.toResponse(detached, dao().countMembers(clusterUuid))));
 		});
 	}
 
@@ -209,7 +211,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 		checkPerm(lrc, UPDATE_CLUSTER, () -> {
 			requireCluster(clusterUuid);
 			Cluster rejected = dao().updateStatus(clusterUuid, Cluster.STATUS_REJECTED, null, lrc.userUuid());
-			lrc.send(modelBuilder.toResponse(rejected, dao().countMembers(clusterUuid)));
+			lrc.send(named(modelBuilder.toResponse(rejected, dao().countMembers(clusterUuid))));
 		});
 	}
 
@@ -220,7 +222,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 			Map<UUID, Long> counts = dao().countMembers(clusters.stream().map(Cluster::getUuid).toList());
 			ClusterListResponse response = new ClusterListResponse();
 			clusters.forEach(cluster -> response.add(modelBuilder.toResponse(cluster, counts.getOrDefault(cluster.getUuid(), 0L))));
-			lrc.send(response);
+			lrc.send(named(response));
 		});
 	}
 
@@ -258,12 +260,17 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 					throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
 						"One bulk write describes one producer's view of the asset, so every cluster must carry the same nodeKind.");
 				}
+				optionalUuid(item.getSuggestedPersonUuid(), "suggestedPersonUuid");
 				for (ClusterMemberCreateItem member : item.getMembers()) {
 					if (optionalUuid(member.getEmbeddingUuid(), "members.embeddingUuid") == null) {
 						throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "Every cluster member needs an embeddingUuid.");
 					}
 				}
 			}
+
+			// A suggestion names a person who existed when the producer asked; one deleted since then is dropped rather than failing the whole write
+			// on the foreign key - the clusters are worth more than a stale guess about one of them.
+			Set<UUID> knownPersons = existingPersons(items);
 
 			ClusterBulkResponse response = new ClusterBulkResponse();
 			List<UUID> stored = new ArrayList<>();
@@ -278,6 +285,11 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 				cluster.setModel(item.getModel());
 				cluster.setDimensions(item.getDimensions());
 				cluster.setMeta(item.getMeta());
+				UUID suggested = optionalUuid(item.getSuggestedPersonUuid(), "suggestedPersonUuid");
+				if (suggested != null && knownPersons.contains(suggested)) {
+					cluster.setSuggestedPersonUuid(suggested);
+					cluster.setSuggestedScore(item.getSuggestedScore());
+				}
 				dao().upsertCluster(cluster);
 				stored.add(cluster.getUuid());
 
@@ -293,6 +305,9 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 				response.setPruned(dao().deleteStalePending(assetUuid, nodeKind, indices));
 			}
 			response.setTotal(items.size()).setCreated(stored.size()).setFailed(0);
+			if (response.getClusters() != null) {
+				named(response.getClusters());
+			}
 			lrc.send(response, 201);
 		});
 	}
@@ -300,15 +315,46 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 	// ---------------------------------------------------------------------------------------------
 
 	/**
-	 * Attach the member count to every cluster on the page with one query rather than one per card.
+	 * Attach the member count to every cluster on the page with one query rather than one per card, and the person names with one more.
 	 */
 	private ClusterListResponse withMemberCounts(Page<Cluster> page) {
 		List<UUID> uuids = new ArrayList<>();
 		page.forEach(cluster -> uuids.add(cluster.getUuid()));
 		Map<UUID, Long> counts = dao().countMembers(uuids);
 
-		return modelBuilder.setPage(new ClusterListResponse(), page,
-			cluster -> modelBuilder.toResponse(cluster, counts.getOrDefault(cluster.getUuid(), 0L)));
+		return named(modelBuilder.setPage(new ClusterListResponse(), page,
+			cluster -> modelBuilder.toResponse(cluster, counts.getOrDefault(cluster.getUuid(), 0L))));
+	}
+
+	private ClusterListResponse named(ClusterListResponse response) {
+		if (response.getData() != null) {
+			named(response.getData());
+		}
+		return response;
+	}
+
+	private ClusterResponse named(ClusterResponse response) {
+		named(List.of(response));
+		return response;
+	}
+
+	/** One name query for every person the responses mention, confirmed or suggested. */
+	private void named(java.util.Collection<ClusterResponse> responses) {
+		Set<UUID> persons = ClusterModelBuilder.personUuidsOf(responses);
+		if (!persons.isEmpty()) {
+			modelBuilder.withPersonNames(responses, daos().personDao().loadDisplayNames(persons));
+		}
+	}
+
+	private Set<UUID> existingPersons(List<ClusterCreateItem> items) {
+		Set<UUID> known = new HashSet<>();
+		for (ClusterCreateItem item : items) {
+			UUID suggested = optionalUuid(item.getSuggestedPersonUuid(), "suggestedPersonUuid");
+			if (suggested != null && !known.contains(suggested) && daos().personDao().load(suggested) != null) {
+				known.add(suggested);
+			}
+		}
+		return known;
 	}
 
 	private Cluster requireCluster(UUID uuid) {

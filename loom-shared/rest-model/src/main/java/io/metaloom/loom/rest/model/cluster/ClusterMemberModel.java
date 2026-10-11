@@ -18,6 +18,12 @@ public class ClusterMemberModel {
 
 	private Integer frameNumber;
 
+	/** Start of the member's time window in milliseconds - where a speaker's voice was heard. Null for a face. */
+	private Long timeFrom;
+
+	/** End of the member's time window in milliseconds. */
+	private Long timeTo;
+
 	private Float bboxX;
 
 	private Float bboxY;
@@ -126,4 +132,21 @@ public class ClusterMemberModel {
 		return this;
 	}
 
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	public ClusterMemberModel setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	public Long getTimeTo() {
+		return timeTo;
+	}
+
+	public ClusterMemberModel setTimeTo(Long timeTo) {
+		this.timeTo = timeTo;
+		return this;
+	}
 }

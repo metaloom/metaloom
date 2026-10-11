@@ -72,6 +72,30 @@ public interface FilterStrategy {
 	}
 
 	/**
+	 * Whether this strategy needs the known persons in the asset - who its face and speaker clusters name.
+	 *
+	 * <p>
+	 * Opt-in for the reason {@link #needsReactions()} is: one Loom call per item, which only {@link FilterBy#PERSON} has any use for. A failed fetch
+	 * arrives as {@code personsAvailable == false}.
+	 * </p>
+	 */
+	default boolean needsPersons() {
+		return false;
+	}
+
+	/**
+	 * Whether a verdict may be kept in the worker's per-path cache and replayed for the same file.
+	 *
+	 * <p>
+	 * True for everything that is a function of the file and the configuration. False for an answer that changes while the file does not: who is in
+	 * an item changes when a reviewer confirms a face, and a cache that lives as long as the worker would keep routing on the old answer for days.
+	 * </p>
+	 */
+	default boolean cacheable() {
+		return true;
+	}
+
+	/**
 	 * Classify one item.
 	 *
 	 * @param item

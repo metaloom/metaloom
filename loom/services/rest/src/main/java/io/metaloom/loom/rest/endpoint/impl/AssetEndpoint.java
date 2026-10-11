@@ -788,6 +788,14 @@ public class AssetEndpoint extends AbstractEndpoint {
 				mediaService.poster(lrc, lrc.pathParamUUID("uuid"), intParam(lrc, "t"), intParam(lrc, "w"));
 			});
 
+		addDownloadRoute(basePath() + "/:uuid/audio-clip",
+			"A stretch of the asset's audio as 16 kHz mono WAV, cut on demand: 'from' and 'to' in milliseconds, at most 120 seconds apart. This is "
+				+ "how a reviewer listens to one speaker's turn. Requires READ_ASSET_BINARY; answers 422 for an asset without audio and 503 when no "
+				+ "ffmpeg is configured.",
+			lrc -> {
+				mediaService.audioClip(lrc, lrc.pathParamUUID("uuid"), longParam(lrc, "from"), longParam(lrc, "to"));
+			});
+
 		addRoute(basePath() + "/:uuid/stream-start", GET,
 			"Where a stream asked to begin at 't' seconds will actually begin. A stream-copied video can only start on a keyframe, so the "
 				+ "answer is the keyframe at or before 't' - up to several seconds earlier. A player must treat this, not what it asked for, "
@@ -819,6 +827,19 @@ public class AssetEndpoint extends AbstractEndpoint {
 	 * with an error for no benefit.
 	 * </p>
 	 */
+	/** As {@link #intParam}, for millisecond offsets. */
+	private static Long longParam(io.metaloom.loom.rest.LoomRoutingContext lrc, String name) {
+		String raw = lrc.routingContext().request().getParam(name);
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		try {
+			return Long.parseLong(raw.trim());
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
 	private static Integer intParam(io.metaloom.loom.rest.LoomRoutingContext lrc, String name) {
 		String raw = lrc.routingContext().request().getParam(name);
 		if (raw == null || raw.isBlank()) {

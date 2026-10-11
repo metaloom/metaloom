@@ -48,10 +48,10 @@ public class FilterPortResolver implements NodePortResolver {
 	public static final String PORT_BUCKET = "bucket";
 
 	/**
-	 * Ids a bucket may not claim. The first three are the fixed output ports; the last two would collide with the node's own inputs and make the
+	 * Ids a bucket may not claim. The first three are the fixed output ports; the last three would collide with the node's own inputs and make the
 	 * descriptor ambiguous to read.
 	 */
-	static final Set<String> RESERVED = Set.of(PORT_OTHER, PORT_PASSED, PORT_BUCKET, "media", "text");
+	static final Set<String> RESERVED = Set.of(PORT_OTHER, PORT_PASSED, PORT_BUCKET, "media", "text", "persons");
 
 	@Override
 	public String kind() {

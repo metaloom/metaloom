@@ -195,6 +195,21 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
      */
     public final TableField<JooqClusterRecord, java.util.UUID> REVIEWER_UUID = createField(DSL.name("reviewer_uuid"), SQLDataType.UUID, this, "The user who decided. Distinct from editor_uuid, which is machine-written provenance (V2.47).");
 
+    /**
+     * The column <code>public.cluster.suggested_person_uuid</code>. Person the
+     * producing node recognised this cluster as, from confirmed clusters and
+     * the person's own samples. A proposal only: person_uuid remains the
+     * reviewer's verdict.
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> SUGGESTED_PERSON_UUID = createField(DSL.name("suggested_person_uuid"), SQLDataType.UUID, this, "Person the producing node recognised this cluster as, from confirmed clusters and the person's own samples. A proposal only: person_uuid remains the reviewer's verdict.");
+
+    /**
+     * The column <code>public.cluster.suggested_score</code>. Cosine similarity
+     * of the cluster centroid to the suggested person's reference, in the space
+     * of cluster.model.
+     */
+    public final TableField<JooqClusterRecord, Float> SUGGESTED_SCORE = createField(DSL.name("suggested_score"), SQLDataType.REAL, this, "Cosine similarity of the cluster centroid to the suggested person's reference, in the space of cluster.model.");
+
     private JooqCluster(Name alias, Table<JooqClusterRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -235,7 +250,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.CLUSTER_TYPE_NAME_KEY, Indexes.IDX_CLUSTER_ASSET_UUID, Indexes.IDX_CLUSTER_PERSON_UUID, Indexes.IDX_CLUSTER_STATUS, Indexes.IDX_CLUSTER_TYPE_STATUS);
+        return Arrays.asList(Indexes.CLUSTER_TYPE_NAME_KEY, Indexes.IDX_CLUSTER_ASSET_UUID, Indexes.IDX_CLUSTER_PERSON_UUID, Indexes.IDX_CLUSTER_STATUS, Indexes.IDX_CLUSTER_SUGGESTED_PERSON_UUID, Indexes.IDX_CLUSTER_TYPE_MODEL_PERSON, Indexes.IDX_CLUSTER_TYPE_STATUS);
     }
 
     @Override
@@ -250,7 +265,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
 
     @Override
     public List<ForeignKey<JooqClusterRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY, Keys.CLUSTER__CLUSTER_REVIEWER_UUID_FKEY);
+        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY, Keys.CLUSTER__CLUSTER_REVIEWER_UUID_FKEY, Keys.CLUSTER__CLUSTER_SUGGESTED_PERSON_UUID_FKEY);
     }
 
     private transient JooqUser _clusterCreatorUuidFkey;
@@ -258,8 +273,9 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     private transient JooqPipelineRun _pipelineRun;
     private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqAsset _asset;
-    private transient JooqPerson _person;
+    private transient JooqPerson _clusterPersonUuidFkey;
     private transient JooqUser _clusterReviewerUuidFkey;
+    private transient JooqPerson _clusterSuggestedPersonUuidFkey;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -315,13 +331,14 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     }
 
     /**
-     * Get the implicit join path to the <code>public.person</code> table.
+     * Get the implicit join path to the <code>public.person</code> table, via
+     * the <code>cluster_person_uuid_fkey</code> key.
      */
-    public JooqPerson person() {
-        if (_person == null)
-            _person = new JooqPerson(this, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY);
+    public JooqPerson clusterPersonUuidFkey() {
+        if (_clusterPersonUuidFkey == null)
+            _clusterPersonUuidFkey = new JooqPerson(this, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY);
 
-        return _person;
+        return _clusterPersonUuidFkey;
     }
 
     /**
@@ -333,6 +350,17 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
             _clusterReviewerUuidFkey = new JooqUser(this, Keys.CLUSTER__CLUSTER_REVIEWER_UUID_FKEY);
 
         return _clusterReviewerUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.person</code> table, via
+     * the <code>cluster_suggested_person_uuid_fkey</code> key.
+     */
+    public JooqPerson clusterSuggestedPersonUuidFkey() {
+        if (_clusterSuggestedPersonUuidFkey == null)
+            _clusterSuggestedPersonUuidFkey = new JooqPerson(this, Keys.CLUSTER__CLUSTER_SUGGESTED_PERSON_UUID_FKEY);
+
+        return _clusterSuggestedPersonUuidFkey;
     }
 
     @Override

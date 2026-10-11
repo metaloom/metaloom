@@ -86,7 +86,7 @@ A content type id is **always** `family/subtype`; `family/*` is the family root.
 | **hash** | `hash/*` · `hash/md5` · `hash/sha256` · `hash/sha512` · `hash/chunk` · `hash/fingerprint` |
 | **scalar** | `scalar/*` · `scalar/string` · `scalar/integer` · `scalar/number` · `scalar/boolean` |
 | **artifact** | `artifact/*` · `artifact/image` · `artifact/video` · `artifact/audio` · `artifact/file` |
-| **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/masks` · `struct/color` · `struct/json` |
+| **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/masks` · `struct/color` · `struct/persons` · `struct/json` |
 | **control** | `control/*` · `control/filter` |
 
 Two distinctions the families exist to enforce:
@@ -303,7 +303,7 @@ itself (§3.3).
 | `metadata` | `media : media/*` | `metadata : struct/json`, `text : text/plain`, `geo : struct/json` |
 | `ocr` | `media : media/image` | `text : text/plain` |
 | `captioning` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `caption : text/caption` |
-| `facedetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/face` **MANY**, `face_count : scalar/integer`, `flag : scalar/string` |
+| `facedetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/face` **MANY**, `face_count : scalar/integer`, `flag : scalar/string`, `persons : struct/persons` (known persons among the faces, confirmed or suggested; always written) |
 | `facedescription` | `detections : detection/face` **MANY** | `descriptions : text/plain` **MANY** |
 | `objectdetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/object` **MANY**, `labels : scalar/string` **MANY**, `object_count : scalar/integer`, `flag : scalar/string` |
 | `depthmap` | `media : media/image` | `meta : struct/depthmap`, `map : artifact/image`, `flag : scalar/string` |
@@ -312,7 +312,7 @@ itself (§3.3).
 | `scene-layout` | `depth : struct/depthmap`, `detections : detection/*` **MANY** | `result : struct/scene-layout`, `object_count : scalar/integer`, `relation_count : scalar/integer` |
 | `dominant-color` | `media : media/image`, `detections : detection/*` **MANY** *(opt)* | `result : struct/color`, `hex : scalar/string`, `term : scalar/string`, `name_en : scalar/string`, `name_de : scalar/string`, `region_count : scalar/integer` |
 | `whisper` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `transcript : text/transcript` |
-| `voiceprint` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `speaker_count : scalar/integer`, `speakers : struct/embedding` **MANY** (one element per voice, longest first), `voiceprint : struct/embedding`, `timeline : struct/segments`, `result : struct/json` |
+| `voiceprint` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `speaker_count : scalar/integer`, `speakers : struct/embedding` **MANY** (one element per voice, longest first), `voiceprint : struct/embedding`, `timeline : struct/segments`, `result : struct/json`, `persons : struct/persons` (known persons among the speakers; always written) |
 | `sentiment` | `text : text/*` | `label : scalar/string`, `score : scalar/number`, `result : struct/json` |
 | `translate` | `text : text/*` | `translation : text/plain`, `language : scalar/string`, `result : struct/json` |
 | `guard` | `text : text/*` *(opt)*, `media : media/image` *(opt)* | `safe : control/filter`, `label : scalar/string`, `score : scalar/number`, `categories : scalar/string` **MANY**, `result : struct/json` |
@@ -360,6 +360,7 @@ a `media` output no filter ever emitted.
 |---|---|---|---|---|
 | in | `media` | `media/*` | ONE | — |
 | in | `text` | `text/*` | ONE *(opt)* | — |
+| in | `persons` | `struct/persons` | **MANY** *(opt)* | — |
 | out | `<bucketId>` ×N | `media/*` | ONE | **yes** |
 | out | `other` | `media/*` | ONE | **yes** |
 | out | `passed` | `control/filter` | ONE | no |
@@ -368,13 +369,17 @@ a `media` output no filter ever emitted.
 The outputs are **dynamic** (`dynamicPorts`, `FilterPortResolver`), derived from the `buckets` option
 — a `PORT_LIST` of `{id, label?, match?}` rows whose `id` becomes the port. `other`, `passed` and
 `bucket` are always present, so a freshly dropped node is connectable and a graph is never a dead end.
-Reserved bucket ids: `other`, `passed`, `bucket`, `media`, `text`.
+Reserved bucket ids: `other`, `passed`, `bucket`, `media`, `text`, `persons`.
+
+The `persons` input carries no data the node reads. It exists so a `filterBy=PERSON` filter can be
+wired after `facedetect` and `voiceprint` - both, which is why it is MANY - and therefore runs once
+they have written the clusters it reads from Loom.
 
 `passed` keeps the older `PASS`/`REJECT` edge routing working — `NodeTaskResult.getFilterPassed()`
 finds it by its `control/` family, not by name. `bucket` is deliberately **not** selective: a node
 wired to it runs whichever branch the item took, which is the escape hatch from routing.
 
-`filterBy` selects a `FilterStrategy` from the `@FilterByKey` map multibinding. **Six** values:
+`filterBy` selects a `FilterStrategy` from the `@FilterByKey` map multibinding. **Seven** values:
 
 | `filterBy` | Reads | Bucket `match` hints | Cost |
 |---|---|---|---|
@@ -384,6 +389,7 @@ wired to it runs whichever branch the item took, which is the escape hatch from 
 | `DATE` | `Files.getLastModifiedTime` | `>=2024-01-01`, `2024-01-01..2024-12-31` (**both ends cover the whole day**), bare `2024-03-17` = that day, `age<30d` / `age>1y` (`h`/`d`/`w`/`m`/`y`) | none |
 | `RATING` | the asset's rating on the `FilterItem` | comma-separated conditions — `>=8`, a bare `8` for exactly that rating, and a hint for "nobody rated this". Outside the review screen's scale a hint is a typo, and `validateBuckets` says so | one Loom read per item |
 | `TAG` | the asset's tags on the `FilterItem`, scoped by the `tagSource` option (`ANY` by default) | comma-separated hints with `!` negation. A bucket matches when **at least one positive hint matches and no negated one does**; a bucket of only negations matches when none are present. Like `MIME`, no `match` falls back to the bucket id | one Loom read per item |
+| `PERSON` | the persons the asset's `face` / `speaker` clusters name, scoped by `personSource` (`ANY`/`FACE`/`VOICE`) and `personEvidence` (`CONFIRMED` by default; `SUGGESTED` also counts unreviewed suggestions). Rejected clusters name nobody | a name (alias, else first and last name; case-insensitive), a person uuid, `*` = anybody known, `nobody`, `!` veto with `TAG`'s rule. No `match` falls back to the bucket id. Unknown asset or unreadable clusters = `other`, never `nobody` | one Loom read per item, **never cached** |
 
 `RATING` and `TAG` route on a **human decision** rather than on the file, which is why
 `classify(...)` takes a `FilterItem` — the item's media *plus* the `AssetResponse` `FilterNode`
@@ -1158,8 +1164,9 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-_Git HEAD revision: `3da90863`_
-_Last updated: 2026-10-10 (§4.3: the `voiceprint` row — the first node whose ports actually emit `struct/embedding`, MANY per voice and ONE pooled)_
+_Git HEAD revision: `6718998a`_
+_Last updated: 2026-10-11 (§2 `struct/persons`; §4.3 `persons` outputs on `facedetect` and `voiceprint`; §4.5 `filterBy=PERSON` and the filter's `persons` input)_
+_Previously: 2026-10-10 (§4.3: the `voiceprint` row — the first node whose ports actually emit `struct/embedding`, MANY per voice and ONE pooled)_
 _Previously: 2026-08-20 (gaps 2 and 3 closed — `origin` on the wire and run/task identity on the
 ledger; see §9). Earlier: 2026-08-16 (moved here from `features/pipeline/` and re-verified against the tree.
 The 26 hand-written descriptor providers are gone — a node declares its contract with

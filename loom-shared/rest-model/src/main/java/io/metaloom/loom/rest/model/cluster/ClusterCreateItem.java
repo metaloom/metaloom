@@ -33,6 +33,12 @@ public class ClusterCreateItem {
 
 	private Integer dimensions;
 
+	/** The person this cluster was recognised as by person matching, or null. Written as a suggestion; never as the verdict. */
+	private String suggestedPersonUuid;
+
+	/** The match score behind suggestedPersonUuid. */
+	private Float suggestedScore;
+
 	private JsonObject meta;
 
 	private List<ClusterMemberCreateItem> members = new ArrayList<>();
@@ -151,4 +157,21 @@ public class ClusterCreateItem {
 		return this;
 	}
 
+	public String getSuggestedPersonUuid() {
+		return suggestedPersonUuid;
+	}
+
+	public ClusterCreateItem setSuggestedPersonUuid(String suggestedPersonUuid) {
+		this.suggestedPersonUuid = suggestedPersonUuid;
+		return this;
+	}
+
+	public Float getSuggestedScore() {
+		return suggestedScore;
+	}
+
+	public ClusterCreateItem setSuggestedScore(Float suggestedScore) {
+		this.suggestedScore = suggestedScore;
+		return this;
+	}
 }

@@ -16,6 +16,7 @@ Machine-readable attribution for every file lives in [CREDITS.json](CREDITS.json
 ```
 demo-content/
 ├── persons/    5 person portraits  (640x640, face-centred crop)
+├── voices/     2 person voice samples (16 kHz mono WAV, synthetic speech)
 ├── users/      5 account portraits (2 crops + 3 uncropped originals)
 ├── images/    16 photographs        (6 scene, max 1920px · 10 artistic, max 2560px)
 └── videos/     2 clips + 4 derived  (1920x1080, H.264, no audio track)
@@ -25,6 +26,18 @@ The initializer resizes every seeded image to 1600 px on the long edge. There is
 service in Loom — a preview *is* the stored binary — so a grid of sixteen 2560 px originals would be
 a ~16 MB first screen. Keep that in mind before adding a picture here: what ships is the source, not
 what the demo serves.
+
+## Voices
+
+`voices/` gives two of the demo persons a voice sample each, seeded as their hero voice. They are
+synthetic speech - two Kokoro TTS voices (Apache-2.0) - cut from the voiceprint sidecar's two-voice
+test fixture (`sidecars/voiceprint/tests/data/two_speakers.wav`), one file per voice. No real
+person's voice ships in the demo: a voiceprint is biometric data.
+
+| File | Person | Voice |
+| --- | --- | --- |
+| `alice-smith-voice.wav` | Alice Smith | Kokoro `af_heart`, 16 s |
+| `john-doe-voice.wav` | John Doe | Kokoro `am_michael`, 14 s |
 
 ## Portraits
 

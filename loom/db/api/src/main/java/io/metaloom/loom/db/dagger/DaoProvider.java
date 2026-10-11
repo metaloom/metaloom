@@ -10,6 +10,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.person.PersonPrintDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.remix.RemixDao;
 import io.metaloom.loom.db.model.failure.FailureReportDao;
@@ -146,6 +147,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default ClusterDao clusterDao() {
 		return daos().clusterDao();
+	}
+
+	default PersonPrintDao personPrintDao() {
+		return daos().personPrintDao();
 	}
 
 	// Social

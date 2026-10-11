@@ -16,6 +16,13 @@ export interface PersonResponse {
    * somebody discovered in a video it resolved to the whole video file.
    */
   avatarUrl?: string;
+  /**
+   * Where the person's hero voice sample is served from, or absent when none is chosen.
+   *
+   * Needs the Authorization header like every other voice sample, so it is fetched as a blob
+   * rather than pointed at by an `<audio src>`.
+   */
+  heroVoiceUrl?: string | null;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name?: string };
@@ -44,6 +51,65 @@ export interface PersonImageResponse {
 export interface PersonImageListResponse {
   data: PersonImageResponse[];
   _metainfo?: PagingInfo;
+}
+
+/**
+ * One voice model's embedding of a voice sample.
+ *
+ * A sample is embedded once per model the voiceprint node runs with; `usable` is false when the
+ * model found nothing to embed, and `error` says why.
+ */
+export interface PersonPrintResponse {
+  uuid: string;
+  sampleUuid: string;
+  /** The cluster type the print compares with, e.g. "speaker". */
+  type: string;
+  model: string;
+  dimensions?: number | null;
+  usable: boolean;
+  error?: string | null;
+  /** When the print was last computed (ISO-8601). */
+  edited?: string | null;
+}
+
+/** One recording of a person's voice. Like their pictures, it belongs to the person, not to an asset. */
+export interface PersonVoiceSampleResponse {
+  uuid: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  /** Absolute path of the bytes; needs the Authorization header. */
+  url: string;
+  hero: boolean;
+  durationMs?: number | null;
+  /** The asset the sample was cut from, or absent for an upload. Provenance only. */
+  sourceAssetUuid?: string | null;
+  sourceClusterUuid?: string | null;
+  sourceTimeFrom?: number | null;
+  sourceTimeTo?: number | null;
+  prints: PersonPrintResponse[];
+  status?: {
+    creator?: { uuid: string; name?: string };
+    created?: string;
+    editor?: { uuid: string; name?: string };
+    edited?: string;
+  };
+}
+
+export interface PersonVoiceSampleListResponse {
+  data: PersonVoiceSampleResponse[];
+}
+
+/**
+ * Cut a voice sample out of a speaker cluster's asset.
+ *
+ * Both times or neither: without them the server takes the speaker's longest turn, at most 30
+ * seconds of it. With them, at most 120 seconds apart.
+ */
+export interface PersonVoiceSampleImportRequest {
+  clusterUuid: string;
+  timeFrom?: number;
+  timeTo?: number;
 }
 
 export interface PersonListResponse {
@@ -108,7 +174,8 @@ export async function deletePerson(token: string, uuid: string): Promise<void> {
 }
 
 /**
- * The face clusters confirmed to be this person, across every asset they appear in.
+ * The clusters confirmed to be this person, across every asset they appear in - faces and
+ * speakers alike, told apart by `type`.
  *
  * The inverse of confirming a cluster.
  */
@@ -181,6 +248,68 @@ export async function setPersonAvatar(token: string, uuid: string, imageUuid: st
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify({ imageUuid: imageUuid ?? "" }),
+  });
+  return handleResponse<PersonResponse>(res);
+}
+
+/** The person's voice samples, each with the prints computed from it. */
+export async function listPersonVoiceSamples(token: string, uuid: string): Promise<PersonVoiceSampleListResponse> {
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/voice-samples`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<PersonVoiceSampleListResponse>(res);
+}
+
+/**
+ * Upload a recording of this person. Audio or video; anything else is a 415.
+ *
+ * No `Content-Type` header: the browser sets it, boundary included.
+ */
+export async function uploadPersonVoiceSample(token: string, uuid: string, file: File): Promise<PersonVoiceSampleResponse> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/voice-samples`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  return handleResponse<PersonVoiceSampleResponse>(res);
+}
+
+/**
+ * Take a copy of a speaker's speech into the person's voice samples.
+ *
+ * The voice counterpart of {@link importPersonImage}: a copy, so it outlives the asset it was cut
+ * from. Needs READ_CLUSTER, READ_ASSET_BINARY and UPDATE_PERSON.
+ */
+export async function importPersonVoiceSample(
+  token: string,
+  uuid: string,
+  request: PersonVoiceSampleImportRequest,
+): Promise<PersonVoiceSampleResponse> {
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/voice-samples/from-cluster`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PersonVoiceSampleResponse>(res);
+}
+
+export async function deletePersonVoiceSample(token: string, uuid: string, sampleUuid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/voice-samples/${encodeURIComponent(sampleUuid)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  await ensureOk(res);
+}
+
+/** Designate one of the person's voice samples as their hero voice. Pass null to clear it. */
+export async function setPersonHeroVoice(token: string, uuid: string, sampleUuid: string | null): Promise<PersonResponse> {
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/hero-voice`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ sampleUuid: sampleUuid ?? "" }),
   });
   return handleResponse<PersonResponse>(res);
 }

@@ -57,6 +57,12 @@ disks the bytes have to be written a second time, and there the node keeps the o
 and says so: the `flag` reads `COPIED`. Removing it is something you switch on, and even then it
 happens only after the destination has been checked to hold the same content.
 
+**A file your storage already holds is left alone.** Storage pools, libraries and buckets file content
+by what it *is* rather than by what it is called, so two identical files belong in one place. When the
+second one arrives the node reports that it is already there and writes nothing — it does not file a
+second copy under a slightly different name, and it does not remove your original on the strength of
+one.
+
 **It does not silently spend an hour copying.** Moving a file within one disk is instant. Moving it
 to a different disk is a full copy of every byte, and for a 40 GB video that is a very different
 operation. The node works out which it would be *before* it starts, and by default declines the

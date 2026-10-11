@@ -55,6 +55,16 @@ public class VoiceprintNodeOptions extends AbstractNodeOptions<VoiceprintNodeOpt
 	@ParamDoc(label = "Persist Windows", description = "Store one embedding per speech window (true) or only one per speaker (false)", order = 500)
 	private boolean persistWindows = true;
 
+	@ParamDoc(label = "Suggest Persons",
+		description = "Compare each speaker with the persons whose voices are known - confirmed speakers and their own voice samples - and suggest "
+			+ "the closest one for review. A suggestion is never a confirmation", order = 600)
+	private boolean suggestPersons = true;
+
+	@ParamDoc(label = "Suggestion Threshold",
+		description = "Cosine similarity a speaker must reach to a person's voice to be suggested as them; 0 uses the model's calibrated value",
+		min = "0", max = "1", step = "0.01", order = 610)
+	private double suggestThreshold = 0.0;
+
 	@ParamDoc(label = "ffmpeg Path", description = "The ffmpeg binary used to demux a video's audio track before upload", order = 900)
 	private String ffmpegPath = "ffmpeg";
 
@@ -144,6 +154,53 @@ public class VoiceprintNodeOptions extends AbstractNodeOptions<VoiceprintNodeOpt
 		return this;
 	}
 
+	public boolean isSuggestPersons() {
+		return suggestPersons;
+	}
+
+	public VoiceprintNodeOptions setSuggestPersons(boolean suggestPersons) {
+		this.suggestPersons = suggestPersons;
+		return this;
+	}
+
+	public double getSuggestThreshold() {
+		return suggestThreshold;
+	}
+
+	public VoiceprintNodeOptions setSuggestThreshold(double suggestThreshold) {
+		this.suggestThreshold = suggestThreshold;
+		return this;
+	}
+
+	/**
+	 * The threshold a suggestion must reach for this model: the configured one, or the model's calibrated value.
+	 *
+	 * <p>
+	 * The defaults are the cosine scores at a 1 % false-accept rate on German parliamentary speech with about 30 s of enrolment, from the recognition
+	 * study the backends were chosen with ({@code voiceprint-eval}, {@code results/transfer.csv}, calibration set VP-DE): ReDimNet2-B6 0.43,
+	 * WeSpeaker ResNet34 0.46, SpeechBrain ECAPA 0.48. A model the study did not measure gets a conservative 0.5. Each backend's score distribution
+	 * differs, which is why there is no single number.
+	 * </p>
+	 *
+	 * @param modelId the full model id the sidecar reported, e.g. {@code redimnet2-b6-vox2-ft_lm}
+	 */
+	public float resolvedSuggestThreshold(String modelId) {
+		if (suggestThreshold > 0) {
+			return (float) suggestThreshold;
+		}
+		String id = modelId == null ? "" : modelId.toLowerCase(java.util.Locale.ROOT);
+		if (id.startsWith("redimnet")) {
+			return 0.43f;
+		}
+		if (id.startsWith("wespeaker") || id.startsWith("pyannote/wespeaker")) {
+			return 0.46f;
+		}
+		if (id.startsWith("speechbrain")) {
+			return 0.48f;
+		}
+		return 0.5f;
+	}
+
 	public String getFfmpegPath() {
 		return ffmpegPath;
 	}
@@ -190,6 +247,9 @@ public class VoiceprintNodeOptions extends AbstractNodeOptions<VoiceprintNodeOpt
 		}
 		if (ffmpegPath == null || ffmpegPath.isBlank()) {
 			errors.add("ffmpegPath must not be empty");
+		}
+		if (suggestThreshold < 0 || suggestThreshold > 1) {
+			errors.add("suggestThreshold must be a cosine similarity in [0, 1], got " + suggestThreshold);
 		}
 
 		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
