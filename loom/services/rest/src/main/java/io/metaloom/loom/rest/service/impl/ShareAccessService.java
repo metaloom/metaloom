@@ -108,6 +108,45 @@ public class ShareAccessService {
 	}
 
 	/**
+	 * The visitor holding the session on this request. Call after {@link #requireSession(LoomRoutingContext, String)}, which established that the
+	 * token is valid.
+	 *
+	 * <p>
+	 * A token issued before visitor ids existed (V2.120) is valid but names nobody, and nobody can own feedback. It is answered with 401 rather than
+	 * 403 so the viewer re-shows the gate and the visitor comes back with a token that does name them - at most twelve hours after the upgrade.
+	 * </p>
+	 */
+	public UUID requireVisitor(LoomRoutingContext lrc, String slug) {
+		UUID visitorId = tokens.visitorOf(sessionToken(lrc), slug);
+		if (visitorId == null) {
+			throw new LoomRestException(401, LoomRestErrorCode.BAD_REQUEST,
+				"This share session is missing or has expired. Open the link again.");
+		}
+		return visitorId;
+	}
+
+	/**
+	 * Fail with 403 unless the piece of feedback was written by this visitor.
+	 *
+	 * <p>
+	 * Everybody holding a link sees everything written through it, but may change or delete only their own. Without this, one person a link was
+	 * forwarded to could delete every other reviewer's comments by uuid. 403 rather than 404: the visitor is looking at the row, so its existence is no
+	 * secret, and "not yours" is the explanation the viewer needs. Rows predating V2.120 carry no visitor and belong to nobody.
+	 * </p>
+	 *
+	 * @param authorVisitorId
+	 *            the visitor id stored on the row, or null
+	 * @param visitorId
+	 *            the visitor making the request
+	 */
+	public void requireAuthor(UUID authorVisitorId, UUID visitorId) {
+		if (authorVisitorId == null || !authorVisitorId.equals(visitorId)) {
+			throw new LoomRestException(403, LoomRestErrorCode.MISSING_PERM,
+				"You can only change or delete feedback you left yourself.");
+		}
+	}
+
+	/**
 	 * Resolve the share, require a session, and require that the named asset is part of what was shared.
 	 *
 	 * <p>

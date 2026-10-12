@@ -36,6 +36,12 @@
 
 ## Task 2: Persist LLM detections through the detection endpoints
 
+**Interim state (2026-10-11):** until this lands, the tab is a labelled preview - a warning banner
+("Preview — sample data, not connected to a backend"), New Prompt / Edit / Run disabled with a tooltip,
+the never-saving create dialog removed, and no api import at all (the `listAssets` lookup below only
+ever resolved sample ids that match no asset). See [LOOM_UI.md](LOOM_UI.md) §7.5.2 and
+`e2e/llm-detection-preview-mocked.spec.ts`. Implementing this task means re-enabling those actions.
+
 **Argumentation Summary:** `features/detection/LLMDetectionManagement.tsx` imports exactly one api
 module — `listAssets` from `api/assets.ts`. Every prompt definition and every result lives in local
 component state and is lost on unmount. Its sibling `ObjectDetectionManagement.tsx` persists through

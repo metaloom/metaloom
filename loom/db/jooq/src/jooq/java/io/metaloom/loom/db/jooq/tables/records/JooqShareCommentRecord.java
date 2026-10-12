@@ -11,8 +11,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record9;
-import org.jooq.Row9;
+import org.jooq.Record10;
+import org.jooq.Row10;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * - which also matters before this text reaches the chat agent
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareCommentRecord> implements Record9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime> {
+public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareCommentRecord> implements Record10<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -156,6 +156,24 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
         return (LocalDateTime) get(8);
     }
 
+    /**
+     * Setter for <code>public.share_comment.visitor_id</code>. The share
+     * visitor who wrote the comment, from the signed session token. NULL for
+     * rows predating V2.120, which no visitor may change
+     */
+    public void setVisitorId(UUID value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.share_comment.visitor_id</code>. The share
+     * visitor who wrote the comment, from the signed session token. NULL for
+     * rows predating V2.120, which no visitor may change
+     */
+    public UUID getVisitorId() {
+        return (UUID) get(9);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -166,17 +184,17 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     }
 
     // -------------------------------------------------------------------------
-    // Record9 type implementation
+    // Record10 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row10<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime, UUID> fieldsRow() {
+        return (Row10) super.fieldsRow();
     }
 
     @Override
-    public Row9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime> valuesRow() {
-        return (Row9) super.valuesRow();
+    public Row10<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, LocalDateTime, UUID> valuesRow() {
+        return (Row10) super.valuesRow();
     }
 
     @Override
@@ -225,6 +243,11 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     }
 
     @Override
+    public Field<UUID> field10() {
+        return JooqShareComment.SHARE_COMMENT.VISITOR_ID;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -270,6 +293,11 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     }
 
     @Override
+    public UUID component10() {
+        return getVisitorId();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -312,6 +340,11 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     @Override
     public LocalDateTime value9() {
         return getEdited();
+    }
+
+    @Override
+    public UUID value10() {
+        return getVisitorId();
     }
 
     @Override
@@ -369,7 +402,13 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     }
 
     @Override
-    public JooqShareCommentRecord values(UUID value1, UUID value2, UUID value3, UUID value4, UUID value5, String value6, String value7, LocalDateTime value8, LocalDateTime value9) {
+    public JooqShareCommentRecord value10(UUID value) {
+        setVisitorId(value);
+        return this;
+    }
+
+    @Override
+    public JooqShareCommentRecord values(UUID value1, UUID value2, UUID value3, UUID value4, UUID value5, String value6, String value7, LocalDateTime value8, LocalDateTime value9, UUID value10) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -379,6 +418,7 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
         value7(value7);
         value8(value8);
         value9(value9);
+        value10(value10);
         return this;
     }
 
@@ -396,7 +436,7 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
     /**
      * Create a detached, initialised JooqShareCommentRecord
      */
-    public JooqShareCommentRecord(UUID uuid, UUID shareUuid, UUID assetUuid, UUID parentUuid, UUID shareAnnotationUuid, String text, String authorName, LocalDateTime created, LocalDateTime edited) {
+    public JooqShareCommentRecord(UUID uuid, UUID shareUuid, UUID assetUuid, UUID parentUuid, UUID shareAnnotationUuid, String text, String authorName, LocalDateTime created, LocalDateTime edited, UUID visitorId) {
         super(JooqShareComment.SHARE_COMMENT);
 
         setUuid(uuid);
@@ -408,5 +448,6 @@ public class JooqShareCommentRecord extends UpdatableRecordImpl<JooqShareComment
         setAuthorName(authorName);
         setCreated(created);
         setEdited(edited);
+        setVisitorId(visitorId);
     }
 }

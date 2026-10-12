@@ -480,8 +480,8 @@ cannot disagree.
 ### 6.1 Row-level ACL — still absent, by design
 
 🔴 Nothing in Loom is row-level permission aware: `AbstractCRUDEndpointService.list()` does one global
-`checkPerm(READ_X)` then `dao().loadPage(...)` with no user context, and the `resource` column on
-`role_permission`/`user_permission`/`token_permission` is written as `"all"` and never read. A global
+`checkPerm(READ_X)` then `dao().loadPage(...)` with no user context, and the grant tables have no
+`resource` column at all (dropped by `V2.64` and `V2.118`) — permissions are global. A global
 gate therefore puts search at exact parity with the rest of the API. `SearchRequest.userUuid` is
 populated from day 1 and the array columns exist, so switching on row-level ACL is a
 `WHERE library_uuids && :allowed` clause — **no reshaping, no reindex**.
@@ -568,8 +568,8 @@ Unrelated to search, but it will stop your build.
 `asset-search-mocked` (9), `library-search-mocked` (11), `list-search-mocked` (7),
 `search-indices-mocked`, and `search-backend` (14) against a live server. ⚠️ Run Playwright and vitest through `./node_modules/.bin/…` — `npx` hangs here.
 
-⚠️ Grant test permissions via **role → group → user**, never a direct `user_permission` row — its PK is
-`user_uuid`, so a user can hold exactly one.
+⚠️ Grant test permissions via **role → group → user** — the path real users get permissions by.
+(`user_permission`'s PK was `user_uuid` alone until `V2.118`; a user may now hold any number.)
 ⚠️ The test-DB pool provisions in increments of 10 (max 60); a class with 33 methods outruns it. That
 is why the DB-side tests are split into three classes of ≤ 15.
 
@@ -744,13 +744,13 @@ Every unchecked box below has a numbered work item in
 - [ ] `?sort=` broken for non-UUID columns (§10)
 - [ ] `asset_doc_comp` has an FTS index and no producer
 - [ ] MCP bypasses REST authorization entirely — the tools authorize the call, not the answer (§2.2)
-- [ ] `user_permission` allows only one direct grant per user
+- [x] `user_permission` allowed only one direct grant per user — fixed by `V2.118`
 - [ ] Two `LoomRestErrorCode` classes share a package
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `5354b65d`_
-_Last updated: 2026-08-16 (GraphQL `Query.search` shipped — Task 7. §0, §2.2, §5, §6, §8, §9 and §12
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (`user_permission` / `resource` facts corrected for V2.118). Earlier: 2026-08-16 (GraphQL `Query.search` shipped — Task 7. §0, §2.2, §5, §6, §8, §9 and §12
 Phase 1 updated: a fourth SPI caller that **does** narrow per type, because `GraphQLPermissionChecker`
 is the non-throwing check narrowing needs; the map moved into `SearchTypePermissions` (`loom-db-api`)
 so REST and GraphQL cannot drift. Two things found while wiring it and recorded in §2.2: highlights are

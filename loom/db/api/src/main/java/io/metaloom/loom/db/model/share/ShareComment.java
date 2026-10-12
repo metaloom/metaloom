@@ -44,6 +44,14 @@ public interface ShareComment extends Element<ShareComment> {
 
 	ShareComment setAuthorName(String authorName);
 
+	/**
+	 * The share visitor who wrote this, from the signed session token (V2.120). Only that visitor may change or delete it through the link. Null on
+	 * rows predating V2.120, which no visitor may change.
+	 */
+	UUID getVisitorId();
+
+	ShareComment setVisitorId(UUID visitorId);
+
 	Instant getCreated();
 
 	ShareComment setCreated(Instant created);

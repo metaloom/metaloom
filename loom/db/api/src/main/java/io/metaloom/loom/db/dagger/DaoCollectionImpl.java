@@ -31,6 +31,7 @@ import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.vectorconfig.VectorConfigDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
@@ -87,6 +88,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<PipelineRunItemDao> pipelineRunItemDao;
 	private final Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao;
 	private final Lazy<AssetPoolDao> assetPoolDao;
+	private final Lazy<VectorConfigDao> vectorConfigDao;
 	private final Lazy<PersonDao> personDao;
 	private final Lazy<DetectionDao> detectionDao;
 	private final Lazy<ChatDao> chatDao;
@@ -113,7 +115,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
 		Lazy<PipelineRunDao> pipelineRunDao, Lazy<PipelineVersionDao> pipelineVersionDao,
 		Lazy<PipelineRunItemDao> pipelineRunItemDao, Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao,
-		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao, Lazy<PersonPrintDao> personPrintDao,
+		Lazy<AssetPoolDao> assetPoolDao, Lazy<VectorConfigDao> vectorConfigDao, Lazy<PersonDao> personDao, Lazy<PersonPrintDao> personPrintDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
 		Lazy<SkillDao> skillDao, Lazy<NotificationDao> notificationDao, Lazy<SkillVersionDao> skillVersionDao,
 		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
@@ -152,6 +154,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.pipelineRunItemDao = pipelineRunItemDao;
 		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
 		this.assetPoolDao = assetPoolDao;
+		this.vectorConfigDao = vectorConfigDao;
 		this.personDao = personDao;
 		this.personPrintDao = personPrintDao;
 		this.detectionDao = detectionDao;
@@ -335,6 +338,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetPoolDao assetPoolDao() {
 		return assetPoolDao.get();
+	}
+
+	@Override
+	public VectorConfigDao vectorConfigDao() {
+		return vectorConfigDao.get();
 	}
 
 	@Override

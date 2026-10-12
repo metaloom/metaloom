@@ -1244,7 +1244,7 @@ the fixture omits is a field nothing checks the stored representation of.
 | SQL migrations | `loom/db/flyway/…/db/migration/V2.{19,29,30,31,32,56,60}*` |
 | Demo definitions (de-facto fixtures) | `loom/core/…/boot/DemoDatabaseInitializer.java` |
 | UI editor + port mirrors | `loom-ui/src/features/pipeline/{PipelineEditor,portResolvers,contentTypes}.*` |
-| UI live monitor / API clients | `loom-ui/src/Pipeline/PipelineArea.tsx`, `loom-ui/src/api/{pipelines,pipelineEvents}.ts` |
+| UI live monitor / API clients | `loom-ui/src/features/pipeline/`, `loom-ui/src/api/{pipelines,pipelineEvents}.ts` |
 | MCP tools (chat: list / show a pipeline) | `loom/services/mcp/…/tool/impl/{ListPipelinesTool,GetPipelineTool}.java` — [MCP.md §5.6–5.7](../../loom/MCP.md) |
 | Compact graph rendering in chat | `loom-ui/src/features/chat/{PipelineGraphCard.tsx,pipelineGraphLayout.ts}` — [ui/CHAT.md §6.1](../../loom/ui/CHAT.md) |
 

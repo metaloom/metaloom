@@ -51,8 +51,9 @@ When off, the link is read-only.
 [TIP]
 ====
 *Send one link per reviewer.* A link carries one name — the first person to open it. If two people
-use the same link, their notes appear under the same name and either can delete the other's. Making
-a second link takes a few seconds and keeps their feedback apart.
+use the same link, their notes appear under the same name. Each of them can still only change or
+delete what they wrote themselves, but you will not be able to tell their notes apart. Making a
+second link takes a few seconds and keeps their feedback clearly separate.
 ====
 
 To withdraw a link, delete it. The URL stops working immediately, and anything written through it is
@@ -94,6 +95,10 @@ the same detail whether the review happens on a large monitor or a phone.
 
 Comments::
 A short thread, with one level of replies.
+
+Everybody who opens the link sees all the feedback left through it, but each person can only delete
+their own comments, marks and reactions. If their session runs out and they open the link again in
+the same browser tab, their earlier notes are still theirs to change.
 
 You are notified whenever somebody leaves feedback, and everything they said is attached to the link
 you created, so it stays with the material rather than in your inbox.

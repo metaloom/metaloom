@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { ensureOk } from "./http";
 import { BackendChatReference, BackendChatVisual } from "./chat";
 
 /**
@@ -195,10 +196,7 @@ export async function streamChatMessage(
   if (res.status === 409) {
     throw new AgentBusyError();
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   if (!res.body) {
     throw new Error("Streaming is not supported by this environment");
   }
@@ -229,8 +227,5 @@ export async function cancelChatStream(token: string, chatUuid: string): Promise
       Authorization: `Bearer ${token}`,
     },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

@@ -24,9 +24,8 @@
 #1 ledger provenance ──┬─> WORKFLOW Task 9 (AI review record)
                        └─> ARCH Task 5 (batch REST writes — must NOT land first)
 #2 control channel     ── independent (loom-ui pre-login socket check gates step 1)
-#3 schema keys ────────┬─> PERSISTENCE Task 6 (VectorConfigDao) [DB Task 24]
-                       ├─> every endpoint permission test        [DB Task 15]
-                       └─> DB Task 22 must follow DB Task 16
+#3 schema keys ────────── DB Task 22 must follow DB Task 16
+                          (DB Tasks 15 + 24 and PERSISTENCE Task 6 landed 2026-10-11)
 #4 node trust boundary ── independent (WORKFLOW Task 14 shares the enforcement point)
 #5 fingerprint FP1+FP2 ──> FP3 (video4j) ──> FP4 (cortex) ──> LUCENE Task 5
 #6 search SEARCH 2/3/25 ── independent · SEARCH 18 ──> SEARCH 19 · SEARCH 20 ──> image search
@@ -80,20 +79,19 @@ user-authenticated.
 
 ## 3. Fix the primary keys that discard data
 
-**Source:** [DATABASE_TASKS.md](DATABASE_TASKS.md) Tasks 15 and 24 (both 🔴 HIGH), then 16, then 22.
+**Source:** [DATABASE_TASKS.md](DATABASE_TASKS.md) Task 16, then 22.
 
-`user_permission` and `token_permission` have carried `PRIMARY KEY (user_uuid)` /
-`(token_uuid)` since `V2.1`, so a subject can hold **exactly one direct grant, ever** — a second
-insert is a key violation, not an added permission. The suite has hidden this by granting through
-group+role throughout. `vector_config` has no primary key at all, which is why
-`JooqVectorConfigRecord` is generated as a `TableRecordImpl` and **blocks**
-[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6.
+**Landed 2026-10-11:** DATABASE_TASKS Tasks 15 and 24 — `V2.118` re-keyed `user_permission` /
+`token_permission` on `(subject, permission)` (a subject could hold one direct grant, ever), and
+`V2.119` gave `vector_config` its primary key and the missing actor FKs, which unblocked
+[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6 (`VectorConfigDao`, also landed). What is left
+of this entry is the soft references in the pipeline tables (Task 16) and the FK indexes (Task 22).
 
-**Why here.** Highest correctness payoff per line of SQL left in the schema, independent of #1 and #2,
-and it unblocks writing permission tests the honest way. Task 22 must land **after** Task 16 so the
-new columns are indexed in one pass. ⚠️ Each is its own migration — do not batch them; each needs
-`loom/db/jooq/generate.sh` **and** `./setup-pool.sh` with `loom/db/flyway` installed first, each
-writes `V2.100`, and whoever lands second renumbers (sorting numerically, not lexically).
+**Why here.** Still the highest correctness payoff per line of SQL left in the schema, independent of
+#1 and #2. Task 22 must land **after** Task 16 so the new columns are indexed in one pass. ⚠️ Each is
+its own migration — do not batch them; each needs `loom/db/jooq/generate.sh` **and**
+`./setup-pool.sh` with `loom/db/flyway` installed first. The task bodies name `V2.100` as a
+placeholder; the next free version today is `V2.121` (sort numerically, not lexically).
 
 ---
 
@@ -287,7 +285,7 @@ Ranked, and each is a legitimate substitute if the entry above it is blocked on 
 
 ---
 
-_Git HEAD revision: `daefc256`_
-_Last updated: 2026-08-20 (removed the two DONE entries — failure reporting and the UI failure
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (#3: DATABASE_TASKS 15 and 24 and PERSISTENCE_TASKS 6 landed — V2.118/V2.119; the remainder is Tasks 16 and 22). Earlier: 2026-08-20 (removed the two DONE entries — failure reporting and the UI failure
 path, both landed 2026-08-18 — re-ranked 1–8, promoted PIPELINE 15+16 and ARCH 2 to ranks 9–10).
 Earlier: 2026-08-18 (cross-file ranking of spec/tasks/)_

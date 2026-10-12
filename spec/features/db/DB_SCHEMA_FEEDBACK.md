@@ -16,16 +16,17 @@
 >
 > **Part of this audit is now executable.** [DB_INTEGRITY.md](DB_INTEGRITY.md) turns the structural
 > findings into 29 named checks that run against a live database, from the admin area and from any
-> test. Three findings this file records are detected there today:
+> test. Three findings this file recorded were detected there before the schema was fixed:
 >
 > | Finding | Check |
 > |---|---|
-> | `token.editor_uuid` has no foreign key (V2.1 declares one for `creator_uuid` only) | `DANGLING_TOKEN_EDITOR` |
+> | ~~`token.editor_uuid` has no foreign key (V2.1 declares one for `creator_uuid` only)~~ — resolved: `V2.119` adds `token_editor_uuid_fkey` | `DANGLING_TOKEN_EDITOR` (kept for legacy data) |
 > | ~~`asset_remix.editor_uuid` repeats the same omission (V2.8)~~ — resolved: V2.100 dropped the table; `remix`/`remix_member` declare both actor foreign keys | check retired |
-> | `vector_config` has no primary key and no foreign keys at all (V2.6) | `DANGLING_VECTOR_CONFIG_ACTOR`, `DUPLICATE_VECTOR_CONFIG_UUID` |
+> | ~~`vector_config` has no primary key and no foreign keys at all (V2.6)~~ — resolved: `V2.119` adds `vector_config_pkey` (`uuid` now `NOT NULL`) and `vector_config_creator_uuid_fkey` / `vector_config_editor_uuid_fkey` | `DANGLING_VECTOR_CONFIG_ACTOR`, `DUPLICATE_VECTOR_CONFIG_UUID` (kept for legacy data) |
 >
-> 🔴 **Detection is not a fix.** The constraints are still absent and should be added by a migration
-> of their own; until then these checks are what notices when the absence costs something.
+> The constraints now exist (`V2.119`, no `ON DELETE` action). The checks stay: they describe
+> what an installation may still hold if it ran without the constraints — on such a database the
+> `V2.119` migration fails on the FK and the integrity report names the offending row.
 
 ---
 
@@ -227,6 +228,8 @@ Current state: **no ANN index, and no producer** — no Cortex node writes embed
 writers are `EmbeddingEndpointService` and the test fixture, so the table is effectively empty in
 practice. `vector_config` (`V2.6`), the external-index half of the plan, has no DAO at all
 (tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md)).
+*(2026-10-11: `vector_config` now has a primary key and actor FKs (`V2.119`) and a
+`VectorConfigDao`, but still no writer outside tests — see §10.)*
 
 If search stays in Postgres, `pgvector` with a per-`type` dimension is the answer. If it is
 delegated, `embedding` needs `synced_at` / `index_version` so the exporter knows what is stale.
@@ -345,9 +348,19 @@ unrepresentable.
 
 ## 7. ACL
 
-### 7.1 Permission-table primary keys discard rows — HIGH
+### 7.1 Permission-table primary keys discard rows — ✅ RESOLVED (`V2.64`, `V2.118`)
 
-Unchanged since `V2.1`:
+Resolved differently from the recommendation below: instead of widening the keys to include
+`resource`, both migrations **dropped the `resource` column** and keyed the tables on
+`(subject, permission)` — permissions in Loom are global, and `LoomAuthorizationProvider` never
+read the column. `V2.64` did it for `role_permission`; `V2.118__fix_direct_permission_keys.sql`
+did it for `user_permission` (`PRIMARY KEY (user_uuid, permission)`) and `token_permission`
+(`PRIMARY KEY (token_uuid, permission)`), dropped the unreachable unique indexes, and gave
+`token_permission.token_uuid` `ON DELETE CASCADE`. A user or token may now hold any number of
+direct grants, and `PermissionDao.grantUserPermission` / `grantTokenPermission` are idempotent
+upserts. Covered by `PermissionDaoTest` and `AclCascadeTest`. The original finding follows.
+
+As of `V2.1`:
 
 ```
 role_permission:  PRIMARY KEY (role_uuid, permission)  + UNIQUE INDEX (role_uuid, resource, permission)
@@ -417,7 +430,7 @@ which, per row.
 |---|---|---|---|
 | `asset_doc_comp` (+ GIN `text_search`) | `V2.38` | DAO exists; OCR/Tika write `asset_json_comp` instead | Point the two nodes at it, or drop (§3.1) |
 | `embedding.vector real[]` | `V2.43` | No ANN index, no node producer, effectively zero rows | Blocked on the §4.2 decision |
-| `vector_config` | `V2.6` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
+| `vector_config` | `V2.6` | `VectorConfigDao` exists (PERSISTENCE_TASKS Task 6, with the `V2.119` key and FKs) but nothing outside tests writes it — no REST route, no consumer | Blocked on the §4.2 decision: wire it into the external index, or drop it |
 | ~~`asset_remix`~~ | `V2.8` | Dropped by `V2.100` | Done — replaced by `remix`/`remix_member` ([../remix/REMIX.md](../remix/REMIX.md)) |
 | `asset_user_meta`, `tag_user_meta` | `V2.2`, `V2.8` | No DAO, no hand-written Java | Drop, or spec the feature |
 | `annotation_asset` | `V2.16` | Vestigial M:N alongside `annotation.asset_uuid` | Drop (§5.3) |
@@ -433,8 +446,7 @@ Removed since the audit: `webhook` and the `loom_events` enum (`V2.55`), `asset.
 Original items 1–5 (idempotency keys, provenance, `asset_location` key) and 7, 11, 12 are done.
 What is left, in order:
 
-1. **Fix the ACL primary keys** (§7.1) — likely masking live bugs; smallest migration with the
-   largest payoff.
+1. ~~**Fix the ACL primary keys** (§7.1)~~ — done (`V2.64`, `V2.118`).
 2. **Finish the asset delete cascades** (§2.6) — four join tables, plus flipping the pinning
    assertions in `AssetCascadeTest`.
 3. **Fix `tag_asset`'s primary key** (§5.1) and fold its geometry onto the normalized convention
@@ -517,13 +529,14 @@ What is left, in order:
 - [x] §4.1 `embedding.detection_uuid` + one geometry convention (`V2.43`)
 - [x] §4.4 detection idempotency key (`V2.43`)
 - [x] §6.3 version pointer delete behaviour (`V2.49`)
+- [x] §7.1 permission-table keys — `role_permission` (`V2.64`), `user_permission` / `token_permission` (`V2.118`): keyed on `(subject, permission)`, `resource` dropped
 - [x] §7.2 component permission model documented
+- [x] `vector_config` primary key + actor FKs, `token.editor_uuid` FK (`V2.119`)
 - [x] §8.2 nullable audit columns on machine-written rows (`V2.47`)
 - [x] §8.4 `attachment` "exactly one target" CHECK — **withdrawn**, documented in `V2.44`
 
 ### Open — correctness
 
-- [ ] §7.1 promote the unique index to PK on `role_permission`, `user_permission`, `token_permission`
 - [ ] §2.4 widen `filekey_*` to `bigint`
 - [ ] §8.4 `reaction` unique index on `task_uuid` + `num_nonnulls` CHECK
 - [ ] §4.3 `cluster` name uniqueness → `(type, name)`
@@ -560,7 +573,7 @@ mvn -q install -pl loom/db/flyway
 # the tests that exercise the audited constraints
 mvn -q test -pl loom/db/jooq -Dtest='AssetCascadeTest,AssetComponentKeyTest,EmbeddingDaoTest'
 ```
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (three structural findings are now detected at runtime by the checks in
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (§7.1 resolved by `V2.118`; `vector_config` / `token.editor_uuid` constraints added by `V2.119` — the opening table and §10 updated). Earlier: 2026-08-09 (three structural findings are now detected at runtime by the checks in
 DB_INTEGRITY.md - the two missing editor_uuid foreign keys and vector_config's missing constraints.
 The constraints themselves are still unwritten. Earlier: 2026-08-06 reference sweep, no content changes)_

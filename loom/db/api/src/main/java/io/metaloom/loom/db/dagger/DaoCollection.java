@@ -44,6 +44,7 @@ import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.vectorconfig.VectorConfigDao;
 /**
  * Aggregated list of all loom DAOs.
  */
@@ -141,6 +142,8 @@ public interface DaoCollection {
 	// Asset Pool
 
 	AssetPoolDao assetPoolDao();
+
+	VectorConfigDao vectorConfigDao();
 
 	// Person
 

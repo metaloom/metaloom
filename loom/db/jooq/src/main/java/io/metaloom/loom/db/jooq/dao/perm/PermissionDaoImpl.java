@@ -34,7 +34,7 @@ public class PermissionDaoImpl implements PermissionDao {
 	@Override
 	public ResourcePermissionSet loadPermissionsForUser(UUID userUuid) {
 		// Fetch permissions for effective roles which belong to the user.
-		// role_permission has no resource column (V2.64), so these grants carry a null resource.
+		// No grant table has a resource column any more (V2.64, V2.118), so these grants carry a null resource.
 		// That changes nothing for authorization: LoomAuthorizationProvider only ever reads
 		// getPermission(). Probe role grants by permission alone.
 		List<ResourcePermission> rolePerms = ctx.select(ROLE_PERMISSION.PERMISSION)
@@ -47,7 +47,7 @@ public class PermissionDaoImpl implements PermissionDao {
 			.fetchInto(ResourcePermission.class);
 
 		// Fetch dedicated user permissions
-		List<ResourcePermission> userPerms = ctx.select()
+		List<ResourcePermission> userPerms = ctx.select(USER_PERMISSION.PERMISSION)
 			.from(USER_PERMISSION)
 			.where(USER_PERMISSION.USER_UUID.eq(userUuid))
 			.fetchInto(ResourcePermission.class);
@@ -59,14 +59,14 @@ public class PermissionDaoImpl implements PermissionDao {
 		return permSet;
 	}
 
-	public ResourcePermissionSet loadPermissionsForToken(UUID tokenUUID) {
-		return ctx.select(TOKEN_PERMISSION).where(TOKEN_PERMISSION.TOKEN_UUID.eq(tokenUUID)).fetchOneInto(ResourcePermissionSet.class);
-		// List<ResourcePermission> tokenPerms = fetchByJooqTokenUuid(tokenUUID).stream().map(perm -> {
-		// return new ResourcePermission().setPermission(perm.getPermission().name()).setResource(perm.getResource());
-		// }).collect(Collectors.toList());
-		// ResourcePermissionSet permSet = new ResourcePermissionSet();
-		// permSet.addAll(tokenPerms);
-		// return permSet;
+	@Override
+	public ResourcePermissionSet loadPermissionsForToken(UUID tokenUuid) {
+		ResourcePermissionSet permSet = new ResourcePermissionSet();
+		permSet.addAll(ctx.select(TOKEN_PERMISSION.PERMISSION)
+			.from(TOKEN_PERMISSION)
+			.where(TOKEN_PERMISSION.TOKEN_UUID.eq(tokenUuid))
+			.fetchInto(ResourcePermission.class));
+		return permSet;
 	}
 
 	@Override
@@ -84,15 +84,24 @@ public class PermissionDaoImpl implements PermissionDao {
 
 	@Override
 	public void grantUserPermission(UUID userUuid, Permission perm) {
-		grantUserPermission(userUuid, perm, null);
-
+		Objects.requireNonNull(userUuid, "A valid user uuid must be specified to grant a permission");
+		Objects.requireNonNull(perm, "A valid permission must be specified");
+		// (user_uuid, permission) since V2.118 - re-granting is idempotent, and a user may hold any number of grants.
+		ctx.insertInto(USER_PERMISSION, USER_PERMISSION.USER_UUID, USER_PERMISSION.PERMISSION)
+			.values(userUuid, JooqLoomPermission.valueOf(perm.name()))
+			.onConflict(USER_PERMISSION.USER_UUID, USER_PERMISSION.PERMISSION)
+			.doNothing()
+			.execute();
 	}
 
 	@Override
-	public void grantUserPermission(UUID userUuid, Permission perm, String resource) {
-		Objects.requireNonNull(resource, "A valid resource must be specified to grant a permission");
-		ctx.insertInto(USER_PERMISSION, USER_PERMISSION.USER_UUID, USER_PERMISSION.RESOURCE, USER_PERMISSION.PERMISSION)
-			.values(userUuid, resource, JooqLoomPermission.valueOf(perm.name()))
+	public void grantTokenPermission(UUID tokenUuid, Permission perm) {
+		Objects.requireNonNull(tokenUuid, "A valid token uuid must be specified to grant a permission");
+		Objects.requireNonNull(perm, "A valid permission must be specified");
+		ctx.insertInto(TOKEN_PERMISSION, TOKEN_PERMISSION.TOKEN_UUID, TOKEN_PERMISSION.PERMISSION)
+			.values(tokenUuid, JooqLoomPermission.valueOf(perm.name()))
+			.onConflict(TOKEN_PERMISSION.TOKEN_UUID, TOKEN_PERMISSION.PERMISSION)
+			.doNothing()
 			.execute();
 	}
 }

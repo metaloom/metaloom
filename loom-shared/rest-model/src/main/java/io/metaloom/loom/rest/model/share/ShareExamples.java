@@ -210,6 +210,7 @@ public interface ShareExamples extends ExampleValues {
 		model.setAssetUuid(uuidB());
 		model.setText("The second cut runs long - can we lose the establishing shot?");
 		model.setAuthorName("Maria from Acme");
+		model.setOwn(true);
 		model.setCreated(DATE_OLD);
 		model.setEdited(DATE_OLD);
 		return model;
@@ -249,6 +250,7 @@ public interface ShareExamples extends ExampleValues {
 		model.setAreaHeight(0.22);
 		model.setText("The logo is clipped on the right here.");
 		model.setAuthorName("Maria from Acme");
+		model.setOwn(true);
 		model.setCreated(DATE_OLD);
 		model.setEdited(DATE_OLD);
 		return model;
@@ -274,6 +276,7 @@ public interface ShareExamples extends ExampleValues {
 		model.setType("APPROVE");
 		model.setAssetUuid(uuidB());
 		model.setAuthorName("Maria from Acme");
+		model.setOwn(true);
 		model.setCreated(DATE_NEW);
 		return model;
 	}

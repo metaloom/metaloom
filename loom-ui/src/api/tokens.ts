@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API token response ───────────────────
 
@@ -69,8 +69,5 @@ export async function deleteToken(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok && res.status !== 204) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

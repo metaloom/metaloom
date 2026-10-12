@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST notification models ──────────────────
 
@@ -48,10 +48,7 @@ export interface NotificationListResponse {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 async function expectNoContent(res: Response): Promise<void> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── API ───────────────────────────────────────────────────────────────

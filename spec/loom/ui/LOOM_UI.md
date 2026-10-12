@@ -96,12 +96,12 @@ loom-ui/
 └── package.json
 ```
 
-> **Dead code:** `src/Admin/`, `src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/Pipeline/`,
-> `src/User/`, `src/Welcome/` and `src/Theme.tsx` are the pre-`features/` generation and are
-> **not reachable from `main.tsx`**. Nothing imports them. Do not extend them; when touching
-> a screen, work under `src/features/`. `src/Login/` and the legacy entry point `src/index.js`
-> were part of this set and have been **deleted** — `Login.tsx` logged the submitted password to
-> the console. The rest goes with [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md) Task 5.
+> **The pre-`features/` generation is gone.** `src/Admin/`, `src/Asset/`, `src/Content/`,
+> `src/Dashboard/`, `src/Pipeline/`, `src/User/`, `src/Welcome/` and `src/Theme.tsx` were not
+> reachable from `main.tsx` and were deleted on 2026-10-11, after `src/Login/` and `src/index.js`
+> (2026-08-16; `Login.tsx` logged the submitted password to the console). Every screen lives under
+> `src/features/`. Three images only the deleted files used (`src/img/logo_word_min.svg`,
+> `logo_word_3d.png`, `logo_picto.svg`) were left in place.
 
 > **There is no `src/theme/tokens.ts`.** Both token sets and `buildTheme`/`setActiveTokens`
 > live in `src/theme/index.ts`; consumers do `import { tokens } from "../../theme"`.
@@ -389,6 +389,7 @@ binary itself (`GET /assets/:uuid/binary/data`), which only resolves for assets 
 | Video | An `<img>` at **`/assets/:uuid/poster?t=&w=&mt=`** — a frame ffmpeg extracts on demand and caches, a few KB. It was a muted `<video preload="metadata" src="…#t=1">` at the binary URL, which asked the browser to decode a frame out of the original: it opened a connection to a multi-gigabyte asset to draw a 180px tile, and for a Matroska container it could not decode at all, so the tile did the download *and* fell back to the placeholder. |
 | Audio, PDF, unknown | `MediaPlaceholder`. Nothing in a browser renders them. |
 | Auth | `<img>`/`<video>` cannot carry `Authorization`. The cookie is the fallback and is **not** enough: it is `Secure`/`__Host-` prefixed, so a browser drops it on any plain-HTTP deployment and every preview 401s into a placeholder. The poster and stream routes therefore also accept a short-lived asset-scoped token as `?mt=` (`POST /assets/:uuid/media-token`, `useMediaToken`). It is refused everywhere else — see [REST_BINARY_HANDLING.md](../../features/rest/REST_BINARY_HANDLING.md). |
+| Token per asset | `useMediaToken` stores the token together with the asset it was minted for and returns it only while that is still the requested asset (or a valid cached one for the new asset). It used to keep the previous asset's token in state until the new one arrived, so a caller that hands the same instance the next asset (the unkeyed workflow queue) built the first poster/stream URL of the new asset with the old `?mt=`. Pinned by `e2e/media-token-switch-mocked.spec.ts` |
 | Failure | `onError` swaps in `MediaPlaceholder`. A missing preview is the normal case, not an error to surface. |
 
 The share viewer's grid follows the same rule against `sharedBinaryUrl` (`ShareTile`), so the
@@ -553,6 +554,16 @@ and remounted, throwing away each crop's object URL and re-fetching it. The stri
 placeholder icons and the tile under the pointer fired a fresh `mouseenter` — the "strange
 flickering effect". `FaceTile` is now a memoised module-scope component, and the call sites render
 it directly rather than through a wrapper that would reintroduce the churn.
+
+**Faces are grouped by real cluster membership.** `AssetDetail` loads the asset's clusters
+(`GET /assets/:uuid/clusters`), skips speaker clusters, and fetches each face cluster's members
+(`GET /clusters/:uuid/members`) to fill `FaceCluster.faceIds` with detection uuids.
+`groupFacesByCluster` (exported from `FaceDetectionPanel.tsx`) then puts every face in exactly one
+place: the first cluster that lists it, or the unclustered list. A cluster whose members fail to
+load keeps an empty list, so its faces show as unclustered rather than vanishing. The summary counts
+the clusters that hold at least one of this asset's faces. Before, `faceIds` was hard-coded `[]`
+and the unclustered list keyed on `face.clusterId`, which the backend never writes, so the summary
+always read "0 clusters". Pinned by `e2e/asset-face-clusters-mocked.spec.ts`.
 
 ### 7.2.3 The asset-detail sidebar
 
@@ -869,8 +880,18 @@ Do not reach for it anywhere a list route backs the screen. The whole point of t
 
 The two detection screens got a second **filter** rather than a sort, because their rows carry no
 timestamps: object detection filters by confidence band, face detection by whether a cluster has a
-person attached. `LLMDetectionManagement` still renders `MOCK_RESULTS` and was left alone — wiring
-controls to fixture data would be theatre.
+person attached. `LLMDetectionManagement` renders sample data and got neither — wiring controls to
+fixture data would be theatre.
+
+**The LLM detection tab is a labelled preview.** There is no backend for vision prompts or their
+results. The tab is kept, but it opens with a warning `Alert`
+(`llmdetection-preview-notice`: "Preview — sample data, not connected to a backend"), the sample
+prompts carry a "Sample" chip, and every action that would need a server — New Prompt, Edit, Run —
+is disabled with a tooltip saying why (the create dialog was removed: its prompts were never
+saved). Sample results name sample files, never asset uuids, so nothing on the screen looks up real
+assets. All strings go through `llmDetection.*` in `en.json`/`de.json`. Pinned by
+`e2e/llm-detection-preview-mocked.spec.ts`. The backend task is
+[TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) Task 2.
 
 ### 7.6 Chat workspace split
 
@@ -1337,13 +1358,14 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `API_BASE_URL` default is absolute | Falls back to `http://localhost:8092/api/v1`; cookie-authenticated previews and same-origin assumptions need `VITE_API_BASE_URL=/api/v1` (§5) |
 | `VITE_WS_URL` / `VITE_MCP_URL` don't exist | Setting them has no effect; the WS URL derives from `VITE_API_BASE_URL` |
 | No `src/theme/tokens.ts` | Import `tokens` from `src/theme` (`index.ts`) |
-| Dead capitalised directories | `src/Admin`, `src/Asset`, … are unreferenced legacy; editing them changes nothing. `src/Login` and `src/index.js` are already gone; drop this row once the rest follows (TASK_UI_PIPELINE.md Task 5) |
 | No `console.log` of credentials | `src/sourceHygiene.test.ts` scans every non-test source for a `console.*` call mentioning password/secret/credential/api-key and fails the vitest run. It exists because the deleted `Login.tsx` did exactly that |
 | Auth is in-memory | Every reload lands on the login form — on the *same* URL, so signing in resolves to the requested route |
 | A `catch` that only `console.error`s is a bug | A **mutation** must call `useFailure().reportFailure(action, e)`, which toasts and offers a report. A **load** must additionally render `LoadFailure` — a toast fades and the screen then reads as *empty*, and "no libraries" is a different, far more alarming statement than "the libraries could not be loaded". `EmptyState` is only for a request that succeeded and found nothing. See [../../features/ui/FAILURE_REPORTING.md](../../features/ui/FAILURE_REPORTING.md) |
 | Close the dialog **inside** the try | Resetting a form or closing a dialog after the `try` block makes a rejected write look exactly like an accepted one. `FaceDetectionManagement` did this on three handlers, so a user could walk away believing in a person that does not exist |
 | Never match on an error's message | Branch on `ApiError.status`. `DbIntegrityAdmin` tested `message.startsWith("API error 403")` and broke the moment the shared handler started surfacing the server's own message |
 | Global 401 handling exists now | `src/api/http.ts` dispatches `loom:session-expired`; `AuthProvider` logs out and raises exactly **one** toast however many requests failed. The six modules with their own typed error class call `noteUnauthorized` to join in — except `shares.ts`, deliberately: a 401 there is a lapsed *share* session, not a Loom one |
+| No inline `throw new Error` on a response | A failed response goes through `handleResponse` (body read) or `ensureOk` (body not read - DELETEs, fire-and-forget POSTs, blob downloads). Both throw `ApiError` with status and trace id and fire the session-expired event on a 401. `src/api/ensureOkMigration.test.ts` is a table of every former inline site; add a row when you add a call. Deliberate exceptions: `auth.getMe` (a 401 right after login must not fail the login), the XHR upload paths in `assets.ts`/`chatAttachments.ts` (no `Response`), and the share clients |
+| Token-less requests pass `anonymous: true` | `RequestContext.anonymous` stops a 401 from ending the session. The pre-login node-descriptor and content-type routes use it; `fetchNodeAvailability` uses it only when called without a token. A 401 on a request that carried no credentials says nothing about the session |
 | Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
 | Several view preferences **are** persisted | `LibraryView`'s selected library (`loom.library.lastSelected`), the Detection → Faces thumbnail step (`loom.faceDetection.clusterThumbStep` — a new key, because the value used to be `"small"｜"medium"｜"large"` and a stored word has to read as "nothing stored" rather than as step `NaN`), the asset viewer's folded sections (`loom.assetDetail.sections`) and player height (`loom.assetDetail.mediaHeight`), and the playback volume (`loom.player.volume`). Both wrap the `localStorage` call in try/catch — private browsing throws, and losing a preference must never throw while rendering. `LibraryView` used to open on `libs[0]` unconditionally, which on a server that had seeded itself example content meant opening on an example library while the user's own sat further down the list, reading from the main pane as though it had gone |
 | A tag field suggests, it does not constrain | `AssetDetail` and the workflow tag editors use a `freeSolo` `Autocomplete` over `loadTagVocabulary` (`src/api/tags.ts`, unscoped `listTags`). **Do not add a second `onKeyDown` Enter handler** to the `TextField` — freeSolo already reports Enter-on-a-typed-word through `onChange` as `createOption`, and both firing tags the asset twice |
@@ -1509,8 +1531,8 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (Speakers tab, person voice section, face list scoped to `type=face`, suggestion confirm). Earlier: 2026-08-16 (`src/Login/` and the legacy entry point `src/index.js` deleted —
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (follow-ups from `spec/ideas.md`: `useMediaToken` binds the token to its asset; the LLM detection tab is a labelled preview; the inline `throw new Error` response sites in `src/api/` now use `ensureOk`, plus `RequestContext.anonymous`; the asset Faces tab groups by `/clusters/:uuid/members`; the legacy capitalised directories are deleted. Earlier the same day: Speakers tab, person voice section, face list scoped to `type=face`, suggestion confirm). Earlier: 2026-08-16 (`src/Login/` and the legacy entry point `src/index.js` deleted —
 `Login.tsx` logged the submitted password to the console; §3's dead-code callout and §11.2 updated,
 and §8.1 gained `src/sourceHygiene.test.ts`, the guard that keeps a credential out of a `console.*`
 call. Earlier: 2026-08-13 (documentation coachmarks — §7.10: `src/help/topics.ts`, `HelpHint`, and

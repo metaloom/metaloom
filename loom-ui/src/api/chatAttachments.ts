@@ -1,6 +1,6 @@
 import { AssetResponse } from "./assets";
 import { API_BASE_URL } from "./config";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 /**
  * Files attached to a chat: `/chats/:uuid/attachments`.
@@ -118,10 +118,7 @@ export async function deleteChatAttachment(token: string, chatUuid: string, atta
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /**
@@ -159,10 +156,7 @@ export async function fetchChatAttachmentBlob(token: string, chatUuid: string, a
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   return res.blob();
 }
 

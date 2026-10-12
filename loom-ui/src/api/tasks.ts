@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import { CommentResponse } from "./comments";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API task models ──────────────────────
 
@@ -114,10 +114,7 @@ export async function deleteTask(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── Asset task assignment ─────────────────────────────────────────────
@@ -143,10 +140,7 @@ export async function unassignTaskFromAsset(token: string, assetUuid: string, ta
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── Task assignees (people) ───────────────────────────────────────────
@@ -181,10 +175,7 @@ export async function unassignTaskFromUser(token: string, taskUuid: string, user
     `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees/users/${encodeURIComponent(userUuid)}`,
     { method: "DELETE", headers: authHeaders(token) },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 export async function unassignTaskFromGroup(token: string, taskUuid: string, groupUuid: string): Promise<void> {
@@ -192,8 +183,5 @@ export async function unassignTaskFromGroup(token: string, taskUuid: string, gro
     `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees/groups/${encodeURIComponent(groupUuid)}`,
     { method: "DELETE", headers: authHeaders(token) },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

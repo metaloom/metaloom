@@ -103,8 +103,8 @@ alike in the catalogue table is indistinguishable from one row listed twice.
 
 | Code | Name | Sev | What it finds |
 |---|---|---|---|
-| `DANGLING_TOKEN_EDITOR` | API token editor | ERROR | `token.editor_uuid` naming no user. V2.1 declares the FK for `creator_uuid` and omits this one |
-| `DANGLING_VECTOR_CONFIG_ACTOR` | Vector config creator and editor | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declares no PK and no FKs at all |
+| `DANGLING_TOKEN_EDITOR` | API token editor | ERROR | `token.editor_uuid` naming no user. V2.1 declared the FK for `creator_uuid` and omitted this one; **`V2.119` adds `token_editor_uuid_fkey`**, so the schema now prevents the condition and the check guards legacy data only |
+| `DANGLING_VECTOR_CONFIG_ACTOR` | Vector config creator and editor | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declared no PK and no FKs at all; **`V2.119` adds both actor FKs** - legacy data only from then on |
 | `DANGLING_SEARCH_DOCUMENT` | Search document target | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers. **Transcripts are special-cased**, see below |
 | `STALE_SEARCH_TOMBSTONE` | Search deletion tombstone | WARN | A `search_document_deleted` row whose subject exists again |
 | `DANGLING_MEMORY_ENTRY_SCOPE` | Memory entry scope target | WARN | `memory_entry.scope_uuid` unresolvable in the table its `scope` names |
@@ -172,7 +172,7 @@ that check compares in lower case.
 | Code | Name | Sev | What it finds |
 |---|---|---|---|
 | `LOOM_SINGLETON` | Single instance row | ERROR | More than one `loom` row. Reports the **surplus**, not the total |
-| `DUPLICATE_VECTOR_CONFIG_UUID` | Vector config identity | ERROR | Duplicate or null `vector_config.uuid` - V2.6 declares no PK |
+| `DUPLICATE_VECTOR_CONFIG_UUID` | Vector config identity | ERROR | Duplicate or null `vector_config.uuid` - V2.6 declared no PK; **`V2.119` adds `vector_config_pkey`** - legacy data only from then on |
 | `XOR_ASSET_POOL_BACKEND` | Asset pool backend | ERROR | `num_nonnulls(fs_path, s3_bucket) <> 1` |
 | `XOR_TASK_ASSIGNEE` | Task assignee | ERROR | `num_nonnulls(user_uuid, group_uuid) <> 1` |
 | `EMBEDDING_DIMENSION_MISMATCH` | Embedding vector length | ERROR | `array_length(vector,1)` disagrees with `dimensions` |
@@ -188,14 +188,14 @@ Do not add these. Each was considered and rejected for a reason that has not cha
 
 | Candidate | Why not |
 |---|---|
-| Generic sweep over all 236 declared FKs | Postgres enforces them. 236 queries per run for a hit rate of zero. The five columns with *no* FK are checked by name instead |
+| Generic sweep over all 236 declared FKs | Postgres enforces them. 236 queries per run for a hit rate of zero. The columns that had *no* FK are checked by name instead (`token.editor_uuid` and the two `vector_config` actors have one since `V2.119`; their checks remain for legacy data) |
 | Generic NOT NULL sweep | Same - the schema enforces it |
 | `creator_uuid IS NULL` broadly | NULL is *correct* on the 17 machine-written tables (the `asset_*_comp` family, `detection`, `embedding`, `asset_node_result`, `attachment`, `cortex_instance`, `cluster`, `dedup_group`, `node_descriptor`, `notification`, `tag_asset`). Pure noise |
 | `person`/`user` firstname/lastname, `cluster.name`, `annotation.title`, `comment.title`, `detection.label`, `memory_entry.title` null | Legitimately unset. `cluster.name IS NULL` specifically means "unnamed machine proposal" |
 | `asset_node_result.result_ref` resolution | DOMAIN.md declares it advisory and says never to build integrity on it |
 | `pipeline_run_item.sha512` to `asset.sha512sum` | A run item legitimately records input that never became an asset. No signal |
 | `pipeline_run.pipeline_version` (bare int) | No documented join key |
-| `user_permission`/`token_permission` one-row PK | A schema bug (DATABASE_TASKS Task 15), not a data defect. No query distinguishes "correct given the schema" from "wrong" |
+| `user_permission`/`token_permission` one-row PK | Was a schema bug, not a data defect; fixed by `V2.118` (keys are now `(subject, permission)`). Nothing left to check |
 | Clock-skew detection between `created` and `now()` | Not decidable across a `timestamp WITHOUT TIME ZONE` written from two clocks. See Gotchas |
 
 ## REST
@@ -250,9 +250,9 @@ Test classes:
 | Class | Module | Covers |
 |---|---|---|
 | `DbIntegrityChecksTest` | `loom/db/jooq` | Registry guards: unique well-formed codes, unique readable names, descriptions present, `DbIntegrityCodes` matches the registry exactly, every `SearchEntityType` is mapped. No database |
-| `DbIntegrityServiceTest` | `loom/db/jooq` | 18 tests. Breaks the database one way at a time and asserts the matching check fires and names the row; plus the negative cases (`edited == created` is legal, a timezone-sized offset is not implausible), scoping and the sample cap |
+| `DbIntegrityServiceTest` | `loom/db/jooq` | 20 tests. Breaks the database one way at a time and asserts the matching check fires and names the row; plus the negative cases (`edited == created` is legal, a timezone-sized offset is not implausible), scoping and the sample cap. Where the schema now forbids the broken row (`token_editor_uuid_fkey`, the two `vector_config` actor FKs since `V2.119`), the test **drops the constraint inside the test** to seed it - the precedent is `testAssetPoolWithoutABackendIsFound` - and `testSchemaRefusesDanglingActors` asserts the constraints reject the same rows |
 | `DbIntegrityFixtureReportTest` | `loom/db/jooq` | The pooled fixture must pass its own checks. Prints the whole report - the fastest way to see the catalogue's verdict on a database |
-| `DbIntegrityEndpointTest` | `loom/core` | 12 tests: shape, catalogue agreement, the three filters, both 400s, and the four RBAC cases. Also the full loop - create a row with a dangling editor through the ordinary DAO and read the finding off the endpoint |
+| `DbIntegrityEndpointTest` | `loom/core` | 12 tests: shape, catalogue agreement, the three filters, both 400s, and the four RBAC cases. Also the full loop - create a row the schema permits but the report flags (a role with a blank name, `BLANK_NAME`) through the ordinary DAO and read the finding off the endpoint. It used a token with a dangling editor until `V2.119` declared that FK |
 | `dbIntegrity.test.ts` | `loom-ui` | 15 vitest cases over the pure helpers, including that a check which could not run counts as a failure and is never `PASSED` |
 | `db-integrity-mocked.spec.ts` | `loom-ui` | 10 Playwright cases: clean vs dirty, the full catalogue table, name and code both on screen, the findings filter both ways, sample truncation, did-not-run, failed refresh keeps the last report, 403 |
 
@@ -376,17 +376,19 @@ query parameters per request, and there is no cache, schedule or store to tune.
   i18n (en + de), 15 vitest and 10 Playwright cases
 - [x] Demo data grant on the editor role
 - [x] Customer documentation page, with screenshots of the admin panel clean and with findings
-- [ ] The missing foreign keys these checks detect are still missing - detection is not a fix.
-  `token.editor_uuid` and `vector_config`'s two, plus `vector_config`'s absent primary key, want a
-  migration of their own. (`asset_remix.editor_uuid` was the fifth; `V2.100` dropped that table.)
+- [x] The missing constraints these checks detected are declared: `V2.119` adds
+  `token_editor_uuid_fkey`, `vector_config_creator_uuid_fkey`, `vector_config_editor_uuid_fkey` and
+  `vector_config_pkey` (no `ON DELETE` action). `DANGLING_TOKEN_EDITOR`,
+  `DANGLING_VECTOR_CONFIG_ACTOR` and `DUPLICATE_VECTOR_CONFIG_UUID` stay, for installations that
+  held such rows before. (`asset_remix.editor_uuid` was the fifth; `V2.100` dropped that table.)
 - [ ] `search_document` anti-joins have not been `EXPLAIN`ed against a million-row catalogue; if the
   report ever gets slow, that is the first place to look
 - [ ] No check covers `attachment_binary.pool_uuid` or `asset_location.pool_uuid` reachability
 - [ ] The report is read-only by design; a guarded repair path (with its own permission) is unbuilt
   and unplanned
 
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (new file: the database integrity check subsystem - 29 checks across five
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (`V2.119` declares the token-editor and vector_config constraints; the three checks now guard legacy data, and their tests drop the constraint to seed it). Earlier: 2026-08-09 (new file: the database integrity check subsystem - 29 checks across five
 categories, the REST routes, the test-side `assertIntegrity()` seam and its two opt-outs, and the
 list of candidates deliberately not checked. Records the two defects the first auto-assert run found:
 the fixture's inverted `edited`/`created` write order and `ReactionDaoTest` storing values the REST

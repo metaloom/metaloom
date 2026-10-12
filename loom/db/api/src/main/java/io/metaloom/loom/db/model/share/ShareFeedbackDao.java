@@ -76,10 +76,10 @@ public interface ShareFeedbackDao extends Dao {
 	ShareReaction createReaction(UUID shareUuid, ShareReactionType type, String authorName);
 
 	/**
-	 * Insert the reaction, or do nothing when this share has already reacted that way to that subject.
+	 * Insert the reaction, or do nothing when this visitor has already reacted that way to that subject through this share.
 	 *
 	 * <p>
-	 * Idempotent by construction rather than by a caller's check: the three partial unique indexes in V2.99 are what make a double-click harmless, and
+	 * Idempotent by construction rather than by a caller's check: the three partial unique indexes (V2.99, keyed per visitor since V2.120) are what make a double-click harmless, and
 	 * a plain insert would surface the second one as a 500.
 	 * </p>
 	 */

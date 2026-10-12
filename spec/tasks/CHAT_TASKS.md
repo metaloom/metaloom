@@ -1086,8 +1086,8 @@ a container, which is the one place a missing ownership check would be most expe
    replace via PUT /:uuid/context, and the 404-not-403 rule for a foreign session.
 2. SessionFsEndpointTest: READ_CHAT plus chat ownership, the 404 when no runner is live, the ?path=
    traversal guard, and the "Content-Security-Policy: sandbox" header on /preview.
-3. Grant permissions via the group + role pattern (SkillEndpointTest) — user_permission allows one
-   direct grant per user.
+3. Grant permissions via the group + role pattern (SkillEndpointTest) — the path real users get
+   permissions by.
 4. Do not redeclare @RegisterExtension LoomCoreTestExtension in the subclass; configure the
    inherited `loom` field.
 5. Tick item 3 of spec/chat/CHAT_SESSIONS_CONCEPT.md §9 and the R6 row of
@@ -1274,8 +1274,8 @@ for existing skills.
 **References:** [LOOM_UI_CHAT.md §7](../chat/LOOM_UI_CHAT.md) ·
 [PERMISSIONS.md](../features/permissions/PERMISSIONS.md)
 **Test Requirements:** `SkillDaoTest` group-visibility cases and a `SkillEndpointTest` case proving a
-non-member cannot see a group-scoped skill (grant via group + role — `user_permission` allows one
-direct grant per user). `./setup-pool.sh` after the migration.
+non-member cannot see a group-scoped skill (grant via group + role, the path real users get
+permissions by). `./setup-pool.sh` after the migration.
 
 ---
 
@@ -1564,8 +1564,8 @@ via `npx`, which hangs in this repo.
   converter or loading the row throws a Jackson `MappingException`; a column named `meta` gets
   `JsonObjectConverter` for free. **Never reference a `loom_permission` value in the migration that
   adds it.**
-- `user_permission` allows **one direct grant per user** — grant additional test permissions via a
-  group + role, as `SkillEndpointTest` does. The pooled test DB is pre-populated: assert relative to
+- Grant test permissions via a group + role, as `SkillEndpointTest` does — the path real users get
+  permissions by. (`user_permission` allowed one direct grant per user until `V2.118`.) The pooled test DB is pre-populated: assert relative to
   your own fixtures, never absolute counts.
 - Register literal sub-paths (`/library`, `/publish`, `/context`) **before** `/:uuid` or they are
   consumed as a UUID path param.
@@ -1587,6 +1587,6 @@ via `npx`, which hangs in this repo.
 | What users will actually ask | [CHAT_USER_REQUESTS.md](../chat/CHAT_USER_REQUESTS.md) |
 | UI-side task list | [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) |
 
-_Git HEAD revision: `10f5df46`_
-_Last updated: 2026-08-16 (memory-bank implementation audit: added MEM2 and MEM3, marked QW6 step 2
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (test-permission notes: the one-direct-grant limit is gone with V2.118). Earlier: 2026-08-16 (memory-bank implementation audit: added MEM2 and MEM3, marked QW6 step 2
 done, repointed the CHAT_MEMORY.md references)_

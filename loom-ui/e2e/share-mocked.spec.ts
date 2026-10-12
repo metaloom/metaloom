@@ -98,6 +98,8 @@ async function mockShare(
   const annotations: Record<string, unknown>[] = [...(options.seedAnnotations ?? [])];
   /** Every uuid a DELETE named, so a removed row can be told apart from one that never rendered. */
   const deleted: string[] = [];
+  /** Every body POSTed to open a session, in order. */
+  const sessionRequests: Record<string, unknown>[] = [];
 
   const removeFrom = (list: Record<string, unknown>[], url: string) => {
     const uuid = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "");
@@ -124,6 +126,7 @@ async function mockShare(
         parentUuid: body.parentUuid,
         assetUuid: body.assetUuid,
         authorName: "Maria from Acme",
+        own: true,
         created: new Date().toISOString(),
       };
       comments.push(created);
@@ -153,7 +156,7 @@ async function mockShare(
         return route.fulfill(json({ message: "refused" }, options.reactionStatus));
       }
       const body = JSON.parse(route.request().postData() ?? "{}");
-      const created = { uuid: `r${reactions.length + 1}`, type: body.type, assetUuid: body.assetUuid, authorName: visitorName, created: "" };
+      const created = { uuid: `r${reactions.length + 1}`, type: body.type, assetUuid: body.assetUuid, authorName: visitorName, own: true, created: "" };
       reactions.push(created);
       return route.fulfill(json(created, 201));
     }
@@ -163,7 +166,7 @@ async function mockShare(
   await page.route(/\/api\/v1\/shares\/[^/]+\/annotations(\?|$)/, async (route) => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() ?? "{}");
-      const created = { uuid: `an${annotations.length + 1}`, authorName: "Maria from Acme", created: "", ...body };
+      const created = { uuid: `an${annotations.length + 1}`, authorName: "Maria from Acme", own: true, created: "", ...body };
       annotations.push(created);
       return route.fulfill(json(created, 201));
     }
@@ -183,6 +186,7 @@ async function mockShare(
 
   await page.route(/\/api\/v1\/shares\/[^/]+\/sessions$/, async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
+    sessionRequests.push(body);
     if (options.sessionStatus && options.sessionStatus >= 400) {
       return route.fulfill(json({ message: "no" }, options.sessionStatus));
     }
@@ -218,7 +222,7 @@ async function mockShare(
     );
   });
 
-  return { slug, annotations, comments, reactions, deleted };
+  return { slug, annotations, comments, reactions, deleted, sessionRequests };
 }
 
 test.describe("Customer share area – mocked", () => {
@@ -413,6 +417,7 @@ test.describe("Customer share area – mocked", () => {
           timeFrom: 45,
           text: "The logo pops in a frame late",
           authorName: "Maria from Acme",
+          own: true,
           created: "",
         },
       ],
@@ -481,7 +486,7 @@ test.describe("Customer share area – mocked", () => {
       targetType: "ASSET",
       assets: [VIDEO],
       seedComments: [
-        { uuid: "seed-1", text: "Second cut runs long", authorName: "Maria from Acme", created: "" },
+        { uuid: "seed-1", text: "Second cut runs long", authorName: "Maria from Acme", own: true, created: "" },
       ],
     });
     await page.goto(`/ui/share/${OPEN_SLUG}`);
@@ -654,7 +659,7 @@ test.describe("Customer share area – mocked", () => {
     const { reactions, deleted } = await mockShare(page, {
       targetType: "ASSET",
       assets: [VIDEO],
-      seedReactions: [{ uuid: "theirs", type: "APPROVE", assetUuid: VIDEO.uuid, authorName: "Jon from Acme", created: "" }],
+      seedReactions: [{ uuid: "theirs", type: "APPROVE", assetUuid: VIDEO.uuid, authorName: "Jon from Acme", own: false, created: "" }],
     });
     await page.goto(`/ui/share/${OPEN_SLUG}`);
     await page.getByTestId("share-gate-name").fill("Maria from Acme");
@@ -667,6 +672,69 @@ test.describe("Customer share area – mocked", () => {
     await expect(approve).toHaveText(/Approve 2$/);
     expect(deleted).toEqual([]);
     expect(reactions.map((r) => r.authorName)).toEqual(["Jon from Acme", "Maria from Acme"]);
+  });
+
+  test("a reaction under the visitor's own name but not theirs is added to, never deleted", async ({ page }) => {
+    // One link holds one visitor name, so a second person on a forwarded link reacts under the same
+    // name. Only the server's `own` tells the two apart.
+    const { reactions, deleted } = await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedReactions: [{ uuid: "colleague", type: "APPROVE", assetUuid: VIDEO.uuid, authorName: "Maria from Acme", own: false, created: "" }],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-name").fill("Maria from Acme");
+    await page.getByTestId("share-gate-submit").click();
+
+    const approve = page.getByTestId("share-reaction-APPROVE");
+    await expect(approve).toHaveText(/Approve 1$/, { timeout: 10_000 });
+    await approve.click();
+
+    await expect(approve).toHaveText(/Approve 2$/);
+    expect(deleted).toEqual([]);
+    expect(reactions).toHaveLength(2);
+  });
+
+  test("another visitor's comments and marks offer no delete", async ({ page }) => {
+    await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedComments: [
+        { uuid: "mine", text: "My note", authorName: "Maria from Acme", own: true, created: "" },
+        { uuid: "theirs", text: "Their note", authorName: "Maria from Acme", own: false, created: "" },
+      ],
+      seedAnnotations: [
+        { uuid: "their-mark", assetUuid: VIDEO.uuid, kind: "TEMPORAL", timeFrom: 3, text: "Their mark", authorName: "Maria from Acme", own: false, created: "" },
+      ],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    await expect(page.getByTestId("share-comment")).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.getByTestId("share-comment").filter({ hasText: "My note" }).getByTestId("share-comment-delete")).toHaveCount(1);
+    await expect(page.getByTestId("share-comment").filter({ hasText: "Their note" }).getByTestId("share-comment-delete")).toHaveCount(0);
+    await expect(page.getByTestId("share-annotation")).toHaveCount(1);
+    await expect(page.getByTestId("share-annotation-delete")).toHaveCount(0);
+  });
+
+  test("reopening a lapsed session hands the old token back, so earlier feedback stays the visitor's", async ({ page }) => {
+    const { sessionRequests } = await mockShare(page, { assetsStatus: 401 });
+    await page.addInitScript((slug: string) => {
+      // Only on the first load: the reload below must see what the app itself left behind.
+      if (window.sessionStorage.getItem("seeded")) return;
+      window.sessionStorage.setItem("seeded", "1");
+      window.sessionStorage.setItem(`loom.share.${slug}`, JSON.stringify({
+        slug, token: "yesterdays.token", visitorName: "Maria", targetType: "COLLECTION",
+        allowDownload: true, showMetadata: true, allowComments: true, allowReactions: true, allowAnnotations: true,
+      }));
+    }, OPEN_SLUG);
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+
+    await expect(page.getByTestId("share-gate")).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId("share-gate-skip").click();
+
+    await expect.poll(() => sessionRequests.length, { timeout: 10_000 }).toBe(1);
+    expect(sessionRequests[0]).toMatchObject({ previousSessionToken: "yesterdays.token" });
   });
 
   test("a refused reaction says so and keeps the visitor on the link", async ({ page }) => {

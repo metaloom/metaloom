@@ -2,8 +2,6 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.UUID;
-
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
@@ -11,7 +9,7 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.db.integrity.DbIntegrityCodes;
 import io.metaloom.loom.db.model.perm.Permission;
-import io.metaloom.loom.db.model.token.Token;
+import io.metaloom.loom.db.model.role.Role;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckListResponse;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckResultModel;
 import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityReportResponse;
@@ -77,34 +75,30 @@ public class DbIntegrityEndpointTest extends AbstractEndpointTest {
 	}
 
 	/**
-	 * The whole loop: create a row that names an editor who does not exist, and read the finding back
-	 * off the endpoint.
+	 * The whole loop: create a row the schema permits but the report flags, and read the finding back off the endpoint.
 	 *
 	 * <p>
-	 * No raw SQL is needed, and that is the point. {@code V2.1__add_acl.sql} declares a foreign key on
-	 * {@code token.creator_uuid} and omits the one on {@code editor_uuid}, so the ordinary DAO write
-	 * path is enough to produce a token whose editor is nobody. The check is not detecting a
-	 * contrived corruption; it is detecting something the schema currently permits.
+	 * No raw SQL is needed, and that is the point. {@code role.name} is NOT NULL but nothing stops the empty string, so the ordinary DAO write path is
+	 * enough to produce a role nobody can refer to. The check is not detecting a contrived corruption; it is detecting something the schema currently
+	 * permits. (This used to be a token with a dangling editor, until V2.119 declared that foreign key.)
 	 * </p>
 	 */
 	@Test
 	public void testABrokenRowIsReportedThroughTheEndpoint() throws Exception {
-		UUID ghost = UUID.randomUUID();
-		Token token = daos().tokenDao().createToken(adminUuid(), "endpoint-broken-token", "endpoint-secret");
-		token.setEditorUuid(ghost);
-		daos().tokenDao().store(token);
+		Role role = daos().roleDao().createRole(adminUuid(), "   ");
+		daos().roleDao().store(role);
 
 		try (LoomHttpClient client = httpClient()) {
 			loginAdmin(client);
 			DbIntegrityReportResponse response = loadReport(client);
 
-			assertThat(response.isClean()).as("a dangling editor is not a clean database").isFalse();
+			assertThat(response.isClean()).as("a blank role name is not a clean database").isFalse();
 			assertThat(response.getFindingCount()).isGreaterThanOrEqualTo(1);
 
-			DbIntegrityCheckResultModel result = resultFor(response, DbIntegrityCodes.DANGLING_TOKEN_EDITOR);
-			assertThat(result.getCount()).isEqualTo(1);
+			DbIntegrityCheckResultModel result = resultFor(response, DbIntegrityCodes.BLANK_NAME);
+			assertThat(result.getCount()).isGreaterThanOrEqualTo(1);
 			assertThat(result.getSamples()).as("the finding must name the row so it can be fixed")
-				.anySatisfy(sample -> assertThat(sample).contains(ghost.toString()));
+				.anySatisfy(sample -> assertThat(sample).contains(role.getUuid().toString()));
 			assertThat(result.getError()).isNull();
 		}
 	}

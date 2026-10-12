@@ -33,8 +33,8 @@ graph LR
     U[user] -->|user_group| G[group]
     G -->|role_group| R[role]
     R -->|role_permission| P[loom_permission]
-    U -.->|user_permission<br/>max ONE row per user| P
-    T[token] -.->|token_permission<br/>NOT WIRED UP| P
+    U -.->|user_permission| P
+    T[token] -.->|token_permission<br/>NOT WIRED INTO AUTH| P
 
     style T stroke-dasharray: 5 5
 ```
@@ -42,10 +42,9 @@ graph LR
 Two properties diverge from what the schema suggests:
 
 1. **There is no `user_role` table.** Roles attach to *groups* only.
-2. **Permissions are global, not per-object.** `user_permission` and
-   `token_permission` still carry a `resource` column; it is discarded before the
-   decision (§5.1). `role_permission` no longer has one at all (V2.64).
-   `READ_ASSET` means "read every asset".
+2. **Permissions are global, not per-object.** No grant table carries a `resource`
+   column any more — `role_permission` lost it in V2.64, `user_permission` and
+   `token_permission` in V2.118 (§5.1). `READ_ASSET` means "read every asset".
 
 ---
 
@@ -166,13 +165,16 @@ up now (§4.4).
 ## 3. Database Schema
 
 All RBAC tables come from `loom/db/flyway/src/main/resources/db/migration/V2.1__add_acl.sql`.
-`V2.64__fix_role_permission_key.sql` is the only later migration that alters their
-structure — it drops `role_permission.resource` and the redundant unique index.
+Two later migrations alter their structure: `V2.64__fix_role_permission_key.sql` drops
+`role_permission.resource` and the redundant unique index, and
+`V2.118__fix_direct_permission_keys.sql` does the same for `user_permission` and
+`token_permission`, re-keys both on `(subject, permission)` and gives
+`token_permission.token_uuid` `ON DELETE CASCADE`.
 
 ```sql
-role_permission  (role_uuid, permission loom_permission)                             PK (role_uuid, permission)
-user_permission  (user_uuid, resource varchar NOT NULL, permission loom_permission)  PK (user_uuid)
-token_permission (token_uuid, resource varchar NOT NULL, permission loom_permission) PK (token_uuid)
+role_permission  (role_uuid, permission loom_permission)   PK (role_uuid, permission)
+user_permission  (user_uuid, permission loom_permission)   PK (user_uuid, permission)
+token_permission (token_uuid, permission loom_permission)  PK (token_uuid, permission)
 user_group  (user_uuid, group_uuid)  PK (user_uuid, group_uuid)
 role_group  (group_uuid, role_uuid)  PK (group_uuid, role_uuid)
 ```
@@ -180,25 +182,22 @@ role_group  (group_uuid, role_uuid)  PK (group_uuid, role_uuid)
 `role` and `group` are structurally identical: `uuid` PK, `name varchar UNIQUE NOT NULL`,
 `meta jsonb`, standard audit quad.
 
-### 3.1 Live schema defects
+### 3.1 Grant-table keys (fixed)
 
-| Table | Declared PK | Defect |
+| Table | PK | History |
 |---|---|---|
-| `user_permission` | `(user_uuid)` | **A user can hold at most one direct permission row, ever.** A second `grantUserPermission` for the same user raises a PK violation. |
-| `token_permission` | `(token_uuid)` | Same one-row ceiling. |
+| `user_permission` | `(user_uuid, permission)` | **Fixed** by V2.118. From V2.1 the PK was `(user_uuid)` alone, so a user could hold at most **one** direct grant, ever — a second grant was a PK violation. Test suites worked around it by granting through group+role, which is how the defect stayed invisible. |
+| `token_permission` | `(token_uuid, permission)` | **Fixed** by V2.118 — same one-row ceiling before it. |
 | `role_permission` | `(role_uuid, permission)` | **Fixed** by V2.64 — `resource` and the redundant unique index are gone, so the key now *is* the intended grain. |
 
-`user_permission` and `token_permission` still carry
-`CREATE UNIQUE INDEX (x_uuid, resource, permission)` — dead weight, since the PK is a
-subset of the indexed triple. The index shows resource-scoped grants were *intended*;
-the PK prevents them. `role_permission` had the same pair; V2.64 resolved it by
-dropping the column rather than widening the key, because nothing on the authorization
-path ever reads `resource` (§5.1) — keeping a column that looks like a scope but scopes
-nothing invites grants that appear narrower than they are.
+All three were resolved by **dropping** `resource` rather than widening the key to
+`(x_uuid, resource, permission)`, because nothing on the authorization path ever reads
+`resource` (§5.1) — keeping a column that looks like a scope but scopes nothing invites
+grants that appear narrower than they are. The V2.1 unique indexes
+`(x_uuid, resource, permission)`, which the narrow PKs had made unreachable, are dropped.
 
-`token_permission`'s FK to `token` lacks `ON DELETE CASCADE`, so deleting a token
-that has a permission row fails on FK violation. `user_permission` and
-`role_permission` do cascade.
+`token_permission`'s FK to `token` cascades since V2.118 (before it, deleting a token that
+held a grant failed on the FK). `user_permission` and `role_permission` cascade too.
 
 ### 3.2 Cascade behaviour (verified)
 
@@ -211,6 +210,7 @@ asserts the real semantics:
 | Delete a group | `user_group` + `role_group` cascade; users and roles survive; members lose the derived permission |
 | **Soft**-delete a user | Grants and memberships **survive**; `userDao().load()` filters the user out |
 | **Hard**-delete a user | `user_permission` + `user_group` cascade; the group survives |
+| Delete a token | `token_permission` rows cascade (V2.118); another token with the same grants is untouched |
 
 ### 3.3 Index direction
 
@@ -226,10 +226,11 @@ falls back to a sequential scan. That is the direction membership-admin screens 
 The entire grant API is `PermissionDao`:
 
 ```java
-void grantUserPermission(UUID userUuid, Permission perm);                   // ALWAYS throws NPE
-void grantUserPermission(UUID userUuid, Permission perm, String resource);
-void grantRolePermission(UUID roleUuid, Permission perm);                   // idempotent
-ResourcePermissionSet loadPermissionsForUser(UUID userUuid);
+void grantUserPermission(UUID userUuid, Permission perm);    // idempotent upsert (V2.118)
+void grantRolePermission(UUID roleUuid, Permission perm);    // idempotent upsert (V2.64)
+void grantTokenPermission(UUID tokenUuid, Permission perm);  // idempotent upsert (V2.118)
+ResourcePermissionSet loadPermissionsForUser(UUID userUuid); // direct grants + role grants via groups
+ResourcePermissionSet loadPermissionsForToken(UUID tokenUuid); // empty for no grants / unknown token
 ```
 
 Role grants are also reachable through `RoleDao`, which is what the REST layer uses:
@@ -241,17 +242,15 @@ void setPermissions(UUID roleUuid, Set<Permission> permissions);   // replace se
 
 `PermissionDaoImpl` notes:
 
-- The **two-arg user overload delegates with `resource = null`** into a delegate
-  that starts with `Objects.requireNonNull(resource, …)` — it always throws. Only
-  the three-arg form is usable.
-- The **role** grant is `INSERT … ON CONFLICT DO NOTHING`, so re-granting is a no-op.
-  The **user** grant is still a plain `INSERT` — re-granting raises a PK violation.
-- `PermissionDao` has **no revoke method** and no `grantTokenPermission`. Revoking a
-  *role* grant goes through `RoleDao.setPermissions` (§4.4); revoking a *user* grant
-  still means direct SQL, or deleting the role/group (§3.2).
-- `loadPermissionsForToken` exists on the impl but **not on the interface**, has zero
-  call sites, and its body (`fetchOneInto(ResourcePermissionSet.class)` against a
-  `HashSet` subclass) is broken with the working version commented out beneath it.
+- All three grants are `INSERT … ON CONFLICT (subject, permission) DO NOTHING`, so
+  re-granting is a no-op and a subject may hold any number of grants. The three-arg
+  `grantUserPermission(uuid, perm, resource)` overload (and the always-NPE two-arg
+  delegate it backed) was removed with V2.118.
+- `PermissionDao` has **no revoke method**. Revoking a *role* grant goes through
+  `RoleDao.setPermissions` (§4.4); revoking a *user* or *token* grant still means
+  direct SQL, or deleting the subject (§3.2).
+- `loadPermissionsForToken` is on the interface and works since 2026-10-11, but has
+  **no production caller** — token auth still ignores it (§6.5).
 
 ### 4.1 Who calls it
 
@@ -261,7 +260,7 @@ Besides the REST path of §4.4, these callers grant at bootstrap and in tests:
 |---|---|
 | `DatabaseInitializer` | all `Permission.values()` → role `admin-role` |
 | `DemoDatabaseInitializer` | curated editor / viewer sets (§4.3) |
-| `TestFixtureProvider` | all perms → `test-role`, plus one direct `READ_USER` grant to `joedoe` |
+| `TestFixtureProvider` | all perms → `test-role`, plus a direct `READ_USER` grant to `joedoe` |
 | `*EndpointTest` | per-test role+group grants (§8.2) |
 
 ### 4.2 Bootstrap
@@ -349,15 +348,16 @@ for (ResourcePermission perm : cachedPerms) {
 ```
 
 `ResourcePermission.getResource()` is never called on the authorization path — repo-wide
-its only callers are `toString()` and a commented-out block in `PermissionDaoImpl`.
-Therefore `"all"` is **not a wildcard**, a grant with `resource = "test"` confers exactly
-the same authority, and enforcement is **global per permission type**. Treat `resource`
-as a persisted forward-compatibility placeholder; do not build on it.
+its only caller is `toString()`.
+Therefore enforcement is **global per permission type**. `ResourcePermission` still has a
+`resource` field, but since V2.118 no grant table stores one, so every loaded grant carries
+a null resource; do not build on it.
 
 This is why V2.64 **dropped** `role_permission.resource` instead of widening the key to
 `(role_uuid, resource, permission)`: widening would have made it possible to write rows
 that read as scoped and are not. Role grants now load with a null resource — probe them
-by permission alone. `user_permission` and `token_permission` still carry the column.
+by permission alone. V2.118 applied the same decision to `user_permission` and
+`token_permission`.
 
 ### 5.2 The two decision helpers
 
@@ -466,7 +466,8 @@ the admin ACL matrix at `/admin/permissions` drives. What still does **not** exi
   group, although `GroupDao.addUserToGroup` / `addRoleToGroup` exist and are used by
   bootstrap and tests. A role created over REST therefore still has to be wired to a
   group out-of-band before its grants reach anyone.
-- No grant / revoke route for **direct user** grants (`user_permission`) or tokens.
+- No grant / revoke route for **direct user** grants (`user_permission`) or tokens
+  (the DAO can grant both since V2.118; nothing exposes it).
 - GraphQL exposes `User.groups`, `Group.users`, `Group.roles` and `Role` as **read-only**
   types with no permission field; gRPC has no RBAC protos.
 
@@ -507,10 +508,11 @@ honoured indirectly, by `UserDao.load()` filtering soft-deleted rows. A disabled
 existing JWT keeps working, and the JWT auth handler re-issues a fresh cookie on every
 request, so sessions renew indefinitely. **There is no revocation mechanism.**
 
-### 6.5 Token permissions are dead code
+### 6.5 Token permissions are not wired into authentication
 
-`token_permission` has a table, a generated jOOQ class, and no reachable code path
-(§4). API-key auth resolves a token to its owning user and mints a principal with that
+`token_permission` has a table, a working DAO API (`grantTokenPermission`,
+`loadPermissionsForToken`, covered by `PermissionDaoTest` and `AclCascadeTest`), and
+still no reachable code path from a request (§4). API-key auth resolves a token to its owning user and mints a principal with that
 user's UUID, so **API keys inherit the full permission set of their owner** and cannot
 be attenuated.
 
@@ -541,19 +543,19 @@ out of the box. Constants: `AuthenticationOptions.TOKEN_COOKIE_KEY = "__Host-loo
 ### 8.1 DAO level
 
 `loom/db/jooq/src/test/java/io/metaloom/loom/db/perm/PermissionDaoTest.java` covers
-direct grants, role-via-group inheritance, the negative (a role grant that reaches no
-user without the join chain), and cross-user isolation. `AclCascadeTest`
-(`…/db/jooq/dao/AclCascadeTest.java`) covers grant removal by cascade (§3.2).
+direct grants (several per user, idempotent re-grant), token grants, role-via-group
+inheritance, the negative (a role grant that reaches no user without the join chain), and
+cross-user isolation. `AclCascadeTest`
+(`…/db/jooq/dao/AclCascadeTest.java`) covers grant removal by cascade, including a
+deleted token's grants (§3.2).
 
 Rules for adding cases:
 
 1. Extend `AbstractJooqTest`; use the inherited `permissionDao()` / `userDao()` /
    `roleDao()` / `groupDao()` accessors and the fixture accessors (`adminUser()`,
    `dummyUser()`) over creating data.
-2. Grant with the **three-arg** overloads only (§4).
-3. Respect the PK ceilings: one `user_permission` row per user; one
-   `(role, permission)` pair per role regardless of resource.
-4. Probe the result by iterating — `ResourcePermission` has no `equals` (§5.5).
+2. Grants are global and idempotent — there is no `resource` argument (§4).
+3. Probe the result by iterating — `ResourcePermission` has no `equals` (§5.5).
 
 ```bash
 mvn -pl loom/db/jooq -am test -Dtest=PermissionDaoTest
@@ -634,8 +636,8 @@ Fixture topology (`loom/fixture/.../TestFixtureProvider.java`, stable UUID const
 `ADMIN_UUID`, `USER_UUID`, `GROUP_UUID`, `ROLE_UUID`, `TOKEN_UUID`, password `finger`):
 
 ```
-admin  → group "test-group" → role "test-role" → ALL permissions (resource "test")
-joedoe → (no group)         → user_permission: READ_USER (resource "test")   ← exactly one, by PK
+admin  → group "test-group" → role "test-role" → ALL permissions
+joedoe → (no group)         → user_permission: READ_USER
 ```
 
 ---
@@ -654,11 +656,13 @@ joedoe → (no group)         → user_permission: READ_USER (resource "test")  
   and the new value is unusable in the same transaction. Keep enum additions in their
   own migration, separate from DDL that uses them.
 - **Removing an enum value requires a full type rebuild** — follow `V2.55`.
-- **`resource` is stored but never enforced** (§5.1), and **`"all"` is not a wildcard**.
-- **The two-arg `grantUserPermission` always throws NPE.** Use the three-arg form.
-- **No revoke, no upsert** — re-granting raises a PK violation.
+- **Grants have no `resource`** (V2.64, V2.118); `ResourcePermission.getResource()` is
+  always null on loaded grants (§5.1).
+- **No revoke API for user or token grants** — grants themselves are idempotent upserts.
 - **Roles bind to groups, not users.** There is no `user_role` table.
-- **One direct `user_permission` row per user** — grant test permissions via group+role.
+- **Endpoint tests grant via group+role** — the path real users get their permissions by.
+  Direct `user_permission` grants work (any number per user since V2.118) but bypass the
+  membership chain the test is meant to exercise.
 - **The permission cache never invalidates** (§5.5).
 - **403 is overloaded** — it also means "the permission lookup failed" (§5.3).
 - **`READ_SPACE` guards the `project` table** (§2.3).
@@ -690,7 +694,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 |---|---|---|
 | `Permission` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The 139-value enum — Java source of truth, with per-constant audit comments |
 | `PermissionDao` / `PermissionDaoImpl` | `…db.model.perm` / `…db.jooq.dao.perm` | Grant + load API; performs the group→role join |
-| `ResourcePermission` / `ResourcePermissionSet` | `io.metaloom.loom.db.model.perm` | `(permission, resource)` pair with **no** `equals`/`hashCode`; `HashSet` subclass |
+| `ResourcePermission` / `ResourcePermissionSet` | `io.metaloom.loom.db.model.perm` | `(permission, resource)` pair — `resource` always null since V2.118 — with **no** `equals`/`hashCode`; `HashSet` subclass |
 | `JooqLoomPermission` | `io.metaloom.loom.db.jooq.enums` (generated) | 138-value enum generated from Postgres |
 | `LoomAuthorizationProvider` | `io.metaloom.loom.auth` (auth-common) | Loads perms into Vert.x authorizations; **drops `resource`** |
 | `PermissionCache` | `io.metaloom.loom.auth` (auth-common) | Caffeine, 10k entries, no TTL / no invalidation |
@@ -741,7 +745,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [x] `user_group` / `role_group` join tables with cascade
 - [x] `PermissionDao` grant + load API
 - [x] Transitive resolution user → group → role → permission
-- [x] Direct per-user grants (single row — see defects)
+- [x] Direct per-user grants — any number per user, idempotent (V2.118)
 - [x] `LoomAuthorizationProvider` bridging DB perms to Vert.x authorizations
 - [x] Caffeine-backed `PermissionCache`
 - [x] `requirePerm` / `checkPerm` enforcement on REST CRUD endpoints
@@ -760,20 +764,20 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 ### 13.2 Schema defects to fix
 
-- [ ] `user_permission` PK is `(user_uuid)` — should be `(user_uuid, resource, permission)`
-- [ ] `token_permission` PK is `(token_uuid)` — same fix
+- [x] `user_permission` / `token_permission` single-column PKs — resolved by `V2.118`
+      (`(subject, permission)`, `resource` dropped)
 - [x] `role_permission` PK vs `resource` — resolved by `V2.64` (column dropped)
-- [ ] `token_permission` FK lacks `ON DELETE CASCADE`
-- [ ] Redundant unique indexes on `user_permission` and `token_permission`
+- [x] `token_permission` FK `ON DELETE CASCADE` — `V2.118`
+- [x] Redundant unique indexes on `user_permission` and `token_permission` — dropped by `V2.118`
 - [ ] No reverse index on `user_group` / `role_group` for membership queries
 
 ### 13.3 Correctness and security gaps
 
-- [ ] `resource` is persisted but discarded on `user_permission` / `token_permission` — no
-      per-object scoping (§5.1); `role_permission` no longer carries it
-- [ ] `grantUserPermission(uuid, perm)` two-arg overload always throws NPE
-- [ ] No revoke API for **user** grants; the user grant insert is still not idempotent
-      (role grants have both, §4.4)
+- [x] `resource` dropped from every grant table (`V2.64`, `V2.118`) — permissions are
+      global by design (§5.1)
+- [x] Two-arg `grantUserPermission` NPE — fixed; the three-arg overload was removed
+- [ ] No revoke API for **user** or **token** grants (role grants have one, §4.4); the
+      grants themselves are idempotent since `V2.118`
 - [ ] Permission cache has no TTL; it is invalidated explicitly on role-permission writes
       only (§4.4), so any future membership route must invalidate too (§5.5)
 - [ ] 403 conflates "lacks permission" with "lookup failed" (§5.3)
@@ -792,7 +796,8 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 - [ ] `CREATE_PIPELINE_VERSION` is DB-only and unreachable from Java (§2.2)
 - [ ] 6 permissions are granted but never checked (§6.1)
-- [ ] `token_permission` entirely unwired; API keys inherit full owner authority (§6.5)
+- [ ] `token_permission` not wired into authentication (DAO API exists since `V2.118`);
+      API keys inherit full owner authority (§6.5)
 - [ ] No REST/GraphQL/gRPC surface for granting or revoking **user or token** permissions (§6.2)
 - [ ] No membership routes (add user to group, attach role to group) (§6.2)
 - [ ] UI ACL matrix covers 20 of 28 entities — the newer ones are REST-only (§6.2)
@@ -811,8 +816,8 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `8e8bff19`_
-_Last updated: 2026-09-26 (§8.2: `TranscriptEndpointTest`, `JsonCompEndpointTest` and
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (`V2.118` re-keys `user_permission` / `token_permission` on `(subject, permission)`, drops their `resource` column and cascades token grants; `PermissionDao` gains `grantTokenPermission` / `loadPermissionsForToken`, loses the three-arg user grant, and every grant is an idempotent upsert — §1, §3, §4, §5.1, §6.5, §8.1, §9 and §13 updated). Earlier: 2026-09-26 (§8.2: `TranscriptEndpointTest`, `JsonCompEndpointTest` and
 `NodeResultEndpointTest` gained `test*RequiresPermission` cases asserting 403 on `READ_ASSET` /
 `UPDATE_ASSET` for their read/list and create/update/delete routes respectively — closing 3 of the
 10 non-CRUD endpoint tests that previously asserted no permission behaviour at all; §13.5's count

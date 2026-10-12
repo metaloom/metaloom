@@ -58,6 +58,9 @@ class ShareAnnotationResponse(Response):
     text: str | None = None
     #: The visitor name as it stood when the mark was drawn.
     author_name: str | None = None
+    #: Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share
+    #: visitor routes only.
+    own: bool | None = None
     #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
     created: float | None = None
     #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
@@ -115,6 +118,9 @@ class ShareCommentResponse(Response):
     #: The visitor name as it stood when the comment was written. Not a user reference - nobody here has an
     #: account.
     author_name: str | None = None
+    #: Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share
+    #: visitor routes only.
+    own: bool | None = None
     #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
     created: float | None = None
     #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
@@ -199,6 +205,9 @@ class ShareReactionResponse(Response):
     annotation_uuid: str | None = None
     #: The visitor name as it stood when the reaction was left.
     author_name: str | None = None
+    #: Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share
+    #: visitor routes only.
+    own: bool | None = None
     #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
     created: float | None = None
 
@@ -251,6 +260,9 @@ class ShareSessionRequest(Model):
     #: The link password. Required when the challenge reported passwordRequired.
     password: str | None = None
     visitor_name: str | None = None
+    #: The session token this browser held before, even an expired one. When it was issued for this link, the
+    #: new session keeps its visitor, so feedback left earlier can still be edited and deleted.
+    previous_session_token: str | None = None
 
 
 @dataclass

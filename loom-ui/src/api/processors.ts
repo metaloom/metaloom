@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API processor models ─────────────────
 
@@ -118,8 +118,5 @@ export async function forgetProcessor(token: string, nodeId: string): Promise<vo
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

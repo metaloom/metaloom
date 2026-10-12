@@ -17,12 +17,12 @@ import java.util.function.Function;
 import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function14;
+import org.jooq.Function15;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row14;
+import org.jooq.Row15;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -135,6 +135,13 @@ public class JooqShareAnnotation extends TableImpl<JooqShareAnnotationRecord> {
      * The column <code>public.share_annotation.edited</code>.
      */
     public final TableField<JooqShareAnnotationRecord, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
+
+    /**
+     * The column <code>public.share_annotation.visitor_id</code>. The share
+     * visitor who drew the mark, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public final TableField<JooqShareAnnotationRecord, java.util.UUID> VISITOR_ID = createField(DSL.name("visitor_id"), SQLDataType.UUID, this, "The share visitor who drew the mark, from the signed session token. NULL for rows predating V2.120, which no visitor may change");
 
     private JooqShareAnnotation(Name alias, Table<JooqShareAnnotationRecord> aliased) {
         this(alias, aliased, null);
@@ -262,18 +269,18 @@ public class JooqShareAnnotation extends TableImpl<JooqShareAnnotationRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row14 type methods
+    // Row15 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row14<java.util.UUID, java.util.UUID, java.util.UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime> fieldsRow() {
-        return (Row14) super.fieldsRow();
+    public Row15<java.util.UUID, java.util.UUID, java.util.UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row15) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function14<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super String, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function15<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super String, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -281,7 +288,7 @@ public class JooqShareAnnotation extends TableImpl<JooqShareAnnotationRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function14<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super String, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function15<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super Double, ? super String, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

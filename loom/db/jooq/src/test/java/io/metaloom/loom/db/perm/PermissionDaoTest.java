@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,11 +16,13 @@ import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.perm.ResourcePermission;
 import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.token.Token;
 import io.metaloom.loom.db.model.user.User;
 
 /**
- * Grant/load behaviour of {@link io.metaloom.loom.db.model.perm.PermissionDao} across the bindings the DAO actually exposes: direct user grants
- * ({@code user_permission}) and role grants ({@code role_permission}) that reach a user through group membership.
+ * Grant/load behaviour of {@link io.metaloom.loom.db.model.perm.PermissionDao} across the three bindings: direct user grants
+ * ({@code user_permission}), role grants ({@code role_permission}) that reach a user through group membership, and token grants
+ * ({@code token_permission}).
  *
  * <p>
  * Everything is asserted through {@link io.metaloom.loom.db.model.perm.PermissionDao#loadPermissionsForUser(UUID)}, the only effective-permission load
@@ -27,9 +31,8 @@ import io.metaloom.loom.db.model.user.User;
  * </p>
  *
  * <p>
- * Scope note: token-bound grants ({@code token_permission}) and permission revocation are intentionally not covered here - the DAO exposes no
- * token-grant method, no working token load ({@code loadPermissionsForToken} is unfinished and not on the interface) and no revoke API. Grant removal via
- * hard-delete cascade is covered separately by {@link io.metaloom.loom.db.jooq.dao.AclCascadeTest}.
+ * Scope note: permission revocation is not covered here - the DAO has no revoke API. Grant removal via hard-delete cascade is covered separately by
+ * {@link io.metaloom.loom.db.jooq.dao.AclCascadeTest}.
  * </p>
  */
 public class PermissionDaoTest extends AbstractJooqTest {
@@ -53,21 +56,8 @@ public class PermissionDaoTest extends AbstractJooqTest {
 	}
 
 	/**
-	 * {@code ResourcePermission} has no {@code equals}/{@code hashCode}, so the effective set can only be probed by iterating and matching on the
-	 * (permission, resource) pair - not via {@code contains(new ResourcePermission(...))}.
-	 */
-	private boolean hasPermission(UUID userUuid, Permission perm, String resource) {
-		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
-			if (perm.name().equals(rp.getPermission()) && resource.equals(rp.getResource())) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Probe by permission alone. This is the correct probe for role grants: {@code role_permission} has no {@code resource} column (V2.64), so those
-	 * rows load with a null resource - and no authorization decision ever reads it.
+	 * {@code ResourcePermission} has no {@code equals}/{@code hashCode}, so the effective set is probed by iterating. By permission alone: no grant
+	 * table has a {@code resource} column any more (V2.64, V2.118), and no authorization decision ever read it.
 	 */
 	private boolean hasPermission(UUID userUuid, Permission perm) {
 		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
@@ -83,23 +73,69 @@ public class PermissionDaoTest extends AbstractJooqTest {
 	}
 
 	/**
-	 * A direct user grant surfaces on the user's effective set - and only that grant. {@code user_permission} has a single-column PK
-	 * ({@code user_uuid}), so a fresh user holds exactly one grant row, which lets us assert the set contents exactly.
+	 * A direct user grant surfaces on the user's effective set - and only that grant.
 	 */
 	@Test
 	public void testGrantUserPermission() {
-		String resource = "asset-res";
 		User user = storeUser("perm_user_grant");
 
-		permissionDao().grantUserPermission(user.getUuid(), Permission.CREATE_ASSET, resource);
+		permissionDao().grantUserPermission(user.getUuid(), Permission.CREATE_ASSET);
 
 		assertEquals(1, permCount(user.getUuid()), "The fresh user must hold exactly the one direct grant");
-		assertTrue(hasPermission(user.getUuid(), Permission.CREATE_ASSET, resource),
-			"The granted (CREATE_ASSET, " + resource + ") permission must be loaded back");
-		assertFalse(hasPermission(user.getUuid(), Permission.READ_ASSET, resource),
-			"A permission that was never granted must not appear");
-		assertFalse(hasPermission(user.getUuid(), Permission.CREATE_ASSET, "other-res"),
-			"The grant must be scoped to its resource");
+		assertTrue(hasPermission(user.getUuid(), Permission.CREATE_ASSET), "The granted permission must be loaded back");
+		assertFalse(hasPermission(user.getUuid(), Permission.READ_ASSET), "A permission that was never granted must not appear");
+	}
+
+	/**
+	 * A user may hold several direct grants. Before V2.118 {@code user_permission} was keyed on {@code user_uuid} alone, so the second grant here was
+	 * a primary key violation.
+	 */
+	@Test
+	public void testUserMayHoldSeveralDirectGrants() {
+		User user = storeUser("perm_user_several");
+
+		permissionDao().grantUserPermission(user.getUuid(), Permission.CREATE_ASSET);
+		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET);
+
+		assertEquals(2, permCount(user.getUuid()));
+		assertTrue(hasPermission(user.getUuid(), Permission.CREATE_ASSET));
+		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET));
+	}
+
+	/**
+	 * Re-granting a direct permission the user already holds is a no-op, not a primary key violation.
+	 */
+	@Test
+	public void testGrantUserPermissionIsIdempotent() {
+		User user = storeUser("perm_user_idempotent");
+
+		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET);
+		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET);
+
+		assertEquals(1, permCount(user.getUuid()), "The second grant must not have added a second row");
+	}
+
+	/**
+	 * A token may hold several grants, re-granting is a no-op, and the grants stay with their token.
+	 */
+	@Test
+	public void testTokenGrants() {
+		Token token = tokenDao().createToken(adminUser().getUuid(), "perm_token", "perm-token-secret");
+		tokenDao().store(token);
+		Token other = tokenDao().createToken(adminUser().getUuid(), "perm_token_other", "perm-token-other-secret");
+		tokenDao().store(other);
+
+		permissionDao().grantTokenPermission(token.getUuid(), Permission.READ_ASSET);
+		permissionDao().grantTokenPermission(token.getUuid(), Permission.CREATE_ASSET);
+		permissionDao().grantTokenPermission(token.getUuid(), Permission.CREATE_ASSET);
+
+		Set<String> granted = permissionDao().loadPermissionsForToken(token.getUuid()).stream()
+			.map(ResourcePermission::getPermission)
+			.collect(Collectors.toSet());
+		assertEquals(Set.of(Permission.READ_ASSET.name(), Permission.CREATE_ASSET.name()), granted);
+		assertEquals(2, permissionDao().loadPermissionsForToken(token.getUuid()).size(), "The re-grant must not have added a row");
+		assertTrue(permissionDao().loadPermissionsForToken(other.getUuid()).isEmpty(), "Another token must not see the grants");
+		assertTrue(permissionDao().loadPermissionsForToken(UUID.randomUUID()).isEmpty(), "An unknown token holds nothing");
 	}
 
 	/**
@@ -161,12 +197,12 @@ public class PermissionDaoTest extends AbstractJooqTest {
 	@Test
 	public void testUserPermissionIsolation() {
 		User granted = storeUser("perm_isolation_granted");
-		permissionDao().grantUserPermission(granted.getUuid(), Permission.CREATE_ASSET, "iso-res");
+		permissionDao().grantUserPermission(granted.getUuid(), Permission.CREATE_ASSET);
 
 		User other = storeUser("perm_isolation_other");
 
 		assertEquals(0, permCount(other.getUuid()), "Another user must not see the direct grant");
-		assertTrue(hasPermission(granted.getUuid(), Permission.CREATE_ASSET, "iso-res"),
+		assertTrue(hasPermission(granted.getUuid(), Permission.CREATE_ASSET),
 			"The grantee still holds the grant");
 	}
 

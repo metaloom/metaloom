@@ -375,8 +375,8 @@ machine's grouping and survives the next re-run.
 [../guidelines/CODING.md](../guidelines/CODING.md) (plural collection paths, endpoint + permission tests) ·
 Task 8 (the path convention), Task 4 (why the corrections are needed)
 **Test Requirements:** `ClusterEndpointTest`: detach removes exactly one member and leaves the rest;
-attach writes `origin=MANUAL`; both 403 without `UPDATE_CLUSTER` — grant via group + role, never a
-direct user grant, since `user_permission` allows one direct permission per user.
+attach writes `origin=MANUAL`; both 403 without `UPDATE_CLUSTER` — grant via group + role, the path
+real users get permissions by (the one-direct-grant limit on `user_permission` is gone since `V2.118`).
 `ClusterDaoTest`: a re-run of `bulkCreateAssetClusters` does **not** resurrect a detached member and does
 not downgrade a `MANUAL` membership to `AUTO`; `#testLinkIsIdempotent` and
 `#testDeleteCascadesEmbeddingClusterLinks` stay green unchanged. A Playwright case in
@@ -720,5 +720,5 @@ pinning it, plus updated `clients/python` and OpenAPI regeneration from inside `
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (test note: the one-direct-grant limit is gone with V2.118). Earlier: 2026-08-11 (code audit)_

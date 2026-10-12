@@ -390,8 +390,7 @@ public class AssetBinaryDataEndpointTest extends AbstractEndpointTest implements
 	 * A fresh enabled user holding exactly the listed permissions, and a client logged in as them.
 	 *
 	 * <p>
-	 * The permissions go through a group + role rather than direct user grants: {@code user_permission} is keyed by user alone, so only one direct
-	 * grant per user is possible.
+	 * The permissions go through a group + role, the path real users get their permissions by.
 	 * </p>
 	 */
 	private LoomHttpClient loginWithPermissions(String username, Permission... permissions) throws Exception {

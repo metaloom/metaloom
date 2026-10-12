@@ -15,6 +15,8 @@ public class ShareCommentImpl extends AbstractElement<ShareComment> implements S
 	private UUID shareAnnotationUuid;
 	private String text;
 	private String authorName;
+
+	private UUID visitorId;
 	private Instant created;
 	private Instant edited;
 
@@ -92,6 +94,17 @@ public class ShareCommentImpl extends AbstractElement<ShareComment> implements S
 	@Override
 	public ShareComment setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	@Override
+	public UUID getVisitorId() {
+		return visitorId;
+	}
+
+	@Override
+	public ShareComment setVisitorId(UUID visitorId) {
+		this.visitorId = visitorId;
 		return this;
 	}
 

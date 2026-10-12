@@ -5,15 +5,16 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
-import org.jooq.JSONB;
+import org.jooq.Record1;
 import org.jooq.Record7;
 import org.jooq.Row7;
-import org.jooq.impl.TableRecordImpl;
+import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
@@ -26,7 +27,7 @@ import org.jooq.impl.TableRecordImpl;
  * including and ranking and encoding specific properties as vectors.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigRecord> implements Record7<UUID, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqVectorConfigRecord extends UpdatableRecordImpl<JooqVectorConfigRecord> implements Record7<UUID, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -63,7 +64,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
      * which lists the weights for each component that should be included in the
      * index
      */
-    public void setWeights(JSONB value) {
+    public void setWeights(JsonObject value) {
         set(2, value);
     }
 
@@ -72,8 +73,8 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
      * which lists the weights for each component that should be included in the
      * index
      */
-    public JSONB getWeights() {
-        return (JSONB) get(2);
+    public JsonObject getWeights() {
+        return (JsonObject) get(2);
     }
 
     /**
@@ -133,16 +134,25 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     // -------------------------------------------------------------------------
+    // Primary key information
+    // -------------------------------------------------------------------------
+
+    @Override
+    public Record1<UUID> key() {
+        return (Record1) super.key();
+    }
+
+    // -------------------------------------------------------------------------
     // Record7 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row7<UUID, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+    public Row7<UUID, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
         return (Row7) super.fieldsRow();
     }
 
     @Override
-    public Row7<UUID, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+    public Row7<UUID, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
         return (Row7) super.valuesRow();
     }
 
@@ -157,7 +167,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     @Override
-    public Field<JSONB> field3() {
+    public Field<JsonObject> field3() {
         return JooqVectorConfig.VECTOR_CONFIG.WEIGHTS;
     }
 
@@ -192,7 +202,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     @Override
-    public JSONB component3() {
+    public JsonObject component3() {
         return getWeights();
     }
 
@@ -227,7 +237,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     @Override
-    public JSONB value3() {
+    public JsonObject value3() {
         return getWeights();
     }
 
@@ -264,7 +274,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     @Override
-    public JooqVectorConfigRecord value3(JSONB value) {
+    public JooqVectorConfigRecord value3(JsonObject value) {
         setWeights(value);
         return this;
     }
@@ -294,7 +304,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     }
 
     @Override
-    public JooqVectorConfigRecord values(UUID value1, String value2, JSONB value3, LocalDateTime value4, UUID value5, LocalDateTime value6, UUID value7) {
+    public JooqVectorConfigRecord values(UUID value1, String value2, JsonObject value3, LocalDateTime value4, UUID value5, LocalDateTime value6, UUID value7) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -319,7 +329,7 @@ public class JooqVectorConfigRecord extends TableRecordImpl<JooqVectorConfigReco
     /**
      * Create a detached, initialised JooqVectorConfigRecord
      */
-    public JooqVectorConfigRecord(UUID uuid, String name, JSONB weights, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqVectorConfigRecord(UUID uuid, String name, JsonObject weights, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqVectorConfig.VECTOR_CONFIG);
 
         setUuid(uuid);

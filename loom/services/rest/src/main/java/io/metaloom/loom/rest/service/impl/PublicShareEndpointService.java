@@ -121,7 +121,16 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		// that was never stored.
 		Share refreshed = daos.shareDao().load(share.getUuid());
 
-		String token = access.tokens().issue(slug);
+		// The visitor carries over from this browser's previous session when there was one, so a reviewer whose
+		// session lapsed can still edit what they wrote before it did. A fresh visitor gets a fresh id.
+		UUID visitorId = access.tokens().visitorOf(request.getPreviousSessionToken(), slug);
+		if (visitorId == null) {
+			visitorId = access.tokens().visitorOf(access.sessionToken(lrc), slug);
+		}
+		if (visitorId == null) {
+			visitorId = UUID.randomUUID();
+		}
+		String token = access.tokens().issue(slug, visitorId);
 		setSessionCookie(lrc, token);
 
 		ShareSessionResponse response = new ShareSessionResponse()
@@ -197,7 +206,7 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 	public void listComments(LoomRoutingContext lrc, String slug) {
 		Share share = access.requireSession(lrc, slug);
 		UUID assetUuid = optionalAssetFilter(lrc, share);
-		lrc.send(modelBuilder.toShareCommentList(daos.shareFeedbackDao().listComments(share.getUuid(), assetUuid)));
+		lrc.send(modelBuilder.toShareCommentList(daos.shareFeedbackDao().listComments(share.getUuid(), assetUuid), currentVisitor(lrc, slug)));
 	}
 
 	public void createComment(LoomRoutingContext lrc, String slug) {
@@ -207,8 +216,10 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		ShareCommentRequest request = lrc.requestBody(ShareCommentRequest.class);
 		validator.validate(request);
 		UUID assetUuid = requireMemberOrNull(share, request.getAssetUuid());
+		UUID visitorId = access.requireVisitor(lrc, slug);
 
 		ShareComment comment = daos.shareFeedbackDao().createComment(share.getUuid(), assetUuid, authorOf(share), request.getText());
+		comment.setVisitorId(visitorId);
 		if (request.getParentUuid() != null) {
 			ShareComment parent = requireComment(share, request.getParentUuid());
 			// Replies are one level deep. Attaching to the parent's parent rather than rejecting the request keeps a
@@ -220,7 +231,7 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		}
 		daos.shareFeedbackDao().storeComment(comment);
 		notifyOwner(share, assetUuid, comment.getText());
-		lrc.send(modelBuilder.toResponse(comment), 201);
+		lrc.send(modelBuilder.toResponse(comment, visitorId), 201);
 	}
 
 	public void updateComment(LoomRoutingContext lrc, String slug, UUID commentUuid) {
@@ -230,16 +241,20 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		ShareCommentRequest request = lrc.requestBody(ShareCommentRequest.class);
 		validator.validate(request);
 
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareComment comment = requireComment(share, commentUuid);
+		access.requireAuthor(comment.getVisitorId(), visitorId);
 		comment.setText(request.getText());
 		daos.shareFeedbackDao().updateComment(comment);
-		lrc.send(modelBuilder.toResponse(comment));
+		lrc.send(modelBuilder.toResponse(comment, visitorId));
 	}
 
 	public void deleteComment(LoomRoutingContext lrc, String slug, UUID commentUuid) {
 		Share share = access.requireSession(lrc, slug);
 		access.requireCapability(share.getAllowComments(), "comments");
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareComment comment = requireComment(share, commentUuid);
+		access.requireAuthor(comment.getVisitorId(), visitorId);
 		daos.shareFeedbackDao().deleteComment(comment.getUuid());
 		lrc.sendNoContent();
 	}
@@ -247,7 +262,7 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 	public void listAnnotations(LoomRoutingContext lrc, String slug) {
 		Share share = access.requireSession(lrc, slug);
 		UUID assetUuid = optionalAssetFilter(lrc, share);
-		lrc.send(modelBuilder.toShareAnnotationList(daos.shareFeedbackDao().listAnnotations(share.getUuid(), assetUuid)));
+		lrc.send(modelBuilder.toShareAnnotationList(daos.shareFeedbackDao().listAnnotations(share.getUuid(), assetUuid), currentVisitor(lrc, slug)));
 	}
 
 	public void createAnnotation(LoomRoutingContext lrc, String slug) {
@@ -257,13 +272,15 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		ShareAnnotationRequest request = lrc.requestBody(ShareAnnotationRequest.class);
 		validator.validate(request);
 		access.requireMembership(share, request.getAssetUuid());
+		UUID visitorId = access.requireVisitor(lrc, slug);
 
 		ShareAnnotation annotation = daos.shareFeedbackDao().createAnnotation(share.getUuid(), request.getAssetUuid(),
 			ShareAnnotationKind.parse(request.getKind()), authorOf(share));
+		annotation.setVisitorId(visitorId);
 		applyGeometry(annotation, request);
 		daos.shareFeedbackDao().storeAnnotation(annotation);
 		notifyOwner(share, annotation.getAssetUuid(), annotation.getText());
-		lrc.send(modelBuilder.toResponse(annotation), 201);
+		lrc.send(modelBuilder.toResponse(annotation, visitorId), 201);
 	}
 
 	public void updateAnnotation(LoomRoutingContext lrc, String slug, UUID annotationUuid) {
@@ -273,7 +290,9 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		ShareAnnotationRequest request = lrc.requestBody(ShareAnnotationRequest.class);
 		validator.validate(request);
 
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareAnnotation annotation = requireAnnotation(share, annotationUuid);
+		access.requireAuthor(annotation.getVisitorId(), visitorId);
 		if (!annotation.getKind().equals(request.getKind())) {
 			// Turning a region into a timecode would leave the stored geometry contradicting the new kind, and the
 			// database CHECK would then reject the write with a constraint name. Draw a new mark instead.
@@ -282,13 +301,15 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 		}
 		applyGeometry(annotation, request);
 		daos.shareFeedbackDao().updateAnnotation(annotation);
-		lrc.send(modelBuilder.toResponse(annotation));
+		lrc.send(modelBuilder.toResponse(annotation, visitorId));
 	}
 
 	public void deleteAnnotation(LoomRoutingContext lrc, String slug, UUID annotationUuid) {
 		Share share = access.requireSession(lrc, slug);
 		access.requireCapability(share.getAllowAnnotations(), "annotations");
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareAnnotation annotation = requireAnnotation(share, annotationUuid);
+		access.requireAuthor(annotation.getVisitorId(), visitorId);
 		daos.shareFeedbackDao().deleteAnnotation(annotation.getUuid());
 		lrc.sendNoContent();
 	}
@@ -296,7 +317,7 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 	public void listReactions(LoomRoutingContext lrc, String slug) {
 		Share share = access.requireSession(lrc, slug);
 		UUID assetUuid = optionalAssetFilter(lrc, share);
-		lrc.send(modelBuilder.toShareReactionList(daos.shareFeedbackDao().listReactions(share.getUuid(), assetUuid)));
+		lrc.send(modelBuilder.toShareReactionList(daos.shareFeedbackDao().listReactions(share.getUuid(), assetUuid), currentVisitor(lrc, slug)));
 	}
 
 	public void createReaction(LoomRoutingContext lrc, String slug) {
@@ -311,7 +332,9 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "Unknown reaction type " + request.getType());
 		}
 
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareReaction reaction = daos.shareFeedbackDao().createReaction(share.getUuid(), type, authorOf(share));
+		reaction.setVisitorId(visitorId);
 		if (request.getAssetUuid() != null) {
 			access.requireMembership(share, request.getAssetUuid());
 			reaction.setAssetUuid(request.getAssetUuid());
@@ -321,16 +344,18 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 			reaction.setShareAnnotationUuid(requireAnnotation(share, request.getAnnotationUuid()).getUuid());
 		}
 		daos.shareFeedbackDao().storeReaction(reaction);
-		lrc.send(modelBuilder.toResponse(reaction), 201);
+		lrc.send(modelBuilder.toResponse(reaction, visitorId), 201);
 	}
 
 	public void deleteReaction(LoomRoutingContext lrc, String slug, UUID reactionUuid) {
 		Share share = access.requireSession(lrc, slug);
 		access.requireCapability(share.getAllowReactions(), "reactions");
+		UUID visitorId = access.requireVisitor(lrc, slug);
 		ShareReaction reaction = daos.shareFeedbackDao().loadReaction(share.getUuid(), reactionUuid);
 		if (reaction == null) {
 			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Reaction not found");
 		}
+		access.requireAuthor(reaction.getVisitorId(), visitorId);
 		daos.shareFeedbackDao().deleteReaction(reaction.getUuid());
 		lrc.sendNoContent();
 	}
@@ -338,6 +363,14 @@ public class PublicShareEndpointService extends AbstractEndpointService {
 	// -------------------------------------------------------------------------------------------
 	// Helpers
 	// -------------------------------------------------------------------------------------------
+
+	/**
+	 * The visitor reading a listing, for the {@code own} flags. Null for a session that predates visitor ids: it may still read, it simply owns
+	 * nothing.
+	 */
+	private UUID currentVisitor(LoomRoutingContext lrc, String slug) {
+		return access.tokens().visitorOf(access.sessionToken(lrc), slug);
+	}
 
 	/**
 	 * The author name written onto a piece of feedback.

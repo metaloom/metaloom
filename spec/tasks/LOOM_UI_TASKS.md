@@ -15,8 +15,8 @@
 > accessibility, i18n plumbing and E2E coverage holes. Per-entity REST↔UI gaps stay in the
 > `TASK_UI_*.md` files under [../loom/ui/](../loom/ui/) and are **not** restated here. Two findings
 > from this audit are already owned there and were deliberately not duplicated:
-> the mock-backed LLM detection tab (`features/detection/LLMDetectionManagement.tsx`, still
-> entirely `MOCK_PROMPTS`/`MOCK_RESULTS` with a `handleCreatePrompt` that issues no request) is
+> the mock-backed LLM detection tab (`features/detection/LLMDetectionManagement.tsx`, sample data
+> only; since 2026-10-11 labelled as a preview with its actions disabled) is
 > [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 2, and the unreachable legacy `src/` trees are
 > [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5. The one part of that deletion which
 > was a security issue rather than tidiness — `src/Login/Login.tsx`, an MUI template whose submit

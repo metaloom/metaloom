@@ -6,7 +6,9 @@ package io.metaloom.loom.db.jooq.tables;
 
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqVectorConfigRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -16,7 +18,6 @@ import java.util.function.Function;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function7;
-import org.jooq.JSONB;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
@@ -62,7 +63,7 @@ public class JooqVectorConfig extends TableImpl<JooqVectorConfigRecord> {
     /**
      * The column <code>public.vector_config.uuid</code>.
      */
-    public final TableField<JooqVectorConfigRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqVectorConfigRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.vector_config.name</code>.
@@ -74,7 +75,7 @@ public class JooqVectorConfig extends TableImpl<JooqVectorConfigRecord> {
      * which lists the weights for each component that should be included in the
      * index
      */
-    public final TableField<JooqVectorConfigRecord, JSONB> WEIGHTS = createField(DSL.name("weights"), SQLDataType.JSONB, this, "Index definition which lists the weights for each component that should be included in the index");
+    public final TableField<JooqVectorConfigRecord, JsonObject> WEIGHTS = createField(DSL.name("weights"), SQLDataType.JSONB, this, "Index definition which lists the weights for each component that should be included in the index", new JsonObjectConverter());
 
     /**
      * The column <code>public.vector_config.created</code>.
@@ -135,8 +136,43 @@ public class JooqVectorConfig extends TableImpl<JooqVectorConfigRecord> {
     }
 
     @Override
+    public UniqueKey<JooqVectorConfigRecord> getPrimaryKey() {
+        return Keys.VECTOR_CONFIG_PKEY;
+    }
+
+    @Override
     public List<UniqueKey<JooqVectorConfigRecord>> getUniqueKeys() {
         return Arrays.asList(Keys.VECTOR_CONFIG_NAME_KEY);
+    }
+
+    @Override
+    public List<ForeignKey<JooqVectorConfigRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.VECTOR_CONFIG__VECTOR_CONFIG_CREATOR_UUID_FKEY, Keys.VECTOR_CONFIG__VECTOR_CONFIG_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqUser _vectorConfigCreatorUuidFkey;
+    private transient JooqUser _vectorConfigEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>vector_config_creator_uuid_fkey</code> key.
+     */
+    public JooqUser vectorConfigCreatorUuidFkey() {
+        if (_vectorConfigCreatorUuidFkey == null)
+            _vectorConfigCreatorUuidFkey = new JooqUser(this, Keys.VECTOR_CONFIG__VECTOR_CONFIG_CREATOR_UUID_FKEY);
+
+        return _vectorConfigCreatorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>vector_config_editor_uuid_fkey</code> key.
+     */
+    public JooqUser vectorConfigEditorUuidFkey() {
+        if (_vectorConfigEditorUuidFkey == null)
+            _vectorConfigEditorUuidFkey = new JooqUser(this, Keys.VECTOR_CONFIG__VECTOR_CONFIG_EDITOR_UUID_FKEY);
+
+        return _vectorConfigEditorUuidFkey;
     }
 
     @Override
@@ -183,14 +219,14 @@ public class JooqVectorConfig extends TableImpl<JooqVectorConfigRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row7<java.util.UUID, String, JSONB, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row7<java.util.UUID, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row7) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function7<? super java.util.UUID, ? super String, ? super JSONB, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function7<? super java.util.UUID, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -198,7 +234,7 @@ public class JooqVectorConfig extends TableImpl<JooqVectorConfigRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function7<? super java.util.UUID, ? super String, ? super JSONB, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function7<? super java.util.UUID, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

@@ -35,6 +35,12 @@ export interface RequestContext {
   action?: string;
   method?: string;
   path?: string;
+  /**
+   * The request carried no credentials - a pre-login route such as the node descriptors. A 401 on
+   * such a request says nothing about the session, so it must not fire {@link SESSION_EXPIRED_EVENT}
+   * and log out a perfectly valid one.
+   */
+  anonymous?: boolean;
 }
 
 /**
@@ -105,7 +111,7 @@ export async function handleResponse<T>(res: Response, context?: RequestContext)
     // JS entirely, and the body copy is what keeps the id reachable there.
     const bodyTraceId = extractTraceId(text);
 
-    if (res.status === 401) {
+    if (res.status === 401 && !context?.anonymous) {
       notifySessionExpired();
     }
 

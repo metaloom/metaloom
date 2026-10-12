@@ -7,8 +7,9 @@
 > §5 onwards are the **open schema work items** owned by this file.
 > Format follows [TASKS.template.md](TASKS.template.md).
 >
-> Schema now runs to **`V2.99`** (`V2.97`/`V2.99` added the share model; `V2.88`–`V2.93` the
-> review author and the person/user avatar attachments; `V2.91` dropped `person_image`).
+> Schema now runs to **`V2.120`** (`V2.118`/`V2.119` closed Tasks 15 and 24; `V2.120` added the
+> share-feedback `visitor_id`; `V2.97`/`V2.99` added the share model; `V2.88`–`V2.93` the review
+> author and the person/user avatar attachments; `V2.91` dropped `person_image`).
 > **Sort migration versions numerically, not lexically** — `V2.9` is not the newest file.
 > DAO/model/test gaps are *not* tracked here — they live in
 > [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md); the entity inventory lives in
@@ -268,8 +269,6 @@ At a glance, in the order they should be taken:
 
 | # | Task | Severity | Migration? | loom-ui? |
 |---|---|---|---|---|
-| 15 | `user_permission` / `token_permission` primary keys discard grants | 🔴 HIGH | yes | no |
-| 24 | `vector_config` has no primary key; four actor FKs missing across three tables | 🔴 HIGH | yes | no |
 | 16 | Three soft references in the pipeline tables become real FKs | 🔴 HIGH | yes | no |
 | 22 | Index the referencing side of the cascade and provenance FKs | 🟠 MEDIUM | yes | no |
 | 17 | Widen `asset_location.filekey_*` to `bigint` | 🟠 MEDIUM | yes | no |
@@ -279,89 +278,20 @@ At a glance, in the order they should be taken:
 | 21 | Re-sync `dbdiagram.yaml` from `V2.84` to `V2.99` | 🟡 docs | no | no |
 | 20 | Re-sync the resolved findings in `DB_SCHEMA_FEEDBACK.md` | 🟡 docs | no | no |
 
-**Blocking relationships.** Task 24 **blocks**
-[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6: `JooqVectorConfigRecord` is generated as a
-`TableRecordImpl` precisely because the table has no primary key, so a DAO written against it
-today cannot `update()` or `delete()` a row. Task 15 **blocks** every endpoint permission test
-that currently has to grant through group+role. Task 22 should land **after** Task 16, so the
-two columns that task adds are indexed in one pass rather than two.
+**Blocking relationships.** Task 22 should land **after** Task 16, so the two columns that task
+adds are indexed in one pass rather than two.
 
-Tasks 15–18 and 22–24 are independent migrations; each needs `loom/db/jooq/generate.sh` **and**
+Tasks 16–18, 22 and 23 are independent migrations; each needs `loom/db/jooq/generate.sh` **and**
 `./setup-pool.sh` after it, with `loom/db/flyway` installed first or the pool silently keeps the
 old schema. Do not batch them into one migration file — a failure in one would roll back the
-others' verification. Each writes `V2.100`; **whoever lands second renumbers**, sorting the
-migration directory numerically.
+others' verification. Their bodies name the file `V2.100__…` as written when that was the next
+free version; it is long taken (`V2.100`–`V2.120` exist). Use the next free version at the time
+(today **`V2.121`**), sorting the migration directory numerically.
 
 The task bodies below stay in **numeric** order so the numbers other files cite remain stable;
-the table above is the severity order. Tasks 1–14 are closed and their text has been removed —
-§1 keeps the record of the 1–13 rework, and Task 14 (`dbdiagram.yaml` → `V2.84`, closed
-2026-08-09) is superseded by Task 21.
-
----
-
-### Task 15: Give `user_permission` and `token_permission` usable primary keys
-
-**Argumentation Summary:** Both tables have carried `PRIMARY KEY (user_uuid)` /
-`PRIMARY KEY (token_uuid)` since `V2.1`, alongside a `UNIQUE INDEX (…, resource, permission)`
-that the narrower PK makes unreachable. The effect is that a user or a token can hold
-**exactly one direct grant, ever** — a second `INSERT` is a primary-key violation, not an
-added permission. The project's own test suite already works around it by granting through
-group+role (`SkillEndpointTest` pattern), which is how the defect has stayed invisible.
-`V2.64` fixed the third table, `role_permission`, by dropping the decorative `resource`
-column, and explicitly scoped these two out because they change the semantics of direct
-grants. This is the largest correctness payoff per line of SQL left in the schema
-([DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §7.1, recommendation 1).
-
-**Improvement Summary:** Re-key both tables on `(subject_uuid, permission)` and drop the
-`resource` column, matching what `V2.64` decided for roles — permissions in Loom are global,
-so a column that looks like a scope but scopes nothing invites grants that confer more
-authority than they appear to.
-
-```
-1. loom/db/flyway/src/main/resources/db/migration/V2.100__fix_direct_permission_keys.sql —
-   for "user_permission" and "token_permission", in that order:
-     * DROP the (…, resource, permission) unique index. V2.1:140 and V2.1:150 created them
-       with CREATE UNIQUE INDEX ON "<table>" (...) and no name, so Postgres generated one:
-       resolve it from pg_indexes rather than guessing, exactly as V2.64 had to for
-       role_permission.
-     * ALTER TABLE "<table>" DROP CONSTRAINT "<table>_pkey";
-     * ALTER TABLE "<table>" DROP COLUMN IF EXISTS "resource";
-     * ALTER TABLE "<table>" ADD PRIMARY KEY ("user_uuid", "permission")
-       / ("token_uuid", "permission").
-   No backfill is possible and none is needed: the narrow PK means at most one row per
-   subject exists today, so the wider key cannot collide. State that in the file comment
-   rather than adding a NOT EXISTS guard.
-   COMMENT ON TABLE both, reusing the wording V2.64 wrote for role_permission.
-2. loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/perm/PermissionDaoImpl.java: the
-   grant path becomes an upsert on the wider key
-   (insertInto(...).onConflict(USER_UUID, PERMISSION).doNothing()). Check every method on
-   loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/PermissionDao.java that assumes
-   one row per subject and widen its return type to a collection.
-3. loom/services/auth/auth-common/.../PermissionCache.java: confirm it aggregates direct
-   grants rather than reading a single row, and that the ResourcePermissionSet it builds is
-   unaffected by the dropped resource column.
-4. Delete the "one direct grant per user" workaround note wherever a test explains it, and
-   the matching bullet in §8 of this file.
-5. Regenerate jOOQ (loom/db/jooq/generate.sh) and re-run ./setup-pool.sh — install
-   loom/db/flyway first. Clean-rebuild loom/core afterwards if the DAO signature changed.
-6. No loom-ui change. Checked: the UI edits role permissions only (loom-ui/src/api/roles.ts,
-   loom-ui/src/features/admin/AdminArea.tsx); loom-ui/src/api/users.ts never touches direct
-   grants, so nothing in the SPA can observe this key.
-```
-
-**References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §7.1 ·
-migrations `V2.1__add_acl.sql:134-152`, `V2.64__fix_role_permission_key.sql` (its scope note
-names this task) ·
-[../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md)
-**Test Requirements:** Extend
-`loom/db/jooq/src/test/java/io/metaloom/loom/db/perm/PermissionDaoTest.java` with a case that
-grants **two different** permissions directly to one user and reads both back, and the same
-for a token — that case fails today with a primary-key violation, which is the proof the task
-is real. `AclCascadeTest` must still pass (the cascade is on the subject FK, untouched).
-`mvn test -pl loom/db/jooq -Dtest='PermissionDaoTest,AclCascadeTest'`, then
-`mvn test -pl loom/core -Dtest='RolePermissionEnforcementTest'` and
-`mvn test -pl loom/services/rest -Dtest=RolePermissionParityTest`. Re-run `./setup-pool.sh`
-before any of them.
+the table above is the severity order. Tasks 1–15 and 24 are closed and their text has been
+removed — §1 keeps the record of the 1–13 rework, Task 14 (`dbdiagram.yaml` → `V2.84`, closed
+2026-08-09) is superseded by Task 21, and Tasks 15 and 24 (closed 2026-10-11) are recorded in §9.
 
 ---
 
@@ -643,9 +573,9 @@ without being marked. Reading it today produces work that is already done:
   (`cluster_type_name_key` on `(type, name) WHERE name IS NOT NULL`), which also gave
   `cluster` the provenance block and the review model, so "two competing models of a person"
   now has a `person_uuid` link.
-- **§7.1** — the `role_permission` third of it is resolved by `V2.64`, differently from the
-  recommendation (the `resource` column was dropped rather than the key widened). The
-  `user_permission` / `token_permission` two-thirds is Task 15 and stays open.
+- **§7.1** — ~~the `role_permission` third is resolved by `V2.64`; the `user_permission` /
+  `token_permission` two-thirds is Task 15~~ — **done 2026-10-11**: §7.1 is marked resolved
+  (`V2.64` + `V2.118`).
 - **The header (line 7-8) still says the chain was re-verified to `V2.63`.** It runs to
   `V2.99` — thirty-six migrations later, including the whole share model.
 - **§6.4 (`leased_by` soft reference)** and **§3.7 (dispatch index)** — §3.7's premise is
@@ -661,8 +591,7 @@ the version claims and the prioritised list in §9.
    call it an open decision: spec/features/search/SEMANTIC_SEARCH.md §1.3 and
    spec/features/search/SEARCH.md.
 2. §4.3 (line 236): mark "RESOLVED (V2.79)".
-3. §7.1 (line 347): mark the role_permission third resolved by V2.64, keep the other two open
-   and point at Task 15 in this file.
+3. §7.1: DONE 2026-10-11 (marked resolved by V2.64 + V2.118).
 4. §3.1 (line 169): strike the "no Cortex node writes embeddings" sentence; keep the
    asset_doc_comp gap and point it at Task 19, noting the additional finding that
    LoomClient has no createAssetDocComp method at all.
@@ -670,17 +599,15 @@ the version claims and the prioritised list in §9.
 6. Header lines 7-8 and the "migrations are the source of truth" gotcha: V2.63 -> V2.99.
 7. §9 Remaining prioritised recommendations (line 430): drop item 7 (vector storage),
    renumber nothing else, and note that items 1, 4, 5 and 6 are now Tasks 15-18 here.
-8. The blockquote at lines 23-25 lists three structural findings detected at runtime by
-   DB_INTEGRITY (DANGLING_TOKEN_EDITOR, DANGLING_ASSET_REMIX_EDITOR,
-   DANGLING_VECTOR_CONFIG_ACTOR / DUPLICATE_VECTOR_CONFIG_UUID). Point them at Task 24 here,
-   which is the migration that makes them unreachable.
+8. The opening blockquote's three runtime-detected findings: DONE 2026-10-11 (marked resolved
+   by V2.100 / V2.119).
 9. Same sweep for the Progress Assessment checkboxes at the end of that file.
 10. No loom-ui change — documentation only.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) (its own
 "section numbers are an API" rule) · migrations `V2.64`, `V2.75`, `V2.79` ·
-[../guidelines/SPEC_RULES.md](../guidelines/SPEC_RULES.md) · Tasks 15, 18, 19, 24
+[../guidelines/SPEC_RULES.md](../guidelines/SPEC_RULES.md) · Tasks 18, 19
 **Test Requirements:** None (documentation). No test parses this file — unlike
 `spec/features/metrics/METRICS.md`, whose §3/§5 tables `MetricsCatalogScrapeTest` reads at
 runtime — but re-run `grep -rn "§3.7\|§4.2\|§4.3\|§7.1" spec/` and fix every citation that now
@@ -867,96 +794,13 @@ test [../guidelines/CODING.md](../guidelines/CODING.md) requires and it does not
 
 ---
 
-### Task 24: Give `vector_config` a primary key, and add the four missing actor foreign keys
-
-**Argumentation Summary:** `V2.6__add_vector_config.sql` creates a table with **no primary key,
-no unique constraint on `uuid`, and no foreign keys at all**, while declaring
-`creator_uuid uuid NOT NULL` and `editor_uuid uuid NOT NULL`. Two things follow. First, the
-codegen consequence is already visible and already blocking:
-`loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/records/JooqVectorConfigRecord.java:29`
-extends **`TableRecordImpl`**, not `UpdatableRecordImpl` (compare `JooqShareRecord:27`), because
-jOOQ has no key to update or delete by — so
-[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6, which asks for a `VectorConfigDao extends
-CRUDDao<VectorConfig>`, **cannot be implemented against this table as it stands**. Second, the
-defect is not theoretical: the runtime integrity report already hunts for its consequences —
-`DbIntegrityCodes.DUPLICATE_VECTOR_CONFIG_UUID` (`RowCountCheck.java:57`) and
-`DANGLING_VECTOR_CONFIG_ACTOR` exist precisely because the schema cannot prevent them. The
-same file carries one more: `DANGLING_TOKEN_EDITOR` (`DanglingUserReferenceCheck.tokenEditor()`)
-— `V2.1:141` gives `token` a FK for `creator_uuid` only, so `editor_uuid` is a `NOT NULL uuid`
-referencing nothing. (`DANGLING_ASSET_REMIX_EDITOR` was a third until `V2.100` dropped
-`asset_remix`; its replacement declares both actor foreign keys.) Detecting a broken invariant at
-runtime is a fallback for data that predates a constraint; here there is no constraint to have
-predated.
-
-**Improvement Summary:** Add the primary key and the four foreign keys the schema always
-implied, turning three runtime integrity checks into structural impossibilities.
-
-```
-1. Establish that the repair is a no-op before writing it. vector_config has NO writer at all
-   — PERSISTENCE_TASKS.md Task 6 records that a repo-wide grep finds it only under
-   loom/db/jooq/src/jooq/ — so the table is empty on every installation and no dedup or
-   backfill step is needed. Confirm that against a pooled DB rather than assuming it, and for
-   token run the integrity check first (GET /api/v1/db-integrity, or call
-   DanglingUserReferenceCheck directly) to see whether any real row would block the
-   constraint.
-2. loom/db/flyway/src/main/resources/db/migration/V2.103__vector_config_constraints.sql
-   (V2.100-V2.102 are taken by the remix feature — check the highest version before writing):
-     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_pkey" PRIMARY KEY ("uuid");
-     ALTER TABLE "vector_config" ALTER COLUMN "uuid" SET NOT NULL;   -- if not implied
-     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_creator_uuid_fkey"
-       FOREIGN KEY ("creator_uuid") REFERENCES "user" ("uuid");
-     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_editor_uuid_fkey"
-       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
-   No ON DELETE action, matching detection_creator_uuid_fkey (V2.43) and
-   cluster_reviewer_uuid_fkey (V2.88): users are not deleted casually and losing the author
-   is worse than blocking the delete. If step 1 found rows with a dangling actor, decide
-   between repairing them and relaxing the column to nullable per the V2.47 precedent — and
-   write which, and why, into the file comment.
-3. In the SAME migration, the remaining omission of the same shape:
-     ALTER TABLE "token" ADD CONSTRAINT "token_editor_uuid_fkey"
-       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
-   V2.1:141 declared the creator side and forgot the editor side. (V2.8 repeated it for
-   asset_remix; that table no longer exists.)
-4. Update spec/features/db/DB_INTEGRITY.md: the checks stay (they still guard older
-   installations mid-upgrade) but must now record that the schema prevents the condition from
-   this migration onward. Do not delete the checks or their tests.
-5. Regenerate jOOQ (loom/db/jooq/generate.sh). JooqVectorConfigRecord becomes an
-   UpdatableRecordImpl — that type change is the unblocking effect and is the thing to verify.
-   Re-run ./setup-pool.sh with loom/db/flyway installed first.
-   ⚠️ If you also land PERSISTENCE_TASKS.md Task 6 in the same change, a new DAO alters the
-   DaoCollection constructor and loom/core must be CLEAN-rebuilt or setup-pool.sh fails with
-   NoSuchMethodError.
-6. No loom-ui change. Checked: nothing under loom-ui/src references vector_config or a vector
-   configuration; the search index admin screen (loom-ui/src/features/admin/SearchIndicesAdmin.tsx)
-   operates on indices, not on this table.
-```
-
-**References:** migrations `V2.6__add_vector_config.sql`, `V2.1__add_acl.sql:141`,
-`V2.8__add_asset.sql:76-78` ·
-[DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) (its opening blockquote lists all
-three as runtime-detected) · [../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md) ·
-[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6 (blocked by this) ·
-[../loom/PERSISTENCE.md](../loom/PERSISTENCE.md)
-**Test Requirements:**
-`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/integrity/DbIntegrityServiceTest.java`
-seeds the very rows these constraints forbid in order to assert the findings — **it will fail
-after this migration**, and fixing it is part of the task: the seeding must move to a path the
-constraints permit, or those cases must assert that the insert is now rejected. Same for
-`loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/DbIntegrityEndpointTest.java:104`.
-Add a `VectorConfigDaoTest` only if Task 6 lands with this; otherwise assert the key exists by
-round-tripping an insert and an update through jOOQ. `./setup-pool.sh`, then
-`mvn test -pl loom/db/jooq -Dtest='DbIntegrityServiceTest'` and
-`mvn test -pl loom/core -Dtest=DbIntegrityEndpointTest`.
-
----
-
 ## 6. Open, but owned elsewhere — do not duplicate
 
 | Item | Owner |
 |---|---|
 | **`asset_node_result` write path** — `origin` hard-coded to `COMPUTED` in `AbstractMediaNode:149`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest`, `cortex_instance` never joined. The **columns already exist** (`V2.45`); this is a writer gap, not a schema gap | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18** |
 | **`dedup_group.keep_asset_uuid` vs. `dedup_group_member.role`** — `DedupGroupDaoImpl.updateStatus` never rewrites `role`, and the *"The DAO keeps them consistent"* comment at `V2.61__add_dedup_group.sql:12` is false. Fix the comment there, not here | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 3** |
-| DAO / model / DAO-test gaps (`VectorConfigDao` — **blocked by Task 24**, `SpaceDaoTest`, missing cascade suites) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
+| DAO / model / DAO-test gaps (`SpaceDaoTest`, missing cascade suites; `VectorConfigDao` landed 2026-10-11) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
 | Execution-ledger retention / partitioning — decided, not built (7 days of per-item detail, 30 for failures, the `pipeline_run` row forever) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §10.1a |
 | `timestamptz` sweep (§8.1) — no migration uses it; converting is a whole-schema change | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §8.1 |
 | Content-mutation model (§2.2) — a changed file is a different asset and nothing migrates the old row's tags/detections/components; no `superseded_by_uuid` | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §2.2 |
@@ -1007,8 +851,6 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
   `notification.type` (`V2.70`) and `pipeline_run.kind` (`V2.83`) all chose CHECK.
   `ALTER TYPE … RENAME`, unlike `ADD VALUE`, *is* transactional — that is how `V2.81` folded
   `cluster_status` into the shared `review_status`.
-- **`user_permission` has `PRIMARY KEY (user_uuid)`** — one direct grant per user, ever.
-  Grant test permissions via group+role (`SkillEndpointTest` pattern) until Task 15 lands.
 - **`tag_asset` needs PostgreSQL 15+** (`NULLS NOT DISTINCT`, `V2.71`). Without it an
   asset-level tag re-attaches on every write, since NULL region columns never conflict under
   the default semantics.
@@ -1035,11 +877,11 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
   are **hand-written** and must be edited by hand when a table, key, index or permission value
   is added. A new table that is not registered in `Tables.java` is invisible to every DAO.
 - **A table with no single-column primary key generates a `TableRecordImpl`**, not an
-  `UpdatableRecordImpl`, so jOOQ gives it no `update()` or `delete()`. `vector_config` is the
-  live example (Task 24). Any task proposing a **new table** must give it a `uuid PRIMARY KEY`
+  `UpdatableRecordImpl`, so jOOQ gives it no `update()` or `delete()`. `vector_config` was the
+  live example until `V2.119` (Task 24). Any task proposing a **new table** must give it a `uuid PRIMARY KEY`
   unless it deliberately wants an insert-only record — and must say which.
 - **Sort migration versions numerically, not lexically.** `ls` puts `V2.9` after `V2.99`; the
-  next free version today is `V2.100`. Getting this wrong produces a duplicate-version file.
+  next free version today is `V2.121`. Getting this wrong produces a duplicate-version file.
 - **The pooled test database is shared and pre-populated.** Never assert an absolute row count,
   or that a table is empty — seed your own fixtures and assert relative to them. A test that
   passes alone and fails in the suite is almost always this.
@@ -1087,14 +929,33 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 - [x] **The share model** (`V2.96`–`V2.99`) — `share` plus `share_annotation` /
       `share_comment` / `share_reaction` for guest feedback, kept apart from the internal
       social tables because guest rows have an `author_name` and no `creator_uuid`. Full DAO
-      stack (`ShareDao`, `ShareFeedbackDao`) and delete-cascade coverage in `ShareCascadeTest`
+      stack (`ShareDao`, `ShareFeedbackDao`) and delete-cascade coverage in `ShareCascadeTest`.
+      `V2.120` adds `visitor_id` to the three feedback tables and makes reaction uniqueness
+      per visitor ([../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md))
+- [x] **Task 15 — direct grant keys** (closed 2026-10-11, `V2.118__fix_direct_permission_keys.sql`)
+      — `user_permission` / `token_permission` re-keyed from `(subject)` to `(subject, permission)`,
+      `resource` and the unreachable V2.1 unique indexes dropped, `token_permission.token_uuid`
+      `ON DELETE CASCADE`. `PermissionDao.grantUserPermission` is an idempotent upsert, the 3-arg
+      `resource` overload is gone, `grantTokenPermission` / `loadPermissionsForToken` are on the
+      interface (the old impl was broken and off-interface). A subject may hold any number of
+      direct grants. Tests: `PermissionDaoTest` (several grants, idempotency, token grants),
+      `AclCascadeTest.testDeletingATokenCascadesItsGrants`. The "one direct grant per user" comments
+      are gone from the endpoint tests, which still grant via group+role — the path real users get
+      permissions by. `PermissionCache` was unaffected. Token grants are still not read by
+      authentication ([../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) §6.5)
+- [x] **Task 24 — `vector_config` key and actor FKs** (closed 2026-10-11,
+      `V2.119__vector_config_constraints.sql`) — `vector_config_pkey` (`uuid NOT NULL`),
+      `vector_config_creator_uuid_fkey` / `vector_config_editor_uuid_fkey`, and
+      `token_editor_uuid_fkey`; no `ON DELETE` action. `JooqVectorConfigRecord` is now an
+      `UpdatableRecordImpl`, which unblocked [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6
+      (landed in the same change). The integrity checks `DANGLING_TOKEN_EDITOR`,
+      `DANGLING_VECTOR_CONFIG_ACTOR`, `DUPLICATE_VECTOR_CONFIG_UUID` stay for legacy data;
+      `DbIntegrityServiceTest` drops the constraint inside the test to seed such rows and asserts
+      the schema refuses them (`testSchemaRefusesDanglingActors`); `DbIntegrityEndpointTest`'s
+      end-to-end case now uses `BLANK_NAME`
 
 ### Open — this file
 
-- [ ] **Task 15** — `user_permission` / `token_permission` primary keys (🔴 HIGH)
-- [ ] **Task 24** — `vector_config` primary key + four missing actor FKs (`vector_config`
-      creator/editor, `token.editor_uuid`)
-      (🔴 HIGH; **blocks** [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6)
 - [ ] **Task 16** — `pipeline_run_item.asset_uuid`, `pipeline_run.pipeline_version_uuid`,
       `pipeline_node_task.leased_by` FKs (🔴 HIGH)
 - [ ] **Task 22** — index the referencing side of the cascade and provenance FKs
@@ -1157,5 +1018,5 @@ DAO/test gap have owners outside this file.
 | Schema audit (section numbers are an API) | [../features/db/DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) |
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (closed Task 15 — `V2.118` direct grant keys — and Task 24 — `V2.119` `vector_config` key + actor FKs; bodies removed per this file's convention, outcome in §9; §8's one-direct-grant bullet removed; next free migration version V2.100 → V2.121). Earlier: 2026-08-11 (code audit)_

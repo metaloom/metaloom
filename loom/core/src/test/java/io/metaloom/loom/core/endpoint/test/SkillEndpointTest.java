@@ -44,8 +44,8 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 	}
 
 	private void loginJoeDoe(LoomHttpClient client) throws LoomClientException {
-		// The joedoe fixture user only carries READ_USER by default. Direct user grants are limited to a single
-		// permission per user (user_permission PK), so the skill permissions are granted via a group + role instead.
+		// The joedoe fixture user only carries READ_USER by default. The skill permissions are granted via a
+		// group + role, the path real users get their permissions by.
 		DaoCollection daos = loom.internal().daos();
 		User joedoe = daos.userDao().load(USER_UUID);
 		Role role = daos.roleDao().createRole(ADMIN_UUID, "skill-test-role");

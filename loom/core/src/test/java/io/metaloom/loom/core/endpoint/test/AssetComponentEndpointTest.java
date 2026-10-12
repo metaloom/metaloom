@@ -207,8 +207,8 @@ public class AssetComponentEndpointTest extends AbstractEndpointTest {
 	}
 
 	/**
-	 * Fine-grained permission handling, not only the admin path. The fixture user's permissions are granted through a group and a role, because
-	 * {@code user_permission} allows only one direct grant per user.
+	 * Fine-grained permission handling, not only the admin path. The fixture user's permissions are granted through a group and a role, the path
+	 * real users get their permissions by.
 	 */
 	@Test
 	public void testPermissionsAreEnforced() throws Exception {

@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { withPaging, type PagingInfo, type PagingParams } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 export interface ChatSessionSkillPin {
   skillUuid: string;
@@ -121,10 +121,7 @@ export async function deleteChatSession(token: string, uuid: string): Promise<vo
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 export async function publishChatSession(token: string, uuid: string, published: boolean): Promise<ChatSessionResponse> {

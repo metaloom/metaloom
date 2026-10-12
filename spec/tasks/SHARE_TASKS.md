@@ -14,7 +14,8 @@
 > **Ordering.** Tasks 1–3 are the blocking cluster and should be done in that order: the server
 > already collects the customer's feedback, the bell already announces it, and there is nowhere in
 > the product to read it. Task 1 gives it a home, Task 2 gives the links a home, and Task 3 makes the
-> bell point at both. Tasks 4–5 are operational and independent. Tasks 6–9 are improvements.
+> bell point at both. Tasks 4–5 are operational and independent. Tasks 6–9 and 11 are
+> improvements. Task 10 (per-visitor feedback ownership) is done.
 >
 > **Six owner-side client functions are already written, typed, and called by nothing:**
 > `loadShareFeedback`, `listShareLinks`, `deleteShareLink`, `listAssetShareLinks`,
@@ -293,20 +294,22 @@ region, using the endpoints that already exist.
 ```
 1. loom-ui/src/features/share/ShareFeedbackPanel.tsx: add an edit affordance to CommentRow beside
    the existing delete, switching the row to a TextField seeded with the current text. Save calls
-   the onEditComment prop; Escape cancels.
+   the onEditComment prop; Escape cancels. Show it only when `comment.own` - like delete since
+   Task 10; the server answers 403 for anybody else's row.
 
 2. loom-ui/src/features/share/ShareViewer.tsx: implement onEditComment via updateSharedComment,
    then refreshFeedback(), with the same handleError treatment as the other writes.
 
 3. ShareRegionOverlay.tsx: when a box is selected, render corner handles and allow dragging the
-   box or a handle. Emit the same NormalisedRegion shape and call updateSharedAnnotation.
+   box or a handle, only for an annotation with `own === true`. Emit the same NormalisedRegion
+   shape and call updateSharedAnnotation.
    - Reuse the existing clamping so a drag off the edge still lands inside 0..1.
    - The kind cannot change: the server refuses it (PublicShareEndpointService#updateAnnotation)
      because stored geometry would then contradict the declared kind. Move and resize only.
 
-4. Note in the panel that everyone holding the link can edit everything written through it. That
-   is the accepted consequence of one-name-per-link, and an edit button makes it visible for the
-   first time.
+4. (Superseded by Task 10, 2026-10-11.) This step used to ask for a note that everyone holding
+   the link can edit everything written through it. Since V2.120 only the author may - there is
+   nothing to warn about.
 ```
 
 **References:** [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §2.2, §7.2 ·
@@ -439,6 +442,89 @@ agent-facing path is added, a test that the content arrives marked untrusted.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (initial task list — written the day the share system shipped; nine open
+## Task 10: Tell the visitors of one link apart when they change feedback — ✅ DONE (2026-10-11)
+
+> **Outcome:** implemented. `V2.120__share_feedback_visitor.sql` adds nullable `visitor_id` to the
+> three feedback tables and re-keys the reaction indexes on `(share_uuid, visitor_id, type,
+> subject)`. The session token is `slug|expiry|visitorId`; `ShareSessionTokens.visitorOf` reads the
+> visitor from a correctly signed token for the slug, ignoring expiry. `ShareAccessService`
+> gained `requireVisitor` (401 for a legacy token) and `requireAuthor` (403). Create stamps the
+> visitor; update/delete of comments and annotations and delete of reactions require the author;
+> guest list/create responses carry `own`. `createSession` reuses the visitor from the new
+> `ShareSessionRequest.previousSessionToken` or the presented token. The viewer uses `own` for the
+> reaction toggle and the delete buttons, and `ShareGate` sends the lapsed token kept under
+> `loom.share.<slug>.previous`. Rows predating V2.120 are read-only for visitors. Design:
+> [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §2.2.
+
+**Argumentation Summary:** V2.99 made the link the identity, so anyone holding a forwarded link
+could edit or delete every other reviewer's comments, marks and reactions by uuid, and the server
+checked nothing. `ShareViewer` softened it by matching `authorName`, which is the link's single
+`visitor_name` - the same for everyone on the link. The reaction key `(share_uuid, type, subject)`
+also swallowed a second reviewer's identical reaction.
+
+**Improvement Summary:** A per-session visitor id, carried in the signed token and stamped on each
+row; only the row's visitor may change or delete it.
+
+```
+Done - see the outcome note. Files: V2.120__share_feedback_visitor.sql; ShareSessionTokens,
+ShareAccessService, PublicShareEndpointService, ShareModelBuilder (loom/services/rest);
+ShareComment/ShareAnnotation/ShareReaction + impls (loom/db); ShareSessionRequest and the three
+*Response models (loom-shared/rest-model); ShareViewer, ShareFeedbackPanel, ShareSessionContext,
+ShareGate (loom-ui/src/features/share).
+```
+
+**References:** [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §2.2, §3.1,
+§5.1 · migrations `V2.99__add_share_feedback.sql`, `V2.120__share_feedback_visitor.sql`
+**Test Requirements:** `PublicShareFeedbackEndpointTest` (`testVisitorsCannotChangeEachOthersFeedback`,
+`testVisitorsReactIndependently`, `testReopenedSessionKeepsItsVisitor`,
+`testFeedbackWithoutAVisitorIsReadOnly`), `ShareSessionTokensTest` (loom/services/rest, 5 cases),
+`ShareFeedbackDaoTest#testReactionIsIdempotent` (per visitor), and three cases in
+`loom-ui/e2e/share-mocked.spec.ts`. `./setup-pool.sh`, then
+`mvn test -pl loom/core -Dtest=PublicShareFeedbackEndpointTest` and
+`mvn test -pl loom/services/rest -Dtest=ShareSessionTokensTest`.
+
+---
+
+## Task 11: Give each visitor of a link their own display name
+
+**Argumentation Summary:** Task 10 separated *ownership* per visitor, but the *name* is still one per
+link: `share.visitor_name` (V2.97) is set by the first visitor, `ShareDao.recordVisit` keeps the
+stored name when one exists, and `PublicShareEndpointService#authorOf(share)` writes that one name
+onto every feedback row and into the `SHARE_FEEDBACK` notification. Two people on a forwarded link
+therefore appear as the same author - the panel shows two "Maria" comments, of which only one offers
+delete. The product answer so far is "one link per reviewer".
+
+**Improvement Summary:** Take the author name from the session (the name this visitor typed) rather
+than from the share row, so attribution follows the visitor id.
+
+```
+1. Decide where the per-visitor name lives. Preferred: in the signed session token next to the
+   visitor id (ShareSessionTokens payload slug|expiry|visitorId|name, base64url-encoding the name
+   so it cannot contain the separator) - no table, consistent with SHARE_SYSTEM.md §2.1. The
+   alternative, a share_visitor table, buys a listing of who opened the link at the cost of a
+   cleanup job.
+2. PublicShareEndpointService: authorOf(share) -> authorOf(lrc, share), reading the session's name
+   and falling back to share.visitor_name, then DEFAULT_VISITOR_NAME. Keep share.visitor_name as
+   "the first visitor" for the owner's link list.
+3. createSession: when the visitor is carried over (previousSessionToken), carry the name too
+   unless the gate sent a new one.
+4. Notification: NotificationDispatcher#shareFeedbackLeft already takes the author name - pass the
+   session's.
+5. UI: ShareGate prefills the name field from challenge.visitorName and greets "welcome back
+   <name>" when challenge.visitorNameKnown - so a second visitor of a forwarded link is greeted as
+   the first. Prefill from this browser's own previous session instead (it is in sessionStorage
+   next to loom.share.<slug>.previous), and greet by name only then.
+```
+
+**References:** [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §2.2, §3.1 ·
+migration `V2.97__add_share.sql` · Task 10
+**Test Requirements:** `PublicShareFeedbackEndpointTest`: two sessions on one link with different
+names write comments that carry their own `authorName`; a reopened session keeps its name.
+`ShareSessionTokensTest`: a name containing `|` and non-ASCII round-trips. A Playwright case in
+`e2e/share-mocked.spec.ts` that a fresh browser is not greeted with the link's stored name.
+
+---
+
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (Task 10 added as done — per-visitor feedback ownership, V2.120; Task 11 added — one display name per link remains; Task 6 aligned with the `own` flag). Earlier: 2026-08-11 (initial task list — written the day the share system shipped; nine open
 items, none of which block the feature working for a customer)_

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { ensureOk } from "./http";
 import type {
   NodeDescriptor,
   ContentType,
@@ -9,7 +10,8 @@ import type {
 /** Fetch all node descriptors, content types and fleet availability in a single call. */
 export async function fetchNodeDescriptors(): Promise<NodeDescriptorsResponse> {
   const res = await fetch(`${API_BASE_URL}/pipeline/node-descriptors`);
-  if (!res.ok) throw new Error(`Failed to fetch node descriptors: ${res.status}`);
+  // Unauthenticated by design (it loads before login): a 401 here is not an expired session.
+  await ensureOk(res, { action: "fetchNodeDescriptors", anonymous: true });
   return res.json();
 }
 
@@ -28,20 +30,20 @@ export async function fetchNodeAvailability(token?: string | null): Promise<Node
   const res = await fetch(`${API_BASE_URL}/pipeline/node-descriptors/availability`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) throw new Error(`Failed to fetch node availability: ${res.status}`);
+  await ensureOk(res, { action: "fetchNodeAvailability", anonymous: !token });
   return res.json();
 }
 
 /** Fetch a single node descriptor by kind. */
 export async function fetchNodeDescriptor(kind: string): Promise<NodeDescriptor> {
   const res = await fetch(`${API_BASE_URL}/pipeline/node-descriptors/${encodeURIComponent(kind)}`);
-  if (!res.ok) throw new Error(`Failed to fetch node descriptor '${kind}': ${res.status}`);
+  await ensureOk(res, { action: "fetchNodeDescriptor", anonymous: true });
   return res.json();
 }
 
 /** Fetch all known content types. */
 export async function fetchContentTypes(): Promise<ContentType[]> {
   const res = await fetch(`${API_BASE_URL}/pipeline/content-types`);
-  if (!res.ok) throw new Error(`Failed to fetch content types: ${res.status}`);
+  await ensureOk(res, { action: "fetchContentTypes", anonymous: true });
   return res.json();
 }

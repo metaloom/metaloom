@@ -36,6 +36,9 @@ public class ShareAnnotationResponse extends AbstractResponse<ShareAnnotationRes
 	@JsonPropertyDescription("The visitor name as it stood when the mark was drawn.")
 	private String authorName;
 
+	@JsonPropertyDescription("Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share visitor routes only.")
+	private Boolean own;
+
 	private Instant created;
 
 	private Instant edited;
@@ -127,6 +130,15 @@ public class ShareAnnotationResponse extends AbstractResponse<ShareAnnotationRes
 
 	public ShareAnnotationResponse setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	public Boolean getOwn() {
+		return own;
+	}
+
+	public ShareAnnotationResponse setOwn(Boolean own) {
+		this.own = own;
 		return this;
 	}
 

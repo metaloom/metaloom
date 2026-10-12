@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API space models ─────────────────────
 
@@ -74,8 +74,5 @@ export async function deleteSpace(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

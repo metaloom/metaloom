@@ -124,7 +124,7 @@ public class ReactionEndpointTest extends AbstractEndpointTest {
 	 * Each reaction route is gated by its own permission, so a caller who may rate must not thereby be able to edit or delete someone else's rating.
 	 *
 	 * <p>
-	 * The grants go through a role and a group rather than {@code user_permission}, whose primary key allows only one direct grant per user.
+	 * The grants go through a role and a group, the path real users get their permissions by.
 	 * </p>
 	 */
 	@Test

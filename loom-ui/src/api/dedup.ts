@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { withPaging, type PagingInfo, type PagingParams } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API dedup models ─────────────────────────
 // Mirrors io.metaloom.loom.rest.model.dedup.*
@@ -116,10 +116,7 @@ export async function deleteDedupGroup(token: string, uuid: string): Promise<voi
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /** The groups one asset takes part in, as keep or as duplicate. */

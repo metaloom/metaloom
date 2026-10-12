@@ -266,8 +266,9 @@ Conventions that apply to every workflow test:
   could shadow an existing one.
 - Backend: `./setup-pool.sh` before any DAO or endpoint test, and again after **any** Flyway change —
   install `loom/db/flyway` first or the pool silently skips the new migration.
-- Grant test permissions via **group + role**, never a direct `user_permission` grant (one direct
-  grant per user; `SkillEndpointTest` is the pattern).
+- Grant test permissions via **group + role** (`SkillEndpointTest` is the pattern) — the path real
+  users get permissions by. Direct `user_permission` grants are no longer limited to one per user
+  (`V2.118`), but skip the membership chain.
 
 ---
 
@@ -368,6 +369,6 @@ Conventions that apply to every workflow test:
 
 ---
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (workflow 13, person recognition; workflow 4 status corrected - clustering has run since V2.79). Earlier: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (test-permission note: the one-direct-grant limit is gone with V2.118). Earlier: 2026-10-11 (workflow 13, person recognition; workflow 4 status corrected - clustering has run since V2.79). Earlier: 2026-08-18 (§Conventions — the `ctx.failure(...).next()` defect is fixed tree-wide, with a `FailurePathGuardTest` build guard). Earlier: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
 updated; dedup is now the reference implementation the other five modes should copy)_

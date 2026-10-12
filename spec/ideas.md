@@ -13,13 +13,13 @@ Related: [METALOOM_NOTES.md](tasks/METALOOM_NOTES.md) (general scratch backlog),
 
 ## Progress Assessment
 
-- [ ] 1. Share feedback deletes are not owner-checked on the server
+- [x] 1. Share feedback deletes are not owner-checked on the server — done 2026-10-11: per-visitor ownership (`V2.120`), see [SHARE_SYSTEM.md](features/share/SHARE_SYSTEM.md)
 - [ ] 2. Object detection review: reject deletes, confirm overwrites `meta`
-- [ ] 3. LLM detection screen shows hard-coded data as if real
-- [ ] 4. Unreachable legacy UI directories
-- [ ] 5. FaceDetectionPanel cluster grouping never works
-- [ ] 6. About 45 API calls throw plain `Error` instead of `ApiError`
-- [ ] 7. `useMediaToken` builds the first URL of a new asset with the old token
+- [x] 3. LLM detection screen shows hard-coded data as if real — done 2026-10-11: kept as a labelled preview, actions disabled
+- [x] 4. Unreachable legacy UI directories — done 2026-10-11: deleted
+- [x] 5. FaceDetectionPanel cluster grouping never works — done 2026-10-11: grouped by `GET /clusters/:uuid/members`
+- [x] 6. About 45 API calls throw plain `Error` instead of `ApiError` — done 2026-10-11: 45 sites in 27 modules; XHR uploads remain
+- [x] 7. `useMediaToken` builds the first URL of a new asset with the old token — done 2026-10-11
 - [ ] 8. No test runs in CI; backend specs are not gated
 - [ ] 9. ShareDialog cancellation guard cannot be proven through the UI
 
@@ -157,5 +157,5 @@ Mocked specs follow the conventions in `e2e/library-edit-mocked.spec.ts`: catch-
 - Toasts are mounted in their own portal so they stay announced while a drawer or dialog is open;
   do not move them back inside the app root.
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (items 1, 3, 4, 5, 6 and 7 closed; 2, 8 and 9 still open)_

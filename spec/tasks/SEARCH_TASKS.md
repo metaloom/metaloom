@@ -51,7 +51,7 @@
 ## Progress Assessment
 
 - [ ] **Defects:** ~~Task 1 (MCP `search_assets` ignores `query`)~~ ✅ done, Task 2 (`DETECTION` / `SEGMENT` produce no documents), Task 25 (English-only stemming)
-- [ ] **Dead or half-wired code:** Task 3 (row-level ACL clause), Task 9 (orphaned loom-ui trees)
+- [ ] **Dead or half-wired code:** Task 3 (row-level ACL clause), ~~Task 9 (orphaned loom-ui trees)~~ done 2026-10-11
 - [x] **Consumers not yet on the SPI:** ~~Task 4 (`LibraryView`)~~ ✅ done, ~~Task 7 (GraphQL)~~ ✅ done — every consumer is on the SPI
 - [ ] **Test and regression guards:** Task 5 (codegen guard), Task 6 (document-source coverage), Task 24 (retrieval quality)
 - [ ] **Ergonomics:** Task 8 (transcript timecode deep link), Task 10 (`searchParams()`), Task 16 (`POST /search/results`), Task 17 (`/search/facets`)
@@ -260,6 +260,8 @@ e2e/search-mocked.spec.ts`.
 ---
 
 ## Task 9: Delete the orphaned `loom-ui` trees (was P0-5)
+
+**Status: done 2026-10-11** - deleted with [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) Task 5.
 
 **Argumentation Summary:** `loom-ui/src/Dashboard/`, `loom-ui/src/User/` and `loom-ui/src/Content/` are
 all still present and unreachable from `main.tsx` — `AppShell.tsx` is the only live route table. They
@@ -486,17 +488,19 @@ text-to-image actually works.
 two rankings is a redeploy. `SearchRequest` already carries a `profile` concept and
 `SearchQueryParameterKey` already defines `profile` — and it reaches nothing.
 
-**Improvement Summary:** A `vector_config` table, a DAO, a read route and a seeded `default` profile, so
-`?profile=` selects a named ranking configuration at query time.
+**Improvement Summary:** A read route and a seeded `default` profile over the existing `vector_config`
+table and DAO, so `?profile=` selects a named ranking configuration at query time.
 
 ```
-1. Migration adding vector_config (uuid, name unique, model, dimensions, fusion weights, rrf k,
-   created/edited audit columns), plus a seeded `default` row carrying today's env-var values so
-   behaviour is unchanged on upgrade.
-   Check the highest migration version numerically before claiming one.
-2. VectorConfigDao + jOOQ regeneration (loom/db/jooq/generate.sh), then ./setup-pool.sh. A new DAO
-   changes the DaoCollection constructor — clean-rebuild loom/core BEFORE setup-pool.sh or it fails with
-   NoSuchMethodError.
+State 2026-10-11: the table exists since V2.6 (uuid, name unique, weights jsonb, audit columns) and
+has a primary key + actor FKs since V2.119; VectorConfigDao (createVectorConfig, loadByName,
+weights as JsonObject) and VectorConfigDaoTest exist. Steps 1-2 below shrink accordingly.
+
+1. Migration seeding a `default` row whose `weights` JSON carries today's env-var values (the shape
+   in SEMANTIC_SEARCH.md §6), so behaviour is unchanged on upgrade. Model/dimensions/rrf k live in
+   that JSON, not in new columns, unless there is a reason to index them.
+   Check the highest migration version numerically before claiming one (V2.121 today).
+2. (Done 2026-10-11) VectorConfigDao. Nothing to do unless the profile needs a new DAO method.
 3. GET /api/v1/vector-configs (plural, per the coding guidelines) with its own permission, plus the
    endpoint and permission tests the guidelines require.
 4. Make ?profile= resolve a config and drive RankFusion, falling back to the env-var values when the
@@ -651,8 +655,8 @@ assertion that proves the tsvector is written on the shared refresh path.
 
 ---
 
-_Git HEAD revision: `5354b65d`_
-_Last updated: 2026-08-16 (Task 7 ✅ done — the GraphQL `search` field shipped; its text moved into the
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (Task 21: `vector_config` already has its primary key (V2.119) and `VectorConfigDao`; steps 1-2 narrowed). Earlier: 2026-08-16 (Task 7 ✅ done — the GraphQL `search` field shipped; its text moved into the
 "removed as implemented" list and every SPI consumer is now on the provider. Two departures from the
 task as written, both because the code disagreed: `SearchGraphQLTest` extends `AbstractGraphQLTest` in
 `endpoint/graphql/` (the domain-test base that enforces `GraphQLSecurityTestcases`) rather than

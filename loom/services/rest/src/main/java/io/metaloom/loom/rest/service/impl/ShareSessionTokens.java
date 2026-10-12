@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.UUID;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -25,9 +26,16 @@ import io.metaloom.loom.api.options.LoomOptions;
  * </p>
  *
  * <p>
- * Format: {@code base64url(slug|expiryEpochSeconds).base64url(HMAC-SHA256(key, payload))}. It is a bearer capability with an expiry and nothing else -
- * it does not say what the holder may do. Every capability is re-read from the share row on each request, so revoking a link takes effect immediately
- * rather than when the last issued token happens to lapse.
+ * Format: {@code base64url(slug|expiryEpochSeconds|visitorId).base64url(HMAC-SHA256(key, payload))}. It is a bearer capability with an expiry and a
+ * visitor id - it does not say what the holder may do. Every capability is re-read from the share row on each request, so revoking a link takes
+ * effect immediately rather than when the last issued token happens to lapse.
+ * </p>
+ *
+ * <p>
+ * The visitor id tells the people holding one link apart (V2.120): feedback is stamped with it, and only its writer may change or delete it. It is
+ * random, minted when a session is opened, and carried forward when a lapsed session is reopened from the same browser - see
+ * {@link #visitorOf(String, String)}. Tokens issued before the id existed ({@code slug|expiry}) still verify, but carry no visitor and so own
+ * nothing.
  * </p>
  *
  * <p>
@@ -105,15 +113,17 @@ public class ShareSessionTokens {
 	}
 
 	/**
-	 * Issue a session token for the given slug.
+	 * Issue a session token for the given slug and visitor.
 	 *
 	 * @param slug
 	 *            the share the session is for
+	 * @param visitorId
+	 *            who holds the session, see the class comment
 	 * @return the opaque token
 	 */
-	public String issue(String slug) {
+	public String issue(String slug, UUID visitorId) {
 		long expiry = Instant.now().getEpochSecond() + SESSION_TTL_SECONDS;
-		String payload = ENCODER.encodeToString((slug + "|" + expiry).getBytes(StandardCharsets.UTF_8));
+		String payload = ENCODER.encodeToString((slug + "|" + expiry + "|" + visitorId).getBytes(StandardCharsets.UTF_8));
 		return payload + "." + ENCODER.encodeToString(sign(payload));
 	}
 
@@ -139,12 +149,39 @@ public class ShareSessionTokens {
 	 * @return true when the token is well formed, correctly signed, issued for this slug, and unexpired
 	 */
 	public boolean isValid(String token, String slug) {
+		Claims claims = verify(token, slug);
+		return claims != null && Instant.now().getEpochSecond() < claims.expiry();
+	}
+
+	/**
+	 * The visitor a token was issued to, <b>whether or not it has expired</b>.
+	 *
+	 * <p>
+	 * Expiry is ignored on purpose, and only here. A session lapses after twelve hours; the reviewer who reopens the link from the same browser is the
+	 * same reviewer, and must still be able to edit the notes they left yesterday. The signature and the slug are still checked, so this can only ever
+	 * return an id this server issued for this link. Authorising a request is {@link #isValid(String, String)}'s job, never this method's.
+	 * </p>
+	 *
+	 * @return the visitor id, or null when the token is missing, forged, for another link, or predates visitor ids
+	 */
+	public UUID visitorOf(String token, String slug) {
+		Claims claims = verify(token, slug);
+		return claims == null ? null : claims.visitorId();
+	}
+
+	private record Claims(long expiry, UUID visitorId) {
+	}
+
+	/**
+	 * Check the signature and the slug, and decode the claims. Says nothing about expiry.
+	 */
+	private Claims verify(String token, String slug) {
 		if (token == null || slug == null) {
-			return false;
+			return null;
 		}
 		int dot = token.indexOf('.');
 		if (dot <= 0 || dot == token.length() - 1) {
-			return false;
+			return null;
 		}
 		String payload = token.substring(0, dot);
 		String signature = token.substring(dot + 1);
@@ -156,27 +193,31 @@ public class ShareSessionTokens {
 			presented = DECODER.decode(signature);
 			decodedPayload = DECODER.decode(payload);
 		} catch (IllegalArgumentException e) {
-			return false;
+			return null;
 		}
 		// Constant-time. A byte-by-byte comparison that returns early leaks how much of a forged signature was
 		// right, which is enough to reconstruct one given enough attempts against an endpoint anyone can call.
 		if (!MessageDigest.isEqual(expected, presented)) {
-			return false;
+			return null;
 		}
 
-		String decoded = new String(decodedPayload, StandardCharsets.UTF_8);
-		int separator = decoded.lastIndexOf('|');
-		if (separator <= 0) {
-			return false;
+		// slug|expiry, or slug|expiry|visitorId since V2.120. A slug is base64url and never contains the separator.
+		String[] parts = new String(decodedPayload, StandardCharsets.UTF_8).split("\\|", -1);
+		if (parts.length < 2 || parts.length > 3) {
+			return null;
 		}
-		if (!slug.equals(decoded.substring(0, separator))) {
-			return false;
+		// The slug is checked as well as the signature. Without that, a valid token for any share would open every
+		// share - the signature alone only proves this server issued something, not what it issued it for.
+		if (!slug.equals(parts[0])) {
+			return null;
 		}
 		try {
-			long expiry = Long.parseLong(decoded.substring(separator + 1));
-			return Instant.now().getEpochSecond() < expiry;
-		} catch (NumberFormatException e) {
-			return false;
+			long expiry = Long.parseLong(parts[1]);
+			UUID visitorId = parts.length == 3 ? UUID.fromString(parts[2]) : null;
+			return new Claims(expiry, visitorId);
+		} catch (IllegalArgumentException e) {
+			// NumberFormatException included.
+			return null;
 		}
 	}
 

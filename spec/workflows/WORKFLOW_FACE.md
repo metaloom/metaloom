@@ -673,7 +673,7 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 |---|---|---|---|
 | 6.1 | ✅ | **The asset face panel is always empty.** The UI filters `d.type === "facedetection"`; the node writes `.setType("face")` (pinned by `FacedetectNodeDetectionsTest`). The filter can never match. **Cheapest real bug in this file.** | `loom-ui/src/features/assetDetail/AssetDetail.tsx:229` |
 | 6.2 | ✅ | **Cluster→person assignment is a no-op.** `// TODO: implement cluster-to-person assignment via REST API when backend supports it` — mutates local state only, lost on reload. This is the *"has no confirmation endpoint"* of the original task note. | `FaceDetectionManagement.tsx:113-120` |
-| 6.3 | ✅ | **`faceIds: []` / `clusterIds: []` hardcoded.** Every cluster card shows "0 faces", person cluster chips never render, and `FaceDetectionPanel`'s grouping is always empty so every face reads as unclustered. Unfixable client-side: no REST shape returns membership. | `FaceDetectionManagement.tsx:44-50`, `AssetDetail.tsx:240-246` |
+| 6.3 | ✅ | **`faceIds: []` / `clusterIds: []` hardcoded.** Every cluster card shows "0 faces", person cluster chips never render, and `FaceDetectionPanel`'s grouping is always empty so every face reads as unclustered. Closed for the asset Faces tab on 2026-10-11: `AssetDetail` fetches `GET /clusters/:uuid/members` per face cluster and `FaceDetectionPanel` groups by that membership ([LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.2). | `FaceDetectionManagement.tsx:44-50`, `AssetDetail.tsx:240-246` |
 | 6.4 | ✅ | **bbox written in absolute pixels** into a column `V2.43` documents as *"normalized 0-1"*. The node works around it by stamping `"coordinates": "ABSOLUTE_PIXELS"` on the emitted port elements; nothing converts or validates on the DB side. | `FacedetectNode.persist` vs `V2.43` |
 | 6.5 | ✅ | **Face confidence is overwritten with a literal `1.0f`** before persisting, discarding the detector's actual score. Every face row reads `confidence = 1.0`. | `FacedetectNode` |
 | 6.6 | ✅ | **`resultRef("detection")` is called with zero uuids**, and `resultRef` returns `null` when `uuids.length == 0`. The ledger's `result_ref` is therefore always empty for facedetect; the bulk-create response uuids are discarded. | `AbstractMediaNode.java:169-179` |
@@ -865,7 +865,7 @@ For how the definition reaches the worker at all, see
 | `EmbeddingCreateRequest` | `loom-shared/rest-model` | 🔴 no `detectionUuid` (§4.1) |
 | `EmbeddingType` | `loom-shared/api` | 3 values, none for InspireFace |
 | `FaceDetectionManagement` / `ClustersPanel` / `PersonsPanel` | `loom-ui/src/features/faceDetection` | CRUD panels; assignment is a TODO |
-| `AssetDetail` / `FaceDetectionPanel` | `loom-ui/src/features/assetDetail` | 🔴 always-empty face tab (§6.1) |
+| `AssetDetail` / `FaceDetectionPanel` | `loom-ui/src/features/assetDetail` | Faces tab; groups faces by `/clusters/:uuid/members` (§6.3), `groupFacesByCluster` |
 | `DemoDatabaseInitializer` | `loom/core/src/main/.../boot` | With the CRUD endpoint, the only cluster-row producer |
 
 ---
@@ -883,7 +883,7 @@ For how the definition reaches the worker at all, see
 | 7 | ⚠️ **`embedding.vector` has no ANN index and pgvector is not in the codegen image.** An unguarded `CREATE EXTENSION vector` breaks `generate.sh` for everyone. |
 | 8 | ℹ️ **`generate.sh` is no longer destructive** — it generates into `target/jooq-codegen` and only swaps on success, so a failed codegen leaves the tree untouched. Several docs still claim otherwise. |
 | 9 | ⚠️ **Install `loom/db/flyway` before `./setup-pool.sh`**, or the pool reports success while silently skipping the new migration. |
-| 10 | ⚠️ **Grant test permissions via group + role**, never a direct user grant — `user_permission` allows only one direct permission per user. |
+| 10 | ⚠️ **Grant test permissions via group + role** — the path real users get permissions by. (`user_permission` allowed only one direct grant per user until `V2.118`; that limit is gone.) |
 | 11 | ⚠️ **Don't confuse this file with [CLUSTERING.md](../concept/CLUSTERING.md)**, which is about multi-instance deployment. |
 | 12 | ⚠️ **Face data is PII.** Embeddings and crops are biometric identifiers. Crops are now written by the node and served from `GET /assets/:uuid/detections/:uuid/crop`; **never reintroduce a third-party image host** as a placeholder. Compare the deliberate PII section in [METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md). |
 | 13 | ⚠️ **The default face stack is non-commercially licensed.** Not a code defect, but a shipping blocker — see the overview. |
@@ -918,8 +918,8 @@ Written 2026-08-06 to close the "Rework the face workflow" item in
 enumerated by reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in
 an earlier draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
 
-_Git HEAD revision: `6718998a`_
-_Last updated: 2026-10-11 (known persons are now suggested across assets - WORKFLOW_PERSON_RECOGNITION.md; earlier: 2026-08-10 — **a person now has a face of their own.** `V2.89`-`V2.91` give a person
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (gotcha 10: the one-direct-grant limit is gone with V2.118). Earlier: 2026-10-11 (known persons are now suggested across assets - WORKFLOW_PERSON_RECOGNITION.md; earlier: 2026-08-10 — **a person now has a face of their own.** `V2.89`-`V2.91` give a person
 pictures they own: `PERSON_IMAGE` attachments keyed by `person_uuid`, one of them designated by
 `person.avatar_attachment_uuid`, reachable at `/persons/:uuid/images` and shown by a `/persons/:id`
 detail view. The two things V2.26 left behind are gone — the `person_image` gallery that never had a

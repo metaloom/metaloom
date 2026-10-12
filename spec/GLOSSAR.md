@@ -174,8 +174,8 @@ when they disagree, the code wins and this file gets fixed in the same change
 | **Reaction** | Loom | A social reaction/rating (e.g. thumbsup) on an asset, task, comment or annotation. |
 | **Share / Share Link** | Loom | A capability URL that lets somebody with no Loom account view one asset or one collection. Optionally password-protected and time-limited. |
 | **Slug** | Loom | The public half of a share link - 128 random bits in base64url, appearing in the URL in place of a uuid. |
-| **Share Session** | Loom | The opaque token a share visitor holds after satisfying a link's password. Not a JWT, and not an account: it grants nothing by itself. |
-| **Share Visitor** | Loom | Whoever opens a share link. Identified only by the name given on the first visit, which is stored on the share row - one link is one identity. |
+| **Share Session** | Loom | The opaque token a share visitor holds after satisfying a link's password. Not a JWT, and not an account: it grants nothing by itself. Carries the visitor id (V2.120). |
+| **Share Visitor** | Loom | Whoever opens a share link. Displayed under the name given on the first visit, which is stored on the share row - one name per link. Since V2.120 each session also carries a random visitor id, and only the visitor who wrote a piece of feedback may change or delete it. |
 
 ---
 
@@ -219,5 +219,5 @@ Same word, different meaning — check the component column before assuming.
 
 ---
 
-_Git HEAD revision: `d9bbc2dc`_
-_Last updated: 2026-08-03 (initial glossary, derived from METALOOM.md, loom/LOOM.md, loom/DOMAIN.md, cortex/CORTEX.md and features/nodes/NODE_DATA_TYPES.md)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (Share Session / Share Visitor: per-visitor feedback ownership, V2.120). Earlier: 2026-08-03 (initial glossary, derived from METALOOM.md, loom/LOOM.md, loom/DOMAIN.md, cortex/CORTEX.md and features/nodes/NODE_DATA_TYPES.md)_

@@ -198,7 +198,10 @@ test.describe("Failure feedback – mocked", () => {
       }),
     );
 
-    await page.getByTestId("sidebar-item-/assets").click();
+    // The click is only a way to make the app ask the server something. A background call that
+    // carries the token (node availability, say) may get its 401 first and end the session before
+    // the click lands - the same outcome, so a click that finds no sidebar is not a failure.
+    await page.getByTestId("sidebar-item-/assets").click({ timeout: 3_000 }).catch(() => {});
 
     // Back at the login form, with exactly one explanation. The per-widget failure toasts are
     // suppressed for 401 on purpose: the session is the failure, not each screen that noticed it.

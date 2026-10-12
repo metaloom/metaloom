@@ -3,11 +3,13 @@ package io.metaloom.loom.db.jooq.integrity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.reaction.ReactionType;
@@ -40,10 +42,15 @@ public class DbIntegrityServiceTest extends AbstractJooqTest {
 
 	// ── DANGLING ───────────────────────────────────────────────────────────
 
+	/**
+	 * V2.119 declares {@code token_editor_uuid_fkey}, so the schema refuses this row today. The check is for installations that held such rows
+	 * before it; dropping the constraint is the honest way to reproduce one, as in {@link #testAssetPoolWithoutABackendIsFound()}.
+	 */
 	@Test
 	public void testDanglingTokenEditorIsFound() {
 		UUID ghost = UUID.randomUUID();
 		User admin = adminUser();
+		dropTokenEditorConstraint();
 		context.ctx().execute("""
 			insert into "token" ("uuid", "name", "token", "created", "creator_uuid", "edited", "editor_uuid")
 			values (?, 'broken-token', 'secret', now(), ?, now(), ?)
@@ -56,15 +63,46 @@ public class DbIntegrityServiceTest extends AbstractJooqTest {
 			"The finding should name the uuid that does not resolve");
 	}
 
+	/**
+	 * See {@link #testDanglingTokenEditorIsFound()}: V2.119 made both actors foreign keys.
+	 */
 	@Test
 	public void testDanglingVectorConfigActorIsFound() {
 		UUID ghost = UUID.randomUUID();
+		context.ctx().execute("alter table \"vector_config\" drop constraint \"vector_config_creator_uuid_fkey\"");
+		context.ctx().execute("alter table \"vector_config\" drop constraint \"vector_config_editor_uuid_fkey\"");
 		context.ctx().execute("""
 			insert into "vector_config" ("uuid", "name", "created", "creator_uuid", "edited", "editor_uuid")
 			values (?, 'broken-config', now(), ?, now(), ?)
 			""", UUID.randomUUID(), ghost, ghost);
 
 		assertEquals(1, expectFinding(DbIntegrityCodes.DANGLING_VECTOR_CONFIG_ACTOR).count());
+	}
+
+	/**
+	 * The other half of V2.119: with the constraints in place, the rows the two tests above need cannot be written at all.
+	 */
+	@Test
+	public void testSchemaRefusesDanglingActors() {
+		User admin = adminUser();
+		UUID ghost = UUID.randomUUID();
+		assertThrows(DataAccessException.class, () -> context.ctx().execute("""
+			insert into "token" ("uuid", "name", "token", "created", "creator_uuid", "edited", "editor_uuid")
+			values (?, 'refused-token', 'refused-secret', now(), ?, now(), ?)
+			""", UUID.randomUUID(), admin.getUuid(), ghost));
+		assertThrows(DataAccessException.class, () -> context.ctx().execute("""
+			insert into "vector_config" ("uuid", "name", "created", "creator_uuid", "edited", "editor_uuid")
+			values (?, 'refused-config', now(), ?, now(), ?)
+			""", UUID.randomUUID(), ghost, ghost));
+		UUID duplicate = UUID.randomUUID();
+		context.ctx().execute("""
+			insert into "vector_config" ("uuid", "name", "created", "creator_uuid", "edited", "editor_uuid")
+			values (?, 'first-config', now(), ?, now(), ?)
+			""", duplicate, admin.getUuid(), admin.getUuid());
+		assertThrows(DataAccessException.class, () -> context.ctx().execute("""
+			insert into "vector_config" ("uuid", "name", "created", "creator_uuid", "edited", "editor_uuid")
+			values (?, 'second-config', now(), ?, now(), ?)
+			""", duplicate, admin.getUuid(), admin.getUuid()), "vector_config.uuid is a primary key since V2.119");
 	}
 
 	@Test
@@ -280,6 +318,7 @@ public class DbIntegrityServiceTest extends AbstractJooqTest {
 	@Test
 	public void testSampleLimitIsHonoured() {
 		User admin = adminUser();
+		dropTokenEditorConstraint();
 		for (int i = 0; i < 5; i++) {
 			// token.token and (creator_uuid, name) are both UNIQUE, so vary each.
 			context.ctx().execute("""
@@ -299,6 +338,10 @@ public class DbIntegrityServiceTest extends AbstractJooqTest {
 	}
 
 	// ── helpers ────────────────────────────────────────────────────────────
+
+	private void dropTokenEditorConstraint() {
+		context.ctx().execute("alter table \"token\" drop constraint \"token_editor_uuid_fkey\"");
+	}
 
 	private DbIntegrityCheckResult expectFinding(String code) {
 		DbIntegrityReport report = dbIntegrity().check(DbIntegrityScope.of(code));

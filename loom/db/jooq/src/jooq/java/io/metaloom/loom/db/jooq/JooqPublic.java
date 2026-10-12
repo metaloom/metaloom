@@ -687,7 +687,9 @@ public class JooqPublic extends SchemaImpl {
     public final JooqToken TOKEN = JooqToken.TOKEN;
 
     /**
-     * The table <code>public.token_permission</code>.
+     * Permissions granted to an API token. The grain is (token_uuid,
+     * permission) - grants are global, not
+     * scoped to an object. Rows cascade when the token is deleted.
      */
     public final JooqTokenPermission TOKEN_PERMISSION = JooqTokenPermission.TOKEN_PERMISSION;
 
@@ -702,7 +704,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqUserGroup USER_GROUP = JooqUserGroup.USER_GROUP;
 
     /**
-     * The table <code>public.user_permission</code>.
+     * Permissions granted directly to a user, beside those reaching them
+     * through group membership. The
+     * grain is (user_uuid, permission) - grants are global, not scoped to an
+     * object. Rows cascade when the
+     * user is deleted.
      */
     public final JooqUserPermission USER_PERMISSION = JooqUserPermission.USER_PERMISSION;
 

@@ -16,6 +16,9 @@ public class ShareSessionRequest implements RestRequestModel {
 		+ "Send the localised equivalent of \"Anonymous\" when the visitor skips the question.")
 	private String visitorName;
 
+	@JsonPropertyDescription("The session token this browser held before, even an expired one. When it was issued for this link, the new session keeps its visitor, so feedback left earlier can still be edited and deleted.")
+	private String previousSessionToken;
+
 	public String getPassword() {
 		return password;
 	}
@@ -31,6 +34,15 @@ public class ShareSessionRequest implements RestRequestModel {
 
 	public ShareSessionRequest setVisitorName(String visitorName) {
 		this.visitorName = visitorName;
+		return this;
+	}
+
+	public String getPreviousSessionToken() {
+		return previousSessionToken;
+	}
+
+	public ShareSessionRequest setPreviousSessionToken(String previousSessionToken) {
+		this.previousSessionToken = previousSessionToken;
 		return this;
 	}
 }

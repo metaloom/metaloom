@@ -372,8 +372,8 @@ Pipeline-node test patterns are in
 - **`loom/db/memory` has no pipeline DAOs** — pipeline tests need the real database.
 - **A 20+ method test class exhausts the provider pool**; the last methods erroring in
   `ProviderExtension.beforeEach` while passing in isolation is capacity, not a regression.
-- **`user_permission` allows one direct grant per user** — grant test permissions via
-  group + role.
+- **Grant test permissions via group + role** — the path real users get permissions by.
+  (`user_permission` allowed only one direct grant per user until `V2.118`; that limit is gone.)
 - **jOOQ regeneration is not automatic**: after a Flyway change run
   `loom/db/jooq/generate.sh`; converters are configured as `forcedTypes` in that pom.
 - **Four servers, one bind address.** REST/UI/WebSockets share `8092`; gRPC, monitoring
@@ -477,5 +477,5 @@ Pipeline-node test patterns are in
 - [ ] No spec for `services/logger`
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (the one-direct-grant gotcha corrected for V2.118). Earlier: 2026-08-06 (reference sweep — no content changes)_

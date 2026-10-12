@@ -493,7 +493,7 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 	 * Log in as a reviewer: may read and decide on clusters, and read persons, but may not create one.
 	 *
 	 * <p>
-	 * Granted through a group and a role rather than directly, because {@code user_permission} allows only one direct grant per user.
+	 * Granted through a group and a role, the path real users get their permissions by.
 	 * </p>
 	 */
 	private void loginReviewer(LoomHttpClient client) throws LoomClientException {

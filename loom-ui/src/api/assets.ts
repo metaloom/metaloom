@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import { AnnotationResponseItem, AreaInfo } from "./annotations";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API response models ──────────────────
 
@@ -411,10 +411,7 @@ export async function deleteAsset(
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Delete failed ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── Upload API (multipart) ────────────────────────────────────────────

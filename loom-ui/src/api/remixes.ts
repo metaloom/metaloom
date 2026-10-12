@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import { searchResults, type SearchResultResponse } from "./search";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API remix models ─────────────────────
 // Hand-written to mirror RemixResponse / RemixMemberResponse. There is no OpenAPI
@@ -80,10 +80,7 @@ export interface RemixMemberRequest {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 async function expectNoContent(res: Response): Promise<void> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── CRUD API ──────────────────────────────────────────────────────────

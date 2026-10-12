@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types matching the Loom REST API pipeline models ──────────────────
 
@@ -162,10 +162,7 @@ export async function deletePipeline(token: string, uuid: string): Promise<void>
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /**
@@ -700,10 +697,7 @@ export async function cancelPipelineRun(token: string, pipelineUuid: string, run
     method: "POST",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /**
@@ -719,10 +713,7 @@ export async function pausePipelineRun(token: string, pipelineUuid: string, runU
     method: "POST",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /**
@@ -737,10 +728,7 @@ export async function resumePipelineRun(token: string, pipelineUuid: string, run
     method: "POST",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /** One execution a breakpoint is currently withholding from its downstream nodes. */
@@ -808,10 +796,7 @@ export async function setPipelineRunBreakpoints(
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ nodeIds }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   const body = await res.json() as Partial<PipelineBreakpointResponse>;
   return { nodeIds: body.nodeIds ?? [], held: body.held ?? [] };
 }
@@ -830,10 +815,7 @@ export async function continuePipelineRunBreakpoint(
     method: "POST",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 /** What a re-execution request started. */
@@ -872,10 +854,7 @@ export async function reExecutePipelineRunNode(
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify(options === undefined ? { itemUuid, elementSeq } : { itemUuid, elementSeq, options }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   const body = await res.json() as Partial<PipelineNodeReExecuteResponse>;
   return { generation: body.generation ?? 0, nodeId: body.nodeId ?? nodeId, options: body.options ?? {} };
 }
@@ -896,10 +875,7 @@ export async function stepPipelineRun(
     `${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/runs/${encodeURIComponent(runUuid)}/steps`,
     { method: "POST", headers: authHeaders(token) },
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   const body = await res.json() as Partial<PipelineBreakpointResponse>;
   return { nodeIds: body.nodeIds ?? [], held: body.held ?? [] };
 }

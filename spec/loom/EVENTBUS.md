@@ -240,7 +240,7 @@ database.
 | I want to ... | Look at |
 |---|---|
 | See what a UI client actually receives | `loom-ui/src/api/pipelineEvents.ts` (channel routing, reconnect, `?token=`) |
-| See events rendered | `loom-ui/src/Pipeline/PipelineArea.tsx` |
+| See events rendered | `loom-ui/src/features/pipeline/` run views (the old `src/Pipeline/PipelineArea.tsx` monitor was deleted 2026-10-11) |
 | Change what gets pushed to the UI | `RunStatsAggregator` — not Cortex |
 | Change the flush cadence | `PipelineEndpointService.STATS_INTERVAL_MS` |
 | Add a filter to the UI stream | `PipelineEventEndpoint.extractQueryParam` + `PipelineEventBroadcaster.Subscriber.matches` |

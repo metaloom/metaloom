@@ -35079,6 +35079,7 @@
                     "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "text" : "The second cut runs long - can we lose the establishing shot?",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.539353706024E9,
                     "edited" : 1.539353706024E9
                   } ],
@@ -35094,6 +35095,7 @@
                     "areaHeight" : 0.22,
                     "text" : "The logo is clipped on the right here.",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.539353706024E9,
                     "edited" : 1.539353706024E9
                   } ],
@@ -35102,6 +35104,7 @@
                     "type" : "APPROVE",
                     "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.542744721084E9
                   } ]
                 }
@@ -35259,6 +35262,7 @@
                     "areaHeight" : 0.22,
                     "text" : "The logo is clipped on the right here.",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.539353706024E9,
                     "edited" : 1.539353706024E9
                   } ],
@@ -35342,6 +35346,7 @@
                   "areaHeight" : 0.22,
                   "text" : "The logo is clipped on the right here.",
                   "authorName" : "Maria from Acme",
+                  "own" : true,
                   "created" : 1.539353706024E9,
                   "edited" : 1.539353706024E9
                 }
@@ -35432,6 +35437,7 @@
                   "areaHeight" : 0.22,
                   "text" : "The logo is clipped on the right here.",
                   "authorName" : "Maria from Acme",
+                  "own" : true,
                   "created" : 1.539353706024E9,
                   "edited" : 1.539353706024E9
                 }
@@ -35803,6 +35809,7 @@
                     "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "text" : "The second cut runs long - can we lose the establishing shot?",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.539353706024E9,
                     "edited" : 1.539353706024E9
                   } ],
@@ -35872,6 +35879,7 @@
                   "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                   "text" : "The second cut runs long - can we lose the establishing shot?",
                   "authorName" : "Maria from Acme",
+                  "own" : true,
                   "created" : 1.539353706024E9,
                   "edited" : 1.539353706024E9
                 }
@@ -35948,6 +35956,7 @@
                   "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                   "text" : "The second cut runs long - can we lose the establishing shot?",
                   "authorName" : "Maria from Acme",
+                  "own" : true,
                   "created" : 1.539353706024E9,
                   "edited" : 1.539353706024E9
                 }
@@ -36063,6 +36072,7 @@
                     "type" : "APPROVE",
                     "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "authorName" : "Maria from Acme",
+                    "own" : true,
                     "created" : 1.542744721084E9
                   } ],
                   "_metainfo" : {
@@ -36131,6 +36141,7 @@
                   "type" : "APPROVE",
                   "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                   "authorName" : "Maria from Acme",
+                  "own" : true,
                   "created" : 1.542744721084E9
                 }
               }

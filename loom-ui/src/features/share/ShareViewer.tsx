@@ -151,13 +151,10 @@ export default function ShareViewer({ session }: { session: ShareSession }) {
   const toggleReaction = async (type: string) => {
     try {
       // Only this visitor's own reaction toggles off. The list carries every visitor's reactions on
-      // the link, and the server deletes any of them by uuid - matching on type alone made a second
-      // reviewer's "approve" silently delete the first reviewer's instead of adding their own.
+      // the link; `own` is the server's word on which are this visitor's, and it refuses to delete
+      // anybody else's. Matching on the name could not tell two visitors of one link apart.
       const existing = reactions.find(
-        (r) =>
-          r.type === type &&
-          r.authorName === session.visitorName &&
-          (!selected || r.assetUuid === selected.uuid),
+        (r) => r.type === type && r.own === true && (!selected || r.assetUuid === selected.uuid),
       );
       if (existing) {
         await deleteSharedReaction(slug, token, existing.uuid);

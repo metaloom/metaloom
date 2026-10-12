@@ -32,6 +32,7 @@ import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.vectorconfig.VectorConfigDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
@@ -202,6 +203,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default AssetPoolDao assetPoolDao() {
 		return daos().assetPoolDao();
+	}
+
+	default VectorConfigDao vectorConfigDao() {
+		return daos().vectorConfigDao();
 	}
 
 	// Person

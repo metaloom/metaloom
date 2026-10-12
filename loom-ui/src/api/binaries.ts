@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -33,10 +33,7 @@ export interface AssetBinaryCreateRequest {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 async function handleBlobResponse(res: Response): Promise<Blob> {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   return res.blob();
 }
 
@@ -157,8 +154,5 @@ export async function deleteAssetBinary(
       headers: authHeaders(token),
     }
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Delete failed ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

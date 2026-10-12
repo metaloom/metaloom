@@ -23,6 +23,9 @@ public class ShareReactionResponse extends AbstractResponse<ShareReactionRespons
 	@JsonPropertyDescription("The visitor name as it stood when the reaction was left.")
 	private String authorName;
 
+	@JsonPropertyDescription("Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share visitor routes only.")
+	private Boolean own;
+
 	private Instant created;
 
 	public String getType() {
@@ -67,6 +70,15 @@ public class ShareReactionResponse extends AbstractResponse<ShareReactionRespons
 
 	public ShareReactionResponse setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	public Boolean getOwn() {
+		return own;
+	}
+
+	public ShareReactionResponse setOwn(Boolean own) {
+		this.own = own;
 		return this;
 	}
 

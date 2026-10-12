@@ -76,7 +76,7 @@ public abstract class AbstractEndpointTest implements EndpointTest {
 	 * </p>
 	 *
 	 * <p>
-	 * The grant goes through a role and a group rather than {@code user_permission}, whose primary key allows only one direct grant per user.
+	 * The grant goes through a role and a group, the path real users get their permissions by.
 	 * </p>
 	 *
 	 * @param username

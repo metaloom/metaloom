@@ -917,7 +917,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **jOOQ generated sources** | Live in `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh`; converters via `forcedTypes` in that pom |
 | **New DB fields** | Need (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API change in `loom/db/api`, (d) impls in `loom/db/jooq` **and** `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
 | **Delete DAOs** | Must have delete-cascade tests proving only the intended rows disappear |
-| **`user_permission` PK** | Only one direct grant per user — grant test permissions via group+role (`SkillEndpointTest` is the pattern) |
+| **Test permissions** | Grant via group+role (`SkillEndpointTest` is the pattern) — the path real users get permissions by. Direct `user_permission` grants are unlimited and idempotent since `V2.118` (the old one-grant-per-user PK is gone) |
 | **REST paths** | Always plural for method-carrying paths |
 | **REST updates** | `POST` creates **and** updates everywhere (backwards compatibility). User/Group/Asset also support `PATCH` (partial) and `PUT` (full replace — 400 if a replaceable field is missing). [RESTAPI.md](loom/RESTAPI.md) §1.2 |
 | **Test assertions** | Use the domain-specific `AbstractAssert` subclasses — do not hand-roll equality checks |
@@ -1051,8 +1051,8 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `c7e56c89`_
-_Last updated: 2026-10-11 (registered features/nodes/NODE_OUTPUT_REUSE.md — node output reuse across runs and pipelines; tree entry, routing row and the "node output reuse" gotcha; file count 148 → 149)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (the `user_permission` PK gotcha row rewritten — V2.118 lifted the one-direct-grant limit). Earlier: 2026-10-11 (registered features/nodes/NODE_OUTPUT_REUSE.md — node output reuse across runs and pipelines; tree entry, routing row and the "node output reuse" gotcha; file count 148 → 149)_
 _Previously: 2026-10-10 (registered features/nodes/voiceprint/NODE_VOICEPRINT.md and sidecars/VOICEPRINT_SIDECAR.md — the `voiceprint` node and its :9150 sidecar; routing rows for speaker embeddings and speaker-model licences; file count 145 → 147)_
 _Previously: 2026-08-18 (the `ctx.failure(...).next()` cheat-sheet row — fixed tree-wide, with a `FailurePathGuardTest` build guard)_
 

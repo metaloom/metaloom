@@ -185,12 +185,22 @@ public interface ShareModelBuilder extends ModelBuilder, UserModelBuilder {
 		return response;
 	}
 
-	default ShareCommentListResponse toShareCommentList(List<ShareComment> comments) {
+	/**
+	 * A comment as a share visitor sees it: with {@code own} set, so the viewer offers edit and delete only where the server will allow them.
+	 */
+	default ShareCommentResponse toResponse(ShareComment element, UUID visitorId) {
+		return toResponse(element).setOwn(element.getVisitorId() != null && element.getVisitorId().equals(visitorId));
+	}
+
+	/**
+	 * The comments of a share as the visitor sees them, each marked with whether this visitor wrote it.
+	 */
+	default ShareCommentListResponse toShareCommentList(List<ShareComment> comments, UUID visitorId) {
 		ShareCommentListResponse response = new ShareCommentListResponse();
 		// setData rather than repeated add(): a link nobody has commented on yet is the ordinary starting state, and
 		// add() only creates the list on first use - so an empty listing would answer with no `data` array at all and
 		// every caller would have to special-case it. See AbstractListResponse#setData.
-		response.setData(comments.stream().map(this::toResponse).toList());
+		response.setData(comments.stream().map(e -> toResponse(e, visitorId)).toList());
 		setUnpagedInfo(response, comments.size());
 		return response;
 	}
@@ -213,9 +223,19 @@ public interface ShareModelBuilder extends ModelBuilder, UserModelBuilder {
 		return response;
 	}
 
-	default ShareAnnotationListResponse toShareAnnotationList(List<ShareAnnotation> annotations) {
+	/**
+	 * A annotation as a share visitor sees it: with {@code own} set, so the viewer offers edit and delete only where the server will allow them.
+	 */
+	default ShareAnnotationResponse toResponse(ShareAnnotation element, UUID visitorId) {
+		return toResponse(element).setOwn(element.getVisitorId() != null && element.getVisitorId().equals(visitorId));
+	}
+
+	/**
+	 * The annotations of a share as the visitor sees them, each marked with whether this visitor wrote it.
+	 */
+	default ShareAnnotationListResponse toShareAnnotationList(List<ShareAnnotation> annotations, UUID visitorId) {
 		ShareAnnotationListResponse response = new ShareAnnotationListResponse();
-		response.setData(annotations.stream().map(this::toResponse).toList());
+		response.setData(annotations.stream().map(e -> toResponse(e, visitorId)).toList());
 		setUnpagedInfo(response, annotations.size());
 		return response;
 	}
@@ -232,9 +252,19 @@ public interface ShareModelBuilder extends ModelBuilder, UserModelBuilder {
 		return response;
 	}
 
-	default ShareReactionListResponse toShareReactionList(List<ShareReaction> reactions) {
+	/**
+	 * A reaction as a share visitor sees it: with {@code own} set, so the viewer offers edit and delete only where the server will allow them.
+	 */
+	default ShareReactionResponse toResponse(ShareReaction element, UUID visitorId) {
+		return toResponse(element).setOwn(element.getVisitorId() != null && element.getVisitorId().equals(visitorId));
+	}
+
+	/**
+	 * The reactions of a share as the visitor sees them, each marked with whether this visitor wrote it.
+	 */
+	default ShareReactionListResponse toShareReactionList(List<ShareReaction> reactions, UUID visitorId) {
 		ShareReactionListResponse response = new ShareReactionListResponse();
-		response.setData(reactions.stream().map(this::toResponse).toList());
+		response.setData(reactions.stream().map(e -> toResponse(e, visitorId)).toList());
 		setUnpagedInfo(response, reactions.size());
 		return response;
 	}

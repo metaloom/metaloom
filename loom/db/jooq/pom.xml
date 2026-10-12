@@ -263,8 +263,9 @@
 											     as a JsonObject like meta, so it needs the same converter.
 											     pipeline_node_task.previews holds the opt-in debugging
 											     renderings of those outputs and is read the same way.
-											     asset_node_result.result_ref points at the rows a node wrote. -->
-											<includeExpression>.*\.meta.*|.*\.outputs|.*\.previews|.*\.definition|.*\.result_ref</includeExpression>
+											     asset_node_result.result_ref points at the rows a node wrote.
+											     vector_config.weights is the index definition (V2.6). -->
+											<includeExpression>.*\.meta.*|.*\.outputs|.*\.previews|.*\.definition|.*\.result_ref|vector_config\.weights</includeExpression>
 										</forcedType>
 										<forcedType>
 											<userType>io.vertx.core.json.JsonArray</userType>

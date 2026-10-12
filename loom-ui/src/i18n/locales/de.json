@@ -1670,38 +1670,21 @@
     },
     "chip": {
       "prompts": "Prompts",
-      "results": "Ergebnisse"
+      "results": "Ergebnisse",
+      "sample": "Beispiel"
     },
     "button": {
-      "newPrompt": "Neuer Prompt",
-      "cancel": "Abbrechen",
-      "create": "Prompt erstellen"
-    },
-    "dialog": {
-      "title": "Neuer Vision-Prompt"
+      "newPrompt": "Neuer Prompt"
     },
     "label": {
-      "name": "Name",
-      "namePlaceholder": "z. B. Szenenbeschreibung",
-      "model": "Modell",
-      "prompt": "Prompt",
-      "promptPlaceholder": "Beschreiben Sie, was das Modell mit dem Asset tun soll…",
-      "reasoningEffort": "Denkaufwand",
-      "outputFormat": "Ausgabeformat",
-      "maxTokens": "Max. Token",
-      "description": "Beschreibung (optional)",
-      "descriptionPlaceholder": "Kurze Beschreibung des Zwecks dieses Prompts",
       "maxTokensValue": "Max. Token: {{count}}",
-      "tokens": "{{count}} Token"
+      "tokens": "{{count}} Token",
+      "created": "Erstellt am {{date}}"
     },
     "effort": {
       "low": "Niedrig",
       "medium": "Mittel",
       "high": "Hoch"
-    },
-    "format": {
-      "text": "Text",
-      "json": "JSON"
     },
     "chip_template": {
       "effort": "{{effort}} Aufwand"
@@ -1713,6 +1696,16 @@
     "empty": {
       "prompts": "Keine Prompts gefunden",
       "results": "Keine Ergebnisse gefunden"
+    },
+    "preview": {
+      "title": "Vorschau — Beispieldaten, nicht mit einem Backend verbunden",
+      "notice": "Für die LLM-Erkennung gibt es noch kein Backend. Die Prompts und Ergebnisse unten sind feste Beispiele: Nichts davon stammt aus Ihrer Bibliothek, und Prompts können weder erstellt, bearbeitet noch ausgeführt werden.",
+      "disabled": "In der Vorschau nicht verfügbar: Die LLM-Erkennung hat noch kein Backend."
+    },
+    "status": {
+      "success": "Erfolgreich",
+      "failed": "Fehlgeschlagen",
+      "pending": "Ausstehend"
     }
   },
   "objectDetection": {

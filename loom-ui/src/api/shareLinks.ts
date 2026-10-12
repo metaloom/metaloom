@@ -89,6 +89,11 @@ export interface ShareCommentResponse {
   annotationUuid?: string;
   text: string;
   authorName: string;
+  /**
+   * True when the visitor making the request wrote this, and may therefore edit or delete it. Only
+   * the share visitor routes set it; the owner's feedback view leaves it out.
+   */
+  own?: boolean;
   created: string;
   edited?: string;
 }
@@ -105,6 +110,11 @@ export interface ShareAnnotationResponse {
   areaHeight?: number;
   text?: string;
   authorName: string;
+  /**
+   * True when the visitor making the request wrote this, and may therefore edit or delete it. Only
+   * the share visitor routes set it; the owner's feedback view leaves it out.
+   */
+  own?: boolean;
   created: string;
   edited?: string;
 }
@@ -116,6 +126,11 @@ export interface ShareReactionResponse {
   commentUuid?: string;
   annotationUuid?: string;
   authorName: string;
+  /**
+   * True when the visitor making the request wrote this, and may therefore edit or delete it. Only
+   * the share visitor routes set it; the owner's feedback view leaves it out.
+   */
+  own?: boolean;
   created: string;
 }
 

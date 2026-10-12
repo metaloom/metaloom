@@ -39,7 +39,7 @@ import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, updateTagPlacemen
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { toUiPerson } from "../faceDetection/personMapping";
-import { listAssetClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
+import { CLUSTER_TYPE_SPEAKER, listAssetClusters, listClusterMembers, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
 import {
   listAssetDetections, createDetection, updateDetection, deleteDetection,
   bulkCreateDetections, DetectionResponse,
@@ -466,23 +466,33 @@ export default function AssetDetail() {
           boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
           confidence: d.confidence,
           thumbnailUrl: "",
-          clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
         }))
       ).catch(() => [] as DetectedFace[]) : Promise.resolve([] as DetectedFace[]),
       // The clusters computed within THIS asset, not every cluster in the library. The panel groups the
       // asset's faces by subject, so a library-wide list could only ever have produced groups whose
       // members are not here.
-      token && id ? listAssetClusters(token, id).then(r => (r.data ?? []).map((c: ClusterApiResponse): FaceCluster => ({
-        id: c.uuid,
-        label: c.name || "Unnamed cluster",
-        representativeThumbnailUrl: "",
-        faceIds: [],
-        faceCount: c.memberCount ?? 0,
-        assetId: c.assetUuid,
-        reviewStatus: c.reviewStatus,
-        score: c.score,
-        personId: c.personUuid,
-      }))).catch(() => [] as FaceCluster[]) : Promise.resolve([] as FaceCluster[]),
+      //
+      // Each cluster's members are fetched too: the list route reports only a count, and the panel
+      // groups faces by *which detections* a cluster holds. Without this every `faceIds` was empty,
+      // so the summary always said "0 clusters". A cluster whose members fail to load keeps an
+      // empty list, and its faces then show as unclustered rather than vanishing. Speaker clusters
+      // are skipped: their members are speech windows, never faces.
+      token && id ? listAssetClusters(token, id).then(r => Promise.all((r.data ?? [])
+        .filter((c: ClusterApiResponse) => c.type !== CLUSTER_TYPE_SPEAKER)
+        .map(async (c: ClusterApiResponse): Promise<FaceCluster> => {
+          const members = await listClusterMembers(token, c.uuid).catch(() => null);
+          return {
+            id: c.uuid,
+            label: c.name || "Unnamed cluster",
+            representativeThumbnailUrl: "",
+            faceIds: (members?.members ?? []).map(m => m.detectionUuid).filter((fid): fid is string => Boolean(fid)),
+            faceCount: c.memberCount ?? 0,
+            assetId: c.assetUuid,
+            reviewStatus: c.reviewStatus,
+            score: c.score,
+            personId: c.personUuid,
+          };
+        }))).catch(() => [] as FaceCluster[]) : Promise.resolve([] as FaceCluster[]),
       token ? listPersons(token, { limit: PAGE_SIZE }).then(r => (r.data ?? []).map((p: PersonResponse) => toUiPerson(p))).catch(() => [] as Person[])
         : Promise.resolve([] as Person[]),
     ]).then(([c, t, tr, faces, clusters, pers]) => {

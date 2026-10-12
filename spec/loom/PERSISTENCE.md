@@ -225,7 +225,7 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.72__tag_asset_cascade` | Both `tag_asset` foreign keys become `ON DELETE CASCADE`. Deleting an asset drops its tag assignments, deleting a tag drops them everywhere, and neither touches the object on the other side. Until then a tagged asset could not be deleted at all - the FK violation surfaced as a 500 |
 | `V2.71__tag_asset_placements` | `tag_asset` gains a surrogate `uuid` PK, `UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)` and provenance (`node_kind` default `manual`, `node_id`, `producer_version`, `confidence`, `created`, `creator_uuid`). One tag may now sit on one asset several times - once per face, once per timecode - and every placement says who put it there. 🔴 Needs **PostgreSQL 15+** for `NULLS NOT DISTINCT`; without it an asset-level tag would re-attach on every write, since NULL region columns never conflict under the default semantics |
 | `V2.70__add_notification` | `notification` — the per-user inbox, plus `READ/UPDATE/DELETE_NOTIFICATION` enum values (no CREATE — dispatch is server-side). `type` is varchar + CHECK, not an enum. Fan-out is one row per recipient at dispatch time. Partial index on unread + one index per subject FK |
-| `V2.64__fix_role_permission_key` | Drops `role_permission.resource` and the unique index the narrower `PRIMARY KEY (role_uuid, permission)` made unreachable. Permissions are global; a column that looks like a scope but scopes nothing invites grants that confer more authority than they appear to. `user_permission` / `token_permission` have the worse variant of the same defect and are deliberately left for their own change |
+| `V2.64__fix_role_permission_key` | Drops `role_permission.resource` and the unique index the narrower `PRIMARY KEY (role_uuid, permission)` made unreachable. Permissions are global; a column that looks like a scope but scopes nothing invites grants that confer more authority than they appear to. `user_permission` / `token_permission` had the worse variant of the same defect and were left for their own change - `V2.118` |
 | `V2.65__search_metadata_json_comp` | `search_extract_json_text` learns `schema_type = 'metadata'`. The function is a whitelist, so a photo's title, caption, keywords and creator were stored but unfindable. Only authored, human-readable fields are indexed — camera settings and GPS would dilute the tsvector |
 | `V2.66__add_node_descriptor` | `node_descriptor` — the node contracts workers announce over `NODE_REGISTRATION`. Keyed by `uuid` with `node_id UNIQUE` (like `cortex_instance`) so `CRUDDao` can address it. Spec knowledge is durable, worker presence is live: rows survive a disconnect and are removed only by an admin |
 | `V2.67__pipeline_node_task_previews` | `previews jsonb` — opt-in, run-scoped renderings of what a node emitted, so a port carrying an absolute path on a worker is still inspectable. Pruned with the run; `attachment` deliberately not used, it is catalogue state |
@@ -246,6 +246,9 @@ numerically, not lexically, when looking for the head of the chain — `V2.9` is
 | `V2.114__attachment_type_person_voice` | `attachment_type` value `PERSON_VOICE` (enum-only migration) |
 | `V2.115__person_voice_and_recognition` | `person.hero_voice_attachment_uuid`, `cluster.suggested_person_uuid`/`suggested_score`, `person_print`, reference index |
 | `V2.116__add_asset_node_output` | `asset_node_output` - node output reuse store, UNIQUE `(asset_uuid, node_kind, reuse_key)` ([../features/nodes/NODE_OUTPUT_REUSE.md](../features/nodes/NODE_OUTPUT_REUSE.md)) |
+| `V2.118__fix_direct_permission_keys` | `user_permission` / `token_permission` re-keyed from `PRIMARY KEY (user_uuid)` / `(token_uuid)` to `(subject, permission)`, `resource` and the unreachable V2.1 unique indexes dropped - what V2.64 did for roles. Before it a user or token could hold **one** direct grant, ever. `token_permission.token_uuid` gains `ON DELETE CASCADE` (a token holding a grant could not be deleted). `PermissionDao.grantUserPermission` / `grantTokenPermission` are `ON CONFLICT DO NOTHING` upserts; `loadPermissionsForToken` joined the interface. Tested by `PermissionDaoTest`, `AclCascadeTest.testDeletingATokenCascadesItsGrants` |
+| `V2.119__vector_config_constraints` | `vector_config` gets `PRIMARY KEY (uuid)` (`uuid` `NOT NULL`) and `vector_config_creator_uuid_fkey` / `vector_config_editor_uuid_fkey` → `user`; `token` gets the `token_editor_uuid_fkey` V2.1 forgot. No `ON DELETE` action (users are soft-deleted). Without the key jOOQ generated a `TableRecordImpl`, so no `CRUDDao` could be written; `VectorConfigDao` followed. The integrity checks `DANGLING_TOKEN_EDITOR` / `DANGLING_VECTOR_CONFIG_ACTOR` / `DUPLICATE_VECTOR_CONFIG_UUID` stay for legacy data |
+| `V2.120__share_feedback_visitor` | Nullable `visitor_id uuid` on `share_comment` / `share_annotation` / `share_reaction` - which visitor of a link wrote the row, from the signed session token. The three partial reaction unique indexes become `(share_uuid, visitor_id, type, subject)`, so a second reviewer's approval is no longer swallowed. NULL on older rows, which no visitor may change ([../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md)) |
 | `V2.117__pipeline_node_task_origin` | `pipeline_node_task.origin` (COMPUTED/LOCAL/REMOTE) + `(run_uuid, node_id)` index; aggregations `PipelineNodeTaskDao.aggregateByNode` / `durationHistogram` / `totalsByRunAndNode`, tested by `PipelineNodeTimeStatsDaoTest` (5) |
 
 ### Migration patterns
@@ -362,8 +365,8 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | User | `UserDao` | `user` (soft-delete `deleted`) | `UserDaoTest` CRUD +1 | `AclCascadeTest` |
 | Group | `GroupDao` | `group`, `user_group`, `role_group` | `GroupDaoTest` CRUD | `AclCascadeTest` |
 | Role | `RoleDao` | `role`, `role_permission` | `RoleDaoTest` CRUD +9 (`loadByName` hit/miss, `role_permission` replace semantics) | `AclCascadeTest` |
-| Permission | `PermissionDao` | `user/role/token_permission` | `PermissionDaoTest` (5 tests, grant + group inheritance + isolation) | `AclCascadeTest` |
-| Token | `TokenDao` | `token` | `TokenDaoTest` CRUD | — |
+| Permission | `PermissionDao` | `user/role/token_permission` | `PermissionDaoTest` (9 tests: several direct grants, idempotent user/role grants, token grants, group inheritance, isolation) | `AclCascadeTest` |
+| Token | `TokenDao` | `token` | `TokenDaoTest` CRUD | `AclCascadeTest` (`token_permission` cascade only) |
 | Asset | `AssetDao` | `asset` | `AssetDaoTest` CRUD +5 (meta) | `AssetCascadeTest` |
 | AssetBinary | `AssetBinaryDao` | `asset_location` (`getTypeName()` = "Asset Locations") | `AssetBinaryDaoTest` CRUD +7 | `AssetCascadeTest` |
 | AssetComponent | `AssetComponentDao` | 9 `asset_*_comp` tables | `AssetComponentKeyTest` (8), `AssetTranscriptCompDaoTest` (5), `AssetFingerprintSegmentCompDaoTest` (8), `AssetJsonCompDaoTest` (13) | `AssetCascadeTest` |
@@ -399,10 +402,10 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | MemoryDenyRule | `MemoryDenyRuleDao` | `memory_deny_rule` | `MemoryDenyRuleDaoTest` CRUD +6 | — |
 | DedupGroup | `DedupGroupDao` | `dedup_group`, `dedup_group_member` | `DedupGroupDaoTest` (6) | own |
 | Loom | `LoomDao` | `loom` | `LoomDaoTest` (1) | — |
-| VectorConfig | **none** | `vector_config` | — | — |
+| VectorConfig | `VectorConfigDao` | `vector_config` (`weights` jsonb → `JsonObject` via the `vector_config\.weights` `forcedTypes` include) | `VectorConfigDaoTest` CRUD +6 (`loadByName` hit/miss, empty weights, unique name, actors must be real users, delete leaves a sibling) | own |
 | SearchDocument | **none** (DB triggers + `PostgresSearchProvider`) | `search_document`, `search_document_deleted` | `SearchDocumentLifecycleTest`, `SearchDocumentSourceTest`, `SearchQueryBehaviourTest` | via `asset_uuid` cascade |
 
-`DaoCollection` exposes 39 accessors; `PipelineFixtures` is a shared builder, not a test.
+`DaoCollection` exposes 47 accessors; `PipelineFixtures` is a shared builder, not a test.
 
 ## Environment variables
 
@@ -562,12 +565,12 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 
 ## Progress Assessment
 
-Schema current through **`V2.84`**. Work items live in
+Schema current through **`V2.120`**. Work items live in
 [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) (DAO/test gaps) /
 [DATABASE_TASKS.md](../tasks/DATABASE_TASKS.md) (schema gaps).
 
-- [x] jOOQ DAO layer, generated tables committed, Dagger registry (39 DAOs)
-- [x] Flyway chain `V1`–`V2.74`, migration naming validated
+- [x] jOOQ DAO layer, generated tables committed, Dagger registry (47 DAOs)
+- [x] Flyway chain `V1`–`V2.120`, migration naming validated
 - [x] Asset-component rework (V2.38–V2.42) with provenance + idempotent `upsert()` and full tests
 - [x] Detection/embedding/attachment provenance rework (V2.43–V2.44) — schema side
 - [x] `asset_node_result` processing ledger + test
@@ -577,7 +580,7 @@ Schema current through **`V2.84`**. Work items live in
 - [x] Dedup review model (V2.61) + `DedupGroupDaoTest`
 - [x] Trigger-maintained `search_document` (V2.58/V2.59) + three search tests
 - [x] `LoomDao` singleton + `LoomDaoTest`
-- [x] `PermissionDaoTest` grown from a non-nullity smoke test to grant/inheritance/isolation coverage
+- [x] `PermissionDaoTest` grown from a non-nullity smoke test to grant/inheritance/isolation coverage, plus several direct grants per user, idempotency and token grants (`V2.118`)
 - [x] Asset and ACL delete-cascade suites (`AssetCascadeTest`, `AclCascadeTest`)
 - [x] `RoleDaoTest` — `role_permission` binding plus CRUD and both `loadByName` branches
 - [x] Database integrity checks: 29 named checks, asserted after every `CRUDDaoTestcases` write and
@@ -595,13 +598,13 @@ Schema current through **`V2.84`**. Work items live in
   `deleteByAssetUuid`, and a full-column round trip; the duplicate `AssetLocationDao` is gone
 - [ ] `AnnotationDaoTest` does not implement `CRUDDaoTestcases`
 - [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
-- [ ] `vector_config` (V2.6) has a generated table but no DAO
+- [x] `vector_config` (V2.6) — `VectorConfigDao` + `VectorConfigDaoTest`, after `V2.119` gave the table a primary key and actor FKs. Nothing outside tests writes it yet
 - [x] `asset_remix` (V2.8) had a generated table but no DAO operations — dropped by `V2.100` and replaced by `remix`/`remix_member` with the full stack ([../features/remix/REMIX.md](../features/remix/REMIX.md))
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `c7e56c89`_
-_Last updated: 2026-10-11 (V2.116 `asset_node_output` - node output reuse store, `AssetNodeOutputDao` + tests). Earlier: 2026-10-11 (V2.114/V2.115 - person voice samples, suggestions, `person_print`; `JooqTestContext.afterEach` now closes the per-test c3p0 pool, which a DAO class of 20+ methods exhausted). Earlier: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (V2.118 direct permission keys, V2.119 `vector_config` / `token.editor_uuid` constraints + `VectorConfigDao`, V2.120 share feedback `visitor_id`; DAO matrix and accessor count 39 → 47 corrected). Earlier: 2026-10-11 (V2.116 `asset_node_output` - node output reuse store, `AssetNodeOutputDao` + tests). Earlier: 2026-10-11 (V2.114/V2.115 - person voice samples, suggestions, `person_print`; `JooqTestContext.afterEach` now closes the per-test c3p0 pool, which a DAO class of 20+ methods exhausted). Earlier: 2026-08-16 (`V2.105` renames `asset_fingerprint_comp.sector_index` to `window_index`.
 Earlier: `V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
 subsystem lands beside this layer: 29 named checks over the invariants the schema relies on but does
 not enforce, wired into `CRUDDaoTestcases` and both cascade suites. Owned by

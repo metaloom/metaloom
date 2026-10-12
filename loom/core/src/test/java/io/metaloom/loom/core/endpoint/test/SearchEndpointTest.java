@@ -72,8 +72,7 @@ public class SearchEndpointTest extends AbstractEndpointTest {
 	 * Log the {@code joedoe} fixture user in, holding exactly the given permissions.
 	 *
 	 * <p>
-	 * Granted via role -&gt; group -&gt; user, never as a direct user grant: {@code user_permission} is keyed by {@code user_uuid} alone, so a user can
-	 * hold exactly one direct grant and a multi-permission fixture built that way would silently keep only the last one.
+	 * Granted via role -&gt; group -&gt; user, the path real users get their permissions by.
 	 * </p>
 	 */
 	private LoomHttpClient loginWith(String roleName, Permission... permissions) throws LoomClientException {

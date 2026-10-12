@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -18,6 +19,7 @@ import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.perm.ResourcePermission;
 import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.token.Token;
 import io.metaloom.loom.db.model.user.User;
 
 /**
@@ -71,17 +73,8 @@ public class AclCascadeTest extends AbstractJooqTest {
 		return adminUser();
 	}
 
-	private boolean hasPermission(UUID userUuid, Permission perm, String resource) {
-		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
-			if (perm.name().equals(rp.getPermission()) && resource.equals(rp.getResource())) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	/**
-	 * Probe by permission alone - the correct probe for role grants, which carry no resource since V2.64.
+	 * Probe by permission alone - no grant table carries a resource since V2.64 / V2.118.
 	 */
 	private boolean hasPermission(UUID userUuid, Permission perm) {
 		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
@@ -171,9 +164,8 @@ public class AclCascadeTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testSoftDeletingAUserKeepsGrantsAndMemberships() {
-		String resource = "res-soft";
 		User user = storeUser("soft_deleted_user");
-		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET);
 		Group group = storeGroup("group_of_soft_user");
 		groupDao().addUserToGroup(group, user);
 
@@ -181,7 +173,7 @@ public class AclCascadeTest extends AbstractJooqTest {
 		userDao().update(user);
 
 		assertNull(userDao().load(user.getUuid()), "A soft-deleted user is filtered out of load()");
-		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET, resource),
+		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET),
 			"Soft delete does not physically remove the row, so its direct grant survives - cascades only fire on a hard delete");
 	}
 
@@ -190,20 +182,42 @@ public class AclCascadeTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testHardDeletingAUserCascadesGrantsAndMemberships() {
-		String resource = "res-hard";
 		User user = storeUser("hard_deleted_user");
-		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantUserPermission(user.getUuid(), Permission.READ_ASSET);
 		Group group = storeGroup("group_of_hard_user");
 		groupDao().addUserToGroup(group, user);
 
-		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET, resource),
+		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET),
 			"The direct grant resolves before the hard delete");
 
 		userDao().delete(user.getUuid());
 
 		assertNull(userDao().load(user.getUuid()), "The user row is gone");
-		assertFalse(hasPermission(user.getUuid(), Permission.READ_ASSET, resource),
+		assertFalse(hasPermission(user.getUuid(), Permission.READ_ASSET),
 			"The user_permission grant must have cascaded with the row");
 		assertNotNull(groupDao().load(group.getUuid()), "The group must survive the hard delete of a member");
+	}
+
+	/**
+	 * Deleting a token cascades its {@code token_permission} grants (V2.118 added the {@code ON DELETE CASCADE}; before it, a token holding a grant
+	 * could not be deleted at all). A second token with the identical grant set is untouched.
+	 */
+	@Test
+	public void testDeletingATokenCascadesItsGrants() {
+		Token doomed = tokenDao().createToken(creator().getUuid(), "cascade_token_doomed", "cascade-token-doomed");
+		tokenDao().store(doomed);
+		Token survivor = tokenDao().createToken(creator().getUuid(), "cascade_token_survivor", "cascade-token-survivor");
+		tokenDao().store(survivor);
+		for (Token token : List.of(doomed, survivor)) {
+			permissionDao().grantTokenPermission(token.getUuid(), Permission.READ_ASSET);
+			permissionDao().grantTokenPermission(token.getUuid(), Permission.CREATE_ASSET);
+		}
+
+		tokenDao().delete(doomed.getUuid());
+
+		assertNull(tokenDao().load(doomed.getUuid()), "The token row is gone");
+		assertTrue(permissionDao().loadPermissionsForToken(doomed.getUuid()).isEmpty(), "Its grants must have cascaded with it");
+		assertNotNull(tokenDao().load(survivor.getUuid()), "The other token survives");
+		assertEquals(2, permissionDao().loadPermissionsForToken(survivor.getUuid()).size(), "The other token keeps both grants");
 	}
 }

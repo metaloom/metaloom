@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
-import { authHeaders, noteUnauthorized, traceIdOf } from "./http";
+import { authHeaders, ensureOk, noteUnauthorized, traceIdOf } from "./http";
 
 // ── Types matching the Loom REST API user models ──────────────────────
 
@@ -118,10 +118,7 @@ export async function deleteUser(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }
 
 // ── The account picture ───────────────────────────────────────────────

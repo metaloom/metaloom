@@ -33,6 +33,11 @@ export interface ShareChallengeResponse {
 export interface ShareSessionRequest {
   password?: string;
   visitorName?: string;
+  /**
+   * The token this tab held before its session lapsed. The server keeps that session's visitor, so
+   * feedback the visitor left earlier stays theirs to edit and delete.
+   */
+  previousSessionToken?: string;
 }
 
 export interface ShareSessionResponse {

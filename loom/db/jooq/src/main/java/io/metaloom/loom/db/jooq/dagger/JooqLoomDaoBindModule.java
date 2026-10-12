@@ -32,6 +32,7 @@ import io.metaloom.loom.db.jooq.dao.pipeline.PipelineNodeTaskDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineRunItemDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineVersionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pool.AssetPoolDaoImpl;
+import io.metaloom.loom.db.jooq.dao.vectorconfig.VectorConfigDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
 import io.metaloom.loom.db.jooq.dao.library.LibraryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.loom.LoomDaoImpl;
@@ -74,6 +75,7 @@ import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.vectorconfig.VectorConfigDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.loom.LoomDao;
@@ -195,6 +197,9 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract AssetPoolDao assetPoolDao(AssetPoolDaoImpl dao);
+
+	@Binds
+	abstract VectorConfigDao vectorConfigDao(VectorConfigDaoImpl dao);
 
 	@Binds
 	abstract PersonDao personDao(PersonDaoImpl dao);

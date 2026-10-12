@@ -17,6 +17,7 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.share.Share;
+import io.metaloom.loom.db.model.share.ShareComment;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.rest.model.share.ShareAnnotationRequest;
 import io.metaloom.loom.rest.model.share.ShareAnnotationResponse;
@@ -331,6 +332,115 @@ public class PublicShareFeedbackEndpointTest extends AbstractEndpointTest {
 		}
 	}
 
+	/**
+	 * A link forwarded to a second person: both see everything said through it, each may change and delete only their own. Before V2.120 the server
+	 * checked nothing, and any visitor could delete any other visitor's feedback by uuid.
+	 */
+	@Test
+	public void testVisitorsCannotChangeEachOthersFeedback() throws Exception {
+		ShareResponse share = createShare(request -> request.setAllowComments(true).setAllowAnnotations(true).setAllowReactions(true));
+		String slug = share.getSlug();
+
+		try (LoomHttpClient maria = openAs(share, "Maria"); LoomHttpClient bob = openAs(share, "Bob")) {
+			ShareCommentResponse comment = maria.createSharedComment(slug, comment("Maria's note")).sync().body();
+			ShareAnnotationResponse mark = maria.createSharedAnnotation(slug, temporalMark(2.0)).sync().body();
+			ShareReactionResponse reaction = maria.createSharedReaction(slug, approveAsset()).sync().body();
+			assertEquals(Boolean.TRUE, comment.getOwn(), "What a visitor just wrote is theirs");
+
+			expect(403, "Forbidden", bob.updateSharedComment(slug, comment.getUuid(), comment("Bob was here")));
+			expect(403, "Forbidden", bob.deleteSharedComment(slug, comment.getUuid()));
+			expect(403, "Forbidden", bob.updateSharedAnnotation(slug, mark.getUuid(), temporalMark(9.0)));
+			expect(403, "Forbidden", bob.deleteSharedAnnotation(slug, mark.getUuid()));
+			expect(403, "Forbidden", bob.deleteSharedReaction(slug, reaction.getUuid()));
+
+			// Bob still sees all of it - shared feedback is shared - but none of it as his.
+			assertEquals(Boolean.FALSE, bob.listSharedComments(slug).sync().body().getData().get(0).getOwn());
+			assertEquals(Boolean.FALSE, bob.listSharedAnnotations(slug).sync().body().getData().get(0).getOwn());
+			assertEquals(Boolean.FALSE, bob.listSharedReactions(slug).sync().body().getData().get(0).getOwn());
+			assertEquals(Boolean.TRUE, maria.listSharedComments(slug).sync().body().getData().get(0).getOwn());
+
+			assertEquals("Maria's note", maria.listSharedComments(slug).sync().body().getData().get(0).getText(),
+				"The refused edit must not have landed");
+
+			// The author still can.
+			maria.deleteSharedComment(slug, comment.getUuid()).sync().body();
+			maria.deleteSharedAnnotation(slug, mark.getUuid()).sync().body();
+			maria.deleteSharedReaction(slug, reaction.getUuid()).sync().body();
+			assertTrue(bob.listSharedComments(slug).sync().body().getData().isEmpty());
+		}
+	}
+
+	/**
+	 * Two people approving through one link are two approvals. Under the V2.99 key the second was silently swallowed as a duplicate of the first.
+	 */
+	@Test
+	public void testVisitorsReactIndependently() throws Exception {
+		ShareResponse share = createShare(request -> request.setAllowReactions(true));
+		String slug = share.getSlug();
+
+		try (LoomHttpClient maria = openAs(share, "Maria"); LoomHttpClient bob = openAs(share, "Bob")) {
+			maria.createSharedReaction(slug, approveAsset()).sync().body();
+			ShareReactionResponse bobs = bob.createSharedReaction(slug, approveAsset()).sync().body();
+			assertNotNull(bobs.getUuid(), "Bob's approval is a row of its own");
+			assertEquals(2, maria.listSharedReactions(slug).sync().body().getData().size());
+
+			bob.deleteSharedReaction(slug, bobs.getUuid()).sync().body();
+			assertEquals(1, maria.listSharedReactions(slug).sync().body().getData().size(), "Withdrawing Bob's leaves Maria's");
+		}
+	}
+
+	/**
+	 * A lapsed session reopened from the same browser keeps its visitor, so the reviewer can still edit yesterday's notes. A previous token from
+	 * another link, or no previous token at all, makes a new visitor.
+	 */
+	@Test
+	public void testReopenedSessionKeepsItsVisitor() throws Exception {
+		ShareResponse share = createShare(request -> request.setAllowComments(true));
+		ShareResponse otherShare = createShare(request -> request.setAllowComments(true));
+		String slug = share.getSlug();
+
+		String firstToken;
+		ShareCommentResponse comment;
+		try (LoomHttpClient first = openAs(share, "Maria")) {
+			firstToken = first.getShareSessionToken();
+			comment = first.createSharedComment(slug, comment("written in the first session")).sync().body();
+		}
+
+		String otherLinksToken;
+		try (LoomHttpClient elsewhere = openAs(otherShare, "Maria")) {
+			otherLinksToken = elsewhere.getShareSessionToken();
+		}
+
+		try (LoomHttpClient stranger = openAs(share, "Maria", null);
+			LoomHttpClient forger = openAs(share, "Maria", otherLinksToken);
+			LoomHttpClient tamperer = openAs(share, "Maria", firstToken.substring(0, firstToken.length() - 2) + "AA")) {
+			expect(403, "Forbidden", stranger.deleteSharedComment(slug, comment.getUuid()));
+			expect(403, "Forbidden", forger.deleteSharedComment(slug, comment.getUuid()));
+			expect(403, "Forbidden", tamperer.deleteSharedComment(slug, comment.getUuid()));
+		}
+
+		try (LoomHttpClient returning = openAs(share, "Maria", firstToken)) {
+			assertEquals(Boolean.TRUE, returning.listSharedComments(slug).sync().body().getData().get(0).getOwn());
+			returning.deleteSharedComment(slug, comment.getUuid()).sync().body();
+		}
+	}
+
+	/**
+	 * Feedback written before V2.120 carries no visitor. Nobody can prove they wrote it, so through the link it is read-only.
+	 */
+	@Test
+	public void testFeedbackWithoutAVisitorIsReadOnly() throws Exception {
+		ShareResponse share = createShare(request -> request.setAllowComments(true));
+		ShareComment legacy = daos().shareFeedbackDao().createComment(share.getUuid(), ASSET_UUID, "Maria", "left before V2.120");
+		daos().shareFeedbackDao().storeComment(legacy);
+
+		try (LoomHttpClient guest = openAs(share, "Maria")) {
+			assertEquals(Boolean.FALSE, guest.listSharedComments(share.getSlug()).sync().body().getData().get(0).getOwn());
+			expect(403, "Forbidden", guest.deleteSharedComment(share.getSlug(), legacy.getUuid()));
+			expect(403, "Forbidden", guest.updateSharedComment(share.getSlug(), legacy.getUuid(), comment("rewritten")));
+		}
+	}
+
 	// --- Helpers ---
 
 	private ShareCommentRequest comment(String text) {
@@ -349,9 +459,16 @@ public class PublicShareFeedbackEndpointTest extends AbstractEndpointTest {
 	 * A guest client that has already opened the link and is holding its session.
 	 */
 	private LoomHttpClient openAs(ShareResponse share, String name) throws LoomClientException {
+		return openAs(share, name, null);
+	}
+
+	/**
+	 * As {@link #openAs(ShareResponse, String)}, presenting the session token this "browser" held before.
+	 */
+	private LoomHttpClient openAs(ShareResponse share, String name, String previousSessionToken) throws LoomClientException {
 		LoomHttpClient guest = loom.httpClient();
-		guest.setShareSessionToken(
-			guest.openShare(share.getSlug(), new ShareSessionRequest().setVisitorName(name)).sync().body().getSessionToken());
+		ShareSessionRequest request = new ShareSessionRequest().setVisitorName(name).setPreviousSessionToken(previousSessionToken);
+		guest.setShareSessionToken(guest.openShare(share.getSlug(), request).sync().body().getSessionToken());
 		return guest;
 	}
 

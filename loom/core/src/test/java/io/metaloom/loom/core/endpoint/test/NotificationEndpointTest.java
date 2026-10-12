@@ -175,8 +175,7 @@ public class NotificationEndpointTest extends AbstractEndpointTest {
 			loginAdmin(client);
 			Notification joedoesEntry = seed(USER_UUID, "joedoe's own entry");
 
-			// READ only, granted through a group + role — user_permission allows a single direct
-			// grant per user, so a direct grant cannot express a three-permission set.
+			// READ only, granted through a group + role — the path real users get their permissions by.
 			DaoCollection daos = daos();
 			User joedoe = daos.userDao().load(USER_UUID);
 			Role role = daos.roleDao().createRole(ADMIN_UUID, "notification-read-role");

@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 /**
  * The memory denylist: instance-wide regular expressions that must never be written into the agent
@@ -79,8 +79,5 @@ export async function deleteMemoryDenyRule(token: string, uuid: string): Promise
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

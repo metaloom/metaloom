@@ -11,8 +11,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record14;
-import org.jooq.Row14;
+import org.jooq.Record15;
+import org.jooq.Row15;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -23,7 +23,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * responsive full-bleed viewer needs normalised coordinates
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnnotationRecord> implements Record14<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime> {
+public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnnotationRecord> implements Record15<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -237,6 +237,24 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
         return (LocalDateTime) get(13);
     }
 
+    /**
+     * Setter for <code>public.share_annotation.visitor_id</code>. The share
+     * visitor who drew the mark, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public void setVisitorId(UUID value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.share_annotation.visitor_id</code>. The share
+     * visitor who drew the mark, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public UUID getVisitorId() {
+        return (UUID) get(14);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -247,17 +265,17 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     }
 
     // -------------------------------------------------------------------------
-    // Record14 type implementation
+    // Record15 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row14<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime> fieldsRow() {
-        return (Row14) super.fieldsRow();
+    public Row15<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime, UUID> fieldsRow() {
+        return (Row15) super.fieldsRow();
     }
 
     @Override
-    public Row14<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime> valuesRow() {
-        return (Row14) super.valuesRow();
+    public Row15<UUID, UUID, UUID, String, Double, Double, Double, Double, Double, Double, String, String, LocalDateTime, LocalDateTime, UUID> valuesRow() {
+        return (Row15) super.valuesRow();
     }
 
     @Override
@@ -331,6 +349,11 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     }
 
     @Override
+    public Field<UUID> field15() {
+        return JooqShareAnnotation.SHARE_ANNOTATION.VISITOR_ID;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -401,6 +424,11 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     }
 
     @Override
+    public UUID component15() {
+        return getVisitorId();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -468,6 +496,11 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     @Override
     public LocalDateTime value14() {
         return getEdited();
+    }
+
+    @Override
+    public UUID value15() {
+        return getVisitorId();
     }
 
     @Override
@@ -555,7 +588,13 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     }
 
     @Override
-    public JooqShareAnnotationRecord values(UUID value1, UUID value2, UUID value3, String value4, Double value5, Double value6, Double value7, Double value8, Double value9, Double value10, String value11, String value12, LocalDateTime value13, LocalDateTime value14) {
+    public JooqShareAnnotationRecord value15(UUID value) {
+        setVisitorId(value);
+        return this;
+    }
+
+    @Override
+    public JooqShareAnnotationRecord values(UUID value1, UUID value2, UUID value3, String value4, Double value5, Double value6, Double value7, Double value8, Double value9, Double value10, String value11, String value12, LocalDateTime value13, LocalDateTime value14, UUID value15) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -570,6 +609,7 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
         value12(value12);
         value13(value13);
         value14(value14);
+        value15(value15);
         return this;
     }
 
@@ -587,7 +627,7 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
     /**
      * Create a detached, initialised JooqShareAnnotationRecord
      */
-    public JooqShareAnnotationRecord(UUID uuid, UUID shareUuid, UUID assetUuid, String kind, Double timeFrom, Double timeTo, Double areaX, Double areaY, Double areaWidth, Double areaHeight, String text, String authorName, LocalDateTime created, LocalDateTime edited) {
+    public JooqShareAnnotationRecord(UUID uuid, UUID shareUuid, UUID assetUuid, String kind, Double timeFrom, Double timeTo, Double areaX, Double areaY, Double areaWidth, Double areaHeight, String text, String authorName, LocalDateTime created, LocalDateTime edited, UUID visitorId) {
         super(JooqShareAnnotation.SHARE_ANNOTATION);
 
         setUuid(uuid);
@@ -604,5 +644,6 @@ public class JooqShareAnnotationRecord extends UpdatableRecordImpl<JooqShareAnno
         setAuthorName(authorName);
         setCreated(created);
         setEdited(edited);
+        setVisitorId(visitorId);
     }
 }

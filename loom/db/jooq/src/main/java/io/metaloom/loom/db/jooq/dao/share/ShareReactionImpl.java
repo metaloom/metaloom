@@ -15,6 +15,8 @@ public class ShareReactionImpl extends AbstractElement<ShareReaction> implements
 	private UUID shareAnnotationUuid;
 	private String type;
 	private String authorName;
+
+	private UUID visitorId;
 	private Instant created;
 
 	@Override
@@ -91,6 +93,17 @@ public class ShareReactionImpl extends AbstractElement<ShareReaction> implements
 	@Override
 	public ShareReaction setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	@Override
+	public UUID getVisitorId() {
+		return visitorId;
+	}
+
+	@Override
+	public ShareReaction setVisitorId(UUID visitorId) {
+		this.visitorId = visitorId;
 		return this;
 	}
 

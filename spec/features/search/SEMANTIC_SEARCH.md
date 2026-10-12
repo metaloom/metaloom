@@ -50,7 +50,7 @@ The contract the lexical phase reserved is now filled in rather than merely decl
 | `/vector-index/{rebuild,sync,status}` | ✅ built, **superseded** | `VectorIndexEndpoint`. Kept as a deprecated delegate; the operator surface is now `/api/v1/search-indices`, which is per-space rather than per-backend and reports size, model and backlog — [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent, and **no longer needed for the text path** (§0.4). The only `hnsw` in the tree is Lucene's ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)) |
 | `embedding.vector real[]` (`V2.43`) | ✅ The **system of record**. ANN lives outside Postgres behind `VectorIndex`; `V2.75` added `dirty`/`synced_at`/`index_version`/`normalized`, the dimensions CHECK, and `model` in the unique key |
-| `vector_config(name, weights jsonb)` (`V2.6`) | 🟡 Table + jOOQ record only. **No DAO, no endpoint, no reader** — fusion weights are `LOOM_SEARCH_RRF_*` env vars today, so §6 is still owed and `?profile=` still reaches nothing |
+| `vector_config(name, weights jsonb)` (`V2.6`) | 🟡 Table, primary key + actor FKs (`V2.119`) and `VectorConfigDao` (2026-10-11). **No endpoint, no reader, no seeded profile** — fusion weights are `LOOM_SEARCH_RRF_*` env vars today, so §6 is still owed and `?profile=` still reaches nothing |
 | `TextEmbedder` SPI + `OpenAiTextEmbedder` + `NoopTextEmbedder` | ✅ built | `loom-shared/api/…/api/search/TextEmbedder.java`, `loom/core/…/core/search/` |
 | `RankFusion` (RRF) | ✅ built + 13 unit tests | `loom-shared/api/…/api/search/RankFusion.java` |
 | `SearchMode.{SEMANTIC,HYBRID}` served rather than rejected | ✅ built + 20 tests | `PostgresSearchProvider.fusedSearch`, `SearchSemanticQueryTest` |
@@ -186,7 +186,7 @@ graph TB
     RRF{{"RankFusion ✅<br/>RRF k=60, in Java"}} --> HYD["hydrate + filter + sort ✅<br/>against search_document"]
     HYD --> RES["ranked hits ✅<br/>SearchMode.SEMANTIC · HYBRID"]
 
-    VC[("vector_config ✅ table / ⬜ no DAO")] -.->|"⬜ weights would come from here"| RRF
+    VC[("vector_config ✅ table + DAO / ⬜ no reader")] -.->|"⬜ weights would come from here"| RRF
 ```
 
 Three things this diagram is making a point of:
@@ -524,7 +524,9 @@ extension (§0.4, §2).
 
 ## 6. `vector_config` — the search-profile registry — ⬜ still owed
 
-`vector_config(name unique, weights jsonb)` (`V2.6`) has a jOOQ record and nothing else.
+`vector_config(name unique, weights jsonb)` (`V2.6`) has a primary key and actor FKs since `V2.119`
+and a `VectorConfigDao` (`createVectorConfig`, `loadByName`; `weights` read as `JsonObject`) since
+2026-10-11 — and no caller outside tests.
 `SearchRequest.profile` and the `?profile=` query parameter still point at nothing: the shipped fusion
 reads `LOOM_SEARCH_RRF_K`, `LOOM_SEARCH_RRF_WEIGHT_LEXICAL`, `LOOM_SEARCH_RRF_WEIGHT_VECTOR`,
 `LOOM_SEARCH_VECTOR_TYPE` and `LOOM_SEARCH_EMBED_MODEL` from `SearchOptions`, so **tuning the ranking is
@@ -549,7 +551,7 @@ another model's neighbours.
 Consequences worth having: hybrid weights become **data rather than env vars**, a model upgrade is a
 row insert plus a backfill instead of a deploy, and A/B'ing two rankings needs no code.
 
-Work: `VectorConfigDao` + `DaoCollection.vectorConfigDao()`, a `default` profile seeded by a migration
+Work: ~~`VectorConfigDao` + `DaoCollection.vectorConfigDao()`~~ (done 2026-10-11), a `default` profile seeded by a migration
 whose values match the `SearchOptions` defaults, and read-only `GET /api/v1/vector-configs` (plural, per
 [../../guidelines/CODING.md](../../guidelines/CODING.md)). Writes can stay migration-only initially.
 
@@ -604,7 +606,7 @@ Clusters are the **output** of similarity, not an input to search.
 | Class | Package / module | Purpose |
 |---|---|---|
 | `EmbeddingNode` / `EmbeddingNodeOptions` / `EmbeddingClient` | `io.metaloom.cortex.node.embedding` | The CLIP/SigLIP image path (§4) — the one thing between here and text→image search |
-| `VectorConfigDao` | `io.metaloom.loom.db.model.vector` | Search-profile registry (§6); would make the fusion weights data rather than env vars |
+| `VectorConfigDao` | `io.metaloom.loom.db.model.vectorconfig` | Search-profile registry (§6); exists, unread — would make the fusion weights data rather than env vars |
 | `PgVectorIndex` | `io.metaloom.loom.db.jooq.search` | pgvector implementation **of the existing `VectorIndex` SPI**, only if Lucene is outgrown |
 
 ## 9. Configuration
@@ -801,7 +803,8 @@ Both live in `loom/db/jooq/src/test/.../search/`:
       added no migration at all; `V2.75` had already given `embedding` everything it needs
 - [x] ~~Boot check that force-disables semantic search when the table is absent (§2.3)~~ — superseded by
       capability gating on the embedder and the index, which covers more failure modes and needs no table
-- [ ] `VectorConfigDao` + `GET /api/v1/vector-configs` + seeded `default` profile (§6) — **still owed.**
+- [ ] `GET /api/v1/vector-configs` + seeded `default` profile + `?profile=` wiring (§6) — **still owed**
+      (`VectorConfigDao` itself landed 2026-10-11).
       Weights are env vars, so A/B'ing two rankings is a redeploy
 - [ ] `cortex/nodes/embedding` — the CLIP/SigLIP **image** path (§4). The only thing between here and
       text→image search
@@ -839,8 +842,8 @@ Both live in `loom/db/jooq/src/test/.../search/`:
       path is Lucene plus a network call to the embedding host
 
 ---
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (text→text semantic and hybrid search implemented: `TextEmbedder`,
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (`vector_config` now has a primary key (V2.119) and `VectorConfigDao`; §6 and the status rows updated, package name corrected). Earlier: 2026-08-09 (text→text semantic and hybrid search implemented: `TextEmbedder`,
 `RankFusion`, `SearchEmbeddingService`, capability gating, `sidecars/llamacpp-embeddings`. §0.4 records
 the three deliberate departures from the pgvector design in §2–§6, which is retained as the plan for the
 still-unbuilt image path. Same day: the vector spaces gained an operator surface and a per-space drop —

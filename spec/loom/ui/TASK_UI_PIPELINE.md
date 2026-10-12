@@ -109,6 +109,11 @@ the editor's run detail.
 
 ## Task 5: Delete the unreachable legacy `src/` trees
 
+**Status: done 2026-10-11.** All eight paths below were deleted after a `/usr/bin/grep -a -rn` check found
+no importer outside the set itself (nor in `index.html`, the vite/vitest/playwright configs or `e2e/`).
+`PipelineArea.tsx` had nothing the live editor and run views lack. Three images only these files used
+(`src/img/logo_word_min.svg`, `logo_word_3d.png`, `logo_picto.svg`) were kept.
+
 **Argumentation Summary:** `loom-ui/index.html` mounts `src/main.tsx`, and `main.tsx` →
 `AppShell.tsx` routes only `src/features/*`. The pre-feature tree is still on disk: `src/Pipeline/`
 (`PipelineArea.tsx` + `flow-style.css`, with its own duplicate `subscribePipelineEvents` usage),

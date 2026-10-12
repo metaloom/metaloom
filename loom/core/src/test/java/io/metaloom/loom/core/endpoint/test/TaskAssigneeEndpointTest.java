@@ -30,8 +30,8 @@ import io.metaloom.loom.rest.model.task.TaskResponse;
  *
  * <p>
  * Assignment reuses {@code UPDATE_TASK} / {@code READ_TASK} rather than introducing an {@code ASSIGN_TASK} verb, so the permission cases below probe
- * those two. Permissions are granted through a <b>group + role</b>, never a direct user grant — {@code user_permission} allows only one direct
- * permission per user. {@code SkillEndpointTest} is the reference for that recipe.
+ * those two. Permissions are granted through a <b>group + role</b>, the path real users get their permissions by. {@code SkillEndpointTest} is the
+ * reference for that recipe.
  * </p>
  */
 public class TaskAssigneeEndpointTest extends AbstractEndpointTest {
@@ -163,7 +163,7 @@ public class TaskAssigneeEndpointTest extends AbstractEndpointTest {
 			User assignee = storeUser("permission_assignee");
 
 			// joedoe gets READ_TASK only — enough to list, not to assign. Granted through a
-			// group + role because user_permission allows just one direct grant per user.
+			// group + role, like a real user's.
 			DaoCollection daos = loom.internal().daos();
 			User joedoe = daos.userDao().load(USER_UUID);
 			Role role = daos.roleDao().createRole(ADMIN_UUID, "task-assignee-read-role");

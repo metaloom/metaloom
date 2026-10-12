@@ -17,7 +17,7 @@
 
 | Piece | Where |
 |-------|-------|
-| Schema | `V2.96__share_permissions.sql`, `V2.97__add_share.sql`, `V2.98__grant_share_permissions.sql`, `V2.99__add_share_feedback.sql` |
+| Schema | `V2.96__share_permissions.sql`, `V2.97__add_share.sql`, `V2.98__grant_share_permissions.sql`, `V2.99__add_share_feedback.sql`, `V2.120__share_feedback_visitor.sql` (feedback ownership, §2.2) |
 | Model + DAO | `loom/db/api/.../model/share/`, `loom/db/jooq/.../dao/share/` |
 | Permissions | `CREATE/READ/UPDATE/DELETE_SHARE` in `Permission.java` |
 | REST (owner) | `ShareLinkEndpoint` + `ShareLinkEndpointService` — `/api/v1/share-links` |
@@ -27,7 +27,7 @@
 | Clients | `ShareMethods` (Java), `loom_client/methods/share.py` (Python), `api/shareLinks.ts` + `api/shares.ts` (UI) |
 | UI | `loom-ui/src/features/share/` + the route in `main.tsx` |
 | Notification | `NotificationType.SHARE_FEEDBACK`, `NotificationDispatcher#shareFeedbackLeft` |
-| Tests | 27 DAO, 43 endpoint, 25 vitest, 16 Playwright |
+| Tests | 27 DAO, 43 endpoint, 25 vitest, 16 Playwright at launch (2026-08-11); since then 4 more endpoint cases, `ShareSessionTokensTest` (5) and 3 more Playwright cases for feedback ownership (§2.2) — `share-mocked.spec.ts` alone now holds 32 |
 
 ---
 
@@ -75,23 +75,50 @@ satisfied once.
 The consequence that matters: revoking a link takes effect on the next request, not when the last
 issued token happens to lapse.
 
-### 2.2 One link is one visitor
+### 2.2 One link, one name — but each visitor owns their own feedback
 
-`share.visitor_name` is a column, not a `share_visitor` table. Everyone holding a given URL is the
-same identity, so:
+`share.visitor_name` is a column, not a `share_visitor` table: the **name** is per link. Until
+`V2.120` the link was also the whole **identity** — anyone holding the URL could edit or delete
+anything written through it, and the UI hid other people's controls only by matching `authorName`,
+which is the same for everybody on one link. Links get forwarded, so one recipient could delete every
+other reviewer's comments by uuid.
 
-- two people sharing one link appear under one name, and
-- either may edit or delete the other's feedback.
+Since `V2.120` each **session** carries a visitor id, and feedback is owned by it:
 
-That is a deliberate simplification with a real cost. The product answer is **one link per
-reviewer**, which the share dialog says in as many words. The alternative — a session table with one
-row per browser — buys per-person attribution at the price of a table, a cleanup job and a second
-identity model, and nothing in the feedback surface needs to tell two people behind one link apart
-badly enough to pay for it.
+- **The id.** A random UUID minted when a session is opened (`POST /shares/:slug/sessions`) and
+  carried inside the signed session token (§3.1). No table — the token is the record.
+- **Stamped on every write.** `share_comment`, `share_annotation` and `share_reaction` have a
+  nullable `visitor_id`; `PublicShareEndpointService` sets it on create.
+- **Enforced on every change.** Updating or deleting a comment or annotation, and deleting a
+  reaction, calls `ShareAccessService.requireVisitor` (401 for a session token that carries no
+  visitor — one issued before `V2.120`; the viewer re-shows the gate and the next token names them)
+  and then `requireAuthor`, which answers **403** *"You can only change or delete feedback you left
+  yourself."* 403 rather than 404: the visitor can see the row, so its existence is no secret.
+- **Exposed as `own`.** The guest list and create responses (`ShareCommentResponse`,
+  `ShareAnnotationResponse`, `ShareReactionResponse`) carry `own: Boolean` — whether the requesting
+  visitor wrote the row. It is `null` on the owner-side routes (`GET /share-links/:uuid/feedback`),
+  where nobody is a visitor. The viewer shows delete on comments and marks only when `own`, and the
+  reaction toggle removes only a reaction with `own === true`.
+- **Survives the 12-hour session limit.** `createSession` reuses the visitor from
+  `ShareSessionRequest.previousSessionToken` (new field), else from the token presented in the
+  header/cookie, else mints a new one. `ShareSessionTokens.visitorOf(token, slug)` reads it out of
+  any correctly signed token **for that slug, ignoring expiry** — the one place expiry is ignored;
+  authorising a request remains `isValid`'s job. The UI keeps the lapsed token in `sessionStorage`
+  under `loom.share.<slug>.previous` (`ShareSessionContext`) and `ShareGate` sends it back.
+- **Rows predating `V2.120`** have `visitor_id NULL` and are **read-only for every visitor**: nobody
+  can prove they wrote them. The link owner, a Loom user, is unaffected.
+- **Reactions are per visitor.** The three partial unique indexes became
+  `(share_uuid, visitor_id, type, subject)`; under the V2.99 key a second reviewer's "approve" on an
+  asset somebody had already approved was silently swallowed by `ON CONFLICT DO NOTHING`.
 
-`author_name` is nevertheless denormalised onto every feedback row: what somebody was called when
-they wrote something is a historical fact, and reading it back through a join would let a later edit
-of the share rewrite the past.
+**Remaining limitation:** the *name* is still one per link (V2.97). Two people on one link write
+under the same `author_name`, so the panel cannot tell them apart by name even though the server
+tells them apart by ownership. The product answer stays **one link per reviewer**, which the share
+dialog says in as many words. Open as [../../tasks/SHARE_TASKS.md](../../tasks/SHARE_TASKS.md) Task 11.
+
+`author_name` is denormalised onto every feedback row: what somebody was called when they wrote
+something is a historical fact, and reading it back through a join would let a later edit of the
+share rewrite the past.
 
 ### 2.3 The slug
 
@@ -130,8 +157,11 @@ radius resting on a convention.
 `ShareSessionTokens` issues an opaque string instead:
 
 ```
-base64url(slug + "|" + expiryEpochSeconds) + "." + base64url(HMAC-SHA256(key, payload))
+base64url(slug + "|" + expiryEpochSeconds + "|" + visitorId) + "." + base64url(HMAC-SHA256(key, payload))
 ```
+
+The `visitorId` segment exists since `V2.120` (§2.2). A legacy `slug|expiry` token still verifies
+until it expires, but names no visitor, so it may read and may not write feedback.
 
 verified by exactly one class and meaningless to the JWT handler. The key is derived from the
 installation's keystore password (`HMAC-SHA256(keystorePassword, "loom-share-session-v1")`) rather
@@ -212,6 +242,8 @@ through every link to that collection.
 | Unknown, revoked or expired slug | **404** | A distinct status for "this used to exist" turns the endpoint into an oracle for which slugs were ever real |
 | Asset outside the share | **404** | 403 would confirm the asset exists, making the link a probe for uuids the visitor was never shown |
 | Missing or lapsed session | **401** | The viewer puts the gate back rather than showing an error nobody can act on |
+| Feedback write with a pre-`V2.120` token (no visitor) | **401** | Same: reopening the gate yields a token that names the visitor |
+| Change or delete somebody else's feedback, or a pre-`V2.120` row | **403** | The visitor can see the row; "not yours" is the explanation the viewer needs |
 | Wrong password | **401** | |
 | Too many wrong passwords | **429** | |
 | Capability the link does not grant | **403** | The visitor *is* allowed to know the link exists — they are looking at it. Hiding this would leave the UI unable to explain why its own button did nothing |
@@ -260,8 +292,8 @@ No `UIService` change was needed: the existing extensionless SPA fallback alread
 | File | Role |
 |------|------|
 | `SharePage.tsx` | Public shell. Fetches the challenge, renders the gate until a session exists, then the viewer |
-| `ShareGate.tsx` | Name + password on one card. A wrong password shows inline and never navigates away |
-| `ShareSessionContext.tsx` | The session, in `sessionStorage` keyed per slug |
+| `ShareGate.tsx` | Name + password on one card. A wrong password shows inline and never navigates away. Sends the previous token as `previousSessionToken` |
+| `ShareSessionContext.tsx` | The session, in `sessionStorage` keyed per slug. On clear it keeps the lapsed token under `loom.share.<slug>.previous` (`readPreviousSessionToken`) so the gate can carry the visitor over (§2.2) |
 | `ShareViewer.tsx` | Tile grid, single-asset view, download, and the feedback column |
 | `ShareMedia.tsx` | **The first real media player in the application** |
 | `ShareFeedbackPanel.tsx` | Comments, reactions, marked moments, and the control that arms region drawing |
@@ -358,7 +390,8 @@ of a link that outlived its author.
 | The share dialog creates on open | Not on save. The point of the dialog is the URL; a "create" button would mean pressing something before you can copy what you came for |
 | Auth is in-memory (UI tests) | A Playwright spec must deep-link **then** sign in. `page.goto` after signing in throws the token away |
 | MUI select testids | `inputProps` lands on the hidden native input, which is never clickable. Use `SelectProps.SelectDisplayProps` |
-| Feedback identity | Any holder of a link may edit or delete anything written through it. This follows from §2.2 and is not a defect |
+| Feedback identity | Since `V2.120` only the visitor who wrote a row may change or delete it (`ShareAccessService.requireAuthor`); every holder of the link still **sees** everything. Do not gate UI controls on `authorName` — it is the link's single name; use `own` (§2.2) |
+| `visitorOf` ignores expiry | On purpose, and only there — it identifies, it never authorises. Authorisation is `ShareSessionTokens.isValid` |
 
 ---
 
@@ -385,7 +418,7 @@ to differ per installation: `ShareSessionTokens.SESSION_TTL_SECONDS` (12 hours) 
 | `ShareFeedbackDao` | same | One facade over the three guest tables. **Not** a `CRUDDao` — see its javadoc |
 | `ShareDaoImpl` / `ShareFeedbackDaoImpl` | `io.metaloom.loom.db.jooq.dao.share` | jOOQ. `recordVisit` is one statement with `COALESCE`, which is what makes "first visit names the link" hold concurrently |
 | `ShareAccessService` | `io.metaloom.loom.rest.service.impl` | **The authorization boundary.** Every guest route starts here |
-| `ShareSessionTokens` | same | Opaque HMAC session tokens, slug generation, password generation |
+| `ShareSessionTokens` | same | Opaque HMAC session tokens (`slug\|expiry\|visitorId`), `visitorOf`, slug generation, password generation |
 | `ShareThrottle` | same | Per-slug failed-password limiter |
 | `ShareLinkEndpointService` | same | Owner CRUD; assembles the absolute share URL from the request host |
 | `PublicShareEndpointService` | same | Everything a visitor can do. No `checkPerm` anywhere, by construction |
@@ -414,10 +447,11 @@ cd loom-ui
 | Test | What it pins |
 |------|--------------|
 | `ShareCascadeTest` | Deleting a user leaves the link working with a null owner; deleting the target removes the link; revoking a link removes only its own feedback |
-| `ShareFeedbackDaoTest` | Every loader is scoped by share — one link cannot resolve another's rows by uuid |
+| `ShareFeedbackDaoTest` | Every loader is scoped by share — one link cannot resolve another's rows by uuid; reaction idempotency is per visitor and `visitor_id` round-trips |
+| `ShareSessionTokensTest` (`loom/services/rest`) | A token carries its visitor, is bound to its slug, rejects tampering; an expired token still names its visitor; a legacy `slug\|expiry` token still verifies |
 | `PublicShareEndpointTest` | The only endpoint test that never signs in. Password, expiry, session binding, forged tokens, and **an asset outside the share** |
-| `PublicShareFeedbackEndpointTest` | Capabilities off by default; author taken from the row not the request; one link cannot touch another's feedback |
-| `e2e/share-mocked.spec.ts` | The only Playwright spec that never signs in. If the route moves back under `AuthGate`, all sixteen fail. Also pins that the region overlay is click-through until armed, that a stray click draws nothing, and the feedback panel's own writes: a mark posted at the playhead, a reply carrying its parent uuid, and a delete that issues the DELETE and drops the row |
+| `PublicShareFeedbackEndpointTest` | Capabilities off by default; author taken from the row not the request; one link cannot touch another's feedback; two visitors of one link cannot change each other's feedback and react independently; a reopened session keeps its visitor; a row without a visitor is read-only |
+| `e2e/share-mocked.spec.ts` | The only Playwright spec that never signs in. If the route moves back under `AuthGate`, all of them fail. Pins the ownership UI: a reaction under the visitor's own name but not theirs is added to, never deleted; another visitor's comments and marks offer no delete; reopening a lapsed session hands the old token back. Also pins that the region overlay is click-through until armed, that a stray click draws nothing, and the feedback panel's own writes: a mark posted at the playhead, a reply carrying its parent uuid, and a delete that issues the DELETE and drops the row |
 | `e2e/share-dialog-mocked.spec.ts` | The owner's side. A **failed create leaves the dialog open** rather than closing on a link that was never minted; Done closes without revoking; the download and feedback checkboxes travel in the update body, and one feedback box sends all three server flags |
 | `shareExpiry.test.ts` | Expiry maths, password shape, timecode/size formatting, comment threading including orphan promotion |
 
@@ -483,6 +517,9 @@ fixture that serves seconds mocks an API that does not exist.
 - [x] Narrow `SharedAssetResponse` projection with a `showMetadata` gate
 - [x] `Range`-capable byte streaming reused from the asset binary service
 - [x] Guest comments, replies, reactions, timecode marks and **drawn regions** (`ShareRegionOverlay`)
+- [x] Per-visitor feedback ownership (`V2.120`): visitor id in the session token, `requireAuthor` on
+      every change, `own` on guest responses, visitor carried across a lapsed session, per-visitor
+      reaction uniqueness
 - [x] `SHARE_FEEDBACK` notification to the link owner
 - [x] Java, Python and TypeScript clients; OpenAPI regenerated and staged
 - [x] Customer viewer with the application's first real media player
@@ -498,6 +535,8 @@ fixture that serves seconds mocks an API that does not exist.
       only be listed through the API
 - [ ] `ShareThrottle` is per-process, so a multi-node install multiplies the allowance (§3.3)
 - [ ] No backend Playwright spec for the share area; only mocked specs exist
+- [ ] One `visitor_name` per link (V2.97): two people on one link still write under the same name,
+      although the server keeps their feedback apart (§2.2, SHARE_TASKS Task 11)
 - [ ] Guest feedback is never surfaced to the chat agent, deliberately. If that changes it must be
       marked untrusted first — see [../../chat/AGENTIC_CHAT_PLAN.md](../../chat/AGENTIC_CHAT_PLAN.md)
 
@@ -508,7 +547,7 @@ fixture that serves seconds mocks an API that does not exist.
 | Concept | Path |
 |---------|------|
 | Share table | `loom/db/flyway/src/main/resources/db/migration/V2.97__add_share.sql` |
-| Guest feedback tables | `.../V2.99__add_share_feedback.sql` |
+| Guest feedback tables | `.../V2.99__add_share_feedback.sql`; visitor ownership `.../V2.120__share_feedback_visitor.sql` |
 | Model + DAO interfaces | `loom/db/api/src/main/java/io/metaloom/loom/db/model/share/` |
 | jOOQ implementations | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/share/` |
 | **The authorization boundary** | `loom/services/rest/.../service/impl/ShareAccessService.java` |
@@ -525,5 +564,5 @@ fixture that serves seconds mocks an API that does not exist.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (initial specification — share links and the customer-facing area, both phases)_
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (per-visitor feedback ownership — `V2.120` `visitor_id`, visitor id in the session token, `requireVisitor` / `requireAuthor`, `own` on guest responses, `previousSessionToken`; §2.2 rewritten, the one-name-per-link limitation kept as open). Earlier: 2026-08-11 (initial specification — share links and the customer-facing area, both phases)_

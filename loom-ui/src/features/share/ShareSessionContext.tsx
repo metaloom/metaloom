@@ -68,9 +68,29 @@ function writeStoredSession(session: ShareSession): void {
 
 function clearStoredSession(slug: string): void {
   try {
+    const stored = readStoredSession(slug);
+    if (stored?.token) {
+      // Kept so the gate can hand it back when the visitor reopens the link: the server reads the
+      // visitor out of it and the new session still owns what the old one wrote. Same storage and
+      // lifetime as the session itself, so it reaches no further than the session did.
+      window.sessionStorage.setItem(previousTokenKey(slug), stored.token);
+    }
     window.sessionStorage.removeItem(storageKey(slug));
   } catch {
     /* see above */
+  }
+}
+
+function previousTokenKey(slug: string): string {
+  return `loom.share.${slug}.previous`;
+}
+
+/** The token of this tab's last session for the link, after it lapsed. */
+export function readPreviousSessionToken(slug: string): string | undefined {
+  try {
+    return window.sessionStorage.getItem(previousTokenKey(slug)) ?? undefined;
+  } catch {
+    return undefined;
   }
 }
 

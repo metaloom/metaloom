@@ -86,6 +86,14 @@ public interface ShareAnnotation extends Element<ShareAnnotation> {
 
 	ShareAnnotation setAuthorName(String authorName);
 
+	/**
+	 * The share visitor who wrote this, from the signed session token (V2.120). Only that visitor may change or delete it through the link. Null on
+	 * rows predating V2.120, which no visitor may change.
+	 */
+	UUID getVisitorId();
+
+	ShareAnnotation setVisitorId(UUID visitorId);
+
 	Instant getCreated();
 
 	ShareAnnotation setCreated(Instant created);

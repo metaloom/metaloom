@@ -11,8 +11,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record8;
-import org.jooq.Row8;
+import org.jooq.Record9;
+import org.jooq.Row9;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * other
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReactionRecord> implements Record8<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime> {
+public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReactionRecord> implements Record9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -41,18 +41,16 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     }
 
     /**
-     * Setter for <code>public.share_reaction.share_uuid</code>. Stands in for
-     * creator_uuid in the uniqueness key: identity here is the link, not a
-     * person
+     * Setter for <code>public.share_reaction.share_uuid</code>. Together with
+     * visitor_id, stands in for creator_uuid in the uniqueness key
      */
     public void setShareUuid(UUID value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.share_reaction.share_uuid</code>. Stands in for
-     * creator_uuid in the uniqueness key: identity here is the link, not a
-     * person
+     * Getter for <code>public.share_reaction.share_uuid</code>. Together with
+     * visitor_id, stands in for creator_uuid in the uniqueness key
      */
     public UUID getShareUuid() {
         return (UUID) get(1);
@@ -142,6 +140,24 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
         return (LocalDateTime) get(7);
     }
 
+    /**
+     * Setter for <code>public.share_reaction.visitor_id</code>. The share
+     * visitor who reacted, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public void setVisitorId(UUID value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.share_reaction.visitor_id</code>. The share
+     * visitor who reacted, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public UUID getVisitorId() {
+        return (UUID) get(8);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -152,17 +168,17 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     }
 
     // -------------------------------------------------------------------------
-    // Record8 type implementation
+    // Record9 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, UUID> fieldsRow() {
+        return (Row9) super.fieldsRow();
     }
 
     @Override
-    public Row8<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime> valuesRow() {
-        return (Row8) super.valuesRow();
+    public Row9<UUID, UUID, UUID, UUID, UUID, String, String, LocalDateTime, UUID> valuesRow() {
+        return (Row9) super.valuesRow();
     }
 
     @Override
@@ -206,6 +222,11 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     }
 
     @Override
+    public Field<UUID> field9() {
+        return JooqShareReaction.SHARE_REACTION.VISITOR_ID;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -246,6 +267,11 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     }
 
     @Override
+    public UUID component9() {
+        return getVisitorId();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -283,6 +309,11 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     @Override
     public LocalDateTime value8() {
         return getCreated();
+    }
+
+    @Override
+    public UUID value9() {
+        return getVisitorId();
     }
 
     @Override
@@ -334,7 +365,13 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     }
 
     @Override
-    public JooqShareReactionRecord values(UUID value1, UUID value2, UUID value3, UUID value4, UUID value5, String value6, String value7, LocalDateTime value8) {
+    public JooqShareReactionRecord value9(UUID value) {
+        setVisitorId(value);
+        return this;
+    }
+
+    @Override
+    public JooqShareReactionRecord values(UUID value1, UUID value2, UUID value3, UUID value4, UUID value5, String value6, String value7, LocalDateTime value8, UUID value9) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -343,6 +380,7 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
         value6(value6);
         value7(value7);
         value8(value8);
+        value9(value9);
         return this;
     }
 
@@ -360,7 +398,7 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
     /**
      * Create a detached, initialised JooqShareReactionRecord
      */
-    public JooqShareReactionRecord(UUID uuid, UUID shareUuid, UUID assetUuid, UUID shareCommentUuid, UUID shareAnnotationUuid, String type, String authorName, LocalDateTime created) {
+    public JooqShareReactionRecord(UUID uuid, UUID shareUuid, UUID assetUuid, UUID shareCommentUuid, UUID shareAnnotationUuid, String type, String authorName, LocalDateTime created, UUID visitorId) {
         super(JooqShareReaction.SHARE_REACTION);
 
         setUuid(uuid);
@@ -371,5 +409,6 @@ public class JooqShareReactionRecord extends UpdatableRecordImpl<JooqShareReacti
         setType(type);
         setAuthorName(authorName);
         setCreated(created);
+        setVisitorId(visitorId);
     }
 }

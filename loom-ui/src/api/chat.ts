@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
 import { ChatMessage, ChatReference, ChatToolCall, ChatVisual, PipelineGraphPayload } from "../types";
-import { authHeaders, handleResponse } from "./http";
+import { authHeaders, ensureOk, handleResponse } from "./http";
 
 /**
  * Reference shape used by the backend (persisted messages and tool_end events):
@@ -144,8 +144,5 @@ export async function deleteChat(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
 }

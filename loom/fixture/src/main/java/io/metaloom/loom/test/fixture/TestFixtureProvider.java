@@ -383,7 +383,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		joeDoeUser.setCreated(now);
 		joeDoeUser.setPasswordHash(authService.encodePassword("finger"));
 		userDao().store(joeDoeUser);
-		permissionDao().grantUserPermission(joeDoeUser.getUuid(), Permission.READ_USER, "test");
+		permissionDao().grantUserPermission(joeDoeUser.getUuid(), Permission.READ_USER);
 
 		// Create token + Permissions
 		String tokenValue = StringUtils.randomHumanString(6);

@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { authHeaders } from "./http";
+import { authHeaders, ensureOk } from "./http";
 
 /**
  * Client for `GET /metrics` — the JSON read of Loom's `loom_*` metric catalog.
@@ -50,10 +50,7 @@ export async function loadMetrics(token: string, prefix?: string): Promise<Metri
     method: "GET",
     headers: authHeaders(token),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
+  await ensureOk(res);
   return res.json() as Promise<MetricsResponse>;
 }
 

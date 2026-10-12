@@ -46,8 +46,8 @@ public class MemoryEndpointTest implements TestValues {
 
 	@BeforeEach
 	public void loginJoeDoe() throws LoomClientException {
-		// The joedoe fixture user only carries READ_USER by default. Direct user grants are limited to a single
-		// permission per user (user_permission PK), so the memory permissions are granted via a group + role.
+		// The joedoe fixture user only carries READ_USER by default. The memory permissions are granted via a
+		// group + role, the path real users get their permissions by.
 		DaoCollection daos = loom.internal().daos();
 		User joedoe = daos.userDao().load(USER_UUID);
 		Role role = daos.roleDao().createRole(ADMIN_UUID, "memory-test-role");

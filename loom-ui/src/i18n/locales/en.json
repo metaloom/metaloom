@@ -1670,38 +1670,21 @@
     },
     "chip": {
       "prompts": "Prompts",
-      "results": "Results"
+      "results": "Results",
+      "sample": "Sample"
     },
     "button": {
-      "newPrompt": "New Prompt",
-      "cancel": "Cancel",
-      "create": "Create Prompt"
-    },
-    "dialog": {
-      "title": "New Vision Prompt"
+      "newPrompt": "New Prompt"
     },
     "label": {
-      "name": "Name",
-      "namePlaceholder": "e.g. Scene Description",
-      "model": "Model",
-      "prompt": "Prompt",
-      "promptPlaceholder": "Describe what the model should do with the asset…",
-      "reasoningEffort": "Reasoning Effort",
-      "outputFormat": "Output Format",
-      "maxTokens": "Max Tokens",
-      "description": "Description (optional)",
-      "descriptionPlaceholder": "Brief description of this prompt's purpose",
       "maxTokensValue": "Max tokens: {{count}}",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "created": "Created {{date}}"
     },
     "effort": {
       "low": "Low",
       "medium": "Medium",
       "high": "High"
-    },
-    "format": {
-      "text": "Text",
-      "json": "JSON"
     },
     "chip_template": {
       "effort": "{{effort}} effort"
@@ -1713,6 +1696,16 @@
     "empty": {
       "prompts": "No prompts found",
       "results": "No results found"
+    },
+    "preview": {
+      "title": "Preview — sample data, not connected to a backend",
+      "notice": "There is no backend for LLM detection yet. The prompts and results below are fixed examples: nothing here comes from your library, and prompts cannot be created, edited or run.",
+      "disabled": "Not available in the preview: LLM detection has no backend yet."
+    },
+    "status": {
+      "success": "Success",
+      "failed": "Failed",
+      "pending": "Pending"
     }
   },
   "objectDetection": {

@@ -60,9 +60,7 @@ import io.metaloom.loom.db.jooq.tables.JooqTag;
 import io.metaloom.loom.db.jooq.tables.JooqTagAsset;
 import io.metaloom.loom.db.jooq.tables.JooqTaskAssignee;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
-import io.metaloom.loom.db.jooq.tables.JooqTokenPermission;
 import io.metaloom.loom.db.jooq.tables.JooqUser;
-import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 
 import org.jooq.Index;
 import org.jooq.OrderField;
@@ -202,11 +200,11 @@ public class Indexes {
     public static final Index IDX_SHARE_CREATOR = Internal.createIndex(DSL.name("idx_share_creator"), JooqShare.SHARE, new OrderField[] { JooqShare.SHARE.CREATOR_UUID }, false);
     public static final Index IDX_SHARE_EXPIRES_AT = Internal.createIndex(DSL.name("idx_share_expires_at"), JooqShare.SHARE, new OrderField[] { JooqShare.SHARE.EXPIRES_AT }, false);
     public static final Index IDX_SHARE_REACTION_ANNOTATION = Internal.createIndex(DSL.name("idx_share_reaction_annotation"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_ANNOTATION_UUID }, false);
-    public static final Index IDX_SHARE_REACTION_ANNOTATION_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_annotation_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.SHARE_ANNOTATION_UUID }, true);
+    public static final Index IDX_SHARE_REACTION_ANNOTATION_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_annotation_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.VISITOR_ID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.SHARE_ANNOTATION_UUID }, true);
     public static final Index IDX_SHARE_REACTION_ASSET = Internal.createIndex(DSL.name("idx_share_reaction_asset"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.ASSET_UUID }, false);
-    public static final Index IDX_SHARE_REACTION_ASSET_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_asset_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.ASSET_UUID }, true);
+    public static final Index IDX_SHARE_REACTION_ASSET_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_asset_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.VISITOR_ID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.ASSET_UUID }, true);
     public static final Index IDX_SHARE_REACTION_COMMENT = Internal.createIndex(DSL.name("idx_share_reaction_comment"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_COMMENT_UUID }, false);
-    public static final Index IDX_SHARE_REACTION_COMMENT_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_comment_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.SHARE_COMMENT_UUID }, true);
+    public static final Index IDX_SHARE_REACTION_COMMENT_UNIQUE = Internal.createIndex(DSL.name("idx_share_reaction_comment_unique"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID, JooqShareReaction.SHARE_REACTION.VISITOR_ID, JooqShareReaction.SHARE_REACTION.TYPE, JooqShareReaction.SHARE_REACTION.SHARE_COMMENT_UUID }, true);
     public static final Index IDX_SHARE_REACTION_SHARE = Internal.createIndex(DSL.name("idx_share_reaction_share"), JooqShareReaction.SHARE_REACTION, new OrderField[] { JooqShareReaction.SHARE_REACTION.SHARE_UUID }, false);
     public static final Index IDX_SKILL_VERSION_SKILL_UUID = Internal.createIndex(DSL.name("idx_skill_version_skill_uuid"), JooqSkillVersion.SKILL_VERSION, new OrderField[] { JooqSkillVersion.SKILL_VERSION.SKILL_UUID }, false);
     public static final Index IDX_TAG_ASSET_ASSET = Internal.createIndex(DSL.name("idx_tag_asset_asset"), JooqTagAsset.TAG_ASSET, new OrderField[] { JooqTagAsset.TAG_ASSET.ASSET_UUID }, false);
@@ -224,8 +222,6 @@ public class Indexes {
     public static final Index TASK_ASSIGNEE_USER_KEY = Internal.createIndex(DSL.name("task_assignee_user_key"), JooqTaskAssignee.TASK_ASSIGNEE, new OrderField[] { JooqTaskAssignee.TASK_ASSIGNEE.TASK_UUID, JooqTaskAssignee.TASK_ASSIGNEE.USER_UUID }, true);
     public static final Index TOKEN_CREATOR_UUID_IDX = Internal.createIndex(DSL.name("token_creator_uuid_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.CREATOR_UUID }, false);
     public static final Index TOKEN_CREATOR_UUID_NAME_IDX = Internal.createIndex(DSL.name("token_creator_uuid_name_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.CREATOR_UUID, JooqToken.TOKEN.NAME }, true);
-    public static final Index TOKEN_PERMISSION_TOKEN_UUID_RESOURCE_PERMISSION_IDX = Internal.createIndex(DSL.name("token_permission_token_uuid_resource_permission_idx"), JooqTokenPermission.TOKEN_PERMISSION, new OrderField[] { JooqTokenPermission.TOKEN_PERMISSION.TOKEN_UUID, JooqTokenPermission.TOKEN_PERMISSION.RESOURCE, JooqTokenPermission.TOKEN_PERMISSION.PERMISSION }, true);
     public static final Index TOKEN_TOKEN_IDX = Internal.createIndex(DSL.name("token_token_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.TOKEN_ }, true);
-    public static final Index USER_PERMISSION_USER_UUID_RESOURCE_PERMISSION_IDX = Internal.createIndex(DSL.name("user_permission_user_uuid_resource_permission_idx"), JooqUserPermission.USER_PERMISSION, new OrderField[] { JooqUserPermission.USER_PERMISSION.USER_UUID, JooqUserPermission.USER_PERMISSION.RESOURCE, JooqUserPermission.USER_PERMISSION.PERMISSION }, true);
     public static final Index USER_USERNAME_IDX = Internal.createIndex(DSL.name("user_username_idx"), JooqUser.USER, new OrderField[] { JooqUser.USER.USERNAME }, true);
 }

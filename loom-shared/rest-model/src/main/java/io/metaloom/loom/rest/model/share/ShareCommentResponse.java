@@ -31,6 +31,9 @@ public class ShareCommentResponse extends AbstractResponse<ShareCommentResponse>
 	@JsonPropertyDescription("The visitor name as it stood when the comment was written. Not a user reference - nobody here has an account.")
 	private String authorName;
 
+	@JsonPropertyDescription("Whether the visitor making the request wrote this, and so may edit or delete it. Set on the share visitor routes only.")
+	private Boolean own;
+
 	private Instant created;
 
 	private Instant edited;
@@ -77,6 +80,15 @@ public class ShareCommentResponse extends AbstractResponse<ShareCommentResponse>
 
 	public ShareCommentResponse setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	public Boolean getOwn() {
+		return own;
+	}
+
+	public ShareCommentResponse setOwn(Boolean own) {
+		this.own = own;
 		return this;
 	}
 

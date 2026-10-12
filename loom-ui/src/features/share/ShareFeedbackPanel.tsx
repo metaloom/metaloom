@@ -162,9 +162,17 @@ export default function ShareFeedbackPanel(props: ShareFeedbackPanelProps) {
                 <Typography variant="body2" sx={{ flex: 1, color: tokens.text.primary }}>
                   {annotation.text || t("share.feedback.untitledMark")}
                 </Typography>
-                <IconButton size="small" onClick={() => props.onDeleteAnnotation(annotation.uuid)} aria-label={t("share.feedback.delete")}>
-                  <DeleteOutlined sx={{ fontSize: 15 }} />
-                </IconButton>
+                {/* Only the visitor who drew a mark may delete it; the server refuses everybody else. */}
+                {annotation.own && (
+                  <IconButton
+                    size="small"
+                    onClick={() => props.onDeleteAnnotation(annotation.uuid)}
+                    aria-label={t("share.feedback.delete")}
+                    data-testid="share-annotation-delete"
+                  >
+                    <DeleteOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                )}
               </Box>
             ))}
           </Box>
@@ -320,11 +328,14 @@ function CommentRow({
             </IconButton>
           </Tooltip>
         )}
-        <Tooltip title={t("share.feedback.delete")}>
-          <IconButton size="small" onClick={onDelete} data-testid="share-comment-delete">
-            <DeleteOutlined sx={{ fontSize: 15 }} />
-          </IconButton>
-        </Tooltip>
+        {/* Only the visitor who wrote a comment may delete it; the server refuses everybody else. */}
+        {comment.own && (
+          <Tooltip title={t("share.feedback.delete")}>
+            <IconButton size="small" onClick={onDelete} data-testid="share-comment-delete">
+              <DeleteOutlined sx={{ fontSize: 15 }} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
     </Box>
   );

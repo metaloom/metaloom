@@ -152,19 +152,32 @@ public class JooqToken extends TableImpl<JooqTokenRecord> {
 
     @Override
     public List<ForeignKey<JooqTokenRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.TOKEN__TOKEN_CREATOR_UUID_FKEY);
+        return Arrays.asList(Keys.TOKEN__TOKEN_CREATOR_UUID_FKEY, Keys.TOKEN__TOKEN_EDITOR_UUID_FKEY);
     }
 
-    private transient JooqUser _user;
+    private transient JooqUser _tokenCreatorUuidFkey;
+    private transient JooqUser _tokenEditorUuidFkey;
 
     /**
-     * Get the implicit join path to the <code>public.user</code> table.
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>token_creator_uuid_fkey</code> key.
      */
-    public JooqUser user() {
-        if (_user == null)
-            _user = new JooqUser(this, Keys.TOKEN__TOKEN_CREATOR_UUID_FKEY);
+    public JooqUser tokenCreatorUuidFkey() {
+        if (_tokenCreatorUuidFkey == null)
+            _tokenCreatorUuidFkey = new JooqUser(this, Keys.TOKEN__TOKEN_CREATOR_UUID_FKEY);
 
-        return _user;
+        return _tokenCreatorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>token_editor_uuid_fkey</code> key.
+     */
+    public JooqUser tokenEditorUuidFkey() {
+        if (_tokenEditorUuidFkey == null)
+            _tokenEditorUuidFkey = new JooqUser(this, Keys.TOKEN__TOKEN_EDITOR_UUID_FKEY);
+
+        return _tokenEditorUuidFkey;
     }
 
     @Override

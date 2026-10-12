@@ -449,8 +449,8 @@ public class DetectionEndpointTest extends AbstractCRUDEndpointTest {
 	 *
 	 * <p>
 	 * {@code AbstractCRUDEndpointTest} deliberately has no generic update-permission case, which is why {@code UPDATE_DETECTION} carried
-	 * {@code test:none}. The permissions are granted through a group and a role rather than directly, because {@code user_permission} allows a single
-	 * direct grant per user.
+	 * {@code test:none}. The permissions are granted through a group and a role, the path real users get their permissions
+	 * by.
 	 * </p>
 	 */
 	@Test
@@ -510,7 +510,7 @@ public class DetectionEndpointTest extends AbstractCRUDEndpointTest {
 	 * Grant the joedoe fixture user the given permissions and log the client in as them.
 	 *
 	 * <p>
-	 * Through a group and a role rather than directly: {@code user_permission} is keyed by user alone, so a user can hold exactly one direct grant.
+	 * Through a group and a role, the path real users get their permissions by.
 	 * </p>
 	 */
 	private void loginJoeDoeWith(LoomHttpClient client, Permission... permissions) throws LoomClientException {

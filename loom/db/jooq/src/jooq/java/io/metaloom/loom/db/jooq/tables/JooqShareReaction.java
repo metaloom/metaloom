@@ -17,12 +17,12 @@ import java.util.function.Function;
 import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function8;
+import org.jooq.Function9;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row8;
+import org.jooq.Row9;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -64,11 +64,10 @@ public class JooqShareReaction extends TableImpl<JooqShareReactionRecord> {
     public final TableField<JooqShareReactionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuidv7()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.share_reaction.share_uuid</code>. Stands in for
-     * creator_uuid in the uniqueness key: identity here is the link, not a
-     * person
+     * The column <code>public.share_reaction.share_uuid</code>. Together with
+     * visitor_id, stands in for creator_uuid in the uniqueness key
      */
-    public final TableField<JooqShareReactionRecord, java.util.UUID> SHARE_UUID = createField(DSL.name("share_uuid"), SQLDataType.UUID.nullable(false), this, "Stands in for creator_uuid in the uniqueness key: identity here is the link, not a person");
+    public final TableField<JooqShareReactionRecord, java.util.UUID> SHARE_UUID = createField(DSL.name("share_uuid"), SQLDataType.UUID.nullable(false), this, "Together with visitor_id, stands in for creator_uuid in the uniqueness key");
 
     /**
      * The column <code>public.share_reaction.asset_uuid</code>.
@@ -99,6 +98,13 @@ public class JooqShareReaction extends TableImpl<JooqShareReactionRecord> {
      * The column <code>public.share_reaction.created</code>.
      */
     public final TableField<JooqShareReactionRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
+
+    /**
+     * The column <code>public.share_reaction.visitor_id</code>. The share
+     * visitor who reacted, from the signed session token. NULL for rows
+     * predating V2.120, which no visitor may change
+     */
+    public final TableField<JooqShareReactionRecord, java.util.UUID> VISITOR_ID = createField(DSL.name("visitor_id"), SQLDataType.UUID, this, "The share visitor who reacted, from the signed session token. NULL for rows predating V2.120, which no visitor may change");
 
     private JooqShareReaction(Name alias, Table<JooqShareReactionRecord> aliased) {
         this(alias, aliased, null);
@@ -248,18 +254,18 @@ public class JooqShareReaction extends TableImpl<JooqShareReactionRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row8 type methods
+    // Row9 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, String, String, LocalDateTime> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row9<java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, String, String, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row9) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -267,7 +273,7 @@ public class JooqShareReaction extends TableImpl<JooqShareReactionRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

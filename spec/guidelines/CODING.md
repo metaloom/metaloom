@@ -21,8 +21,9 @@ the spec in the same change (§ Spec below).
   for a CRUD resource (it supplies `testRead`/`testCreate`/`testUpdate`/`testDelete`/`testReadPaged`),
   `AbstractEndpointTest` otherwise (e.g. `NodeResultEndpointTest`). An endpoint without one is unfinished.
 * Add **permission test cases** asserting fine-grained permission handling — not only the admin path.
-  `SkillEndpointTest` is the reference: grant the fixture user its permissions via a **group + role**,
-  never a direct user grant (`user_permission` allows one direct permission per user). See
+  `SkillEndpointTest` is the reference: grant the fixture user its permissions via a **group + role** —
+  the path real users get their permissions by. (Direct user grants work — any number per user since
+  `V2.118` — but bypass the membership chain the test should exercise.) See
   [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md).
 * Do not redeclare `@RegisterExtension LoomCoreTestExtension` in a subclass of `AbstractEndpointTest`;
   configure the inherited `loom` field.
@@ -88,7 +89,7 @@ the spec in the same change (§ Spec below).
 * Changing a feature **must** also update the corresponding spec file under `spec/`, so the internal
   AI coding guides stay in sync. Format rules: [SPEC_RULES.md](SPEC_RULES.md); task files
   follow [../TASKS.template.md](../tasks/TASKS.template.md).
-_Git HEAD revision: `69252649`_
-_Last updated: 2026-08-15 (new Tests section: no test may open a window — viewers are guarded by
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (permission tests: the "one direct permission per user" justification is gone with V2.118; group + role stays the recipe). Earlier: 2026-08-15 (new Tests section: no test may open a window — viewers are guarded by
 `HeadlessUtil`, surefire passes `-Dmetaloom.headless=true`. Earlier: reference sweep — no content
 changes)_

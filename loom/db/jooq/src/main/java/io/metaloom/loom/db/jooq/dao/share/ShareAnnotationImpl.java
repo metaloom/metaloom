@@ -20,6 +20,8 @@ public class ShareAnnotationImpl extends AbstractElement<ShareAnnotation> implem
 	private Double areaHeight;
 	private String text;
 	private String authorName;
+
+	private UUID visitorId;
 	private Instant created;
 	private Instant edited;
 
@@ -152,6 +154,17 @@ public class ShareAnnotationImpl extends AbstractElement<ShareAnnotation> implem
 	@Override
 	public ShareAnnotation setAuthorName(String authorName) {
 		this.authorName = authorName;
+		return this;
+	}
+
+	@Override
+	public UUID getVisitorId() {
+		return visitorId;
+	}
+
+	@Override
+	public ShareAnnotation setVisitorId(UUID visitorId) {
+		this.visitorId = visitorId;
 		return this;
 	}
 

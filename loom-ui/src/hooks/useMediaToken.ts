@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { mintMediaToken } from "../api/assets";
 import { useAuth } from "../context/AuthContext";
@@ -20,22 +20,26 @@ import { useAuth } from "../context/AuthContext";
  */
 export function useMediaToken(assetUuid?: string | null): string | null {
   const { token } = useAuth();
-  const [mediaToken, setMediaToken] = useState<string | null>(null);
-  const requestedFor = useRef<string | null>(null);
+  // The token is stored *with the asset it was minted for*. A bare string here was the bug this
+  // shape exists to prevent: when a caller handed the same instance the next asset (the workflow
+  // queue does, unkeyed), the first render for the new asset still returned the previous asset's
+  // token, and the first poster/stream URL built from it went out with the wrong `?mt=` - a 401 at
+  // best, a broken image that never retried at worst. Comparing the owner during render means no
+  // render ever sees a token that belongs to a different asset.
+  const [minted, setMinted] = useState<{ assetUuid: string; token: string } | null>(null);
 
   useEffect(() => {
     if (!token || !assetUuid) {
-      setMediaToken(null);
+      setMinted(null);
       return;
     }
     const cached = cache.get(assetUuid);
     if (cached && cached.expiresAt > Date.now()) {
-      setMediaToken(cached.token);
+      setMinted({ assetUuid, token: cached.token });
       return;
     }
 
     let cancelled = false;
-    requestedFor.current = assetUuid;
     mintMediaToken(token, assetUuid)
       .then(resp => {
         // Expire our copy early, so a URL built from it is still valid when it arrives at the
@@ -43,21 +47,30 @@ export function useMediaToken(assetUuid?: string | null): string | null {
         // failure this hook exists to remove.
         const expiresAt = Date.now() + Math.max(5, resp.expiresIn - 30) * 1000;
         cache.set(assetUuid, { token: resp.token, expiresAt });
-        if (!cancelled && requestedFor.current === assetUuid) {
-          setMediaToken(resp.token);
+        if (!cancelled) {
+          setMinted({ assetUuid, token: resp.token });
         }
       })
       .catch(() => {
         // Not an error banner: the caller degrades to its placeholder, exactly as it does for an
         // asset that has no preview at all.
         if (!cancelled) {
-          setMediaToken(null);
+          setMinted(null);
         }
       });
     return () => { cancelled = true; };
   }, [token, assetUuid]);
 
-  return mediaToken;
+  if (!token || !assetUuid) {
+    return null;
+  }
+  if (minted && minted.assetUuid === assetUuid) {
+    return minted.token;
+  }
+  // Switched to an asset whose token is already cached: use it straight away instead of rendering
+  // one frame of placeholder while the effect catches up.
+  const cached = cache.get(assetUuid);
+  return cached && cached.expiresAt > Date.now() ? cached.token : null;
 }
 
 interface CachedToken {

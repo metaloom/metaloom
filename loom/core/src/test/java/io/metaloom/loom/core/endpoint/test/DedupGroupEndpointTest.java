@@ -76,8 +76,7 @@ public class DedupGroupEndpointTest extends AbstractEndpointTest {
 	 * Log the {@code joedoe} fixture user in holding exactly the given permissions, granted role -&gt; group -&gt; user.
 	 *
 	 * <p>
-	 * Never a direct user grant: {@code user_permission} is keyed by {@code user_uuid} alone, so a multi-permission fixture built that way would
-	 * silently keep only the last permission.
+	 * Through a group and a role, the path real users get their permissions by.
 	 * </p>
 	 */
 	private LoomHttpClient loginWith(String roleName, Permission... permissions) throws LoomClientException {

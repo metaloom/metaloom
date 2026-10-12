@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -167,18 +168,22 @@ public class ShareFeedbackDaoTest extends AbstractJooqTest {
 	}
 
 	/**
-	 * A double-clicked thumbs-up is a normal thing for a person to do, not a 500.
+	 * A double-clicked thumbs-up is a normal thing for a person to do, not a 500. "The same reaction" means the same visitor (V2.120): a second person
+	 * holding the link approving the same asset is a second approval.
 	 */
 	@Test
 	public void testReactionIsIdempotent() {
 		Share share = share();
+		UUID maria = UUID.randomUUID();
 
 		ShareReaction first = shareFeedbackDao().createReaction(share.getUuid(), ShareReactionType.APPROVE, "Maria");
 		first.setAssetUuid(asset().getUuid());
+		first.setVisitorId(maria);
 		shareFeedbackDao().storeReaction(first);
 
 		ShareReaction again = shareFeedbackDao().createReaction(share.getUuid(), ShareReactionType.APPROVE, "Maria");
 		again.setAssetUuid(asset().getUuid());
+		again.setVisitorId(maria);
 		shareFeedbackDao().storeReaction(again);
 
 		assertEquals(1, shareFeedbackDao().countReactions(share.getUuid()), "The same reaction twice is one row");
@@ -186,8 +191,18 @@ public class ShareFeedbackDaoTest extends AbstractJooqTest {
 		// A different type is a different opinion and gets its own row.
 		ShareReaction other = shareFeedbackDao().createReaction(share.getUuid(), ShareReactionType.QUESTION, "Maria");
 		other.setAssetUuid(asset().getUuid());
+		other.setVisitorId(maria);
 		shareFeedbackDao().storeReaction(other);
 		assertEquals(2, shareFeedbackDao().countReactions(share.getUuid()));
+
+		// A different visitor's approval is theirs, not a duplicate of Maria's.
+		ShareReaction bobs = shareFeedbackDao().createReaction(share.getUuid(), ShareReactionType.APPROVE, "Maria");
+		bobs.setAssetUuid(asset().getUuid());
+		bobs.setVisitorId(UUID.randomUUID());
+		shareFeedbackDao().storeReaction(bobs);
+		assertEquals(3, shareFeedbackDao().countReactions(share.getUuid()));
+		assertEquals(bobs.getVisitorId(), shareFeedbackDao().loadReaction(share.getUuid(), bobs.getUuid()).getVisitorId(),
+			"The visitor id round-trips");
 	}
 
 	/**

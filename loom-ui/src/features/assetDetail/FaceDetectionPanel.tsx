@@ -11,8 +11,9 @@ import { formatDuration } from "./helpers";
  * One face tile.
  *
  * <p>Shared by the clustered and the unclustered lists because they were not shared before: only
- * the clustered branch had a click handler, and `cluster.faceIds` is empty for every asset loaded
- * through this screen, so in practice *every* face landed in the branch that did nothing.
+ * the clustered branch had a click handler, and `cluster.faceIds` was empty for every asset loaded
+ * through this screen (its members were never fetched), so in practice *every* face landed in
+ * the branch that did nothing.
  * Enlarging on hover is the other half — judging a 48-pixel square is guesswork.</p>
  *
  * <p>Declared at module scope and memoised, which is load-bearing rather than tidiness. It used
@@ -56,6 +57,28 @@ const FaceTile = React.memo(function FaceTile({ face, at, onSeek, onHover, confi
   );
 });
 
+/**
+ * Split an asset's faces into the clusters that contain them and the rest.
+ *
+ * A cluster with no face on this asset is left out of `grouped` (it would be an empty card); a face
+ * claimed by two clusters is shown under the first only.
+ */
+export function groupFacesByCluster(faces: DetectedFace[], clusters: FaceCluster[]): {
+  grouped: { cluster: FaceCluster; faces: DetectedFace[] }[];
+  unclustered: DetectedFace[];
+} {
+  const placed = new Set<string>();
+  const grouped: { cluster: FaceCluster; faces: DetectedFace[] }[] = [];
+  for (const cluster of clusters) {
+    const members = new Set(cluster.faceIds);
+    const clusterFaces = faces.filter(f => members.has(f.id) && !placed.has(f.id));
+    if (clusterFaces.length === 0) continue;
+    clusterFaces.forEach(f => placed.add(f.id));
+    grouped.push({ cluster, faces: clusterFaces });
+  }
+  return { grouped, unclustered: faces.filter(f => !placed.has(f.id)) };
+}
+
 export function FaceDetectionPanel({
   faces,
   clusters,
@@ -80,14 +103,16 @@ export function FaceDetectionPanel({
   onHoverFace?: (faceId: string | null) => void;
 }) {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
-  // Group faces by cluster
-  const grouped = clusters.filter(c => c.faceIds.some(fid => faces.some(f => f.id === fid))).map(cluster => {
-    const clusterFaces = faces.filter(f => cluster.faceIds.includes(f.id));
-    const person = cluster.personId ? persons.find(p => p.id === cluster.personId) : undefined;
-    return { cluster, faces: clusterFaces, person };
-  });
-
-  const unclustered = faces.filter(f => !f.clusterId || !clusters.some(c => c.id === f.clusterId));
+  // Group faces by real membership: `cluster.faceIds` holds the detection uuids its members
+  // route returned. Every face lands in exactly one place - the first cluster that claims it, or
+  // the unclustered list - so a face is never shown twice and never dropped from both. (The
+  // unclustered list used to be keyed on `face.clusterId`, which nothing ever sets, while the
+  // grouping was keyed on `faceIds`; had either been populated, those faces would have vanished.)
+  const { grouped, unclustered } = groupFacesByCluster(faces, clusters);
+  const groupedWithPerson = grouped.map(g => ({
+    ...g,
+    person: g.cluster.personId ? persons.find(p => p.id === g.cluster.personId) : undefined,
+  }));
 
   /**
    * One tile's props. A plain function, deliberately not a component: wrapping `FaceTile` in
@@ -111,17 +136,17 @@ export function FaceDetectionPanel({
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <GroupWorkOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.clusters", { count: grouped.length })}</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.clusters", { count: groupedWithPerson.length })}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <PersonOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.identified", { count: grouped.filter(g => g.person).length })}</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.identified", { count: groupedWithPerson.filter(g => g.person).length })}</Typography>
         </Box>
       </Box>
 
       {/* Clusters */}
-      {grouped.map(({ cluster, faces: cFaces, person }) => (
-        <Box key={cluster.id} sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+      {groupedWithPerson.map(({ cluster, faces: cFaces, person }) => (
+        <Box key={cluster.id} data-testid="asset-face-cluster" data-cluster-id={cluster.id} sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
           {/* Cluster header */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.5, py: 1, bgcolor: tokens.bg.overlay }}>
             <Avatar src={cluster.representativeThumbnailUrl} sx={{ width: 28, height: 28 }} />
@@ -150,7 +175,7 @@ export function FaceDetectionPanel({
 
       {/* Unclustered */}
       {unclustered.length > 0 && (
-        <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+        <Box data-testid="asset-face-unclustered" sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
           <Box sx={{ px: 1.5, py: 1, bgcolor: tokens.bg.overlay }}>
             <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.tertiary }}>{tAD("faces.unclustered", { count: unclustered.length })}</Typography>
           </Box>

@@ -92,7 +92,7 @@ that `PipelineGraphParser` on the Java side must be able to read verbatim.
       settles, plus the blocking check on save and clone (§7.2)
 - [ ] Node copy/paste and multi-select operations
 - [ ] Per-node task state in the run drill-down (no REST endpoint — see [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md))
-- [ ] Delete the unreachable legacy prototype at `loom-ui/src/Pipeline/` + `loom-ui/src/Dashboard/`
+- [x] Delete the unreachable legacy prototype at `loom-ui/src/Pipeline/` + `loom-ui/src/Dashboard/` (2026-10-11)
 
 ---
 
@@ -306,6 +306,13 @@ definition's `displayName` or `label`, then the id, as `Name (id)`.
 
 The pure parts - formatting, ordering, the trend's oldest-first order with zero-filled gaps - live in
 `nodeTiming.ts` and are tested in node env (`nodeTiming.test.ts`).
+
+**`timing` is not definition.** `getGraphJson` serialises every node-data key that is not in its
+`RESERVED` list into `options`, and `timing` must stay on that list. Left off, it made every pipeline
+with run history dirty as soon as its figures loaded - the discard prompt fired on an untouched
+pipeline - and a save would have written the figures into the definition. The backend spec found
+it; `pipeline-performance-mocked.spec.ts` "loading the figures neither marks the pipeline dirty nor
+reaches its definition" pins it. Any future decoration pushed into node data needs the same entry.
 
 ## 6. Ports on the canvas
 
@@ -578,12 +585,8 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
   (`autoArrange`, 1434). There is no `dagre` and no `elk` dependency; do not assume one.
 - **`NodeDetailPanel` (785) is dead code** — a second, older detail panel that is defined, typed and
   never rendered. The live one is `NodeDetailSidebar` (1083). Edit the wrong one and nothing moves.
-- **`loom-ui/src/Pipeline/PipelineArea.tsx` is a separate, older read-only "Pipeline Monitor"**, not
-  an earlier draft of this editor: it renders live per-node run state from the WS feed and ignores
-  ports, `branch` and serialisation entirely. It is reachable only through `src/Dashboard/Dashboard.tsx`,
-  mounted by `src/index.js` — and `index.html` boots `src/main.tsx`, which mounts only
-  `layout/AppShell.tsx`. So the whole `src/index.js` → `Dashboard/` → `Pipeline/` prototype tree is
-  unreachable at runtime. Do not "fix ports" there and do not conflate it with this spec.
+- **The old `loom-ui/src/Pipeline/PipelineArea.tsx` "Pipeline Monitor" is deleted** (2026-10-11), with the
+  rest of the unreachable pre-`features/` tree. It was never an earlier draft of this editor.
 - **`contentTypes.ts` doc comment names `GET /api/v1/node-descriptors`**; the actual client path is
   `/pipeline/node-descriptors`.
 - The `ParameterType`s `FLOAT` and `STRING_LIST` are deprecated aliases for `NUMBER` / `ENUM_SET`;
@@ -611,6 +614,7 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `src/features/pipeline/resultRenderers.test.ts` | One case per content-type family; hash/path truncation; MANY summarisation; empty selective port; markdown-table key union, pipe/newline escaping and origin-seq numbering |
 | `src/features/pipeline/nodeResultDetail.test.ts` | `viewersFor()`: Raw always offered, a node's description outranking its own image, no one-row table for a lone scalar, a player only for a playable `media/*` value, a capped preview adding no image tab |
 | `src/features/pipeline/nodeTiming.test.ts` | Duration/share formatting, reuse detection (LOCAL/REMOTE only when COMPLETED), ranking order and labels, histogram order, per-run trend with gaps |
+| `e2e/pipeline-performance-backend.spec.ts` | Against the demo stack plus a host worker: two real pipelines, the second reusing; card, Performance tab and run-drawer badge show it. Needs a worker - see [../../test/E2E_TESTS.md](../../test/E2E_TESTS.md) §4 |
 | `e2e/pipeline-performance-mocked.spec.ts` | Card times outside debug mode; ranking + drill-down on the most expensive node; picking another node; scope refetch (`limit=1`); empty state; Reused badge in the run drawer; log tab still default |
 | `e2e/pipeline-ports-mocked.spec.ts` | Valid port-to-port connect; typed rejection toast; XOR sibling disabling; **save → reload → save round trip preserving ports and `branch`** |
 | `e2e/pipeline-crud-mocked.spec.ts` | Create / clone / delete / unsaved-changes guard — both switching pipelines and leaving the editor via `sidebar-item-/assets`, where Cancel has to keep the edited parameter. Its `sha512` descriptor declares the fixture's only parameter, on that node because the minimap swallows clicks on the lower-right `thumbnail` |

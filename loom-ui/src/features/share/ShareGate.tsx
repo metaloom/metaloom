@@ -4,7 +4,7 @@ import LockOutlined from "@mui/icons-material/LockOutlined";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import { openShare, ShareApiError, type ShareChallengeResponse } from "../../api/shares";
-import { toShareSession, useShareSession } from "./ShareSessionContext";
+import { readPreviousSessionToken, toShareSession, useShareSession } from "./ShareSessionContext";
 
 /**
  * The front door of a share link: who are you, and what is the password.
@@ -29,6 +29,7 @@ export default function ShareGate({ slug, challenge }: { slug: string; challenge
       const response = await openShare(slug, {
         visitorName,
         password: challenge.passwordRequired ? password : undefined,
+        previousSessionToken: readPreviousSessionToken(slug),
       });
       setSession(toShareSession(slug, response));
     } catch (e) {

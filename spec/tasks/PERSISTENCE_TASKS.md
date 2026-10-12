@@ -1,24 +1,37 @@
 # Persistence Layer Tasks
 
 > Open work items for the Loom persistence layer, verified against the actual code:
-> migrations in `loom/db/flyway/src/main/resources/db/migration/` (`V1` – `V2.74`), the
+> migrations in `loom/db/flyway/src/main/resources/db/migration/` (`V1` – `V2.120`), the
 > `DaoCollection` registry, and the DAO tests in
 > `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
 > Format follows [TASKS.template.md](TASKS.template.md).
 >
 > **Context:** [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) (how the layer works) ·
 > [../loom/DOMAIN.md](../loom/DOMAIN.md) (entities) ·
-> [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md) (the component /
+> [DATABASE_TASKS.md](DATABASE_TASKS.md) (the component /
 > node-result schema rework — completed, kept as the historical record of `V2.38`–`V2.50`)
 >
-> No blocking order between the tasks below; Task 6 and Task 7 add DAO code and therefore
-> touch the Dagger registry, so run them one at a time.
+> No open task is left in this file. Tasks 1–5 were closed earlier and their text removed;
+> Task 6 (closed 2026-10-11) and Task 7 (superseded) keep their text with an outcome note.
 
 ---
 
 ---
 
-## Task 6: Implement `VectorConfigDao` (table exists, no domain DAO)
+## Task 6: Implement `VectorConfigDao` (table exists, no domain DAO) — ✅ DONE (2026-10-11)
+
+> **Outcome:** implemented as written, after [DATABASE_TASKS.md](DATABASE_TASKS.md) Task 24
+> (`V2.119__vector_config_constraints.sql`) gave the table a primary key and actor FKs — before
+> that `JooqVectorConfigRecord` was a `TableRecordImpl` and no `CRUDDao` could update or delete.
+> `VectorConfig` / `VectorConfigDao` (`createVectorConfig`, `loadByName`) in
+> `loom/db/api/.../model/vectorconfig/`; `VectorConfigImpl` / `VectorConfigDaoImpl` in
+> `loom/db/jooq/.../dao/vectorconfig/`; registered in `DaoCollection`, `DaoCollectionImpl`,
+> `DaoProvider` and `JooqLoomDaoBindModule`. `weights` reaches Java as a `JsonObject` through a new
+> `vector_config\.weights` entry in the `forcedTypes` `includeExpression` of `loom/db/jooq/pom.xml`
+> (no manual `JSONB` conversion). `VectorConfigDaoTest` implements `CRUDDaoTestcases` and adds
+> `loadByName` hit/miss, empty weights, unique name, actors must be real users (the V2.119 FKs), and
+> delete leaves a sibling. Nothing outside tests writes the table yet — no REST route; that is a
+> product decision tied to [../features/db/DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §4.2/§10.
 
 **Argumentation Summary:** `vector_config` (`V2.6`) has a generated `JooqVectorConfig` table but no model interface, DAO, POJO or `DaoCollection` registration — a repo-wide grep finds it only under `jooq/src/jooq/`. Custom vector index definitions cannot be persisted from application code.
 
@@ -90,12 +103,14 @@ TagDaoImpl/AssetDaoImpl).
 
 ## Progress Assessment
 
-- [ ] Task 1 — `AssetPoolDaoTest`
+- [x] Task 1 — `AssetPoolDaoTest` (was already done when re-checked on 2026-10-11 — CRUD plus the
+      S3 shape and the `library.pool_uuid` RESTRICT; the checkbox was stale)
 - [x] Task 2 — `DetectionDaoTest`
 - [x] Task 3 — `ChatDaoTest`
 - [x] Task 4 — `AssetBinaryDaoTest` + resolve the `AssetBinaryDao`/`AssetLocationDao` duplication
-- [ ] Task 5 — `RoleDaoTest` CRUD + `loadByName`
-- [ ] Task 6 — `VectorConfigDao` stack
+- [x] Task 5 — `RoleDaoTest` CRUD + `loadByName` (was already done when re-checked on 2026-10-11 —
+      `CRUDDaoTestcases`, `loadByName` hit/miss and the `role_permission` cases; the checkbox was stale)
+- [x] Task 6 — `VectorConfigDao` stack (2026-10-11, unblocked by `V2.119`)
 - [x] Task 7 — Asset remix operations + cascade test (superseded by [ASSET_REMIX_PLAN.md](ASSET_REMIX_PLAN.md); `asset_remix` dropped in `V2.100`)
 
 Closed items are not kept here; the outcome record lives in
@@ -134,6 +149,6 @@ fixed in `BootstrapInitializer.deinit()` (see [../loom/SERVER.md](../loom/SERVER
 | Search index tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/` |
 | DI registration | `DaoCollection`, `DaoCollectionImpl`, `JooqLoomDaoBindModule` |
 
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-12 (Task 7 superseded by ASSET_REMIX_PLAN.md — `asset_remix` dropped in V2.100 and replaced by `remix`/`remix_member`). Earlier: 2026-08-06 (closed Task 3 — `ChatDaoTest` now covers CRUD, the `chat.messages` JSONB
+_Git HEAD revision: `6021b105`_
+_Last updated: 2026-10-11 (Task 6 done — `VectorConfigDao` stack after `V2.119`; Tasks 1 and 5 ticked — `AssetPoolDaoTest` and `RoleDaoTest` were already complete, the checkboxes were stale; fixed the DATABASE_TASKS.md link). Earlier: 2026-08-12 (Task 7 superseded by ASSET_REMIX_PLAN.md — `asset_remix` dropped in V2.100 and replaced by `remix`/`remix_member`). Earlier: 2026-08-06 (closed Task 3 — `ChatDaoTest` now covers CRUD, the `chat.messages` JSONB
 deep-equality round-trip and the V2.52 SET NULL detach. Earlier: dropped the closed-gap table and the completed PERSISTENCE.md re-sync task — that tracker now runs to V2.74; rewrote the RoleDaoTest task, which was stale: the class is no longer empty, it covers role_permission but still lacks CRUD and loadByName; numbered the tasks and fixed the broken ../ links to spec/loom/)_

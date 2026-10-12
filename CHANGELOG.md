@@ -1,5 +1,34 @@
 # 1.0.0-SNAPSHOT
 
+* **Security:** a person holding a share link can no longer edit or delete feedback somebody else
+  left through the same link. Each visitor's session carries a random visitor id inside the signed
+  session token; comments, marks and reactions are stamped with it (`visitor_id`, `V2.120`), and
+  `PUT`/`DELETE` on another visitor's row answers **403**. Before, any visitor could delete any other
+  visitor's feedback by uuid.
+  * The public listings and create responses carry `own: true|false` per row; the share viewer shows
+    delete only on the visitor's own feedback and toggles only their own reaction.
+  * Two people reacting the same way through one link are now two reactions, not one.
+  * A lapsed session reopened in the same tab keeps its visitor: `POST /shares/:slug/sessions` takes
+    an optional `previousSessionToken`.
+  * Feedback written before the upgrade belongs to no visitor and is read-only through the link. A
+    session token issued before the upgrade can still read, and is sent back to the gate (401) on
+    its first write.
+* **Fix:** switching to another asset no longer requests its first preview or stream with the
+  previous asset's media token.
+* **Fix:** the face panel on an asset groups faces by their real cluster membership; it used to
+  report "0 clusters" whatever the clusters held.
+* **Change:** the LLM detection tab is marked as a preview with sample data; its actions are disabled
+  until there is a backend behind them.
+* **Fix:** about 45 API calls in the web UI now report failures with status and trace id, and an
+  expired session on any of them signs the user out cleanly instead of showing a raw error.
+* **Fix:** a user or an API token can hold more than one direct permission. `user_permission` and
+  `token_permission` were keyed on the subject alone, so a second direct grant was a primary-key
+  violation; both are keyed on (subject, permission) now and lose their unused `resource` column
+  (`V2.118`). Deleting a token removes its grants instead of failing.
+* **Fix:** `vector_config` has a primary key and real foreign keys for its creator and editor, and
+  `token.editor_uuid` references a user (`V2.119`). The integrity report keeps its checks for older
+  data, but the schema now refuses those rows. `vector_config` is readable and writable from code
+  through a new DAO.
 * **New:** the pipeline editor shows where a pipeline's time goes. A *Performance* tab beside the
   system log ranks the steps by execution time over the last 1, 10, 20 or 50 runs, adds up the total,
   the reused executions and the estimated time saved, and drills into one step: mean, median, 95th

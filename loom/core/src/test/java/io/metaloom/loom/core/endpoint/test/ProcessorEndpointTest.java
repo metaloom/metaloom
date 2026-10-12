@@ -598,8 +598,7 @@ public class ProcessorEndpointTest {
 	}
 
 	/**
-	 * Provision a fresh enabled user with no permissions at all and return its token. Granting nothing
-	 * avoids the {@code user_permission} primary key, which allows only one direct grant per user.
+	 * Provision a fresh enabled user with no permissions at all and return its token.
 	 */
 	private String loginPermissionless() throws Exception {
 		var daos = loom.internal().daos();

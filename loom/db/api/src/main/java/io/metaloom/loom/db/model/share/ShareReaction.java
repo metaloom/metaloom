@@ -9,8 +9,8 @@ import io.metaloom.loom.db.Element;
  * A share visitor reacting to an asset, a guest comment or a guest annotation.
  *
  * <p>
- * Exactly one subject is set, as in {@code reaction}. Uniqueness is {@code (share_uuid, type, subject)} - the share stands in for the creator,
- * because identity here is the link rather than a person.
+ * Exactly one subject is set, as in {@code reaction}. Uniqueness is {@code (share_uuid, visitor_id, type, subject)} (V2.120) - the link and the visitor
+ * holding it stand in for the creator, so two people reviewing through one link each get their own "approve".
  * </p>
  */
 public interface ShareReaction extends Element<ShareReaction> {
@@ -47,6 +47,14 @@ public interface ShareReaction extends Element<ShareReaction> {
 	String getAuthorName();
 
 	ShareReaction setAuthorName(String authorName);
+
+	/**
+	 * The share visitor who wrote this, from the signed session token (V2.120). Only that visitor may change or delete it through the link. Null on
+	 * rows predating V2.120, which no visitor may change.
+	 */
+	UUID getVisitorId();
+
+	ShareReaction setVisitorId(UUID visitorId);
 
 	Instant getCreated();
 
